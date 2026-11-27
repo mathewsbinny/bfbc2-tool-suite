@@ -3,7 +3,9 @@
 //! stage refused in words where the level has neither; on Port Valdez Rush (`MP_012GR`, read from the game copy, skipped
 //! without it) a fifth stage added by a click on the ground with the Gameplay tool (one operation, the stages listed
 //! five), taken out from the panel's "Remove stage" (one operation), undone and redone, and the second stage taken
-//! out. `BC2_EDITOR_SHOTS=<folder>` saves the screenshots (`gameplay_rename_<theme>.png`, `gameplay_stage_<theme>.png`).
+//! out; then a stage inserted after the first from the panel's "Insert after" and a click (round E4-rest2).
+//! `BC2_EDITOR_SHOTS=<folder>` saves the screenshots (`gameplay_rename_<theme>.png`, `gameplay_stage_<theme>.png`,
+//! `gameplay_insert_<theme>.png`).
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -217,6 +219,34 @@ fn a_rush_stage_through_the_interface() {
         app.view_mut().unwrap().gameplay.request = Some(PanelRequest::RemoveStage(1));
         h.settle(&mut app, 3);
         assert_eq!(stages(&app), 3, "{}", app.view().unwrap().message);
+        // round E4-rest2: a stage inserted between stages 1 and 2 by the panel's "Insert after" and a click (a copy
+        // of stage 2 played second, one operation), undone
+        let before: Vec<Vec<String>> = gameplay::rush_stages(app.view().unwrap().doc.as_ref().unwrap());
+        app.view_mut().unwrap().gameplay.request = Some(PanelRequest::InsertAfter(0));
+        h.settle(&mut app, 3);
+        assert_eq!(app.view().unwrap().tool, Tool::Gameplay);
+        assert_eq!(app.view().unwrap().tools.gameplay.kind, GameplayKind::InsertStage(0));
+        h.hover(&mut app, at);
+        h.settle(&mut app, 2);
+        h.click(&mut app, at);
+        h.settle(&mut app, 3);
+        assert_eq!(
+            labels(&app).last().map(String::as_str),
+            Some("Insert Rush stage 2"),
+            "{}",
+            app.view().unwrap().message
+        );
+        let now: Vec<Vec<String>> = gameplay::rush_stages(app.view().unwrap().doc.as_ref().unwrap());
+        assert_eq!(now.len(), 4);
+        assert_eq!(now[0], before[0], "stage 1 as before");
+        assert_eq!(&now[2..], &before[1..], "the stages after it as before, one later");
+        assert!(
+            now[1].iter().all(|g| !before.iter().flatten().any(|b| b == g)),
+            "the new stage's M-COMs are copies"
+        );
+        shot(&mut h, &mut app, &format!("gameplay_insert_{}.png", theme.key()));
+        h.key(&mut app, Key::Z, CTRL);
+        assert_eq!(stages(&app), 3, "undone");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

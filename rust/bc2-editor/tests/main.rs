@@ -55,6 +55,7 @@ mod simplified_view;
 mod terrain_tools;
 mod view_geometry;
 mod view_toggles;
+mod view_tools;
 mod vw2;
 mod xf1;
 

@@ -42,6 +42,7 @@ use crate::query;
 use crate::render::{self, Gpu, SceneGpu, Target};
 use crate::task::Task;
 use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
+use crate::tool::ViewTool as _;
 
 mod autolayoutui;
 mod create;
@@ -360,8 +361,6 @@ pub struct BrowserState {
     tiles: Option<((usize, usize), Vec<crate::gameplay::Tile>)>,
     /// An entry that could not be placed (not read again while it is dragged).
     place_failed: Option<String>,
-    /// An object being placed.
-    pub placing: Option<Placing>,
     /// The sink popup.
     pub sink: Option<SinkPopup>,
     /// Where placed objects go (round SG1): `None` a loose object of the level partition, else a model group's file
@@ -1818,7 +1817,6 @@ impl EditorApp {
                 place_team: 1,
                 tiles: None,
                 place_failed: None,
-                placing: None,
                 sink: None,
                 into_group: None,
             },
@@ -3457,8 +3455,18 @@ impl Tabs<'_> {
             };
             let marker = self.nav_marker_at(rect, &vp.camera, pos);
             let palette = self.palette;
-            if !self.view.measures.measuring && self.view.nav_click(self.gpu, &palette, nav_point, marker) {
+            // round E4-rest2: an edit tool's clicks are the navigation edit tool's (the views' tool, while it is
+            // live), at the point the navigation's click takes
+            let nav_drawing = self.view.tool == Tool::Nav && self.view.tools.nav.live && self.view.nav_active();
+            if !self.view.measures.measuring
+                && !nav_drawing
+                && self.view.nav_click(self.gpu, &palette, nav_point, marker)
+            {
                 // the navigation's
+            } else if nav_drawing && !self.view.measures.measuring {
+                if let Some(outcome) = self.view.tools.nav.click(nav_point.map(query::Hit::at), false) {
+                    self.view.tool_outcome(self.gpu, &palette, outcome);
+                }
             } else if self.view.measures.measuring {
                 // measuring: the click adds the surface point under it, the selection stays
                 if let Some(h) = hit {

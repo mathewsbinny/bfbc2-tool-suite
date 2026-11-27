@@ -12,7 +12,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, TryRecvError};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -193,6 +193,8 @@ pub struct Job {
     child: Option<Child>,
     /// An in-process preparation (a Package level): set to stop it.
     stop: Option<Arc<AtomicBool>>,
+    /// The in-process preparation's job (round E4-rest2: on [`crate::task::Task`]; a panic is its answer).
+    task: Option<crate::task::Task<()>>,
     rx: Receiver<Msg>,
     error: Option<String>,
     stderr_tail: Option<String>,
@@ -260,7 +262,8 @@ impl Job {
         let stop = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&stop);
         let root = opfor.to_path_buf();
-        std::thread::spawn(move || {
+        // round E4-rest2: on Task (its thread named, a panic its answer); its lines stream on the job's channel
+        let task = crate::task::Task::spawn_value(&format!("Preparing {}", lv.to_uppercase()), move || {
             let send = |l: String| {
                 let _ = tx.send(Msg::Line(l));
             };
@@ -287,6 +290,7 @@ impl Job {
             since: Instant::now(),
             child: None,
             stop: Some(stop),
+            task: Some(task),
             rx,
             error: None,
             stderr_tail: None,
@@ -368,6 +372,7 @@ impl Job {
             since: Instant::now(),
             child: Some(child),
             stop: None,
+            task: None,
             rx,
             error: None,
             stderr_tail: None,
@@ -415,6 +420,10 @@ impl Job {
                         None => self.stop.is_some(), // in process: done says it
                     };
                     self.child = None;
+                    // an in-process preparation that panicked: its job's answer says so
+                    if let Some(Some(Err(e))) = self.task.take().map(|t| t.wait_for(Duration::from_secs(5))) {
+                        self.error.get_or_insert_with(|| e.to_string());
+                    }
                     self.outcome = if self.done && ok {
                         Outcome::Done
                     } else {
@@ -448,7 +457,7 @@ impl Job {
     }
 
     /// Waits for the end (tests, headless runs), polling every 50 ms, at most `limit`.
-    pub fn wait(&mut self, limit: std::time::Duration) -> Outcome {
+    pub fn wait(&mut self, limit: Duration) -> Outcome {
         let start = Instant::now();
         loop {
             let o = self.poll();
@@ -459,7 +468,7 @@ impl Job {
                 self.cancel();
                 return self.outcome.clone();
             }
-            std::thread::sleep(std::time::Duration::from_millis(50));
+            std::thread::sleep(Duration::from_millis(50));
         }
     }
 }

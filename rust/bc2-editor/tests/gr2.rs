@@ -364,7 +364,7 @@ fn edit_build_install_restore_on_a_scratch_copy() {
         assert_eq!(n, made, "{tool:?}: {}", app.view().unwrap().navs.message);
     }
     app.run_action(&gpu, &ctx, Action::NavTool(NavTool::Note));
-    app.view_mut().unwrap().navs.note = "GR2 round trip".into();
+    app.view_mut().unwrap().tools.nav.note = "GR2 round trip".into();
     h.click(&mut app, pa);
     made += 1;
     app.run_action(&gpu, &ctx, Action::NavTool(NavTool::Note));

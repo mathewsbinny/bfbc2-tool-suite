@@ -561,7 +561,36 @@ the last word. A stage added after the last is a copy of the last stage wired so
 [data: E4-rest sweep, 2026-11-22: on all 30 levels a stage added after the last plays last with its copies as the last stage's objects (72 - 323 copies, 7 - 62 connections added) and, taken out again, gives back every instance and stage state; each of the 87 stages taken out leaves the others in their order and states but one hold-back combat area on nam_mp_002r]
 [test: rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage]
 [test: rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level]
-[code: rust/bc2-levelwrite/src/rushstage.rs:1-873]
+[code: rust/bc2-levelwrite/src/rushstage.rs:1-702]
+[code: rust/bc2-levelwrite/src/rushstage.rs:1054-1173]
+
+### GAME-RUSH-12: A stage inserted between two splits the wiring between them
+
+Status: **verified**
+
+A Rush stage put between stage k and stage k+1 (round E4-rest2) is wired by GAME-RUSH-11's chain read twice. It is
+a copy of stage k+1's set (a later stage: its counters, bases and combat areas start disabled as a middle stage's
+do). Every connection between the two stages' sets is split: one from stage k to stage k+1 (stage k's base counter
+enabling the next base counter, the forward base, the defenders' area; its timers) goes from stage k to the copy,
+and from the copy to stage k+1 through the object of the copy that plays the source's part (its counterpart: the base
+counter for the base counter, else the own object that comes into play the same way); one from stage k+1 to stage k
+(a combat area's `OnEnabled` disabling the one it replaces, the attackers' hold-back timer disabling stage k's area)
+goes from the copy to stage k, and from stage k+1 to the copy's counterpart of its target. Stage k+1's links to the
+level's shared logic are copied; its links to the stages after it are not (they stay stage k+1's). The defenders'
+`BaseCount` counts one more. The stages then play `..., k, new, k+1, ...`, each old stage with the states it had
+(the objects whose state DICE's play leaves uncertain aside, GAME-RUSH-11's last word), the new stage with the copies
+in play as stage k+1's objects were and stage k+1's own objects waiting as during stage k. Taking the new stage out
+again (GAME-RUSH-11's removal, which also hands what the next stage's objects did to the removed stage's on to the
+stage before's counterparts) gives back every instance, stage state and connection of the level. A connection whose
+end has no counterpart is left as it was (counted). What the next stage's counter switches on for a stage after it
+that no stage plays (MP_006's sixth forward base) is not copied: it stays the stages after's. Unproven until a
+playtest: the game playing the longer chain.
+
+[data: E4-rest2 sweep, 2026-11-27: on all 30 Rush and Squad Rush levels a stage inserted between every two stages (57 insertions, 72 - 900 copies and 15 - 238 connections a level): each plays between the two with every old stage as before and, taken out again, gives back every instance, stage state and connection; 42 connections had no counterpart to split (0 - 5 a level); MP_006's dormant sixth forward base is not copied with its last stage; Port Valdez (mp_012gr) with a stage inserted after the first built in 28 - 37 s and held by `export::check`]
+[test: rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage]
+[test: rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level]
+[test: rust/bc2-levelwrite/tests/rush_stages.rs::port_valdez_with_a_stage_inserted_exports]
+[code: rust/bc2-levelwrite/src/rushstage.rs:703-1053]
 
 ### GAME-RULES-1: The round's rules and DICE's values for them
 
