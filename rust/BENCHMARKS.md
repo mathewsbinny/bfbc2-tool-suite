@@ -5774,8 +5774,8 @@ catalogue are the caller's (`dbxport._native_rules`, `_native_catalogue`), so OP
 
 What OR5 left ("OR5", "What is left"): `console_port.py`'s stages 2 - 14 and the Napisal-level fixes, about 5,000
 lines whose tools (DbxEdit, FbrbTool, stfs, the converters, culltree, aptgraft) are Rust already. This round writes
-the plan for all of them (below) and ports its own share, stages 2 - 4. Version 0.31.0 (OPFOR's `SUITE_REQUIRES`
-0.31.0 to below 0.32.0). Nothing was written to OPFOR's `game\`; the game never launched.
+the plan for all of them (below) and ports its own share, stages 2 - 4. Version 0.32.0 (OPFOR's `SUITE_REQUIRES`
+0.32.0 to below 0.33.0). Nothing was written to OPFOR's `game\`; the game never launched.
 
 ### The plan (OR9 - OR13)
 
