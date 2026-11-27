@@ -1,0 +1,250 @@
+{
+ "about": "The rules of spec/engine/input.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe EntryInputActionEnum field table 0x01C27C58 (50 records, EiaThrottle 0 ... EiaUndefined 49)"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-ENUM-1",
+   "status": "verified",
+   "title": "Fifty entry input actions",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the concept enumeration's field table from 0x01C2F140 (77 records)"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-ENUM-2",
+   "status": "verified",
+   "title": "Seventy-seven input concepts",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field tables: IDK_W 0x01C2FF68, IDB_Rdown 0x01C2FB48, IDA_Axis0Y 0x01C2F890, IampXenon 0x01C285B8, IAMESlot1 0x01C28600"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:71-89"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-ENUM-3",
+   "status": "observed",
+   "title": "The device enumerations",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: DICE's startup bundle, the eight concept partitions' instance counts above"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-DATA-1",
+   "status": "verified",
+   "title": "Concept partitions: device bindings per concept",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: mp_common's level-00 bundle, the five mapping partitions' pairs"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-DATA-2",
+   "status": "verified",
+   "title": "Mapping partitions: concept to entry input action, per player entry",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: Input/InputConfiguration: 4 maps, 36 / 18 / 15 / 12 rows, 33 + 49 editable actions, 81 listed"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-CFG-1",
+   "status": "verified",
+   "title": "The input configuration: four user maps and the controls screen's layout",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5B14C0 (0x6E3E90; per map 0x59B340 at 0x5B155E; version test 0x5B1567; default 0x4FC6F0 / 0x13B3600; maps +0x38 / +0x54 via 0x5AD5C0); load 0x59B340 (\"/data/local/input/\" 0x1419E08 + name + \".dbx\" 0x140BA60; 0x4DDC10 open; 0x466670 XML read); save 0x59B420 (0x4DDBF0, 0x47B1E0); 0x5AE8F0 (callers 0x5B1801, 0x5B1908, 0x5B1931, 0x5B325E); name list 0x1570EF0 (\"shared\" 0x141A160, \"infantry\" 0x141A154, \"land\" 0x141A14C, \"air\" 0x141A148)"
+    },
+    {
+     "kind": "data",
+     "ref": "the element and field names of one per-user input file (read only): EntryInputActionMapDataVersion with MapDataVersion and EntryInputActionMapData, one EntryInputActionMapData (PlatformSpecific, Slot), InputActionsData, Keyboard- / Mouse- / PadInputActionData"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-FILE-1",
+   "status": "observed",
+   "title": "One XML file per user map, used when its version is 11 or more",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table 0x0143C898; dispatcher 0x95E680 cases 0xC6 -> 0x9633DA (0x5B1810), 0xC7 -> 0x9633F1 (0x5B1920), 0xC8 -> 0x963408, 0xC9 -> 0x9631BC, 0xCC -> 0x962F37, 0xCD -> 0x962D45, 0xAA -> 0x962B2C; extern switch 0x13C -> 0x95AF2E, 0x10A -> 0x95C93F, 0x13D -> 0x95A63B, 0x13E -> 0x95A558"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-UI-1",
+   "status": "verified",
+   "title": "The controls screen's names",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7C3E70 (caller 0x596CD2 in 0x596BA0; \"Sensitivity0\" - \"5\", \"InvertScrollWheel\" between 0x7C3F00 and 0x7C4A80; getter 0x80D0C0 at 0x7C401C ... 0x7C485A); setters 0x7CC820 / 0x7CC840; 0x8301D0 (caller 0x955C73) reads Vibration, Scheme*, AimAssist, Crouch"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:83-89"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-SET-1",
+   "status": "observed",
+   "title": "The input game settings",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe controlsSliderMoved 0x962F37 (split at \",\" 0x5175F0; `atof` IAT 0x14054EC at 0x962FDE; name compares 0x963002 - 0x9630C1; float setter 0x82F860 at 0x9630E4); controlsSliderValues 0x95A63B (\"Sensitivity%d\" 0x1440BB8, `sprintf`, getter 0x80D0C0, 6 values); controlInvertToggle 0x962D45 (\"look\" 0x1440E24, \"fly\" 0x1440E20, \"wheel\" 0x1440E18, \"accelerate\" 0x1440E0C; int setter 0x82FAB0 at 0x962E0B - 0x962EC9)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: the pushed names of the two commands' compares, in code order"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-SET-2",
+   "status": "verified",
+   "title": "Which control writes which input setting",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7E7D50 (reached by the jump at 0x7E845C); 0x7CC4A0 (caller 0x7D2504); XInput device constructor 0x7D6890, motors 0x7CC010 / 0x7CC050, switch 0x7BA010: no call and no absolute reference in the round's call index and reference search; 0x7BA120 reached only by the jump at 0x7CBFFD; XINPUT1_3 imports IAT 0x1405A54 - 0x1405A5C, read only at 0xE42CE2 - 0xE42CEE"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:71-121"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-PAD-1",
+   "status": "observed",
+   "title": "The PC reads one pad through DirectInput; the console's XInput path is present but not connected",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field tables: the deadzone fields 0x01C1A788 - 0x01C1A7E8 (+0x28 - +0x38); the camera sensitivities 0x01C2F020 - 0x01C2F068 (+0xC0 - +0xD0); IsPadRumbleEnabled 0x01C142D8 (a Client field)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-TUNE-1",
+   "status": "observed",
+   "title": "Dead zones, sensitivities and curves live in the data",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/controller/make_pad_bindings.py:1-16"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:211-252"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:184-201"
+    }
+   ],
+   "file": "spec/engine/input.md",
+   "id": "INP-MOD-1",
+   "status": "implemented",
+   "title": "OPFOR replaces the pad read and writes the console layouts into the user files",
+   "variants": "PC"
+  }
+ ]
+}

@@ -1,0 +1,68 @@
+{
+ "about": "The rules of spec/formats/occluder.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 361 distinct OccluderMesh entries (636 live); 361 of 361 fit the layout to the last byte, the length word = size - 28 in 361, vertices inside the box in 361, indices below v in 360 (1 empty)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe names the resource suffix `_occluderMesh` and the settings `OccluderMeshEnable`, `OccluderAlphaMeshEnable`, `OccluderJobEnable`, `OccluderSpuJobEnable`, `OccluderMeshJobCount`, `HighPriorityOccluderMesh`, `DrawProcessedOccluders`, `DrawOccluderMeshesWireframe`; typeinfo record `OccluderMesh` (module Render, 64 bytes) at 0x1BF6050"
+    }
+   ],
+   "file": "spec/formats/occluder.md",
+   "id": "OCC-HDR-1",
+   "status": "verified",
+   "title": "A box, a length and one part header",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: one fourth-word value per mesh in 360 of 360 non-empty meshes: 1.0 with a triangle block 321, k x 12.75 without one 39"
+    }
+   ],
+   "file": "spec/formats/occluder.md",
+   "id": "OCC-VTX-1",
+   "status": "verified",
+   "title": "A vertex is four floats; the fourth is one value per mesh",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: the first payload at 16 in 361 of 361; 321 blocks, records = triangles rounded up to even in 321 of 321, the padding record zero in 321 of 321 (records = triangles in 253, one more in 68); 82 blocks with set bits, 5,812 of 22,998 triangles, highest bit 106"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0x976900 (the reads 0x976A28 - 0x976A6B); instance set-up 0x96B170 (data +0x7C, the masks +0x60 - +0x74 cleared); job 0x9848A0 -> 0x9765C0: the triangle's six words tested against the instance's masks 0x976805 - 0x976846 (`test [esi+0x60"
+    }
+   ],
+   "file": "spec/formats/occluder.md",
+   "id": "OCC-TRI-1",
+   "status": "verified",
+   "title": "The triangle block: one 192-bit part mask per triangle, padded to an even count",
+   "variants": "PC"
+  }
+ ]
+}

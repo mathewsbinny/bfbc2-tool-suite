@@ -1,0 +1,132 @@
+{
+ "about": "The rules of spec/engine/campaign.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above; MissionObjectiveEntityData's members"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings Checkpoint, DisableCheckpoints, canRestartFromCheckpoint, PersistentValueWritePolicy_Checkpoint"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-FLOW-1",
+   "status": "verified",
+   "title": "Objectives and saves",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-FLOW-2",
+   "status": "verified",
+   "title": "Fades, input restrictions, videos and scripted fire",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-TRIG-1",
+   "status": "verified",
+   "title": "The trigger entities",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-CUT-1",
+   "status": "verified",
+   "title": "A cutscene is an entity with soldier, vehicle, object and camera tracks",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-WORLD-1",
+   "status": "verified",
+   "title": "Waypoints, animated soldiers, ambient models and fire targets",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-DESC-1",
+   "status": "verified",
+   "title": "Level descriptions and rich presence",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: SaveEntityData.SaveDelayTime 0 x 179, 1.5 x 2, 0.1 x 1, 1 x 1"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the Save hash `push 0x7C8A0784` at 0x67AB37; ServerSaveEntity's constructor 0x67AAD0 (`mov dword [esi+0x50"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-SAVE-1",
+   "status": "verified",
+   "title": "The campaign save: a `header` and a `body` stream in `GameSettings.bin`",
+   "variants": "PC"
+  }
+ ]
+}

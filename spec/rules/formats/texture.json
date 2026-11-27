@@ -1,0 +1,483 @@
+{
+ "about": "The rules of spec/formats/texture.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:43-45"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:272-309"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texcheck.rs:11-20"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::refusals_carry_the_reference_messages"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/material.rs::texture_header_checks"
+    },
+    {
+     "kind": "data",
+     "ref": "3,010 distinct PC ITexture entries of the game copy (2026-11-19): version 3 in all (the 1,184 wrapped ones read after TEX-WRAP-1); of the 1,826 unwrapped, type 0 x 1,808, 1 x 18, depth 0 in all"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:77-81"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-HDR-1",
+   "status": "verified",
+   "title": "The 92-byte header",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,826 of 1,826 unwrapped and 1,184 of 1,184 wrapped (TEX-WRAP-1) PC textures of the game copy (2026-11-19)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:426-454"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::textures"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 3,826 distinct ITexture names: level sizes and file length as stated in 3,826 (889 wrapped read after TEX-WRAP-1)"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-HDR-2",
+   "status": "verified",
+   "title": "PC level sizes and file length",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:277-285"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:441-448"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::refusals_carry_the_reference_messages"
+    },
+    {
+     "kind": "data",
+     "ref": "1,826 unwrapped PC textures: all power-of-two, mips 1-13 (2026-11-19)"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-HDR-3",
+   "status": "verified",
+   "title": "Dimensions and mip chains",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,184 of 1,184 distinct `awards/` ITextures of the game copy wrapped, 0 of 1,826 others (2026-11-19; the 9 bundles over 200 MB not read); both length words equal the inner length in all 1,184"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/catalog.rs:185-190"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/catalog.rs::a_texture_decoded"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::textures"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 889 of 889 distinct `awards/` ITextures wrapped, 0 of 2,937 others; both length words equal the inner length in all 889"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-WRAP-1",
+   "status": "verified",
+   "title": "The 64-byte RES header on award pictures",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:75-85"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::conversions_as_the_reference"
+    },
+    {
+     "kind": "data",
+     "ref": "PC formats over 1,826 unwrapped textures (2026-11-19): 0 x 871, 2 x 288, 18 x 255, 10 x 226, 20 x 89, 9 x 48, 1 x 24, 19 x 24, 13 x 1; no 3 or 5"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:93-100"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-FMT-1",
+   "status": "verified",
+   "title": "Format codes",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "every level of 1,826 unwrapped PC textures matches, per format: 0 x 871, 2 x 288, 18 x 255, 10 x 226, 20 x 89, 9 x 48, 1 x 24, 19 x 24, 13 x 1 (2026-11-19)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:243-255"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:147-149"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::textures"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: every level of 3,826 distinct PC textures matches; unwrapped formats 0 x 1,537, 2 x 486, 18 x 375, 10 x 289, 20 x 86, 19 x 74, 9 x 59, 1 x 30, 13 x 1"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-FMT-2",
+   "status": "verified",
+   "title": "PC level size by format",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "flags over 1,826 unwrapped PC textures of the game copy (2026-11-19): 0 x 620, 1 x 665, 3 x 335, 2 x 206; no other bit set"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:52-53"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:388-397"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:83-91"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::textures"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: flags over 2,937 distinct unwrapped PC textures: 0 x 890, 1 x 1,110, 3 x 563, 2 x 374; no other bit"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-FLAG-1",
+   "status": "verified",
+   "title": "Header flags",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:487-538"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texcheck.rs:20"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texcheck.rs::levels_of_a_header"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture_helpers_native.py::main"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:104-105"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-PC-1",
+   "status": "verified",
+   "title": "PC texel order",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texcheck.rs:103"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:541-560"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texcheck.rs::dxt1_block"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texcheck.rs::bc5_and_l8"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture_helpers_native.py::main"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-PC-2",
+   "status": "verified",
+   "title": "Block encodings the suite decodes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texwrite.rs:119"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texwrite.rs::mips_down_to_one"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texwrite.rs::flat_block_is_one_colour"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texwrite.rs::l8_rounds_up_halves"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-PC-3",
+   "status": "verified",
+   "title": "Textures the suite writes from pictures",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:329-338"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:79-81"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-X-1",
+   "status": "implemented",
+   "title": "Console level sizes",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:236-241"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:487-512"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:447-485"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::conversions_as_the_reference"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:105-106"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-X-2",
+   "status": "verified",
+   "title": "Byte order of console data",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:153-213"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::layouts_as_the_reference"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:107-115"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-X-3",
+   "status": "verified",
+   "title": "Storage per level",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:101-114"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::tiling_as_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture_helpers_native.py::main"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-X-4",
+   "status": "verified",
+   "title": "Xenos 2D tiling",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:117-136"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:186-206"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::tiling_as_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::layouts_as_the_reference"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:110-114"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-X-5",
+   "status": "verified",
+   "title": "The packed mip tail",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:360-538"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::conversions_as_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture.py::test_argb8_console_texels_become_pc_bgra"
+    },
+    {
+     "kind": "data",
+     "ref": "every XenonTexture of BF1943's source (704) and OPFOR's Onslaught builds (451) converted, 0 refused (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:574-580"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-X-6",
+   "status": "verified",
+   "title": "Conversion moves blocks",
+   "variants": "Xbox 360 -> PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:272-309"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:340-350"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::refusals_carry_the_reference_messages"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::guards"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-X-7",
+   "status": "verified",
+   "title": "What the converter refuses",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "420 console textures of the four Onslaught builds against stock PC bundles (2026-10-30, doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:120-133"
+    }
+   ],
+   "file": "spec/formats/texture.md",
+   "id": "TEX-X-8",
+   "status": "observed",
+   "title": "Console twins are separately compressed",
+   "variants": "Xbox 360, PC"
+  }
+ ]
+}

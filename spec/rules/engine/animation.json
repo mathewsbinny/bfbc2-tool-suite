@@ -1,0 +1,326 @@
+{
+ "about": "The rules of spec/engine/animation.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's 1,021 bundles, 2026-11-22: entry types from the bundle headers; distinct = first copy of each lower-case name"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-RES-1",
+   "status": "observed",
+   "title": "The animation resources DICE ships",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-anim-tools/tests/test_granny.py:147-157"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: ske01 147 bones (root grannyRootBone, 19 jntWpn_*, 28 FJ_*), skevehicle 4; 2 SkeletonAsset in characters/skeletons with the values listed"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:21-23"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-SKEL-1",
+   "status": "verified",
+   "title": "One soldier skeleton, ske01, of 147 bones",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-anim-tools/granny.py:688-693"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:67-73"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-SKEL-2",
+   "status": "implemented",
+   "title": "BF1943's animations port by bone name, with no retargeting",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapon_preview.py:311"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_preview.py:226-227"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/pictures.py:9"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-FRAME-1",
+   "status": "implemented",
+   "title": "Game data is right-handed: a soldier faces +z, his right is -x",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/animswap.py:4-9"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/animswap.py:48-79"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's animations/weapons partitions, 2026-11-22: AnimationAsset 1,922, AimAnimationAsset 258, DeltaAnimationAsset 206"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:75-78"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-TREE-1",
+   "status": "implemented",
+   "title": "A compiled tree names no animation; animations bind by place",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/animswap.py:82-124"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's RenderDoc playtest 2026-11-08: the ported rifles' hands off the grips with the donor's baked targets, on them after the rewrite"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-TREE-2",
+   "status": "implemented",
+   "title": "The compiled tree bakes each hand's IK target",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "pairwise differences of same-size compiled trees; DICE's first-person weapon trees are 36,388 (2), 36,836 (2), 36,468, 36,292 and 36,500 bytes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py's block sizes, round SPG2-rest4 2026-11-23: block A 0x4FA0 and block B 0x870 bytes in all 10 DICE trees of those five sizes, so B runs 0x4FB4 - 0x5824 in the file"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:148-181"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-TREE-3",
+   "status": "inferred",
+   "title": "Same-base weapon trees keep their slot durations at fixed offsets",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's RenderDoc playtest 2026-11-08: post-VS arm positions in the scoped Garand / Type 5 zoom; fixed by the M24-based tree, confirmed by the user"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:139-153"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-ZOOM-1",
+   "status": "observed",
+   "title": "Hand IK in a scope's zoom is switched off in the compiled tree",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's RenderDoc playtest 2026-11-08: the grey zoom"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:303-306"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-ZOOM-2",
+   "status": "observed",
+   "title": "A FOV specialisation the weapon lacks draws no world",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's RenderDoc playtests 2026-11-08 and 2026-11-13: NaN matrices in the zoomed draws"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:265-302"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:21"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-ZOOM-3",
+   "status": "observed",
+   "title": "A sniper zoom on a rifle's gun sway needs the sniper's multipliers zeroed",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_bf1943import.py::undeploys"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:636-711"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:80-84"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-UNDEP-1",
+   "status": "verified",
+   "title": "DICE added 25 tracks to every third-person undeploy",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: SharedSoldierAnimationTreeData 6, SoldierIKData 1 (characters/skeletons/ske01), BonePriority 9, InfluenceMapEffectData 3, SoldierProceduralLeaningData 1 in characters/skeletons"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-RIG-1",
+   "status": "observed",
+   "title": "The soldier rig's named bones in DBX",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: the class counts, folders and field values listed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/kits.py:27-34"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_KITS.md:85-92"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-KIT-1",
+   "status": "observed",
+   "title": "A kit is a SoldierEntityData",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/kits.py:6-8"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/soldiers.py:16-26"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WAKE_VEHICLE_SEATED_POSE_2026-11-12.md:14-20"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-KIT-2",
+   "status": "implemented",
+   "title": "A kit's body: one mesh, kit joints and a static pose",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: 24 of 24 as listed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/kitbags.py:6-11"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-KIT-3",
+   "status": "observed",
+   "title": "DICE's death pickups draw the weapon, not a bag",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_skinning.py::test_set_part_fa_changes_only_the_named_parts"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_skinning.py::test_single_bone"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/skinning.py:1-28"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-SKIN-1",
+   "status": "verified",
+   "title": "A part is drawn only with programs for its skinning kind",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: 2 RagdollResource entries, 1 RagdollAsset (Dist levels/mp_common/level-00.fbrb)"
+    }
+   ],
+   "file": "spec/engine/animation.md",
+   "id": "ANIM-RAG-1",
+   "status": "observed",
+   "title": "One ragdoll",
+   "variants": "PC"
+  }
+ ]
+}

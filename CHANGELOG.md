@@ -28,6 +28,17 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Changed
+
+- **The specification's rule index is split, one shard per spec file** (round SPLIT1, `rust/BENCHMARKS.md`
+  "SPLIT1"): `spec/rules.json` (977,029 bytes, 23 KB under `tests/test_repo.py`'s 1,000,000-byte limit) becomes
+  `spec/rules/<area>/<file>.json` beside each markdown file (`spec/engine/gameplay.md` -> `spec/rules/engine/gameplay.json`;
+  90 shards, the largest 40,538 bytes), written with sorted keys and the rules in heading order by
+  `python spec/trace.py --emit`. The shards' union is the old file's 1,599 rules, rule for rule. `--check` now also
+  fails a hand-edited, stale, missing or leftover shard and any shard over 800,000 bytes; `tests/test_repo.py` warns
+  (without failing) of any committed file over 80% of the limit. A branch that still writes `spec/rules.json`:
+  delete it after merging and run `--emit`.
+
 ### Added
 
 - **Specification (round SPG2-rest6), read from the executable and checked on DICE's data** (`rust/BENCHMARKS.md`

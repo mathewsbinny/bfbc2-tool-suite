@@ -1,0 +1,384 @@
+{
+ "about": "The rules of spec/engine/vehicles.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: 97 VehicleEntityData, each with a VehicleComponentData; 80 VehicleAsset in objects/vehicles/; component classes over every vehicle's tree as listed per kind in the probe's output"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-ENT-1",
+   "status": "verified",
+   "title": "A vehicle is an entity with one chassis component tree"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: HUD type / build from the components: Car/wheeled 22, Helicopter/helicopter 18, Stationary/stationary 15, Tank/tracked 11, Dummy/stationary 7, Dummy/helicopter 3, Boat/boat 5, Boat/helicopter 4, StationaryUAV 4, Strategic 4, UAV/helicopter 3, Count 1"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/bf1943_vehicles.py:237-241"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-ENT-2",
+   "status": "verified",
+   "title": "HUD type is DICE's own classification"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: engine configs Car CombustionEngineConfigData 22, Tank 11, Helicopter PropellerEngineConfigData 38, Dummy Propeller 11, UAV Propeller 6, Boat JetEngineConfigData 9; GearboxConfigData on every driven vehicle"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-PHYS-1",
+   "status": "verified",
+   "title": "Chassis configuration and engine classes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: body mass Car 1000 x2 / 1500 x15 / 2500 x5, Tank 4000 .. 9000, Helicopter 5000 x17 / 4000 x1, Boat 750 x4 / 1000 x3 / 2500 / 4500; forward gears Car 3 x6 / 4 x11 / 5 x5, Tank 3 x6 / 4 x5, Helicopter 5 x18, Boat 1 x3 / 2 x2 / 3 x4; wheels Car 4 x16 / 6 x5 / 3 x1, Tank 14 .. 26, Helicopter 3 x17 / 2 x1"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-PHYS-2",
+   "status": "verified",
+   "title": "Mass, gears and wheels per class"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: HealthZonesShareDamage true x97; FrontHealthZone MaxHealth Tank 1250 x8 / 500 / 1000 / 1200, Helicopter 500 x9 .. 1600, Car 200 .. 1250 mode 500, Boat 100 .. 1000, Stationary 125 x15, Strategic 200 x3 / 500, UAV 50 x2 / 100; LowHealthTreshold / MaxHealth Tank mode 0.27, Car and Helicopter mode 0.3, Stationary 0.4 x15"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-HP-1",
+   "status": "verified",
+   "title": "Four health zones that share damage"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: UseDamageAngleCalculation true x10 / false x1 on Tank, false on all 86 others; Tank front MinDamageAngle 1 x8, multiplier 1 x9 / 0.75 x2; rear multiplier 2 x8 / 3 x1 / 1 x2; side multiplier 2 x9, MinDamageAngle 0.43 .. 0.6"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-HP-2",
+   "status": "verified",
+   "title": "Armour angles only on tanks"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the field names and DICE's values (front 1 or 0.75, rear and sides 2) match BFBC2's known armour behaviour; the angle measure (cosine or radians) and the formula are not read from BFBC2Game.exe"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-HP-3",
+   "status": "inferred",
+   "title": "Side and rear hits on a tank do more damage"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: chassis HealthStates ending in 100000 on 93 of 97 (0/100000 on Car 22, Tank 11, Stationary 15, StationaryUAV 4, Strategic 4, Helicopter 10, Boat 5, Dummy 7); PartComponentData per vehicle as listed; Helicopter parts' first state 0 x334 of 364"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-HP-4",
+   "status": "verified",
+   "title": "Health states of the chassis and the parts"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe ServerStaticModelEntity event handler 0x714C90 (Destroy hash 0xEFA23F67) calls 0x70F400; predicate 0x7A7EF0 compares the final HealthStates entry with 100000.0 at 0x1423798; Destroy skips such parts at 0x70F528"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WAKE_FOLLOWUP_FIXES_2026-11-11.md:33-35"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-HP-5",
+   "status": "observed",
+   "title": "A health of 100000 is indestructible to Destroy"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: player entries per vehicle Car 1 .. 5 (4 x11), Tank 2 x3 / 4 x8, Helicopter 2 x12 / 3 x6, Boat 1 .. 4; soldier entries on Car 16 of 22, Helicopter 14 of 18, Boat 4 of 9, Tank 0; EntryOrderNumber sequences as listed; Stationary [1"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-SEAT-1",
+   "status": "verified",
+   "title": "Seats are entry components in EntryOrderNumber order"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: seat input folders per HUD type and folder as listed in the seats section; e.g. Helicopter (air): driver BFBC2AirInputMapping x17, other BFBC2GunnerInputMapping x20; Stationary (stationary weapons): BFBC2GunnerInputMapping x13; Tank (beach): venice concepts x2; Dummy (beach): null x2"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-SEAT-2",
+   "status": "verified",
+   "title": "The input each seat names, by role"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/bf1943_vehicles.py:212-236"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/bf1943_vehicles.py:323-349"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-SEAT-3",
+   "status": "implemented",
+   "title": "Ported gunner seats take the gunner mapping",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: WeaponComponentData per vehicle Tank 3 .. 13 mode 10, Helicopter 2 .. 8 mode 3, Car 0 x4 / 1 x7 / 2 x10 / 3 x1, Boat 0 .. 3, Stationary 1 x15; projectiles Tank BulletEntityData 109 / MissileEntityData 3, Helicopter 39 / 26 / TracerDart 2, StationaryUAV VehicleProjectileEntityData 3"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-WPN-1",
+   "status": "verified",
+   "title": "Vehicle weapons are weapon components with firings"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/dbxport.py:662-664"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: DICE's beach/ vehicles' guns: Zero 4 bullets 480 m/s gravity 0 damage 30 rate 500, Corsair 4 bullets 480 m/s gravity 0 damage 35 rate 400, bombs gravity -20; Bofors 600 m/s gravity 0; Chi-Ha cannon 875 at 120 m/s gravity -12; machine guns 150-600 m/s at -9.81; UseAutoAiming false on all 20"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_FIELD_PARITY_AUDIT.md:119-121"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-WPN-2",
+   "status": "implemented",
+   "title": "DICE kept the vehicles' guns' ballistics",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: Material per HUD type as listed; beach zero_fighter Attack_Helo, us_corsair default"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-MAT-1",
+   "status": "verified",
+   "title": "The entity's material per class"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/bf1943_vehicles.py:352-395"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:34"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:126-127"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_FIELD_PARITY_AUDIT.md:28"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-MAT-2",
+   "status": "implemented",
+   "title": "Airframes go back on BF1943's airframe material",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: 61 multiplayer level partitions, 1,044 VehicleSpawnEntityData; 13 campaign, 367; Vehicles items 0 x976 / 1 x45 / 2 x23 (mp), 0 x367 (sp)"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-SPAWN-1",
+   "status": "verified",
+   "title": "VehicleSpawnEntityData"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: mp spawner field ranges as listed in the spawners section"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:139"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-SPAWN-2",
+   "status": "verified",
+   "title": "DICE's multiplayer spawner values"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: 8 VehicleEntityData under beach/, every copy in sp_* bundles; HUD types Dummy 2, Car 2, Tank 1, Strategic 1, Stationary 2; the planes' seats name no InputMapping"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-WW2-1",
+   "status": "verified",
+   "title": "DICE's BF1943 vehicles are campaign vehicles",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_level.py:819-850"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_boat_release.py::test_boat_release_comes_from_the_spawner_on_bf1943s_event"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-WW2-2",
+   "status": "verified",
+   "title": "The landing craft release needs an input event BFBC2 lacks",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_preview.py:407-420"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VISUAL_PARITY.md:170-176"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-PART-1",
+   "status": "implemented",
+   "title": "Composite parts are stored about their own origins",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: 47 entry names containing markv in DICE's bundles: animations/cutscenes/rome 32, objects/objects/distant_ships 8 (2 level folders), objects/mesh_particles/specific 3 (2 level folders), sound 2, textures 2; under objects/vehicles/ 0; VehicleEntityData 0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_CONSOLE_RESEARCH.md:169-170"
+    }
+   ],
+   "file": "spec/engine/vehicles.md",
+   "id": "VEH-CON-1",
+   "status": "verified",
+   "title": "The Mark V boat is console-only",
+   "variants": "PC, Xbox 360"
+  }
+ ]
+}

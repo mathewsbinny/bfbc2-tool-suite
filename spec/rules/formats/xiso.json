@@ -1,0 +1,67 @@
+{
+ "about": "The rules of spec/formats/xiso.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/xiso.rs::walks_a_disc"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-readers/tests/test_console_readers.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/xiso.rs:13-17"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/xiso.rs:61-79"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/xiso/xisolib.py:4-8"
+    }
+   ],
+   "file": "spec/formats/xiso.md",
+   "id": "XISO-PART-1",
+   "status": "verified",
+   "title": "The game partition and its volume descriptor",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "BFBC2's Xbox 360 disc image: 693 files listed in the reference's order (BENCHMARKS F0)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/xiso.rs::walks_a_disc"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/xiso.rs::a_looping_folder_is_left_to_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-readers/tests/test_console_readers_native.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/xiso.rs:125-160"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/xiso/xisolib.py:5-8"
+    }
+   ],
+   "file": "spec/formats/xiso.md",
+   "id": "XISO-DIR-1",
+   "status": "verified",
+   "title": "Directory tables are binary trees",
+   "variants": "Xbox 360"
+  }
+ ]
+}

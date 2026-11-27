@@ -1,0 +1,175 @@
+{
+ "about": "The rules of spec/engine/data_classes.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-FX-1",
+   "status": "verified",
+   "title": "The emitter update processors",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-ANIM-1",
+   "status": "verified",
+   "title": "Tree parameters, expressions and specific trees",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-ANIM-2",
+   "status": "verified",
+   "title": "Influence maps, aim bones and the AI's animations",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-VEH-1",
+   "status": "verified",
+   "title": "Vehicle physics components beyond the chassis",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-VEH-2",
+   "status": "verified",
+   "title": "Vehicle components: effects, weapons routing, remote entries",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-WPN-1",
+   "status": "verified",
+   "title": "Gadgets, thrown objects and the weapon effects that hold the spot cones",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-AI-1",
+   "status": "verified",
+   "title": "`AI/Settings`' constants, vehicle types and the path data's sector offsets",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-MM-1",
+   "status": "verified",
+   "title": "The match maker's parameters",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-DSTR-1",
+   "status": "verified",
+   "title": "Edge models, tree health, decal templates, the mesh asset's build settings",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/data_classes.md",
+   "id": "DATA-LVL-1",
+   "status": "verified",
+   "title": "Transform modifiers, award entities, the level list query, the empty input mapping",
+   "variants": "PC"
+  }
+ ]
+}

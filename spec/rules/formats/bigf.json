@@ -1,0 +1,80 @@
+{
+ "about": "The rules of spec/formats/bigf.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,027 of 1,027 SwfMovies of the game copy: magic BIGF, the word at 4 = the length read little-endian, the word at 12 = the end of the index read big-endian"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/bigf.rs::members"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_bc2loc_native.py::bigf_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/bigf.rs:13-18"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-tools/src/fbrbtool.rs:966-980"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:100-101"
+    }
+   ],
+   "file": "spec/formats/bigf.md",
+   "id": "BIGF-HDR-1",
+   "status": "verified",
+   "title": "Header",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/bigf.rs::members"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/bigf.rs:19-30"
+    }
+   ],
+   "file": "spec/formats/bigf.md",
+   "id": "BIGF-IDX-1",
+   "status": "verified",
+   "title": "Index entries",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::bigf_members"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013), round SPV1 2026-11-22: 876 of 876 SwfMovie entries as described"
+    },
+    {
+     "kind": "data",
+     "ref": "1,027 of 1,027 SwfMovies: member offsets ascending and multiples of 4, the last member ending at the archive's end"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:100-101"
+    }
+   ],
+   "file": "spec/formats/bigf.md",
+   "id": "BIGF-DAT-1",
+   "status": "verified",
+   "title": "Member data follows the index, 4-byte aligned, in index order",
+   "variants": "PC"
+  }
+ ]
+}

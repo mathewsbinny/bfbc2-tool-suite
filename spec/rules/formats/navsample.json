@@ -1,0 +1,257 @@
+{
+ "about": "The rules of spec/formats/navsample.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navsample.py:36"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navsample.py:84-88"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/navsample.rs:12"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/navsample.rs:240-251"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/navsample.rs::version_3_written_and_read"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_f3_native.py::area_navsample"
+    },
+    {
+     "kind": "data",
+     "ref": "165 of 165 files have the magic, a known version and reserved 0"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-HDR-1",
+   "status": "verified",
+   "title": "Header"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navsample.py:71-76"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/navsample.cpp:292-296"
+    },
+    {
+     "kind": "data",
+     "ref": "165 of 165 files have min x / pitch and min z / pitch within 0.001 of an integer"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-HDR-2",
+   "status": "observed",
+   "title": "Grid"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "165 files: (0.8, 0.4, 0.28) 42, (0.2, 0.4, 0.28) 41, (0.8, 0.4, 0.6) 40, (0.2, 0.4, 0.6) 38, 4 experimental radii; top 1.9 and ray radius 0.05 in all"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:383-394"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-HDR-3",
+   "status": "observed",
+   "title": "Run settings"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/navsample.cpp:178-190"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/navsample.rs:252-273"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/navsample.rs:304-338"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/navsample.rs::records_and_an_interrupted_run"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/navsample.rs::version_3_written_and_read"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_f3_native.py::area_navsample"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-REC-1",
+   "status": "verified",
+   "title": "Surface record"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/navsample.rs:304-345"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/navsample.rs::records_and_an_interrupted_run"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-COL-1",
+   "status": "verified",
+   "title": "Columns in version 1 and 2"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/navsample.rs:131-151"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/navsample.rs:274-278"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/navsample.rs::version_3_written_and_read"
+    },
+    {
+     "kind": "data",
+     "ref": "129 of 129 version 3 files: trailer present, counts offset + nx x nz + 12 = file size, (offset - 56) a multiple of 20"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-COL-2",
+   "status": "verified",
+   "title": "Counts block and trailer in version 3"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/navsample.cpp:57"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/navsample.rs:229-237"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-COL-3",
+   "status": "implemented",
+   "title": "At most 255 surfaces a column"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/navsample.cpp:144-195"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:682-785"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:839-1145"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_cast_layers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_capsule"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/geom.rs::the_interval_against_brute_force"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_file_is_write_v3s"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C: the Rust sampler's files against the Python's (NumPy) on the 15 regression levels at pitch 0.8, both capsule runs: 30 of 30 byte-identical; at pitch 0.2 over the detailed sectors (sp_009, sp_004_b, ons_mp_004): 6 of 6; on the in-game files' grids (`like`; sp_009, sp_004_b, 0.8 and 0.2, both runs): 8 of 8"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:168-184"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-SMP-1",
+   "status": "verified",
+   "title": "What a sample is"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/level.rs:758-790"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C: sp_009's 0.2 m run cropped to the level's box against the detailed box: 1,678,603 against 1,723,700 surfaces, 20,768 columns differing, all in the flagged sectors east of x 500; with the wider crop the 0.8 m runs of the 15 regression levels are unchanged (30 of 30 identical)"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-SMP-2",
+   "status": "implemented",
+   "title": "The offline geometry covers every square a run samples"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "KYG-PAR-2's vehicle settings and its cylinder collision model; the step against the surface's plane as navvehicle's obstacle rule takes it (CLEAR_LOW above the local ground plane)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:600-632"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_vehicle_cylinder"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-SMP-3",
+   "status": "inferred",
+   "title": "A vehicle-shaped run"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C, rust/BENCHMARKS.md \"NKS-deep C\": 60 in-game files (0.8 m and 0.2 m, both capsule runs, 15 levels; 0.2 m: 1.6 to 25.6 million sampled columns a file), the measures of `navsample_offline.compare`"
+    }
+   ],
+   "file": "spec/formats/navsample.md",
+   "id": "NAVS-SMP-4",
+   "status": "observed",
+   "title": "How far the offline samples agree with the in-game ones"
+  }
+ ]
+}

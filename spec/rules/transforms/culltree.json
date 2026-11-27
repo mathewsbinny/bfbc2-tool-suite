@@ -1,0 +1,149 @@
+{
+ "about": "The rules of spec/transforms/culltree.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2188-2249"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    }
+   ],
+   "file": "spec/transforms/culltree.md",
+   "id": "XCULL-ADD-1",
+   "status": "verified",
+   "title": "Only slot-0 objects, only with a known shape"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2070-2186"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_native.py::built_add"
+    }
+   ],
+   "file": "spec/transforms/culltree.md",
+   "id": "XCULL-ADD-2",
+   "status": "verified",
+   "title": "Result: the tree keeps its invariants, the level changes only in slots"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_native.py::run_add"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_e3m.py::three_ways"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_e3m.py::quick"
+    }
+   ],
+   "file": "spec/transforms/culltree.md",
+   "id": "XCULL-ADD-3",
+   "status": "verified",
+   "title": "The Rust core gives the retired Python tool's files"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/culltool_ct1.rs::streamed_readers_answer_as_the_whole_document"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_native.py::run_corpus"
+    }
+   ],
+   "file": "spec/transforms/culltree.md",
+   "id": "XCULL-RD-1",
+   "status": "verified",
+   "title": "Reading trees and levels: whole or streamed, the same answer"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:78-104"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs::keys_round_trip_and_contain"
+    }
+   ],
+   "file": "spec/transforms/culltree.md",
+   "id": "XCULL-KEY-1",
+   "status": "verified",
+   "title": "Encoding always contains, or refuses"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:543-593"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ],
+   "file": "spec/transforms/culltree.md",
+   "id": "XCULL-RES-1",
+   "status": "verified",
+   "title": "Who gets new leaves, and whose shape"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2998-3382"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    }
+   ],
+   "file": "spec/transforms/culltree.md",
+   "id": "XCULL-RES-3",
+   "status": "verified",
+   "title": "The check holds each new shape to its blueprint"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2608-2654"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:982"
+    }
+   ],
+   "file": "spec/transforms/culltree.md",
+   "id": "XCULL-RES-2",
+   "status": "verified",
+   "title": "The stage's cull check"
+  }
+ ]
+}

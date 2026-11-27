@@ -1,0 +1,324 @@
+{
+ "about": "The rules of spec/engine/onslaught.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_CONSOLE_RESEARCH.md:142-151"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_common.py:20-23"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition: 5 CapturePointEntityData, 1 MissionEntityData, 1 SpawnPointManagerData, 1 reference to gamemodes/onslaught"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-LVL-1",
+   "status": "observed",
+   "title": "Four levels on four multiplayer maps",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x4304D0 the string compare; 0x142ABD8 the \"conquest\" literal; 0x92AB10 the mode owner, its id at +0x6C"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1279-1285"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:9-20"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-MODE-1",
+   "status": "observed",
+   "title": "Onslaught is flags taken in sequence; the mode is data, its name read only by the UI",
+   "variants": "Xbox 360, PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:55-59"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:216-246"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x5680C0 the matchmaking id to stats category"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-MODE-2",
+   "status": "implemented",
+   "title": "OPFOR's GameModes/Onslaught is PC Conquest re-identified, matchmaking CONQUEST",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:57-84"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:848-853"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-MODE-3",
+   "status": "implemented",
+   "title": "The UI reads \"onslaught\" and \"airsuperiority\" as \"conquest\"",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:334"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR playtest 2026-10-29 on a console-ported level: flag A with OnlyTakeableByTeam 1, 2 and 0, as described"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:41-46"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-CAP-1",
+   "status": "observed",
+   "title": "On the PC, Onslaught flags need OnlyTakeableByTeam 0",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x726B60 (`data +0x84 == 0 || data +0x84 != this +0x7C`, after the +0xAD and data +0x13A tests; data at this +0xC); 0x711AA0 (+0x7C set to its argument at progress 0); field descriptor 0x1C25870 (OnlyTakeableByTeam, offset 0x84, the i32 type 0x1BF03B4); the data class's getters 0x6F5740 - 0x6F58D0 (0x6F5760 reads +0x84) are called and pointed to nowhere: the reads are inlined"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR playtest 2026-10-29: flag A with OnlyTakeableByTeam 1, 2 and 0 (ONS-CAP-1)"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-CAP-3",
+   "status": "observed",
+   "title": "OnlyTakeableByTeam T freezes a point whose progress belongs to team T",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:47-54"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:93-115"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x56C58A the fault; 0x577390 the AI sphere query"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-CAP-2",
+   "status": "implemented",
+   "title": "Door pre-destructions and the console's explosive objects are left out",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud.cpp:3-15"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud.cpp:106-147"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud_format.h:8-16"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_hud.py:8-25"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught.py::test_hud_builds_on_the_current_movie_and_never_patches_twice"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-END-1",
+   "status": "implemented",
+   "title": "A round ends at the last flag; the stopwatch is OPFOR's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:106-144"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:ONSLAUGHT_PROCEDURE.md:94-97"
+    },
+    {
+     "kind": "data",
+     "ref": "Napisal's ONS_MP_005GR (OPFOR's research 2026-10-29): the spawner counts listed"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-WAVE-1",
+   "status": "observed",
+   "title": "Waves are spawners switched on by events",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:96-97"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:196-210"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: Napisal's backed-up Package ONS_MP_002 level partition: 4,320 instances, 1 reference to gamemodes/goldrush"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-PORT-1",
+   "status": "observed",
+   "title": "Napisal's ports run as Rush, without the sector offsets",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/apply_sector_offsets.py:78-87"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:ONSLAUGHT_PROCEDURE.md:146-151"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x14A93D0 the SectorOffsets path format"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-PORT-2",
+   "status": "implemented",
+   "title": "Sector offsets are the most common per-sector value",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught.rs:696-728"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught.rs:812-891"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition (2,861 instances, OPFOR's `.opfor-*-applied` stage markers beside it): the counts listed; Napisal's backed-up ONS_MP_002: 53 lamp-effect references, 143 GameEffectEntityData, 10 sound areas with sounds"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-PORT-3",
+   "status": "observed",
+   "title": "What the console port drops: the night lamps, the moon, the lighthouse, the ambience",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_linux_base.py:9-20"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_linux_base.py:45-48"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:268-271"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-PORT-4",
+   "status": "implemented",
+   "title": "The console port rebuilds on the Linux server's level",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:173-192"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: the game copy's Dist package.mft (the ons_mp_002 level block, the ons_mp_005gr blocks), bundleManifest and maps.ini Onslaught lines"
+    },
+    {
+     "kind": "exe",
+     "ref": "0xBD2D30 the level name table compare"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-REG-1",
+   "status": "observed",
+   "title": "Registration, and what the game copy lists",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:import_onslaught.bat:42-103"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_port.py:74-75"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/apply_ai_template.py:14-16"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught_qa.py::test_ai_template_plan_follows_the_bundle"
+    }
+   ],
+   "file": "spec/engine/onslaught.md",
+   "id": "ONS-NAP-1",
+   "status": "implemented",
+   "title": "What still depends on Napisal",
+   "variants": "PC"
+  }
+ ]
+}

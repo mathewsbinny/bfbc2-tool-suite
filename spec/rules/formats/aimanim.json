@@ -1,0 +1,96 @@
+{
+ "about": "The rules of spec/formats/aimanim.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,126 of 1,126 AimAnimation entries of the game copy: version 1, size = length - 12, word 0x0C = word 0x04 + 0x10, the 7 bytes after the pose count zero, names ending _generatedaimanimation.res; pose count 25 in 1,116 (a 5 x 5 grid), 9 in 10; bone count 22 in 1,096, 17 in 20, 29 in 10"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aimanim.rs::round_trip_both_orders"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aimanim.rs::refusals"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_aimanim.py::units"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aimanim.rs:98-110"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/aimanim.py:5-15"
+    }
+   ],
+   "file": "spec/formats/aimanim.md",
+   "id": "AIM-HDR-1",
+   "status": "verified",
+   "title": "Header",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "24,742 bones over the game copy's 1,126 files: kind 1 18,374, kind 0 5,221, kind 2 1,147; every file ends exactly after its last block"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aimanim.rs::round_trip_both_orders"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_f3_native.py::area_aim"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aimanim.rs:62-65"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aimanim.rs:111-138"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/aimanim.py:15-19"
+    }
+   ],
+   "file": "spec/formats/aimanim.md",
+   "id": "AIM-BLK-1",
+   "status": "verified",
+   "title": "Blocks start on a 16-byte boundary counted from 0x0C",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aimanim.rs::renumbering_sorts_and_refuses_missing"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_aimanim.py::game"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aimanim.rs:160-209"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aimanim.rs:213-250"
+    }
+   ],
+   "file": "spec/formats/aimanim.md",
+   "id": "AIM-WR-1",
+   "status": "verified",
+   "title": "The PC form and bone renumbering",
+   "variants": "PC, BF1943"
+  }
+ ]
+}

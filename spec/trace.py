@@ -1,13 +1,19 @@
-r"""The specification's traceability index: checks spec/**/*.md against spec/rules.json and the evidence they cite.
+r"""The specification's traceability index: checks spec/**/*.md against spec/rules/ and the evidence they cite.
 
-  python spec\trace.py --check            structure: every rule ID in the markdown is in rules.json and the other
+  python spec\trace.py --check            structure: every rule ID in the markdown is in the index and the other
                                           way round (title, file, status and evidence the same), each rule's status
-                                          backed by its evidence, every cited test and code path present
-  python spec\trace.py --lint [FILE ...]  the markdown alone (no rules.json): rule headings, status, evidence and
+                                          backed by its evidence, every cited test and code path present, and every
+                                          index shard exactly what --emit writes (none stale, none extra)
+  python spec\trace.py --lint [FILE ...]  the markdown alone (no index): rule headings, status, evidence and
                                           cited paths, for the files given or every file
-  python spec\trace.py --emit             writes rules.json from the markdown (after editing rules)
+  python spec\trace.py --emit             writes the index from the markdown (after editing rules)
   python spec\trace.py --coverage         rules per status and per area, rules without a test, tests that cite no rule
   python spec\trace.py --json             the --coverage numbers as JSON
+
+The index is one JSON shard per markdown file that defines rules, at the same path under spec/rules/
+(spec/engine/gameplay.md -> spec/rules/engine/gameplay.json): {"about": ..., "rules": [...]} with sorted keys, the
+rules in the order of their headings. Round SPLIT1 (2026-11-27) split the single spec/rules.json (977,029 bytes) this
+way to keep every generated file far below test_repo's 1,000,000-byte limit; --check fails a shard over SHARD_LIMIT.
 
 A rule is a heading `### <AREA>-<SECTION>-<n>: <title>` (level 3 or 4) in a spec markdown file. Its body runs to
 the next heading and holds one status line, `Status: **verified**` (or implemented, observed, inferred; optionally
@@ -24,7 +30,7 @@ Paths are relative to the suite's root; `opfor:` before a path names Project OPF
 folder), checked only when that checkout is there. A status needs its evidence: verified a test, implemented a code
 citation, observed a data or exe item, inferred an inferred item.
 
-A test cites a rule when rules.json names it as evidence, or when a comment `# spec: ID[, ID ...]` (Python) or
+A test cites a rule when the index names it as evidence, or when a comment `# spec: ID[, ID ...]` (Python) or
 `// spec: ID[, ID ...]` (Rust) sits on its definition line or the lines directly above it; --check also checks that
 every such comment names an existing rule.
 
@@ -44,7 +50,10 @@ from dataclasses import asdict, dataclass, field
 SPEC = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(SPEC)
 OPFOR = os.path.join(os.path.dirname(SUITE), 'project-opfor-bfbc2')
-RULES_JSON = os.path.join(SPEC, 'rules.json')
+RULES_DIR = os.path.join(SPEC, 'rules')
+# test_repo's limit for a committed file is 1,000,000 bytes; a shard (one markdown file's rules) past 80% of it fails
+# --check, so the markdown file is split long before a merge meets the limit
+SHARD_LIMIT = 800_000
 
 STATUSES = ('verified', 'implemented', 'observed', 'inferred')
 KINDS = ('test', 'code', 'data', 'exe', 'inferred', 'doc')
@@ -341,38 +350,96 @@ def coverage(rules: list[Rule], problems: list[str] | None = None) -> dict[str, 
 
 # ------------------------------------------------------------------------------------------------ commands
 
+def shard_path(md: str) -> str:
+    """The index shard of a rule's markdown file ('spec/engine/gameplay.md' -> spec/rules/engine/gameplay.json)."""
+    sub = os.path.relpath(os.path.join(SUITE, md), SPEC)
+    return os.path.join(RULES_DIR, os.path.splitext(sub)[0] + '.json')
+
+
+def shards(rules: list[Rule]) -> dict[str, str]:
+    """Every shard --emit writes: absolute path -> its exact text (sorted keys, rules in heading order)."""
+    by_file: dict[str, list[Rule]] = {}
+    for r in sorted(rules, key=lambda r: (r.file, r.line)):
+        by_file.setdefault(r.file, []).append(r)
+    out = {}
+    for md, rs in sorted(by_file.items()):
+        data = {'about': f"The rules of {md}: one shard of the BFBC2 tool suite specification's rule index, "
+                         'written by spec/trace.py --emit; checked by spec/trace.py --check.',
+                'rules': [r.index() for r in rs]}
+        out[shard_path(md)] = json.dumps(data, indent=1, ensure_ascii=False, sort_keys=True) + '\n'
+    return out
+
+
+def existing_shards() -> list[str]:
+    out: list[str] = []
+    for dp, dns, fns in os.walk(RULES_DIR):
+        dns.sort()
+        out.extend(os.path.join(dp, f) for f in sorted(fns))
+    return out
+
+
 def load_index() -> list[dict[str, object]]:
-    with open(RULES_JSON, encoding='utf-8') as f:
-        data = json.load(f)
-    return list(data['rules'])
+    """Every rule of every shard on disk."""
+    out: list[dict[str, object]] = []
+    for p in existing_shards():
+        if p.endswith('.json'):
+            with open(p, encoding='utf-8') as f:
+                out.extend(json.load(f)['rules'])
+    return out
 
 
 def check_index(rules: list[Rule], problems: list[str]) -> None:
-    if not os.path.isfile(RULES_JSON):
-        problems.append('spec/rules.json is missing: python spec/trace.py --emit')
+    if not os.path.isdir(RULES_DIR):
+        problems.append('spec/rules/ is missing: python spec/trace.py --emit')
         return
     index = {str(d['id']): d for d in load_index()}
     md = {r.id: r.index() for r in rules}
     for i in sorted(md.keys() - index.keys()):
-        problems.append(f'{i} is in {md[i]["file"]} but not in rules.json (python spec/trace.py --emit)')
+        problems.append(f'{i} is in {md[i]["file"]} but not in spec/rules/ (python spec/trace.py --emit)')
     for i in sorted(index.keys() - md.keys()):
-        problems.append(f'{i} is in rules.json but in no markdown file')
+        problems.append(f'{i} is in spec/rules/ but in no markdown file')
     for i in sorted(md.keys() & index.keys()):
         if md[i] != index[i]:
             diff = [k for k in md[i].keys() | index[i].keys() if md[i].get(k) != index[i].get(k)]
-            problems.append(f'{i}: rules.json differs from the markdown in {", ".join(sorted(diff))} '
+            problems.append(f'{i}: spec/rules/ differs from the markdown in {", ".join(sorted(diff))} '
                             '(python spec/trace.py --emit)')
+    # exactly, line endings aside: a shard edited by hand (order, layout, keys) or left over from a removed file is stale
+    want = shards(rules)
+    for p in existing_shards():
+        if p not in want:
+            problems.append(f'{rel(p)} is not a shard --emit writes (python spec/trace.py --emit removes it)')
+            continue
+        with open(p, encoding='utf-8') as f:  # a checkout with core.autocrlf has CRLF
+            if f.read() != want[p]:
+                problems.append(f'{rel(p)} is not what --emit writes (python spec/trace.py --emit)')
+    for p, text in sorted(want.items()):
+        if not os.path.isfile(p):
+            problems.append(f'{rel(p)} is missing (python spec/trace.py --emit)')
+        size = len(text.encode('utf-8'))
+        if size > SHARD_LIMIT:
+            problems.append(f'{rel(p)} is {size:,} bytes, over {SHARD_LIMIT:,} (80% of the committed-file limit): '
+                            'split its markdown file')
 
 
 def emit(rules: list[Rule]) -> None:
-    data = {'about': 'The BFBC2 tool suite specification\'s rule index, written by spec/trace.py --emit from '
-                     'spec/**/*.md; checked by spec/trace.py --check.',
-            'rules': [r.index() for r in sorted(rules, key=lambda r: (r.file, r.line))]}
-    tmp = RULES_JSON + '.tmp'
-    with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
-        json.dump(data, f, indent=1, ensure_ascii=False)
-        f.write('\n')
-    os.replace(tmp, RULES_JSON)
+    """Writes every shard whose text changed and removes shards no markdown file defines any more."""
+    want = shards(rules)
+    for p in existing_shards():
+        if p not in want:
+            os.remove(p)
+    for p, text in want.items():
+        if os.path.isfile(p):
+            with open(p, encoding='utf-8') as f:  # a checkout with core.autocrlf has CRLF
+                if f.read() == text:
+                    continue
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        tmp = p + '.tmp'
+        with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(text)
+        os.replace(tmp, p)
+    for dp, _, _ in sorted(os.walk(RULES_DIR), reverse=True):
+        if dp != RULES_DIR and not os.listdir(dp):
+            os.rmdir(dp)
 
 
 def main(argv: list[str]) -> int:
@@ -391,10 +458,10 @@ def main(argv: list[str]) -> int:
     if a.emit:
         if problems:
             print('\n'.join(problems))
-            print(f'FAIL {len(problems)} problem(s): rules.json not written')
+            print(f'FAIL {len(problems)} problem(s): spec/rules/ not written')
             return 1
         emit(rules)
-        print(f'ok   rules.json: {len(rules)} rules')
+        print(f'ok   spec/rules/: {len(rules)} rules in {len({r.file for r in rules})} shards')
         return 0
     if a.check:
         check_index(rules, problems)

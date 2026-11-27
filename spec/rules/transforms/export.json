@@ -1,0 +1,277 @@
+{
+ "about": "The rules of spec/transforms/export.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:155-183"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:831-846"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-PRE-1",
+   "status": "verified",
+   "title": "The name is new and well-formed"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:859-875"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:97"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-PRE-2",
+   "status": "verified",
+   "title": "Only modes an era has; only a donor of that mode"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs:1-40"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::the_campaign_checklist"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs::groups_cover_the_lists"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-BLD-1",
+   "status": "verified",
+   "title": "Campaign scripting out, the mode layer in"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:632-673"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs::names_follow_the_level_and_case"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-BLD-2",
+   "status": "verified",
+   "title": "Files found by the level's name are copied under the new name"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1592-1723"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1206-1229"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-CLO-1",
+   "status": "verified",
+   "title": "The closure: what does not resolve is copied, never registered"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1801-1862"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2836-2857"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1119-1140"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-VO-1",
+   "status": "verified",
+   "title": "The announcer is the target era's"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:746-800"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-REG-1",
+   "status": "verified",
+   "title": "The registration: one block and one line per bundle, written for the install"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:260-283"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/profile.rs:106-115"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/df1.rs::a_missing_or_unreadable_bundle_manifest_is_never_read_as_empty"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-REG-2",
+   "status": "verified",
+   "title": "No voice-over block without its bundleManifest line"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3505-3618"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::overlay_and_awards_patches"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-ID-1",
+   "status": "verified",
+   "title": "The level's own name and pictures"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:983-985"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-RO-1",
+   "status": "verified",
+   "title": "The game copy is read only"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2225-2659"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2679-2807"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-CHK-1",
+   "status": "verified",
+   "title": "What a stage must pass"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:590"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    }
+   ],
+   "file": "spec/transforms/export.md",
+   "id": "XEXP-CHK-2",
+   "status": "verified",
+   "title": "A mode layer must be complete for its mode"
+  }
+ ]
+}

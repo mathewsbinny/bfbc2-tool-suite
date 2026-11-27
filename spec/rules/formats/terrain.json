@@ -1,0 +1,619 @@
+{
+ "about": "The rules of spec/formats/terrain.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::resource_names"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 450 heightfields, 42 material maps, 83 visual terrains, 42 water meshes, 42 visual waters with data, all in terrain-00.fbrb and named as described"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 527 / 527 heightfields, 53 / 53 material maps, 97 / 97 visual terrains, 53 water meshes and 52 visual waters, all in terrain-00.fbrb; heightfield suffixes -000 (71 files) to -036"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-formats/src/terrain.rs:1-3"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-NAME-1",
+   "status": "verified",
+   "title": "Terrain resources live in the level's terrain bundle"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::resource_names"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 42 Terrain entries, all 0 bytes, all `.res`"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 53 Terrain entries, 53 of them 0 bytes, type Terrain, name `<Terrain>.res`"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-NAME-2",
+   "status": "verified",
+   "title": "The Terrain entry has no data"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain.rs:163-195"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/terrain.rs::refuses_what_the_reference_refuses"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/terrain.rs::tails"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_geometry_native.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 527 height fields, header words (n, 0x1C, 0x20, 0x24, 0x26, 0x28, 0x2C) = (64, 3, 0, 0, 0, 0, 0) x 312, (128, 4, 0, 0, 0, 0, 0) x 132, (256, 5, 0, 0, 0, 0, 0) x 12, (1024, 7, 8, 0, 4, 0, 0) x 26, (2048, 8, 9, 0, 8, 0, 0) x 41; 4 exceptions in TERR-HF-6"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-1",
+   "status": "verified",
+   "title": "Header layout",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain.rs:220-251"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/terrain.rs::heights_mesh_and_lookup"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_terrain.py::check"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: grid squares of 1 m on all 71 main blocks; 4, 8, 16, 32, 64 and 128 m on sub-terrains"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-2",
+   "status": "verified",
+   "title": "Heights",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain.rs:257-278"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_terrain.py::check"
+    },
+    {
+     "kind": "doc",
+     "ref": "DESIGN.md:503"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-3",
+   "status": "verified",
+   "title": "Triangulation along the (i, j)-(i+1, j+1) diagonal"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain.rs:198-216"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain.rs:61"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/terrain.rs::tails"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_field_tails"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 71 of 71 main blocks (26 at 1024, 45 at 2048) have exactly this tail's length"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: DICE's 30 main blocks: offsets, runs, padding and tree re-encoded byte for byte on 30 of 30; A = 4n + runs + padding on 30"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-4",
+   "status": "verified",
+   "title": "Main block tail: the depth map, a min / max tree, a lower envelope",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain.rs:152-155"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain.rs:211-214"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/terrain.rs::tails"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 456 of 456 sub-terrain blocks (312 at n = 64, 132 at 128, 12 at 256) have exactly this tail"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-5",
+   "status": "verified",
+   "title": "Sub-terrain tail: a min / max quadtree",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "game copy: (2048, 8, 9, 1, 8, 0, 0) x 3, (2048, 8, 9, 0, 16, 0, 0) x 1"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-6",
+   "status": "observed",
+   "title": "Header values outside the usual pattern"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:146-188"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:114-139"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::quick"
+    },
+    {
+     "kind": "data",
+     "ref": "BFBC2's Xbox / PC twins: the converted Xbox height field equals the PC file byte for byte on 7 levels; on 13 others the heights differ where DICE edited the PC terrain, the structure is the same"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-7",
+   "status": "verified",
+   "title": "Xbox 360 height field",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:154-182"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::heightfield_x"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/terrain.py:24-26"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-8",
+   "status": "verified",
+   "title": "BF1943 height field header",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_field_tails"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 main blocks: every row's runs sum to n, maximal on 30 of 30; share of 255 / 0 per terrain as printed; DepthFiles one DepthMap.png per main TerrainHeightfieldData on 30 terrains"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the meaning, from the editor field's name, MP_005's footprints and DSTR-TERR-4; nothing read in the executable"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-9",
+   "status": "verified",
+   "title": "The depth map: one byte per sample, run-length coded by rows",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_field_tails"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: computed trees equal the stored ones on 30 of 30 main blocks"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-10",
+   "status": "verified",
+   "title": "The main block's min / max tree",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_field_tails"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: sizes 22,363 / 88,412 values on 30 of 30; share of samples at or under each grid per terrain as printed; the finest grid under all samples on 15"
+    },
+    {
+     "kind": "inferred",
+     "ref": "stale envelopes from edited heights; the use from the shape of the data (a conservative lower surface per level of detail)"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-11",
+   "status": "verified",
+   "title": "The lower envelope: grids of 2 to n / 8 + 1 vertices a side",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/ring.rs::dices_single_ring_terrains_are_stitched_so"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/ring.rs:224-300"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-terragen/tests/ring.rs on the game copy, 2026-11-23: 12 of 12 single-ring terrains, the order, sizes and stitching as given; the rings of 25 - 49 blocks (MP_002, SP_04, SP_004_B, BC1_Harvest_Day) not measured"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-HF-12",
+   "status": "verified",
+   "title": "A single ring: twelve blocks around the main block, stitched to it",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:208-240"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:246"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::material_map_x"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: (width, blocks) = (4096, 128) x 41, (2048, 32) x 12; all 20 BFBC2 Xbox / PC twin levels convert byte for byte; BF1943's Wake Island, Iwo Jima, Guadalcanal read the same way"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: DICE's 30 material maps: the row lengths add up to each block's length on 30 of 30"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-MM-1",
+   "status": "verified",
+   "title": "Layout",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::material_maps"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 of 30 DICE material maps decode to 256 pairs on every row and re-encode byte for byte"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-MM-2",
+   "status": "verified",
+   "title": "A row: pairs of 4-bit cells, a repeated byte starts a run",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::material_maps"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: (width, rows) (4096, 4096) x 22, (2048, 2048) x 8; cells per metre 2 x 27, 4 x 3"
+    },
+    {
+     "kind": "data",
+     "ref": "SPG2-rest scratch measurement, 2026-11-22: SeaBed against height on mp_001, MP_002, MP_004, MP_005, MP_008, MP_009, for the four placements"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-MM-3",
+   "status": "verified",
+   "title": "The cells cover the main block, rows along z",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::material_maps"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py and SPG2-rest's scratch scan, 2026-11-22: 30 maps, 1 - 10 names, defaultmaterial first on 30; 31 paired grids hold all names, same indices on 0; the 201 names' categories in DICE's grids as given"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-MM-4",
+   "status": "verified",
+   "title": "Indices name materials of the level's grid by name",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:164-275"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:396-468"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::visual_terrain"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 97 visual terrains, N = 1 x 43, 13 x 43, 25 x 6, 37 x 4, 49 x 1"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-VT-1",
+   "status": "verified",
+   "title": "Layout",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:164-205"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::visual_terrain_x"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-VT-2",
+   "status": "verified",
+   "title": "Road blocks",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:245-280"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::undergrowth_entries_read_their_asset_string"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::undergrowth_second_string_is_a_string"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/visual_terrains.rs::every_dice_visual_terrain_reads_with_its_undergrowth"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/terrain.rs:1-15"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 DICE visual terrains, 1,515 patch shaders, 3,069 undergrowth entries, every one ending 01 00; second string set on 30 (NAM_MP_003), shader name on 1,091"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-VT-3",
+   "status": "verified",
+   "title": "Patch shaders",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:225-268"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: header (66, 1, 15, 7, 128); its 16,384 cells' tiled counts equal their non-zero flags"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 318 DICE patch maps; (W, S) = (128, 128) x 19, (64, 64) x 11, (16, 16) x 12, (8, 8) x 84, (4, 4) x 192; 358,282 of 367,872 cells' non-zero flags equal the tiled count, the rest rule-only cells with one flag"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-VT-4",
+   "status": "verified",
+   "title": "Patch maps",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island conversion 2026-11-07: an Oasis-layout donor drew black tiled cells, an MP_009-layout donor (1024 x 512) drew correctly"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the tile index in each cell is resolved against the atlas's tiles per row and rows, so another layout addresses other tiles"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-VT-5",
+   "status": "observed",
+   "title": "Tiled layers must match the mask atlas's layout"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::mask_tiles_span_aligned_blocks_and_read_on_across_cells"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:776-793"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's MP_009: 757 tiled masks in 51 tiles' blocks, MP_005: 1,033 in 59; OPFOR's Wake Island: 998 in 78 (flags 8 and 4); no tile named outside its block"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: flags over DICE's 30 terrains 2 x 5,367, 4 x 11,712, 8 x 56,352, 16 x 13,750, 32 x 4,864, 64 x 2,558"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-VT-7",
+   "status": "verified",
+   "title": "A mask tile spans flag x flag cells",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_visual_terrains_and_waters_round_trip"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/visual_terrain.rs:170-340"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-VT-8",
+   "status": "verified",
+   "title": "A visual terrain decodes whole and is written again byte for byte",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:461-468"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::visual_terrain"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-VT-6",
+   "status": "verified",
+   "title": "PC and Xbox 360 visual terrain differ only where DICE edited the PC",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:645"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::empty_soot"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_soot.py::main"
+    }
+   ],
+   "file": "spec/formats/terrain.md",
+   "id": "TERR-SOOT-1",
+   "status": "verified",
+   "title": "SootMesh converts by the same rules",
+   "variants": "Xbox 360, BF1943"
+  }
+ ]
+}

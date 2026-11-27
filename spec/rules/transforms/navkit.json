@@ -1,0 +1,257 @@
+{
+ "about": "The rules of spec/transforms/navkit.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navbuild_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navbuild_native.py::game"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navbuild_native.py::e3h"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-BLD-1",
+   "status": "verified",
+   "title": "Deterministic, and the retired generator's bytes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:886-888"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_pathdata_native.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_apply.py::main"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-BLD-2",
+   "status": "verified",
+   "title": "The output reads back exactly and is structurally DICE's"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navregress.py:191-206"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navregress.py:268-270"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/README.md:76-77"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-BLD-3",
+   "status": "implemented",
+   "title": "Builds may only get closer to DICE's"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/walk.rs:105"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/walk.rs:674"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/walk_tests.rs::polygon_crossings_as_matplotlib"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/walk_tests.rs::python_modulo_and_rounding"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navedits.py::matplotlib_agreement"
+    },
+    {
+     "kind": "data",
+     "ref": "the 15 regression levels' 30 walkability stages give the retired Python's run, kept flags, gradients and stair flags bit for bit, and the same path data (rust/parity_nk4_walk.py, round NK4)"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-BLD-4",
+   "status": "verified",
+   "title": "Walkability decides in the sample run's own precision, with no iteration order"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/terrain_fill.rs:38"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/walk.rs:1925"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/terrain_fill.rs::tests::a_narrow_hole_under_a_slab_gets_the_terrain"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/terrain_fill.rs::tests::wide_holes_and_empty_columns_are_left"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep D, `holes` (scratch): columns with no surface near the terrain under a surface more than 1 m above it, on the 0.8 m grid with DICE ground there: sp_003_b 72, sp_007 251, sp_01 895 (of 1,858 / 1,631 / 20,859 such columns)"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-BLD-5",
+   "status": "implemented",
+   "title": "The terrain under a sampling hole (a switch, off)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navdiff.py:288-353"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/measures.rs:454-555"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navtools_native.py::quick"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-MEAS-1",
+   "status": "implemented",
+   "title": "The graph measured over every DICE node and edge by nearest-node pairing"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:836-897"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navedits.py::main"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-APP-1",
+   "status": "verified",
+   "title": "Region edits need a NavKit base; DICE's base takes graph edits only"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:884-888"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_apply.py::main"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-APP-2",
+   "status": "verified",
+   "title": "What the edits guarantee"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:836-883"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/driver.rs:153-226"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-INS-1",
+   "status": "verified",
+   "title": "Install keeps the file it replaces once, in the install ledger, and writes whole"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:886-922"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/driver.rs:228-281"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-INS-2",
+   "status": "verified",
+   "title": "Restore gives the level the path data from before NavKit back"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:77-108"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/inputs.rs:168-234"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/navdata.rs:1479-1494"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::python_twin"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-gamefs/src/ledger_tests.rs::ds1_sequence_keeps_dices_file"
+    }
+   ],
+   "file": "spec/transforms/navkit.md",
+   "id": "XNAV-INS-3",
+   "status": "verified",
+   "title": "DICE's original is the bottom of the ledger's stack"
+  }
+ ]
+}

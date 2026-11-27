@@ -1,0 +1,361 @@
+{
+ "about": "The rules of spec/model/registration.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
+    {
+     "kind": "data",
+     "ref": "stock: 136,251 bytes, 3,493 lines all CRLF, no BOM; line 1 Signature with a 40-digit hex value, line 2 Authorative, 900 blank lines, 899 BundleSource lines each after a blank line, 1,692 BundleTarget lines; current: 960 blocks, 1,817 targets, same form"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-MFT-1",
+   "status": "verified",
+   "title": "File form"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/package.rs:80-100"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:326-339"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/package.rs::registry_and_paths"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_slots.py::test_mft_block_with_blank_line_refused"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-MFT-2",
+   "status": "verified",
+   "title": "A block"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
+    {
+     "kind": "data",
+     "ref": "stock: 899 of 899 sources game:, 0 duplicates; of the level, terrain, ingame and loader sources 33 x 4 have files in Dist and Package, 41 x 4 in Package only"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/package.rs:106-114"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-MFT-3",
+   "status": "verified",
+   "title": "Sources are `game:` names, unique"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:288-297"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:563-601"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/package.rs::registry_and_paths"
+    },
+    {
+     "kind": "data",
+     "ref": "stock: blocks of 1 target 328, 2 targets 349, 3 targets 222; level-kind blocks with an own target: package only 164, package then game 132; most frequent common targets mp_common level, ingame and loader 61 each"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-MFT-4",
+   "status": "implemented",
+   "title": "Targets are the bundle's stack"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
+    {
+     "kind": "data",
+     "ref": "stock source kinds: level, terrain, ingame, loader 74 each; vo/lang 518; async 50; menu 25; 10 root bundles"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-MFT-5",
+   "status": "verified",
+   "title": "What is registered"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "current package.mft: 960 blocks against stock 899, Signature line identical to stock; OPFOR's levels load in game"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/opforcore/slots.py:94-97"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-MFT-6",
+   "status": "observed",
+   "title": "The Signature is not checked against the content"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "stock: 835 lines, 3 tab-separated fields on all 835, the zero GUID on 835, third field 1 on 835, no CR, no BOM"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:603-613"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2422-2425"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-BM-1",
+   "status": "verified",
+   "title": "Line form"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
+    {
+     "kind": "data",
+     "ref": "stock: levels 33, all with Dist bundles, 0 Package-only; 598 lines with a Dist file, 237 without; 397 of 835 lines are also package.mft sources"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-BM-2",
+   "status": "verified",
+   "title": "What stock lists"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:603-613"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1536-1553"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-BM-3",
+   "status": "verified",
+   "title": "The suite adds a line per bundle of a new level"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:563-601"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1536-1571"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:843-851"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-NEW-1",
+   "status": "verified",
+   "title": "One block and one manifest line per bundle"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:649-660"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:835-838"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-NEW-2",
+   "status": "implemented",
+   "title": "A new name only"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:40-44"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:855-858"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-NEW-3",
+   "status": "verified",
+   "title": "Voice-over: the donor's blocks, no bundle of its own"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:1038-1055"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:718-731"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:419-455"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:900-916"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-NEW-4",
+   "status": "implemented",
+   "title": "Registration is written last and removed first"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:823-827"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:49-50"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's SP_005 and Onslaught installs: a level without the description crashed in state 13; without the list items it was in no menu"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "REG-NEW-5",
+   "status": "observed",
+   "title": "The menus need the startup bundle too"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the user's report of 2026-11-06 (Wake Island, a new level under a new name); recorded in OPFOR's WW2 port plan, phase F"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:49-55"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "CSUM-CHK-1",
+   "status": "observed",
+   "title": "The server checksums every registered level"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's install audit C2: a failed install that left the level registered with absent bundles is the start-up checksum crash"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PYTHON_CODE_AUDIT.md:30"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1123"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "CSUM-CHK-2",
+   "status": "observed",
+   "title": "A registered bundle that is missing crashes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x6EFCA4"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1124"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "CSUM-CHK-3",
+   "status": "observed",
+   "title": "The checksum dereferences every placement's blueprint"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the checksum exists to compare the server's level data with the client's; a level the server registers and the client does not cannot match, and the user's ruling (CSUM-CHK-1) requires both sides"
+    }
+   ],
+   "file": "spec/model/registration.md",
+   "id": "CSUM-CHK-4",
+   "status": "inferred",
+   "title": "Client and server need the same registration"
+  }
+ ]
+}

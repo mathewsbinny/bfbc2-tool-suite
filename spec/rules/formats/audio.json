@@ -1,0 +1,516 @@
+{
+ "about": "The rules of spec/formats/audio.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "35,811 Xbox 360 / PC twins: every word equal (one file's total differs by an edit of DICE's); word 0x14 is 0 in 33,869 files (audio.py's survey)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/wave.rs::wave_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_wave_native.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:97-105"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:153-164"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:30-39"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-HDR-1",
+   "status": "verified",
+   "title": "BFBC2 Wave header",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "2,750 BF1943 Wave files read to their exact end"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/wave.rs::wave_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_wave_native.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:85-96"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:134-151"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:56-66"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-HDR-2",
+   "status": "verified",
+   "title": "Battlefield 1943 Wave header",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "every Wave of BFBC2's Xbox 360 copy, the PC game copy's twins and BF1943's 2,750 parse to their exact end; 9 Xbox 360 files without the last blob's padding"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/wave.rs::wave_round_trip"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:107-132"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:12"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:40-49"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-SEG-1",
+   "status": "verified",
+   "title": "Three segments, each a data blob and a stream-information blob",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "PC loop segments 34,038 streamed / 94 streamed with information / 1,618 in memory / 61 in memory with information; BF1943 streamed: 1,536 voice-over and 27 other files (audio.py's surveys)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:41-55"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-SEG-2",
+   "status": "observed",
+   "title": "In-memory audio or a streamed stub",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the observed first bytes on both platforms (audio.py)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:45-46"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-SEG-3",
+   "status": "observed",
+   "title": "Stream information is not decoded",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/wave.rs::wave_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_audio_native.py::quick"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:168-205"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:101-102"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-WR-1",
+   "status": "verified",
+   "title": "Writing a PC Wave",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/wave.rs::sps_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/wave.rs::snr"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:210-223"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:68-79"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-STR-1",
+   "status": "verified",
+   "title": "The two header words",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/wave.rs::sps_round_trip"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:239-271"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:323-337"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:73-74"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-STR-2",
+   "status": "verified",
+   "title": "SPS framing (version 1, BFBC2)",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/wave.rs::snr"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/wave.rs:276-321"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:75-77"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-STR-3",
+   "status": "verified",
+   "title": "SNR / SNS framing (version 0, BF1943)",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "BF1943 streams: 1,539 of 1,563 end their last block with zero bytes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/audioframe.rs::parts_padded_per_stream"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/audioframe.rs::riff_layout"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/audioframe.rs:70-101"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/audioframe.rs:109-143"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:80-86"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "WAVE-STR-4",
+   "status": "verified",
+   "title": "EA-XMA block data",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "4,657 XMA streams (BFBC2 Xbox 1,847, BF1943 2,810), 1,039,009,766 samples: identical to ffmpeg 9.0.2 -cpuflags 0 on every stream; against its default (SIMD) run 364 streams identical, 169,447 samples (0.016 %) differ, each by 1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-xma/src/mdct.rs::imdct_matches_the_definition"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-xma/src/lib.rs::random_packets_do_not_panic"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-xma/src/lib.rs::s16_rounds_half_to_even_and_saturates"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-xma/src/lib.rs::packet_size_follows_the_pcm_rule"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-xma/src/wmapro.rs:1-40"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-xma/src/lib.rs:180-240"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "XMA-DEC-1",
+   "status": "verified",
+   "title": "Decoding EA-XMA: FFmpeg's xma2 decoder, its C path the reference",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::layout_of_frames"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:51-53"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:124-128"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:87-88"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "XAS-FRM-1",
+   "status": "verified",
+   "title": "Frames: 128 samples of one channel in 76 bytes, frame-major",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::layout_of_frames"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::frames_decode_as_the_reference"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:276-303"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:89-91"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "XAS-FRM-2",
+   "status": "verified",
+   "title": "Frame layout",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::frames_decode_as_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::decode_inverts_closely"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:283-301"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:56-58"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:91-93"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "XAS-DEC-1",
+   "status": "verified",
+   "title": "Decoding a group",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "41.6 dB SNR on the end credits' music, about 20 - 25 dB on noise-like high-frequency effects (audio.py); every sound of BFBC2's Xbox copy (1,680 Waves) and BF1943 (2,750) gives the retired NumPy reference's bytes (BENCHMARKS E3a, F-round goldens)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::groups_as_the_reference_on_extremes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::need_is_the_float_formula"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::rint_is_half_to_even"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_audio_native.py::shift_rule"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:157-195"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:97-100"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "XAS-ENC-1",
+   "status": "verified",
+   "title": "The suite's encoder: least squared error per group",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "all 1,846 PC in-memory EA-XAS streams follow this layout; 3 end with an empty block"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/audioframe.rs::blocks_of_dice"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_audio.py::dice_layout"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/audioframe.rs:147-181"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/audio.py:94-96"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "XAS-BLK-1",
+   "status": "verified",
+   "title": "DICE's block length",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:85-94"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:140"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/audioframe.rs:158-181"
+    },
+    {
+     "kind": "inferred",
+     "ref": "that the game stops at the sample count rather than the frame end is assumed from DICE's own last blocks, which are cut the same way"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "XAS-BLK-2",
+   "status": "implemented",
+   "title": "A sound's frames cover whole frames; the sample word holds the true count",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 5 distinct ImpulseResponse entries (17 live): header irf1, 1, 2 channels, 48,000 Hz, 1,024, 1,024, 2,048, 1 in all; 48 + partitions x 8,224 = size in 5 of 5"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo record `ImpulseResponse` (module Audio, 20 bytes) at 0x1C0E804; settings and fields `ReverbIR`, `ReverbArea`, `SoundAreaReverbs`"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "IR-HDR-1",
+   "status": "verified",
+   "title": "A big-endian `irf1` header and FFT partitions",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: 518 channel blocks in 5 files; head = (2^k - 1, 14 zero bytes) in 518; first bin's imaginary 0 in 518; scales 32,767 x 308, 16,383 x 85, 8,191 x 59, 4,095 x 44, 2,047 x 17, 1,023 x 5; peak above 16,383 in 210 of the 210 blocks scaled below 32,767"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory vtable 0x14B2288 (type 0xFC8CD0, load 0xFD2260): a 20-byte object (vtable 0x14B1EF0), the whole file read into a 16-aligned buffer (+0x0C) of the stream's size (+0x10); load requests 0xFCA9E0 and the reverb table 0xFDC5D6 - 0xFDC63C"
+    }
+   ],
+   "file": "spec/formats/audio.md",
+   "id": "IR-PART-1",
+   "status": "verified",
+   "title": "A partition is two channel blocks: a block-scale head and 1,024 spectrum bins",
+   "variants": "PC"
+  }
+ ]
+}

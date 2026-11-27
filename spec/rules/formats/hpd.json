@@ -1,0 +1,881 @@
+{
+ "about": "The rules of spec/formats/hpd.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "35 files in the game copy, 18 under infantry folders and 17 under vehicle folders; every level with DICE data has a vehicle file except sp_009"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:17-23"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:34-44"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-USE-1",
+   "status": "observed",
+   "title": "File location and pathfinding types"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "probes at 0x00F20AD2, 0x00F20B48, 0x00F20BB0 read SectorOffsetX / SectorOffsetZ at level load"
+    },
+    {
+     "kind": "data",
+     "ref": "27 of 27 shipped SectorOffsets assets equal the per-file most common floor(centre / 100) - grid id; 7 of 13 shipped vehicle assets do not follow the \"one below the extent\" rule"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:383-394"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:846-852"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-USE-2",
+   "status": "observed",
+   "title": "Sector offsets"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:28"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:173-175"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpd.rs::refusals"
+    },
+    {
+     "kind": "data",
+     "ref": "35 of 35 files"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-HDR-1",
+   "status": "verified",
+   "title": "Magic"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:30-32"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:179-183"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:292-301"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpd.rs::round_trip"
+    },
+    {
+     "kind": "data",
+     "ref": "35 of 35 files have exactly these 35 words besides the count"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-HDR-2",
+   "status": "verified",
+   "title": "Header words"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:186-201"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:303-315"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpd.rs::round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_pathdata_native.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "reserved word 0 in 3,120 of 3,120 sectors; build months 0 (January 2010) in the 25 campaign files, 3-4 (April-May 2010) in the 10 Onslaught files"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-TAB-1",
+   "status": "verified",
+   "title": "Sector table entry"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:240-242"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:302-315"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpd.rs::refusals"
+    },
+    {
+     "kind": "data",
+     "ref": "35 of 35 files covered exactly"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-TAB-2",
+   "status": "verified",
+   "title": "Block offsets are a running sum"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "3,120 of 3,120 sectors have the same id in the table and the mesh header"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-TAB-3",
+   "status": "observed",
+   "title": "Sector ids and the runtime mesh agree"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::sector_times_are_the_write_time"
+    },
+    {
+     "kind": "data",
+     "ref": "35 of 35 files: one date, times non-decreasing in table order, at most 9 s from the first sector to the last, hundredths 0 in 3,120 of 3,120 sectors; the vehicle file's time later than the infantry file's on 17 of 17 levels with both"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-TAB-4",
+   "status": "verified",
+   "title": "The date and time words are the file's write time"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:202-227"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:255-281"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpd.rs::refusals"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpd.rs::round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_pathdata_native.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tools/hpdtool.py::main"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-BLK-1",
+   "status": "verified",
+   "title": "Block layout"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:76-93"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:153-166"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpd.rs::round_trip"
+    },
+    {
+     "kind": "data",
+     "ref": "flags 0x80000000 on 596,069 of 596,069 nodes; first-node value 15.0 in 2,626 infantry sectors and 50.0 in 494 vehicle sectors, 0.0 on all 592,949 other nodes"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-NODE-1",
+   "status": "verified",
+   "title": "Route node record"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tools/hpdcheck.py::check"
+    },
+    {
+     "kind": "data",
+     "ref": "3,120 of 3,120 sectors sorted, border nodes last"
+    },
+    {
+     "kind": "exe",
+     "ref": "the go-to request's result-set binary search; the unload crash in a Kynapse container's destructor, 2026-10-20"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:559-565"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:587-590"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-NODE-2",
+   "status": "verified",
+   "title": "Node order"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the rule holds for every node of 3,120 of 3,120 sectors"
+    },
+    {
+     "kind": "exe",
+     "ref": "crash in game with a non-zero a on an edgeless node, 2026-10-15"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:444"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-NODE-3",
+   "status": "observed",
+   "title": "First-edge field"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "84,688 of 84,688 high-bit node ids of the campaign files appear in a neighbouring sector at the same position; sp_004_b: 55 border ids in 3 sectors, 36 in 4"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:440"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:601-607"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-NODE-4",
+   "status": "observed",
+   "title": "Border nodes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "bit 16 set on 127,880 nodes of the 35 files, every one a border node; sp_004_b: 1,379 of 1,445 border ids owned by the sector whose square holds the node"
+    },
+    {
+     "kind": "exe",
+     "ref": "read as the byte at node +0x22: edges into a node with no loaded owner copy dropped (0x0105C8C0), non-owner copies skipped by the node lookup (0x0105E786); KYRT-PATH-3"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:566-570"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/tools/hpdcheck.py:14-15"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-NODE-5",
+   "status": "observed",
+   "title": "Border-node owner flag"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "93 % / 98.7 % / 92.8 % of entries exact over the 2,776 campaign sectors measured, the rest ties"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:445-450"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-NODE-6",
+   "status": "observed",
+   "title": "Spatial lookup lists"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "0 nodes without an edge in the 3,120 sectors of the 35 files"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:367-368"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-NODE-7",
+   "status": "observed",
+   "title": "No lone nodes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:95-104"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpd.rs:212-223"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tools/hpdcheck.py::check"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpd.rs::round_trip"
+    },
+    {
+     "kind": "data",
+     "ref": "3,120 of 3,120 sectors have their edges sorted by source"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-EDGE-1",
+   "status": "verified",
+   "title": "Edge record and order"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,694,058 of 1,694,066 edges exact, 8 differ by one unit (float rounding of the length)"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tools/hpdcheck.py::check"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:448"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-EDGE-2",
+   "status": "observed",
+   "title": "Edge cost"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "3,120 sectors: (infantry, 0.025, 0.8, 3 x 3) 2,055, (infantry, 0.05, 0.2, 6 x 6) 571, (vehicle, 0.02, 1.0, 3 x 3) 494; radius 0.4 in all 2,626 infantry sectors, 2.5 in all 494 vehicle sectors"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:532-542"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-SET-1",
+   "status": "observed",
+   "title": "Per-type values"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpdlayout.rs:196"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/hpdlayout.rs:301"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/hpdlayout.rs::walks_a_record"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_f3_native.py::area_hpd"
+    },
+    {
+     "kind": "data",
+     "ref": "7,944 of 7,944 runtime meshes of the base game and Napisal's files, KYNAPSE_SPEC 4.4"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-REC-1",
+   "status": "verified",
+   "title": "Every byte is explained"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:362-373"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:570-583"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:664-666"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::reads_the_record"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::writes_what_it_reads"
+    },
+    {
+     "kind": "data",
+     "ref": "version 2, flags 0, word 0x18 0 and tile table at 0x50 in 3,120 of 3,120 sectors; the 74 sectors without links have offset 0xFFFFFFFF"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-HDR-1",
+   "status": "verified",
+   "title": "Record header"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "3,725 normal-sector axes at -0.8 m, 1,028 detailed-sector axes at -0.2 m, 369 edge-sector axes at 0.0 over 17 levels; the edge-sector rule matches 3,798 of 3,798 axes"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:470"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:713-727"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-HDR-2",
+   "status": "observed",
+   "title": "Sector rectangle"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:301-325"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:586-620"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::writes_what_it_reads"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_e3o_native.py::quick_kymesh"
+    },
+    {
+     "kind": "data",
+     "ref": "end slot zero in 442 of 3,120 sectors, other bytes in the rest"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:478-482"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-TILE-1",
+   "status": "verified",
+   "title": "Tile table and tiles"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:202-230"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:452-540"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::reads_the_record"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_pathdata_native.py::main"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:484-495"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:1069-1084"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-AREA-1",
+   "status": "verified",
+   "title": "Area object"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:226-228"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::refuses_what_the_reference_raises_on"
+    },
+    {
+     "kind": "data",
+     "ref": "A count 0 in 171,354 of 171,354 area objects, KYNAPSE_SPEC 4.5"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-AREA-2",
+   "status": "verified",
+   "title": "A records are unused"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "sp_004_b normal-pitch areas: median +0.000 / +1.520 against the outline heights minus 0.95; vehicle files: lowest ground .. highest + 3.2 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:686-692"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-AREA-3",
+   "status": "observed",
+   "title": "Area height range"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tools/hpdcheck.py::check"
+    },
+    {
+     "kind": "data",
+     "ref": "0 open areas in DICE's 15 files checked by hpdcheck; 458 of 2,381 sp_004_b areas hold a repeated segment"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:296-342"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-AREA-4",
+   "status": "verified",
+   "title": "Areas are single-layer and closed"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:242-249"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:626-634"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::writes_what_it_reads"
+    },
+    {
+     "kind": "data",
+     "ref": "+0x1C equals the target's size in 37,132 of 37,132 portals; sp_004_b: 771 of 771 portals have one back"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-B-1",
+   "status": "verified",
+   "title": "Portals between areas of one sector (B)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:250-259"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:470-480"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::reads_the_record"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:819-824"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-C-1",
+   "status": "verified",
+   "title": "Border portals (C)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:260-273"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:484-502"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::writes_what_it_reads"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tools/hpdcheck.py::check"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-E-1",
+   "status": "verified",
+   "title": "Outline (E) and step lines (D)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:274-294"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:506-521"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tools/hpdcheck.py::check"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::writes_what_it_reads"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:951-963"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-F-1",
+   "status": "verified",
+   "title": "Step cells (F)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "sp_004_b normal areas: 70 % of sides with D or F step 0.61 m or more; 14 of 199,324 sides without D or F do; F twins at the same place facing opposite ways in 926 of 934 ONS_MP_002 cells"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x1072A60 walks D (+0x38 / +0x3C), E (+0x40 / +0x44) and F (+0x48) of an area in its segment test; flag bits 2 = D, 1 = E, 4 = F; reached from game AI code via 0x58EF90"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:917-1014"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-DF-1",
+   "status": "observed",
+   "title": "What D and F record"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/detail.rs:529-585"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/detail.rs:653-715"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/detail_tests.rs::a_loop_starting_at_a_pinch_takes_the_least_edge"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/detail_tests.rs::nearest_f_cells_toward_the_side"
+    },
+    {
+     "kind": "data",
+     "ref": "18 DICE infantry files: 195,813 of 195,813 normal-pitch F vertices at cell corners; 44,380 of 44,380 F records closed, counter-clockwise, no repeated vertex, no two records of one direction in an area sharing a vertex"
+    },
+    {
+     "kind": "data",
+     "ref": "NavKit's 15 regression builds, 27,193 detail calls: 0 loops starting at a pinch; 17 vertices with tied nearest F cells of different heights"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-DF-2",
+   "status": "verified",
+   "title": "F polygons where DICE's data decides nothing (NavKit's generator)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:327-358"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:635-663"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::writes_what_it_reads"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:497-499"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:1083"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-LINK-1",
+   "status": "verified",
+   "title": "Neighbour links"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:667-670"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::writes_what_it_reads"
+    },
+    {
+     "kind": "data",
+     "ref": "3,120 of 3,120 sectors"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-REC-2",
+   "status": "verified",
+   "title": "Trailer"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/kymesh.rs:558-670"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/kymesh.rs::writes_what_it_reads"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_pathdata_native.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "7,944 of 7,944 meshes written back byte-identical (hpdtool.py meshtrip, base game and Napisal's files)"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "KYM-ORD-1",
+   "status": "verified",
+   "title": "DICE's layout order"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0105ED80 point -> route node; 0x010795E0 second search stage (code 2: no node reached); 0x0107F620 the go-to computation"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:582-595"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-RT-1",
+   "status": "observed",
+   "title": "Points resolve to near route nodes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "DICE's files route through PdtWhenAlive doors (sp_009, sp_003_b) and have islands reached only by ladder; the level settings DestructibleLocalPathfindingParts / MaxLocalPathfindingObjects point to run-time handling"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:356-361"
+    }
+   ],
+   "file": "spec/formats/hpd.md",
+   "id": "HPD-RT-2",
+   "status": "inferred",
+   "title": "Path data describes the intact level"
+  }
+ ]
+}

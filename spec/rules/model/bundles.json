@@ -1,0 +1,329 @@
+{
+ "about": "The rules of spec/model/bundles.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1610-1615"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:48"
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy's 1,086 bundles: 156,533 .dbx entries, all of type non-resource; entry names in the mp_0* level bundles 22,541 lower case, 3,024 mixed"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "PART-NAME-1",
+   "status": "implemented",
+   "title": "A partition is a `.dbx` entry"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/package.rs:586-588"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:528-550"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/package.rs::registry_and_paths"
+    },
+    {
+     "kind": "data",
+     "ref": "Dist level bundles: 146 _HavokAsset.dbx entries, each with a HavokPhysicsData _HavokAsset.res of the same stem"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "PART-NAME-2",
+   "status": "implemented",
+   "title": "Resources belong to partitions by name"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:457-480"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:816-820"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "PART-NAME-3",
+   "status": "verified",
+   "title": "Files the engine finds by the level's name"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/dbx.py:135-141"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:110-111"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "PART-EMPTY-1",
+   "status": "implemented",
+   "title": "An empty partition file is a marker"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
+    {
+     "kind": "data",
+     "ref": "stock package.mft: 74 levels with level, terrain, ingame and loader blocks each, and 74 x 7 vo blocks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:40-44"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "BNDL-KIND-1",
+   "status": "verified",
+   "title": "A level's bundles"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
+    {
+     "kind": "data",
+     "ref": "stock package.mft level sources: level / terrain / ingame / loader each 33 in Dist and Package, 41 in Package only, 0 in Dist only"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "BNDL-LOC-1",
+   "status": "verified",
+   "title": "Dist and Package"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/package.rs:118-126"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:224-231"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/package.rs::registry_and_paths"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "BNDL-LOC-2",
+   "status": "verified",
+   "title": "Registry names: `game:` and `package:`"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
+    {
+     "kind": "data",
+     "ref": "stock package.mft: 518 vo/lang sources with no file in Dist or Package; streaming_vo de, es, fr, it, pl, ru absent; OPFOR's English copy"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:830-831"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "BNDL-LOC-3",
+   "status": "verified",
+   "title": "Registered bundles may be absent"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/header.rs:11-12"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/header.rs:32-37"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/header.rs::names_skip_markers_and_later_wins"
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy's 1,086 bundles: 296,376 markers, every one size 0 and flags 0"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "BNDL-DEL-1",
+   "status": "verified",
+   "title": "What a marker is"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:254-273"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/package.rs:448-470"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/g3.rs::stand_in_package_levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-fbrb-tool/README.md:29-31"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3720-3722"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "BNDL-DEL-2",
+   "status": "verified",
+   "title": "Markers hide shared data"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/package.rs:468"
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy's 1,086 bundles: no name listed twice in one bundle"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "BNDL-DEL-3",
+   "status": "implemented",
+   "title": "A live entry beats a marker of the same bundle"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1085-1101"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:846-847"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "BNDL-DEL-4",
+   "status": "implemented",
+   "title": "A level made from another must re-provide what the base hides"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:254-273"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/package.rs:6-12"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/g3.rs::stand_in_package_levels"
+    },
+    {
+     "kind": "data",
+     "ref": "G3, all 45 Package levels: markers hid 1 name a later bundle had on 9 levels; each level's opened scene equal to a whole unpack in that order"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "PREC-ORD-1",
+   "status": "verified",
+   "title": "First bundle wins"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:277-297"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/package.rs:106-114"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/package.rs::registry_and_paths"
+    },
+    {
+     "kind": "data",
+     "ref": "stock level blocks: own bundle as package: then game: in 99 of 222 three-target and 33 of 74 two-target blocks with an own target"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "PREC-ORD-2",
+   "status": "implemented",
+   "title": "The stack's order"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/level.py:146-161"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:277-284"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "PREC-ORD-3",
+   "status": "implemented",
+   "title": "The Package copy of a file wins over Dist"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/header.rs:61-71"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/header.rs::names_skip_markers_and_later_wins"
+    }
+   ],
+   "file": "spec/model/bundles.md",
+   "id": "PREC-ORD-4",
+   "status": "implemented",
+   "title": "Within one bundle, the later entry of a name"
+  }
+ ]
+}

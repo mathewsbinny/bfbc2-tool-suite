@@ -5827,3 +5827,44 @@ is 977,029 bytes committed (LF), 23 KB under the repository's 1,000,000-byte lim
 - The anim-tree array elements of types 2, 3, 6, 7, 13, 23, the Selector's group order, the If node's expression
   record, block C's curve names, the header's pairs.
 - OPFOR's fix for PERS-SCORE-2, as an OPFOR round.
+
+## SPLIT1: the specification's rule index split into shards (2026-11-27, branch `split1`)
+
+`spec/rules.json`, written by `spec/trace.py --emit`, was 977,029 bytes as a committed blob (1,010,926 on disk with
+CRLF), 23 KB under `tests/test_repo.py`'s 1,000,000-byte limit after SPG2-rest6; the next spec round would have
+crossed it. Done the way this file was split on 2026-11-23: nothing lost, every rule's content unchanged.
+
+| | before | after |
+|---|---|---|
+| index files | 1 (`spec/rules.json`) | 90 (`spec/rules/<area>/<file>.json`, one per spec markdown file with rules) |
+| largest file | 977,029 bytes | 40,538 bytes (`spec/rules/transforms/validation.json`); all 90 together 994,730 |
+| rules | 1,599: verified 969, implemented 151, observed 417, inferred 62 | the same |
+| key order | id, title, file, status, variants, evidence (insertion) | sorted keys (`sort_keys=True`; `JSON_ORDER_KEPT` for `spec/trace.py` 2 -> 1) |
+
+Layout: a shard sits at the markdown file's path under `spec/rules/` (`spec/engine/typeinfo/core.md` ->
+`spec/rules/engine/typeinfo/core.json`), `{"about", "rules"}`, its rules in heading order. Per file rather than per
+area: the largest area (engine) is already 385 KB of rules, the largest file 40 KB, so a shard reaches the limit only
+if one markdown file grows about 25 times; a rule's diff lands in the shard named like its markdown file.
+
+Proof:
+- `python spec/trace.py --emit` then `--check`: `ok   1599 rules in 90 files: 969 verified, 151 implemented, 417
+  observed, 62 inferred`, the same line as before the split.
+- A one-off comparison (scratchpad `compare_union.py`, not committed): the shards' rules, concatenated in markdown-path
+  order, equal the old `rules.json`'s list element for element (each rule compared as sorted-key JSON): 1,599 = 1,599,
+  same order, ids unique, the same per-status counts, and every rule in the shard of its own `file`.
+- `--check` fails a shard edited by hand (one line's indentation changed: "spec/rules/model/ai_orders.json is not what
+  --emit writes") and a leftover file (`spec/rules/model/stray.json`: "is not a shard --emit writes"); a shard with
+  CRLF line endings (a `core.autocrlf` checkout, as on this PC and CI's Windows runner) passes, and `--emit` leaves
+  it untouched.
+- `spec/probes/census.py --check` passes (it reads the markdown, not the index). CI runs `trace.py --check` through
+  the quick tier's `spec-trace` entry (`.github/workflows/checks.yml`, `run_tests.py quick --no-game --ci-steps`),
+  unchanged.
+
+Guards against the next surprise: `trace.py --check` fails a shard over 800,000 bytes (80% of the limit: split the
+markdown file); `tests/test_repo.py` prints a `warn` line, without failing, for every file of HEAD between 80% and
+100% of the limit. On main today it warns of nine test fixtures (`granny_golden.json` 802,986 bytes,
+`ports_golden.json` 817,885, `f0_meshdata_replay_game.json` 837,639, the five `f0_wave_replay_game_*.json` at about
+901,500, `cli_o3_cull_golden_0.json` 831,948); they are fixed fixtures, not growing generated files.
+
+Branches that re-emitted `spec/rules.json` (OR14, OR9): after merging main, `git rm spec/rules.json` (take main's
+deletion) and run `python spec/trace.py --emit`; `--check` then confirms the shards.

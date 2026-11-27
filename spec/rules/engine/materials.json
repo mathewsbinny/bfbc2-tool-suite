@@ -1,0 +1,960 @@
+{
+ "about": "The rules of spec/engine/materials.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py on the game copy, 2026-11-22: 81 materials_win32 grid partitions (74 from DICE bundles), 51 - 92 materials and 953 - 3,160 relations each; 4 materials_xenon partitions (OPFOR's WW2 levels), 104 - 111 materials, 4,049 - 4,706 relations; MaterialGridLayers items over all grids 0"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-1",
+   "status": "verified",
+   "title": "One grid partition per level",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 121 distinct MaterialData names in DICE's 74 grids; 114 of them at more than one index of MaterialGridData.Materials"
+    },
+    {
+     "kind": "exe",
+     "ref": "the runtime material id (grid index plus flag bits) is built at 0x10029E0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:17-21"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-2",
+   "status": "verified",
+   "title": "A grid holds only the level's materials, in its own order"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: Hash equal to the 33-xor hash of the lower-case Name on 5,746 of 5,746 MaterialData instances of DICE's grids; categories Construction 1,771, Projectiles 1,135, Explosions 692, Vehicles 677, Terrain 573, Vegetation 395, Soldier 355, Default 148"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/havok.rs:587-591"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-install/src/levelbuild/materialgrid.rs:634-643"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-3",
+   "status": "verified",
+   "title": "MaterialData and its Hash"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 0 of 121 names with differing flags; Penetrable 23, SeeThrough 9 (all 9 also Penetrable), ClientDestructible 9, NoCollisionResponse 3, NoCollisionResponseCombined 5"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-4",
+   "status": "verified",
+   "title": "The flags belong to the name"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: DICE's grids: relations with a null side 3,494; data items per relation 1 x 66,833, 2 x 49,068, 3 x 34,283, 4 x 13,800; the class counts above"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-5",
+   "status": "verified",
+   "title": "Relations: two materials and their data"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: DICE's relations by damage items: 0 x 28,783, 1 x 107,452, 2 x 27,749; of the 27,749, every item with SourceMaterial set in 27,728"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-6",
+   "status": "verified",
+   "title": "Two damage items per relation, one per source material"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 162,950 MaterialRelationDamageData instances of DICE's 74 grids, the ranges above"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-7",
+   "status": "verified",
+   "title": "The damage fields and their ranges"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from DICE's assignments read against the grid in OPFOR's physics-material review (every indestructible, metal and concrete relation x0; Bridge x0 against every vehicle ram) and the field names; no executable function was followed for the arithmetic"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:75-79"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-8",
+   "status": "inferred",
+   "title": "Damage is multiplied by the relation and cut by its threshold"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: DICE's grids, the counts above"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-GRID-9",
+   "status": "verified",
+   "title": "Material properties DICE leaves at constants"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 1,183 of 1,183 DICE physics assets: wrapper hashes equal to the hashes of MaterialMappings in order"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/bf1943_vehicles.py:360-374"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-SLOT-1",
+   "status": "verified",
+   "title": "The wrapper's material hashes are the names' 33-xor hashes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 4,454 of 4,454 parts in 1,183 of 1,183 files; run forms d = 1 x 904 (84 with 2+ parts), one byte per part x 279"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/physmat.rs:146-312"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:23-28"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-SLOT-2",
+   "status": "implemented",
+   "title": "A part's byte and its PartInfoData material agree"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: PartInfoDatas of the 1,183 DICE physics assets: 4,454 parts, 65 distinct materials, none outside DICE's grids"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:141-145"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-SLOT-3",
+   "status": "verified",
+   "title": "DICE's part materials"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: FaceMaterials items per file 1 - 9 over 1,183 files; equal to MaterialMappings in 525"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-SLOT-4",
+   "status": "verified",
+   "title": "Face lists"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "part damage 0x722990 (server), 0x8D6730 (client), 0x6122B0; explosions 0x6A19A0; whole-entity damage reads entity+0x30"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:38-47"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-SLOT-5",
+   "status": "observed",
+   "title": "Damage reads the part material; an object without parts its default material"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the face material read at 0xAAEEE0 / 0xAADE10 is the hit material of a group member"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/physmat.rs:324-385"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:103"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-SLOT-6",
+   "status": "implemented",
+   "title": "A model-group member's slots are the group's"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "penetration test 0x6F6570; runtime id flags built at 0x10029E0"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: NeverPenetrate true on 11,246 of 162,950 damage items; 23 Penetrable materials (MAT-GRID-4)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:43"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-PEN-1",
+   "status": "observed",
+   "title": "A bullet passes a penetrable hit material unless the relation forbids it"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "DICE's re-assignment R5 (Metal to Metal_Seethrough on indestructible open metal, the same x0 damage) and the flag's name; the AI's use of the flag was not traced in the executable"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:58-62"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-PEN-2",
+   "status": "inferred",
+   "title": "SeeThrough lets the AI see through"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the hit path 0x8F47F0 -> 0xB059D0 -> 0xAB5430 leads to the part material but was not followed to its end"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x8F47F0, 0xB059D0, 0xAB5430"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:57-62"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-PEN-3",
+   "status": "inferred",
+   "title": "On a plain placed object the hit material is probably the part"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "impact 0x822D60; effect and sound relation lookup 0x6F0550; relation read 0x1005730"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: DICE's grids: ImpactEffect set on 69,547 of 70,241 effect items, ImpactSound on 30,228 of 57,871 sound items, Decal on 17,338 of 19,730 decal items"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:30-34"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-FX-1",
+   "status": "observed",
+   "title": "Impact effect, sound and decal follow the hit material"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "contacts 0xAB0710 / 0x70F720; vehicle relation 0x6F0680"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 3,467 MaterialRelationVehicleData of DICE's grids, the counts above"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-FX-2",
+   "status": "observed",
+   "title": "Vehicle contacts and ground effects"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "relations are looked up per material pair in the level's grid (0x1005730), and a grid holds only its level's materials (MAT-GRID-2)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:164-169"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:283-285"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-FX-3",
+   "status": "inferred",
+   "title": "A material the grid lacks has no relations"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 2,852 distinct DICE ITexture names; _C 375, _D 253, _N 219, _RGB 127, _Nm 123, _Oc 118, _S 73, _Df 45, _OcRGB 43, _M 27, _Occ 27, _RGBM 24, _Occlusion 23, _RGBmask 22, _Mask 20, _AO 15, _SkyOc 14, _CM 14; no suffix 445; names containing dt_ 113, dirt 45, camo 20, rust 8, msk_ 7, grime 1"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:211-226"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs::kinds"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:736-739"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-1",
+   "status": "verified",
+   "title": "DICE's texture suffixes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: of 74 DICE Dx11 shader databases, texture_DirtMask in 69, texture_DirtMask2 54, texture_MaterialMask 48, texture_MaterialMask2 47, DirtColor and DirtFactor 36, DirtColor2 10, DirtFactor2 6, texture_OcclusionTexture 74"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: (entry, slot) bindings over the distinct entries: DirtMaskRGB in texture_DirtMask* 84 and in texture_Texture<N> 310; Dt_Dirt_001 in texture_Layer2_Detail2 372, texture_Layer1_Detail2 171, texture_Texture<N> 136; DirtMap_01 in texture_Texture<N> 394, DirtMap_01_C 360; the per-vehicle dirt maps BMD3_Dirt, Cav_dirt, Cobra_dirt, M1A2_Dirt, M3Bradley_Dirt, T90_dirt, Truck_Dirt, Vodnik_Dirt only in texture_Texture<N> (or a register the pixel shader does not read)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VISUAL_PARITY.md:10-24"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-2",
+   "status": "observed",
+   "title": "Grime and dirt are shader layers over the asset's maps"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "OPFOR's channel study of three DICE OcRGB maps (detail_layers.py --masks) and the textures those props' shader entries list; the shaders' channel reads were not disassembled"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/detail_layers.py:12-15"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VISUAL_PARITY.md:26-29"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-3",
+   "status": "inferred",
+   "title": "OcRGB maps: occlusion in red, blend masks in green and blue"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::grime"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 20 distinct DICE ITexture names containing camo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: every (entry, camo texture) binding over the 74 databases is in a texture_Texture<N> slot (texture_Texture6 86, texture_Texture2 41, texture_Texture3 37, texture_Texture8 25, texture_Texture 18, the rest 72); no pixel shader texture name and no parameter-block constant of the 74 databases contains camo"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-4",
+   "status": "verified",
+   "title": "Camouflage is a texture, not a parameter"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::grime"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: of 9,747 distinct entries (terrain 3,592, objects 2,936, buildings 997, weapons 859, soldiers 627, vehicles 364, vegetation 314, other 58): texture_DirtMask 26 entries (vehicles 10, weapons 10, objects 6; DirtMaskRGB 24, Huey_Rotors_01_A 2; in 69 databases), texture_DirtMask2 51 (weapons 41, soldiers 8, objects 2; in 54), texture_DirtMask3 9 (weapons 8, soldiers 1), texture_Dirt 7 (objects 4, soldiers 3), texture_Dirt2 3 (soldiers), texture_MaterialMask 60 (buildings 59, objects 1), texture_MaterialMask2 55 (buildings 47, objects 7, terrain 1), texture_MaterialMask3 7 (objects)"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-5",
+   "status": "verified",
+   "title": "The dirt and material-mask slots hold shared textures"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::grime"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: DirtColor and DirtFactor in 16 distinct entries (objects 8, vehicles 7, terrain 1), DirtColor2 4, DirtFactor2 2, Destruction_factor 23 (vehicles 11, objects 9, weapons 2, terrain 1); block values DirtFactor / DirtFactor2 0 in all, DirtColor (0, 0, 0) 15 and (0.334, 0.334, 0.334) 1, DirtColor2 (0, 0, 0) 4, Destruction_factor 0 in all"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe string table, file offsets 0x101AF78 - 0x101B1A2: destruction_factor, PickupSpec, LightMap, edgeModelSize, edgeModelPos, edgeModelDir, statModPrimDraw, statModPrimBuil, weaponSpecialization, cameraRoll, cameraPitch, compassRotation, turretRotation, lockWarning, healthWarning, reloadPercentage, weaponHeat, isReloading, lightPower, trackOffset, dirtColor, dirtFactor (each once in the file); the run is looked up by 0x5BF470 and set per drawn instance (MAT-TEX-20)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the run's other names are values only the game knows per object (a turret's angle, a weapon's heat, a track's scroll), so the run is the per-instance constants the renderer fills; the zero block values are then placeholders"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-6",
+   "status": "verified",
+   "title": "DirtColor and DirtFactor are per-instance values the engine writes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::grime"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: 363 MaterialPropertyTerrainData in all 74 DICE materials_win32 grids, every one on a relation with one side null; per material Gravel 58, Rock 54, Dirt 44, Grass 42, Tarmac 40, SeaBed 40, Sand 37, Mud 24, Snow 15, Field 9; DirtTriggerFactor 0.1 x 321, 0.001 x 42 (Grass, every one); DirtTriggerColor 7 - 9 distinct values per channel"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe names MaterialPropertyTerrainData's fields DirtTriggerFactor, DirtTriggerColor and DestructionEffect beside the other material property classes (MaterialPropertyHealthData, MaterialPropertySootData, MaterialPropertyAIData ...), file offsets 0x1071ACC - 0x1071AF4"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the names (DirtTrigger*, dirtColor / dirtFactor) and the per-instance dirt constants on vehicle entries"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-7",
+   "status": "verified",
+   "title": "Terrain materials carry the dirt trigger"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::grime"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: mesh assets by ShaderSets count: objects 1 set 1,090, 2 - 11 sets 193; buildings 1 set 59, 2 - 16 sets 23, none 14; vehicles 1 set 86, 2 - 4 sets 14; soldiers 1 set 29, 2 - 5 sets 34; weapons 1 set 155, 2 - 3 sets 13, none 68; terrain 1 set 423, 2 - 5 sets 45; vegetation 1 set 115, 2 - 5 sets 4. VehicleSpawnEntityData.MeshShaderSetNumber 0 x 1,226, 1 x 99, 2 x 83; SoldierSpawnEntityData.MeshShaderSetNumber 0 x 1,910, 1 x 15, 2 x 20; SoldierEntityData.MeshShaderSetNumberOverride -1 x 71, 1 x 12, 0 x 1; SoldierWeaponData.MeshShaderSetNumberOverride -1 x 337, 1 x 22; MeshShaderSet set on ReferenceObjectData 24,177 of 141,724, StaticModelEntityData 6 of 1,407, DynamicModelEntityData 7 of 61, VehicleEntityData 5 of 98, null on every other class"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe names MeshShaderSet, MeshShaderSetAsset, MeshShaderSetIndex, MeshShaderSetNumber, MeshShaderSetNumberOverride, ParachuteMeshShaderSet, ShaderSets and UseTeamShaderSet"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-8",
+   "status": "verified",
+   "title": "A mesh's shader sets and who picks one"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::grime"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: 14 vehicle meshes with more than one set; set 1 desert on 6 (Cav, Humvee, M1A2, M3A3, M48, QuadBike), the same as set 0 on 5 (AA-BMD3, BMD3, T90, Truck, Vodnik), merc 2 (Cobra, Mi28), other 1 (AH60_Sp); set 2 snow on 9; set 3 empty on 2. Vehicle entries binding a _Desert / _Snow / snow-mask texture: 8 desert and 18 snow, each entry's shader name naming the same livery. MeshShaderSetNumber 1 on 13 levels (bc1_oasis cq / gr / sdm, mp_001, mp_001sdm, mp_005, mp_005gr, mp_006, mp_006cq, mp_006sdm, sp_006, sp_02, sp_04), 2 on 13 (mp_003, mp_007, mp_007gr, mp_007sdm, mp_008, mp_008sdm, mp_012cq, mp_012gr, mp_sp_002gr, mp_sp_002sdm, sp_004_b, sp_02, sp_04)"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-9",
+   "status": "verified",
+   "title": "Vehicle camouflage is shader set 1 (desert) or 2 (snow), picked per level"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::grime"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: 58 soldier entries bind a camo texture, 38 of them another one in another database; per database the (US, RUS) pair its soldier entries bind most: woodland 22, snow 15, desert 14, woodland without RUS 2, RUS_03 only 1, none of the six 20 (Vietnam); DBX partitions referencing a Camo_* soldier texture: 0; soldier sets beyond 0: set 1 kitupgrade 20, empty 8, snow 3 (campaign headgear), other 3; set 2 all_white 4, empty 8; SoldierSpawnEntityData.MeshShaderSetNumber 1 on sp_003_b, sp_006, sp_007, 2 on sp_005"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the level's camo choice is made when the content build compiles the level's database (a per-level texture substitution); the game only sees the result; the kit-upgrade reading is from the set's shader names and the override's values (-1, 0, 1)"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-10",
+   "status": "verified",
+   "title": "Soldier camouflage is bound per level in the level's shader database"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::grime"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/grime.py, 2026-11-22: 26 weapon entries bind a Dt_Camo_* tile, 17 of them another tile in another database; per database the tile its weapons bind most: Dt_Camo_Wood 28, Dt_Camo_Desert 13, Dt_Camo_Snow 12; against the US soldiers' camo of the same database: 49 agree, 4 differ (sp_004_b, sp_02, sp_04: wood with Camo_Snow_1; sp_006: wood with Camo_Digital); distinct entries over every database binding DesertCamo_01_D: weapons 68, vehicles 1; Dt_Camonet_RGB_01 objects 4, vehicles 1; Camonet_Oc_RGB objects 7; DynamicWeaponPickupEntityData / WeaponPickupEntityData.UseTeamShaderSet false on all 115"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-11",
+   "status": "verified",
+   "title": "Weapons' camouflage is a tiled detail layer, also bound per level"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:55-77"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:130-142"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:193-207"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:226-264"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:546"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-12",
+   "status": "implemented",
+   "title": "OPFOR weathers clean colour maps up to DICE's class median",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:152-156"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:269-304"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:307-358"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:550-559"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-13",
+   "status": "implemented",
+   "title": "The weathering is DICE's own detail textures, at one strength found by bisection",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:148"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:333-342"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:441-470"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_weathering_policy.py::test_encoded_weathering_respects_linear_luminance_budget_and_transparency"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-14",
+   "status": "verified",
+   "title": "Weathering never darkens a map by more than 15 %",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:143-146"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:425-438"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:521-530"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:574-590"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_weathering_policy.py::test_weathering_restores_own_results_and_preserves_newer_edits"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_weathering_policy.py::test_weathering_preserves_packed_channels_without_reencoding"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-15",
+   "status": "verified",
+   "title": "Only the listed custom assets are restyled; BF1943's artwork is restored",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:372-422"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_grime_crash_between_writes_keeps_the_original"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_grime_source.py::test_survey_source_is_the_orig_only_for_a_recorded_weathered_copy"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_grime_source.py::test_survey_source_without_an_orig_is_the_file"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-16",
+   "status": "verified",
+   "title": "The pass records what it wrote, so it can run again",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:116-129"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:174-190"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:498-518"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:537-545"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:591-597"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_grime_keeps_dxt1_alpha"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_colour.py::test_ground_build_restores_source_alias_and_weathering_excludes_it"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-17",
+   "status": "verified",
+   "title": "What the pass leaves alone, and the formats it keeps",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:60-63"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime.py:157-164"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime_sheet.py:15-29"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime_sheet.py:48-83"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/grime_models.py:30-50"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_rebuild_step_order"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_from_selects_exactly"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_grime_ref_cache_is_invalidated"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-18",
+   "status": "verified",
+   "title": "The pass runs after the shader clone pass, and its references are cached by their inputs",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/detail_layers.py:45-66"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/detail_layers.py:96-135"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/detail_layers.py:1-25"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VISUAL_PARITY.md:37-53"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-19",
+   "status": "implemented",
+   "title": "Ported materials borrow DICE's layers from a donor entry",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x884C20 (speed `sqrt(v.v)` against 5.0 at 0x14D9450; material 0x7BF160 -> 0x6C94E0 -> 0x6F0250, the terrain property at +0x10 with DirtTriggerColor +0x10 and DirtTriggerFactor +0x20 as MaterialPropertyTerrainData's field descriptors 0x1C35A88 / 0x1C35AB8 give; clamp with 0 and 1.0 at 0x14D94F0; the colour blend 0x884D28 - 0x884DB5), called from 0x893E9C; getters 0x877520 (+0x1D0) / 0x877530 (+0x180); copies 0x5EA24E - 0x5EA27B and 0x5EFB81 - 0x5EFBA9; constants set 0x5CB733 / 0x5CB7A7 (handles +0x6D0 / +0x6D4 of the table 0x5BF470 fills: dirtFactor, dirtColor, trackOffset ...; built by 0x5DD9D0)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x893E50 (only caller 0x8C0282 in 0x8C0210, `test flags, 1`); 0x8C0210 is slot 125 of vtable 0x01436C38 (175 slots; slot 43 returns \"ClVehicle\"), its only pointer in the image (0x01436E2C)"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-TEX-20",
+   "status": "observed",
+   "title": "Dirt builds up while a vehicle moves over a dirt-trigger material",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/materialgrid.rs:656-742"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/material_grid.py:53-61"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 4 materials_xenon grids, 104 - 111 materials, 4,049 - 4,706 relations"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:84"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-WW2-1",
+   "status": "implemented",
+   "title": "The merged grid: DICE's relation first, then BF1943's, then a stand-in",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's physics-material census of 2026-11-09 (physmat scripts): 88 shared HavokPhysicsData, 48 differing, 31 part-material changes"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:89-162"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-WW2-2",
+   "status": "observed",
+   "title": "DICE's re-assignment of the shared objects",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/bf1943_objects.py:122-133"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/bf1943_vehicles.py:352-392"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:19-35"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-WW2-3",
+   "status": "implemented",
+   "title": "OPFOR's part-material decisions",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_level.py:970-982"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_level_build.py:259-293"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-WW2-4",
+   "status": "implemented",
+   "title": "Wire members of the WW2 groups hit as RazorWire",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "OPFOR's air-raid design on the unmerged branch ww2/air-raid (its AIR_RAID_SPEC and material_grid's SOLDIER_COUNTERPARTS); not in the main checkout or the game copy yet"
+    }
+   ],
+   "file": "spec/engine/materials.md",
+   "id": "MAT-WW2-5",
+   "status": "inferred",
+   "title": "The air raid's bombs against the WW2 soldiers",
+   "variants": "BF1943"
+  }
+ ]
+}

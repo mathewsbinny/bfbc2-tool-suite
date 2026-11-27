@@ -1,0 +1,308 @@
+{
+ "about": "The rules of spec/transforms/shaders.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:1-45"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:72-77"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-SCOPE-1",
+   "status": "implemented",
+   "title": "Dx10 / Dx11 entries of ported objects, terrain patches and strips",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/xenos_hlsl.py:1-22"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xenos_native.py::main"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-SCOPE-2",
+   "status": "verified",
+   "title": "The translation runs in the suite's Rust core",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:61-64"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:556-563"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xenos_native.py::main"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-ALU-1",
+   "status": "verified",
+   "title": "Multiplication follows Direct3D 9: 0 times anything is 0",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:763-776"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_kitbags.py::test_cutout_and_textures_by_role"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-ALU-2",
+   "status": "implemented",
+   "title": "Alpha test moves from render state into the pixel shader",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:1013-1115"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:1135-1139"
+    },
+    {
+     "kind": "data",
+     "ref": "20 of 8,320 distinct Xbox programs take the forward emitter (all vertex shaders, one if / else shape); their 20 translations exact against xenos_exec on 512 vertices, both sides of each if / else run"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xdiff.py::forward_jumps"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xdiff.py::forward_programs"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-shader/tests/forward_jumps.rs::overlapping_forward_jumps_take_the_forward_emitter"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-shader/tests/forward_jumps.rs::what_the_forward_emitter_does_not_take_fails_as_before"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-CF-1",
+   "status": "verified",
+   "title": "Overlapping forward jumps: a guard on every block",
+   "variants": "BF1943, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:26-34"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:472-482"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_pcbuild_batch.py::quick"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-BIND-1",
+   "status": "implemented",
+   "title": "Binding tables are generated from the compiled code",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:36-55"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_strip_and_patch_position_contracts"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-BIND-2",
+   "status": "implemented",
+   "title": "The terrain's named constants stay named",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:1-12"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:240-245"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shadertranslate.rs:1043-1054"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island carrier, 2026-11-07: the deck drew blotchy until the key's layout GUID was the part's; verified in game after"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-KEY-1",
+   "status": "implemented",
+   "title": "A program's key: the part's own layout and BF1943's mesh kind",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:14-23"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shadertranslate.rs:896-913"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shadertranslate.rs:457-474"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-FETCH-1",
+   "status": "implemented",
+   "title": "A BF1943 program is picked by fetch format, not by offset alone",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shadertranslate.rs:271-283"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-FETCH-2",
+   "status": "implemented",
+   "title": "Overlapping PC layout elements are skipped",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:32-40"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_patch_template_inputs"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-PATCH-1",
+   "status": "implemented",
+   "title": "Terrain patches translate onto BFBC2's two patch layouts",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:1-6"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:329-340"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/shaderdb.py:1003-1010"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/shaderdb.py:1128-1130"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb_native.py::run_merges"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-MERGE-1",
+   "status": "verified",
+   "title": "The merge copies entries by content and renumbers only what it adds",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:1640-1644"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-MERGE-2",
+   "status": "implemented",
+   "title": "A cloned entry must cover its parts' layouts, or the install re-clones it",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Dx9 survey of Wake Island's Dx9_Single.res, 2026-11-15: 1,723 VS, 4,668 PS, 27,397 programs; the differences as listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:26-60"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-DX-1",
+   "status": "observed",
+   "title": "Dx10 and Dx11 take the same translation; Dx9 keeps donors",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island conversion, 2026-11-07: Dx10 / 11 patch programs sample normal maps the Dx9 programs lack"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:258-260"
+    }
+   ],
+   "file": "spec/transforms/shaders.md",
+   "id": "XSH-DX-2",
+   "status": "observed",
+   "title": "Each Dx database needs its own textures collected",
+   "variants": "PC"
+  }
+ ]
+}

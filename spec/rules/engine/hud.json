@@ -1,0 +1,153 @@
+{
+ "about": "The rules of spec/engine/hud.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    }
+   ],
+   "file": "spec/engine/hud.md",
+   "id": "HUD-CFG-1",
+   "status": "verified",
+   "title": "Two HUD configurations and the shared UI configuration",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/hud.md",
+   "id": "HUD-MENU-1",
+   "status": "verified",
+   "title": "The menu configuration, movies, tips and the 3D menu scene",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above; LevelData member MinimapSettings; CapturePointEntityData members MapMarker, ShowOnMinimap"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings UIMinimapZoomState_None ... UIMinimapZoomState_Artillery, UIMinimapShapeType_Circle ... _Square, enableMinimap, hideMinimap, setMinimapState, zoomMinimap, MinimapCameraOffsetData"
+    }
+   ],
+   "file": "spec/engine/hud.md",
+   "id": "HUD-MAP-1",
+   "status": "verified",
+   "title": "The minimap: the level's settings, the icon atlas and the zoom states",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above; MissionObjectiveEntityData member MapMarkers"
+    }
+   ],
+   "file": "spec/engine/hud.md",
+   "id": "HUD-MARK-1",
+   "status": "verified",
+   "title": "Map markers, tooltips, counters and objective cameras",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/hud.md",
+   "id": "HUD-FX-1",
+   "status": "verified",
+   "title": "Camera screen effects: CRT views, scope filters, level screen effects",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: SpectateEntityData 227 instances"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings ClientSpectateEntity, ServerSpectateEntity, doSpectate, MieSpectate"
+    }
+   ],
+   "file": "spec/engine/hud.md",
+   "id": "HUD-SPEC-1",
+   "status": "verified",
+   "title": "The spectator is a level entity with camera indices per target kind",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: no class or member name containing KillCam; a UITextureAtlasData in Menu/MP_Killcam_Textures_Win32"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe no typeinfo record named KillCam; the member `ServerSettings.KillCam` (RTTI-GAME-1) and the setting `Server.KillCam` (HUD-KILL-2)"
+    }
+   ],
+   "file": "spec/engine/hud.md",
+   "id": "HUD-KILL-1",
+   "status": "observed",
+   "title": "The kill cam has no camera class of its own",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: SpectateEntityData Target, Mode and UseInHardcoreMode as above (227)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe ServerSpectateEntity's test 0x67AEE0: `cmp byte [eax+0xAC"
+    }
+   ],
+   "file": "spec/engine/hud.md",
+   "id": "HUD-KILL-2",
+   "status": "verified",
+   "title": "The kill cam is the level's spectate entities, gated by `Server.KillCam` and hardcore",
+   "variants": "PC"
+  }
+ ]
+}

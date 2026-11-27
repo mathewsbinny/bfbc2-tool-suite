@@ -1,0 +1,81 @@
+{
+ "about": "The rules of spec/formats/bink.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's files, 2026-11-23: 56 distinct BinkMemory entries (57 live): BIKi 1280 x 720, 25 fps x 40, 29.97 fps x 16, no audio, the size word fits in 56; 33 movies: BIKi in 33, the size word fits in 33, one audio track in 7"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe imports from binkw32.dll BinkOpen, BinkClose, BinkDoFrame, BinkNextFrame, BinkWait, BinkGoto, BinkPause, BinkSetVolume, BinkSetSoundSystem, BinkOpenWaveOut, BinkGetFrameBuffersInfo, BinkRegisterFrameBuffers (12 functions)"
+    }
+   ],
+   "file": "spec/formats/bink.md",
+   "id": "BINK-HDR-1",
+   "status": "verified",
+   "title": "Every payload is a Bink 1 file of revision `i`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: 56 of 56 BinkMemory entries begin with BIKi"
+    }
+   ],
+   "file": "spec/formats/bink.md",
+   "id": "BINK-RES-1",
+   "status": "verified",
+   "title": "A `BinkMemory` resource is the bare payload",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: 33 movies (DICE's, 2010 - 2012): RES version 2 with both length words 0 in 33; BinkMemory 22, BinkTexture 11 (prefix 0, 0 x 10, 1, 1 x 1); the Bink size word fits in 33"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's partitions, round SPG4 census: BinkTextureAsset 11 instances under movies/, BinkMemoryAsset 56 (16 under movies/introtransitions)"
+    }
+   ],
+   "file": "spec/formats/bink.md",
+   "id": "BINK-OUT-1",
+   "status": "verified",
+   "title": "An out-of-bundle movie is a RES wrapper with zero lengths",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe import table names binkw32.dll with _BinkOpen@8 ... _BinkWait@4"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: binkw32.dll dated 2010-01-12, 175,616 bytes"
+    }
+   ],
+   "file": "spec/formats/bink.md",
+   "id": "BINK-DLL-1",
+   "status": "observed",
+   "title": "`binkw32.dll` is RAD's player, loaded by the executable",
+   "variants": "PC"
+  }
+ ]
+}

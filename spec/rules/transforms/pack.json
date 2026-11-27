@@ -1,0 +1,249 @@
+{
+ "about": "The rules of spec/transforms/pack.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-tools/src/fbrbtool.rs:275-295"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-tools/src/fbrbtool.rs:586-633"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-tools/src/fbrbtool.rs::round_trip_and_damage"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-tools/src/unpack.rs::unusual_bundles_as_fbrbtool_unpacks_them"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrbtool.py::damaged"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_unpack_native.py::check_built"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-UNP-1",
+   "status": "verified",
+   "title": "Input and refusals"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-tools/src/fbrbtool.rs:801-917"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_unpack_native.py::run_bundles"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_unpack_native.py::check_built"
+    },
+    {
+     "kind": "data",
+     "ref": "every bundle of the game copy whose payload is at most 300 MB, against fbrbtool_golden_game.json by SHA-1 (test_fbrb_unpack_native.py --game)"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-UNP-2",
+   "status": "verified",
+   "title": "Output: FbrbTool's files and manifest"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:788-804"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:825-859"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::safe_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::files_that_change_size"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::too_large"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_built"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-PCK-1",
+   "status": "verified",
+   "title": "Input and refusals"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:575-599"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::size2_rules"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-PCK-2",
+   "status": "verified",
+   "title": "size2 of an edited entry"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:899-926"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/zlib.rs:924-932"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_built"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_zlib"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/zlib.rs::known_outputs"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/zlib.rs::round_trips"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::padded_layouts"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-PCK-3",
+   "status": "verified",
+   "title": "Output: FbrbTool's bytes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-gamefs/src/bundles.rs:1190-1210"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-gamefs/src/atomic.rs:227-229"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-gamefs/src/atomic.rs::a_moments_lock_is_waited_out"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-gamefs/src/atomic.rs::a_real_file_is_replaced"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::streamed_files_as_from_memory"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_built"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-PCK-4",
+   "status": "verified",
+   "title": "The write is atomic"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-gamefs/src/bundles.rs:1212-1215"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_built"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-PCK-5",
+   "status": "verified",
+   "title": "Packing many keeps order and isolates failures"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-tools/src/unpack.rs::unpacks_and_packs_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/writers.rs::packed_entries_come_back"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::run_bundles"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb.py::roundtrip"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-RT-1",
+   "status": "verified",
+   "title": "pack(unpack(b)) = b for the suite's bundles"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::run_bundles"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::same_but_gzip_headers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "all 1,086 bundles of the game copy (2026-11-16): 62 identical, 919 identical but for the gzip headers, 105 also but for the marker-only empty payload member"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPV1-fix 2026-11-22: DICE's 105 zipped bundles with an empty payload, unpacked and packed again: DICE's bytes but for the header member's xfl / os, the 20-byte member byte for byte"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:333-336"
+    }
+   ],
+   "file": "spec/transforms/pack.md",
+   "id": "XPACK-RT-2",
+   "status": "verified",
+   "title": "DICE's zipped bundles come back but for the gzip headers"
+  }
+ ]
+}
