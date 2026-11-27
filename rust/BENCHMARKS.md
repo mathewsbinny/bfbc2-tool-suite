@@ -5179,6 +5179,131 @@ bc2-levelwrite, and bc2-cli's 19 tool groups alone, clean; bc2-editor's tests 58
 80 unit tests; the rush stage module with the game tier (5 of 5); gr2 and rush_stage_tools with the game copy; the
 quick tier 137 of 137; `spec/trace.py --check` ok (1,519 rules, GAME-RUSH-12 unused on main).
 
+## XD2: the shader translator's differential proof, widened (2026-11-27, branch `xd2`)
+
+The user's forward emitter (ef104ca1, `hlsl.rs` `cfs_forward` / `has_non_nested_forward_jumps`) made 20 of the 8,320
+distinct Xbox programs of `test_xenos_native.py --game` translate that used to fail with "jump to cf N is not a nested
+forward jump". `test_xdiff.py --game-all` proved only Wake's 815 pixel shaders; none of the 20 is among them.
+
+**The 20.** All vertex shaders, one shape (a skinned shader's if / else on a bone's values: CF 3 `(!p0) jmp 6`, CF 4
+`(p0) exec`, CF 5 `(p0) jmp 11 / 12`, 5 or 6 `(!p0) exec` blocks). 4 in BF1943 (`guadal_canal` vs285, vs469;
+`iwo_jima_s` vs255, vs520), 16 only in BFBC2's Xbox levels (`mp_001` vs44, 106, 213, 245, 276, 299, 358, 712;
+`mp_002` vs8, 754; `mp_003` vs14, 153; `mp_004` vs305, 824; `mp_008` vs344, 421) - the task's "BF1943's databases"
+holds for 4 of them. Three translate under fewer than 3 interfaces (iwo_jima_s vs255 and vs520 under 2, mp_002 vs8
+under 1): the seeded random interfaces drop a TEXCOORD the shader writes ("VS writes TEXCOORDn, not in the
+interface"), the same check the nested emitter makes. Exactly 20 programs' plain-interface translations carry the
+`_cf` guard (a scan of the corpus).
+
+**The proof.**
+- `xenos_exec.py` runs vertex shaders: vfetch (the element's value by usage index, before the destination swizzle),
+  oPos and o0-o15 exports (`Result.position`, `Result.outputs`). It records each jump's lanes (taken / not) and the CFs
+  no lane reached, and marks lanes that read `c[k + a0]` outside the array of `c[k]` (`Result.out_of_range`: on both
+  sides the value is the register file's layout, not the shader's; the comparison leaves those lanes out).
+- `xdiff.py --vs [N ...]`: the translation wrapped (`main` renamed `xdiff_vs`, a wrapper's `main` takes a
+  TEXCOORD16 with the pixel and the output slot and passes that output on, `nointerpolation`), each output of each
+  vertex a pixel of its own; `--db <level>`, a resource name or `bfbc2:<level>` (OPFOR's unpacked Xbox copy). Vertex
+  inputs: half the vertices in [-1, 1], half in [0, 20) - with (-1, 1) alone every bone index truncates to 0, every
+  vertex takes the same side of the if / else (first measured: jump taken 0 of 512 or 512 of 512).
+- The 20 on 512 vertices: all exact on oPos and every interpolator; the if's jump taken by 17 to 356 vertices and not
+  by the rest; the else's jump taken by every vertex reaching it (it follows a `(p0)` block: not-taken is
+  impossible); every CF reached; no lane out of range.
+- The jumps in the 20 skip only blocks predicated off for the lanes taking them, so per-lane (the translation, the
+  interpreter, Xenia) and per-wave branching agree; that is also why a jump bug could hide on them. Hence the
+  hand-built if / else of plain execs (below), where the jumps alone decide.
+
+**What was wrong.** `cfs_forward` ran a `cond_exec` / `cond_exec_end` (a bool constant's exec) unconditionally; the
+nested emitter refuses it ("control flow cond_exec is not supported") and no part of the translator has bool
+constants. Now refused as there. No corpus program has one: no recorded translation changed by it. Nothing else was
+wrong: the 20 translations are the user's emitter's text.
+
+**Re-recorded.** `xenos_golden_game.json` (`test_xenos_native.py --record --game`): 20 of 8,320 records changed,
+exactly the 20 program keys above (each from three `E:jump to cf N is not a nested forward jump` to the new digests /
+outcomes); `xenos_golden.json` unchanged. `test_xenos_native.py --game` then passes.
+
+**Tests.**
+- `rust/bc2-shader/tests/forward_jumps.rs` (new): a hand-built pixel shader (`if (r0.w > 0) r1 = r0 * r0 else r1 =
+  r0 + r0` with overlapping jumps 1 -> 4, 3 -> 5) translated line for line with the guards; nested jumps keep the
+  nested emitter; a bool-constant jump, a backward jump and a bool-constant `cond_exec` refused with the nested
+  emitter's errors.
+- `test_xdiff.py` quick: the same program as a pixel and a vertex shader against the interpreter, exact, both
+  branches run (vertex: jump taken 194 / not 62 of 256), and a translation with the jump `1 -> 4` made `1 -> 5`
+  caught (pixel 138 of 256 outputs differ, vertex 194 of 512). `--game`: the 20 by program key, exact, both sides
+  of each if / else run.
+- `--game-all`: every Wake pixel shader still exact (815 of 815; served and reference runs alike, 3,261 files).
+- Not in a test (evidence for the README): Wake's 735 vertex shaders on 256 vertices, 728 exact; vs251 / vs710
+  rounding on values near 1e4 (relative 1e-6), 5 fetch a vertex texture from fetch constant 22 with no sampler.
+- `bfbc2 xdiff` takes `--vs` and no longer refuses another `--db` with `KeyError` (argspecs.rs regenerated;
+  `argfmt_golden.json`, `abbrev_golden.json`, `cli_o5_shader_golden.json` re-recorded: only xdiff's lines changed).
+
+Spec: XSH-CF-1 (verified).
+## E7-TG3: Create Level's terrain, from a height map and from the generator (2026-11-27, branch `e7`)
+
+ROADMAP rows E6-E7 (the Create Level part) and TG3, done together. Spec: `transforms/terrain_edit.md` TEDIT-NEW-1
+(verified), TEDIT-NEW-2 (implemented), TEDIT-NEW-3 (verified); `transforms/validation.md` XVAL-TERR-4 (new);
+`terrain_gen.md` TGEN-REQ-5 implemented. Project format 13.
+
+**What it does.** Create Level's form ("From a height map", and "Generate" beside it with `bfbc2 terrain
+generate`'s settings) makes a project on a **base level** (a multiplayer map with its own terrain: its mode layer,
+objects, weather and its terrain's look, TGEN-BIOME-4) that opens like any project. The export
+(`bc2_levelwrite::newterrain`) makes the terrain from the project's record, names it after the level
+(`Terrains/<LV>/<LV>`: the level's `TerrainEntityData` reference, the base's terrain partitions `<T>.dbx` and
+`<T>-MaterialMap.dbx` copied and renamed, the patch / undergrowth / cache / water entries cloned into each staged
+database after the export's merges, the colour / occlusion map), stages it in the level's own terrain bundle with the
+base bundle's other entries but none of the base terrain's, and registers that bundle without the base's terrain
+bundles (TGEN-REQ-5). `mapexport check` reads it back (XVAL-TERR-4); the path-data step samples the stage.
+
+**On DICE's data** (`rust/bc2-levelwrite/tests/new_terrain.rs`, game tier, release):
+
+| Test | Result |
+|---|---|
+| `dice_heights_through_the_import`: every DICE main block of Dist's and Package's levels (bundles before 2013) as a height map with its own range, imported | 30 of 30 give DICE's stored samples, bounds and min / max tree (the envelope is built under the heights; the depth map is 255); MP_005 also through a 2,049 PNG file; 2.2 s |
+| `new_level_exports_and_checks`, MP_005 as Conquest, generated (arid 1,024, seed 7, ring, a pad) | built in 26 - 29 s (the terrain and visual side 3.3 s); 19 terrain entries, 99 entries cloned into each database, 2 terrain partitions renamed; `export::check` (27 s) passes every rule; the terrain block names only the level's own bundle |
+| the same with MP_005's own heights as a PNG (2,048) | built in 37 s; every rule passes; the staged main block has DICE's heights and bounds |
+| the base's Conquest layer with no new terrain | every rule passes (the reference) |
+
+The first check failed XVAL-REF-3 twice, and both were the export's: the base terrain's partition names
+`Terrains/MP_005/MP_005-MaterialMap` (a partition MP_005's level bundle ships, not only its terrain resource), so the
+export now copies every partition named after the terrain; and DICE's own terrain partition names editor partitions
+that never ship (TEDIT-SRC-1: road splines, decal materials), which XVAL-REF-2 now lists as the base's own for the
+renamed copy.
+
+**Path data** (`new_level_path_data`, MP_005 prepared for NavKit, `bin\bfbc2.exe` built from the branch):
+
+| Level | Built (sample + build) | Sectors / route nodes | Connectivity | Walkable 8 m cells in the playable box | Coverage | XVAL-PLACE-5 |
+|---|---|---|---|---|---|---|
+| generated (arid 1,024) | 48 - 82 s | 27 / 7,593 | 0.883 | 2,421 | 0.860 | 32 points off (the base's layer, laid out for a 2,048 m map, on 1,024 m of ground) |
+| MP_005's heights imported | 57 - 65 s | 25 / 7,818 | 0.944 | 2,799 | 0.899 | 13 off |
+| MP_005 itself sampled on the stage (DICE's terrain and name) | - | 25 / 7,854 | 0.944 | 2,799 | 0.899 | 13 off (the layer's, on the stage sampler) |
+
+Connectivity: the share of route nodes on the main network; coverage: walkable cells (dry, under 40 degrees) a
+main-network node reaches (15 m / 4 m, as XVAL-PLACE-5); the build checks: XVAL-AI-1 and the file parsed and written
+back byte for byte.
+
+**The canary (TGEN-OUT-5)** first found a bug: the stage sampler wrote only the staged main height field into its
+tree, so a new terrain's water mesh (under the new name) was never seen and the build walked the sea floor (28 sectors
+and 8,320 nodes against DICE's terrain's 25 and 7,854); `navkit sample --stage` now writes the staged water mesh too.
+Then 7,818 against 7,854 nodes: the import's water is one quad over the square (TGEN-WATER-1) and DICE's MP_005 water
+covers only the sea (1,902 vertices at 58.0 / 58.31 m), so the build's water rule (ground more than 1.5 m under water
+left out) removed inland ground under 56.5 m. With DICE's water mesh in the copy's stage, the copy's path data
+**equals** DICE's terrain's: 25 of 25 sectors, every node position, edge count and mesh.
+
+| Run (release, this PC) | Time |
+|---|---|
+| `cargo test --release -p bc2-levelwrite --test levelwrite new_terrain:: -- --ignored` | 2 s + 178 s + 302 s |
+
+### Left
+
+- The editor's views show the base's terrain for a Create Level project until it is exported (the export's stage has
+  the new one); the game-accurate view's `read_generated` could show it.
+- The base's objects and gameplay stay where the base had them (TG5 / A3 place them on the new ground); sculpt and
+  paint on a new terrain are refused until TG4.
+- A height map's water is one quad (TGEN-WATER-1); shores and partial water bodies are not written.
+- Bases: DICE's multiplayer maps with a terrain of their own; WW2 (Package-only, BF1943 terrains) not tried.
+- E6 (vegetation) stays queued.
+- **Unproven until a playtest** (`terrain_edit.md` section 5, step 7): the engine loading a level whose terrain
+  bundle is its own and whose base's is not registered, the renamed terrain partitions and cloned entries, a
+  height-map terrain and a generated one in game, the bots on them. Nothing was installed or launched.
+
 ## OR6: OPFOR in Rust - the map export's install side (2026-11-27, branch `or6`, with Project OPFOR's `or6`)
 
 Version 0.29.0 (OPFOR's `SUITE_REQUIRES` 0.29.0 to below 0.30.0).

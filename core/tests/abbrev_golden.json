@@ -880,87 +880,102 @@
 "out": ""
 },
 "[\"xdiff\", [\"--b\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--d\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --db: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --db: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--d\", \"x\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--d=x\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--h\", \"--zz-not-an-option\"]]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
 },
 "[\"xdiff\", [\"--l\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --limit: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --limit: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--l\", \"1\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--l=1\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--p\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--p\", \"1\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--p=1\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--s\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --seed: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --seed: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--s\", \"1\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--s=1\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--v\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--v\", \"1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--v=1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--w\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --workers: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --workers: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--w\", \"1\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--w=1\", \"--zz-not-an-option\"]]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
 "exit": 2,
 "out": ""
 }

@@ -103,7 +103,7 @@ generic water shaders (`Shaders/WaterOcean`) keep their names (reused assets of 
 
 ### TGEN-REQ-5: The export registers the new level's own terrain bundle
 
-Status: **inferred** · Variants: PC
+Status: **implemented** · Variants: PC
 
 A generated level is exported as a new level (XEXP-PRE-1) built on a donor of its mode (XEXP-PRE-2) for everything that
 is not terrain - commons, mode layer, shader databases, weather - with a terrain bundle of its own holding TGEN-REQ-1's
@@ -114,7 +114,16 @@ bundleManifest line is a checksum crash). The export today reads the base's othe
 makes and `export::check` must then accept ("the terrain's height field is loaded", XEXP-CHK-1, naming the level's
 own).
 
+Round TG3 implements it (with E7's height-map path, TEDIT-NEW-2): the staged terrain bundle holds the new terrain's
+resources and the base bundle's other entries, never the base terrain's; the terrain block of `package.mft` names the
+level's own bundle and the commons, no bundle of the base level; the base terrain's partitions (`<T>.dbx`,
+`<T>-MaterialMap.dbx`) are copied under the new name into the level bundle; `export::check` passes on MP_005 with a
+generated terrain and with MP_005's own heights imported (XVAL-TERR-4, XVAL-LVL-3 naming the level's own height
+field). Whether the engine loads it stays a playtest's.
+
 [inferred: XEXP-BLD-2 (base bundles read at run time), XEXP-REG-1, XEXP-CHK-1; LVL-MODE-2]
+[test: rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks]
+[code: rust/bc2-levelwrite/src/export.rs:1920-1932]
 
 ### TGEN-REQ-6: Collision, water, navigation and cull trees
 
@@ -783,8 +792,8 @@ Status: **inferred** · Variants: PC
 | patch / undergrowth shader entries renamed and retargeted in three databases | done (TGEN-VIS-4) | medium |
 | colour / occlusion map | done (TGEN-OCC-1: the donor's values placed by sky visibility) | small |
 | vegetation and props | feasible: model-group members (TGEN-VEG-1, SG1's edits) | medium |
-| export as a new level | needs the export without the base's terrain bundle (TGEN-REQ-5) | medium |
-| path data | feasible with NK6's stage sampling; quality bounded by NavKit's parity | small (wiring) |
+| export as a new level | done in round TG3 (TGEN-REQ-5, TEDIT-NEW-2, XVAL-TERR-4); unproven in game | medium |
+| path data | done in round TG3 (TEDIT-NEW-3: sampled on the stage, built, measured); quality bounded by NavKit's parity | small (wiring) |
 | in-game acceptance | blocked by the in-game pause (TGEN-OUT-5) | - |
 
 Rounds: **TG1** (done 2026-11-23: `rust/bc2-terragen`, `bfbc2 terrain generate`; the writers are round E5's codec)

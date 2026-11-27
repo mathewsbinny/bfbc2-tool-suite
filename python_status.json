@@ -2451,7 +2451,7 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "test",
-   "lines": 279,
+   "lines": 417,
    "note": "The shader translator's differential test (xdiff.py) and its reference interpreter (xenos_exec.py).",
    "path": "bfbc2-shader-tools/tests/test_xdiff.py",
    "retiring": "Tests in Rust",
@@ -2475,7 +2475,7 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
-   "lines": 394,
+   "lines": 562,
    "note": "the translator's differential test (xenos_exec, WARP draws)",
    "path": "bfbc2-shader-tools/xdiff.py",
    "retiring": "OPFOR in Rust stage 3",
@@ -2499,7 +2499,7 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "library",
-   "lines": 492,
+   "lines": 551,
    "note": "the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement)",
    "path": "bfbc2-shader-tools/xenos_exec.py",
    "retiring": "OPFOR in Rust stage 3",
@@ -4617,7 +4617,7 @@
  "totals": {
   "all": {
    "files": 379,
-   "lines": 110799
+   "lines": 111164
   },
   "by_folder": {
    "(root)": {
@@ -4787,13 +4787,13 @@
    },
    "bfbc2-shader-tools": {
     "files": 18,
-    "lines": 11171,
-    "live": 1430,
+    "lines": 11536,
+    "live": 1657,
     "partly": 3775,
     "ported": 126,
     "retired-pending": 0,
     "stays": 0,
-    "test": 4856,
+    "test": 4994,
     "twin": 984
    },
    "bfbc2-stockmp-ai": {
@@ -4866,7 +4866,7 @@
   "by_status": {
    "live": {
     "files": 18,
-    "lines": 5302
+    "lines": 5529
    },
    "partly": {
     "files": 20,
@@ -4886,7 +4886,7 @@
    },
    "test": {
     "files": 191,
-    "lines": 52529
+    "lines": 52667
    },
    "twin": {
     "files": 56,

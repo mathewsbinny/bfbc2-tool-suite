@@ -1,19 +1,21 @@
-//! `bfbc2 xdiff [--db wake] [--ps N ...] [--n N] [--seed S] [-o out] ...`: `bfbc2-shader-tools\xdiff.py`'s command line
-//! up to its run - the `argparse` parser, an unknown `--db` (the `KeyError` its `DBS` table raises) and no BF1943 tool
-//! suite to read BF1943's bundles with (`bf1943import.fbrb1943`'s `Bf1943ImportError`), each an uncaught exception as
-//! the script has no guard.
+//! `bfbc2 xdiff [--db wake] [--ps N ...] [--vs [N ...]] [--n N] [--seed S] [-o out] ...`:
+//! `bfbc2-shader-tools\xdiff.py`'s command line up to its run - the `argparse` parser and, for a BF1943 database (any
+//! `--db` but `bfbc2:<level>`), no BF1943 tool suite to read BF1943's bundles with (`bf1943import.fbrb1943`'s
+//! `Bf1943ImportError`), an uncaught exception as the script has no guard. (Before round XD2 `--db` took only `wake`:
+//! another name was its `DBS` table's `KeyError`.)
 //!
-//! A run is handed to the Python: each pixel shader runs through `xenos_exec.py` (the Xbox 360 microcode interpreter,
+//! A run is handed to the Python, and so is a BFBC2 Xbox level's database (`bfbc2:<level>`, read from Project OPFOR's
+//! unpacked Xbox copy): each pixel or vertex shader runs through `xenos_exec.py` (the Xbox 360 microcode interpreter,
 //! NumPy, kept Python by round E3f's measurement) and through its translation drawn by `shaderview.exe` on WARP, the
 //! inputs drawn from NumPy's seeded generator; the result is NumPy's comparison of the two.
 
 use super::argp::{self, Kind, Opt, Parsed, Parser, Ty};
-use crate::pyfmt::str_repr;
 use crate::pyos;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, suite_root};
 
-const USAGE: &str = "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]
-                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]
+const USAGE: &str = "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]
+                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]
+                [--workers WORKERS]
 ";
 
 const HELP_BODY: &str = "
@@ -21,6 +23,7 @@ options:
   -h, --help         show this help message and exit
   --db DB
   --ps [PS ...]
+  --vs [VS ...]      vertex shaders (no numbers: every one)
   --n N
   --seed SEED
   --limit LIMIT
@@ -43,6 +46,7 @@ const fn o(strings: &'static [&'static str], kind: Kind, ty: Ty) -> Opt {
 const OPTS: &[Opt] = &[
     o(&["--db"], Kind::Store, Ty::Str),
     o(&["--ps"], Kind::Star, Ty::Int),
+    o(&["--vs"], Kind::Star, Ty::Int),
     o(&["--n"], Kind::Store, Ty::Int),
     o(&["--seed"], Kind::Store, Ty::Int),
     o(&["--limit"], Kind::Store, Ty::Int),
@@ -60,7 +64,7 @@ pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         help,
         opts: OPTS,
         pos: &[],
-        order: &[Err(0), Err(1), Err(2), Err(3), Err(4), Err(5), Err(6), Err(7)],
+        order: &[Err(0), Err(1), Err(2), Err(3), Err(4), Err(5), Err(6), Err(7), Err(8)],
     };
     let a = match argp::parse(py, &p, argv, false, &mut Vec::new())? {
         Parsed::Args(a) => a,
@@ -70,10 +74,10 @@ pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         Parsed::Args(a) => a,
         Parsed::Exit(c) => return Ok(c),
     };
-    // DBS[a.db]
+    // load_db(a.db): a BFBC2 Xbox level's database is the Python's to read (shaderdb.find_opfor, shaderdb.load)
     let db = a.one("--db").unwrap_or("wake");
-    if db != "wake" {
-        return Err(Fail::Err(PyErr::new("KeyError", str_repr(db))));
+    if db.to_lowercase().starts_with("bfbc2:") {
+        return Err(Fail::Python);
     }
     // bf1943_entry: bf1943import.default_source(), then fbrb1943(): the BF1943 tool suite's bundle reader beside the
     // suite, else BF1943_SUITE_FBRB

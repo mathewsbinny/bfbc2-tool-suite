@@ -45,6 +45,7 @@ pub mod modelayer;
 pub mod mpconvert;
 pub mod names;
 pub mod navedit;
+pub mod newterrain;
 pub mod ops;
 pub mod pathdata;
 pub mod placement;

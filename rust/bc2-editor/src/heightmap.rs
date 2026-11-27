@@ -1,7 +1,10 @@
-//! "Create level - from a height map" (round G4, the user's design): the height map file checked, the import's
-//! settings checked, and a project saved that records them with the height map (and the optional colour map) kept
-//! beside it. **The terrain is not generated here:** that is a later round (E7, the terrain writer). Until then such a
-//! project opens on the start screen with its settings and says so; nothing is faked.
+//! "Create level - from a height map" (round G4, the user's design) and "Generate" beside it (round TG3): the height
+//! map file checked, the import's settings checked, and a project saved on a **base level** that records them with
+//! the height map (and the optional colour map) kept beside it, or the terrain generator's settings
+//! (`bfbc2 terrain generate`'s: biome, size, seed, border, water share, pads). The project opens on its base level as
+//! any project does; its export writes the new terrain as the level's own (round E7:
+//! `bc2_levelwrite::newterrain`, spec `transforms/terrain_edit.md` TEDIT-NEW-*). The base gives the level everything
+//! that is not terrain and its terrain's look (TGEN-BIOME-4: its patch shaders, atlas layout and colour map).
 //!
 //! **The sizes BFBC2's terrain takes** (`bc2_formats::terrain`): a level's main height field is a power of two
 //! samples a side, and the reader knows the tail of the two sizes the game's levels use - 1024 and 2048 samples
@@ -207,7 +210,7 @@ pub fn check_colour(path: &Path) -> Result<[u32; 2], EditorError> {
 }
 
 /// The import's numbers, as the form has them.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
     /// The mode whose content the level is made from.
     pub content_set: ContentSet,
@@ -219,6 +222,13 @@ pub struct Settings {
     pub height_max_m: f64,
     /// The water's height in metres.
     pub water_level_m: f64,
+    /// The base level the new level is built on (round E7: a multiplayer map with a terrain of its own; its
+    /// everything-but-terrain and its terrain's look).
+    pub base: String,
+    /// The biome whose materials a height map's material map is painted with (TGEN-MAT-1).
+    pub biome: bc2_terragen::Biome,
+    /// A sub-terrain ring around a height map's terrain (TGEN-RING-1).
+    pub ring: bool,
 }
 
 impl Default for Settings {
@@ -229,8 +239,26 @@ impl Default for Settings {
             height_min_m: 0.0,
             height_max_m: 300.0,
             water_level_m: 0.0,
+            base: DEFAULT_BASE.to_owned(),
+            biome: bc2_terragen::Biome::Arid,
+            ring: false,
         }
     }
+}
+
+/// The base the forms start with: `MP_005` (Atacama Desert), TG2's donor.
+pub const DEFAULT_BASE: &str = "mp_005";
+
+/// Whether a level can be a new level's base (round E7): a multiplayer map of its own - `mp_001` ... `mp_012`,
+/// `nam_mp_002r` ... - not a mode variant of one (`mp_005gr` loads `mp_005`'s terrain) nor a campaign level.
+#[must_use]
+pub fn is_base_candidate(lv: &str) -> bool {
+    let low = lv.to_ascii_lowercase();
+    let rest = low.strip_prefix("nam_").unwrap_or(&low);
+    rest.strip_prefix("mp_").is_some_and(|n| {
+        let d = n.trim_end_matches('r');
+        d.len() == 3 && d.bytes().all(|b| b.is_ascii_digit())
+    })
 }
 
 /// The largest map the form takes, in metres (BFBC2's largest levels are about 2 km; 16 km is far beyond).
@@ -255,6 +283,17 @@ impl Settings {
             return Err(EditorError::Input(format!(
                 "The map size must be 64 to {MAX_MAP_M} metres."
             )));
+        }
+        // TGEN-REQ-2: BFBC2's terrain has 1 m samples, 1024 or 2048 a side; no other spacing is known to load
+        if !matches!(self.map_size_m.to_bits(), x if x == 1024f64.to_bits() || x == 2048f64.to_bits()) {
+            return Err(EditorError::Input(
+                "The map size must be 1024 or 2048 metres: BFBC2's terrain has 1 m samples, 1024 or 2048 a side \
+                 (no other spacing is known to load)."
+                    .into(),
+            ));
+        }
+        if self.base.trim().is_empty() {
+            return Err(EditorError::Input("Choose the base level.".into()));
         }
         if self.height_max_m <= self.height_min_m {
             return Err(EditorError::Input(
@@ -324,6 +363,212 @@ pub struct Request<'a> {
     pub colour_map: Option<&'a Path>,
     /// The numbers and the content set.
     pub settings: Settings,
+    /// The base level's partition as the game copy has it (the project's base sha1).
+    pub base_bytes: &'a [u8],
+}
+
+/// The generator's settings ("Generate", round TG3) as the form has them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GenerateForm {
+    /// The biome.
+    pub biome: bc2_terragen::Biome,
+    /// 1,024 or 2,048 samples (and metres).
+    pub size: u32,
+    /// The seed.
+    pub seed: u64,
+    /// The border's median minus the centre's (`None`: the biome's).
+    pub border_m: Option<f64>,
+    /// The share of ground under water (`None`: the biome's).
+    pub water_share: Option<f64>,
+    /// The water's height (`None`: the base's, TGEN-VIS-2).
+    pub water_level_m: Option<f64>,
+    /// The escarpment's strength (`None`: the biome's).
+    pub rough: Option<f64>,
+    /// Objective pads (x, z, radius).
+    pub pads: Vec<[f64; 3]>,
+    /// The sub-terrain ring.
+    pub ring: bool,
+}
+
+impl Default for GenerateForm {
+    fn default() -> Self {
+        Self {
+            biome: bc2_terragen::Biome::Arid,
+            size: 1024,
+            seed: 7,
+            border_m: None,
+            water_share: None,
+            water_level_m: None,
+            rough: None,
+            pads: Vec::new(),
+            ring: true,
+        }
+    }
+}
+
+impl GenerateForm {
+    /// Whether the generator takes these settings, or why not (its own checks: the size, the share, the pads).
+    ///
+    /// # Errors
+    /// The generator's refusal in words.
+    pub fn check(&self) -> Result<(), EditorError> {
+        let mut s = bc2_terragen::Settings::new(self.biome, self.size, self.seed);
+        s.water_share = self.water_share;
+        s.pads = self
+            .pads
+            .iter()
+            .map(|p| bc2_terragen::Pad {
+                x: p[0],
+                z: p[1],
+                radius: p[2],
+            })
+            .collect();
+        if !matches!(self.size, 1024 | 2048) {
+            return Err(EditorError::Input(format!(
+                "size {}: BFBC2's terrain is 1024 or 2048 samples a side",
+                self.size
+            )));
+        }
+        if self.water_share.is_some_and(|w| !(0.0..=1.0).contains(&w)) {
+            return Err(EditorError::Input("The water share is 0 to 1.".into()));
+        }
+        if self.rough.is_some_and(|w| !(0.0..=1.0).contains(&w)) {
+            return Err(EditorError::Input("The rough relief is 0 to 1.".into()));
+        }
+        let half = f64::from(self.size) / 2.0;
+        if let Some([x, z, r]) = self
+            .pads
+            .iter()
+            .find(|[x, z, r]| x.abs() >= half || z.abs() >= half || *r <= 0.0)
+        {
+            return Err(EditorError::Input(format!(
+                "The pad at {x}, {z} (radius {r}) is outside the {} m square or has no radius.",
+                self.size
+            )));
+        }
+        Ok(())
+    }
+
+    /// The project's record of it.
+    #[must_use]
+    pub fn spec(&self) -> bc2_levelwrite::project::GenerateSpec {
+        bc2_levelwrite::project::GenerateSpec {
+            biome: self.biome.name().to_owned(),
+            size: self.size,
+            seed: self.seed,
+            border_m: self.border_m,
+            water_share: self.water_share,
+            pads: self.pads.clone(),
+            rough: self.rough,
+            erosion: None,
+            ring: self.ring,
+            water_level_m: self.water_level_m,
+        }
+    }
+}
+
+/// Pads as the form types them: `x, z[, radius]` separated by `;` (radius 24 by default, as `--pad`).
+///
+/// # Errors
+/// A pad that is not two or three numbers.
+pub fn parse_pads(text: &str) -> Result<Vec<[f64; 3]>, EditorError> {
+    text.split(';')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(|t| {
+            let v: Vec<f64> = t
+                .split(',')
+                .map(|x| x.trim().parse::<f64>())
+                .collect::<Result<_, _>>()
+                .map_err(|_| EditorError::Input(format!("Pad {t:?}: x, z or x, z, radius")))?;
+            match v.as_slice() {
+                [x, z] => Ok([*x, *z, 24.0]),
+                [x, z, r] => Ok([*x, *z, *r]),
+                _ => Err(EditorError::Input(format!("Pad {t:?}: x, z or x, z, radius"))),
+            }
+        })
+        .collect()
+}
+
+/// What "Create" of the generator saves (round TG3).
+#[derive(Debug, Clone)]
+pub struct GenerateRequest<'a> {
+    /// The new level's name.
+    pub name: &'a str,
+    /// The project's folder.
+    pub folder: &'a Path,
+    /// The content set and the base level (the form's other numbers are the height map's).
+    pub settings: Settings,
+    /// The generator's settings.
+    pub generate: GenerateForm,
+    /// The base level's partition as the game copy has it.
+    pub base_bytes: &'a [u8],
+}
+
+/// Saves a generated level's project (round TG3): no file is kept, the settings generate the terrain again
+/// (TGEN-GEN-1); the project's path.
+///
+/// # Errors
+/// A check fails, a project of that name is already there, or it cannot be written.
+pub fn save_generated(r: &GenerateRequest<'_>) -> Result<PathBuf, EditorError> {
+    let name = r.name.trim();
+    if name.is_empty() {
+        return Err(EditorError::Input("Give the new level a name.".into()));
+    }
+    if r.folder.as_os_str().is_empty() {
+        return Err(EditorError::Input("Choose a folder for the project.".into()));
+    }
+    r.generate.check()?;
+    if r.base_bytes.is_empty() {
+        return Err(EditorError::Input(format!(
+            "The base level {} does not read from the game copy.",
+            r.settings.base
+        )));
+    }
+    let size = f64::from(r.generate.size);
+    let project = MapProject::new_level(
+        name,
+        &r.settings.base.to_ascii_lowercase(),
+        r.base_bytes,
+        profile_of(r.settings.content_set),
+        TerrainImport {
+            content_set: set_word(r.settings.content_set).into(),
+            heightmap: KeptFile {
+                file: String::new(),
+                source: String::new(),
+                size: 0,
+                sha1: String::new(),
+            },
+            format: HeightFormat::Png16,
+            samples: r.generate.size,
+            sample_range: [0, 0],
+            map_size_m: size,
+            height_range_m: [0.0, 0.0],
+            water_level_m: r.generate.water_level_m.unwrap_or(0.0),
+            colour_map: None,
+            generate: Some(r.generate.spec()),
+            biome: Some(r.generate.biome.name().to_owned()),
+            ring: r.generate.ring,
+        },
+    );
+    write_new(&project, r.folder)
+}
+
+/// Writes a new project into `folder`, refusing to overwrite one.
+fn write_new(project: &MapProject, folder: &Path) -> Result<PathBuf, EditorError> {
+    let path = folder.join(project.file_name());
+    if path.exists() {
+        return Err(EditorError::Input(format!(
+            "{} is already in this folder. Open it with \"Open project\", or choose another name.",
+            path.display()
+        )));
+    }
+    fs::create_dir_all(folder)
+        .map_err(|e| EditorError::Input(format!("{} could not be made: {e}", folder.display())))?;
+    project
+        .save(&path)
+        .map_err(|e| EditorError::Input(format!("The project could not be written to {}: {e}", path.display())))?;
+    Ok(path)
 }
 
 /// Checks everything again and saves the project (`<name>.mapedit.json` in the folder), the height map and the colour
@@ -341,12 +586,31 @@ pub fn save(r: &Request<'_>) -> Result<PathBuf, EditorError> {
     }
     let checked = check(r.heightmap, r.source)?;
     r.settings.check()?;
+    let side = if checked.samples.is_power_of_two() {
+        checked.samples
+    } else {
+        checked.samples - 1
+    };
+    if (r.settings.map_size_m - f64::from(side)).abs() > 1e-9 {
+        return Err(EditorError::Input(format!(
+            "The height map is {side} samples a side, so the map is {side} m across (BFBC2's terrain has 1 m \
+             samples): set the map size to {side}."
+        )));
+    }
     if let Some(c) = r.colour_map {
         check_colour(c)?;
     }
+    if r.base_bytes.is_empty() {
+        return Err(EditorError::Input(format!(
+            "The base level {} does not read from the game copy.",
+            r.settings.base
+        )));
+    }
     let profile = profile_of(r.settings.content_set);
-    let mut project = MapProject::new_import(
+    let mut project = MapProject::new_level(
         name,
+        &r.settings.base.to_ascii_lowercase(),
+        r.base_bytes,
         profile,
         TerrainImport {
             content_set: set_word(r.settings.content_set).into(),
@@ -363,6 +627,9 @@ pub fn save(r: &Request<'_>) -> Result<PathBuf, EditorError> {
             height_range_m: [r.settings.height_min_m, r.settings.height_max_m],
             water_level_m: r.settings.water_level_m,
             colour_map: None,
+            generate: None,
+            biome: Some(r.settings.biome.name().to_owned()),
+            ring: r.settings.ring,
         },
     );
     let file = project.file_name();
@@ -509,13 +776,76 @@ mod tests {
     fn settings_checked() {
         let s = Settings::default();
         assert!(s.check().is_ok() && s.water_note().is_none());
-        let flat = Settings { height_max_m: 0.0, ..s };
+        let flat = Settings {
+            height_max_m: 0.0,
+            ..s.clone()
+        };
         assert!(flat.check().unwrap_err().contains("above the lowest"));
-        assert!(Settings { map_size_m: 10.0, ..s }.check().is_err());
+        assert!(
+            Settings {
+                map_size_m: 10.0,
+                ..s.clone()
+            }
+            .check()
+            .is_err()
+        );
+        // TGEN-REQ-2: 1 m samples, 1024 or 2048 a side
+        assert!(
+            Settings {
+                map_size_m: 1500.0,
+                ..s.clone()
+            }
+            .check()
+            .unwrap_err()
+            .contains("1024 or 2048")
+        );
+        assert!(
+            Settings {
+                base: String::new(),
+                ..s.clone()
+            }
+            .check()
+            .unwrap_err()
+            .contains("base")
+        );
+        assert!(is_base_candidate("mp_005") && is_base_candidate("NAM_MP_002R") && is_base_candidate("mp_012"));
+        assert!(!is_base_candidate("mp_005gr") && !is_base_candidate("sp_01") && !is_base_candidate("mp_sp_005"));
+        // the generator's own checks
+        let g = GenerateForm::default();
+        assert!(g.check().is_ok());
+        assert!(
+            GenerateForm {
+                size: 1500,
+                ..g.clone()
+            }
+            .check()
+            .is_err()
+        );
+        assert!(
+            GenerateForm {
+                water_share: Some(2.0),
+                ..g.clone()
+            }
+            .check()
+            .is_err()
+        );
+        assert!(
+            GenerateForm {
+                pads: vec![[600.0, 0.0, 10.0]],
+                ..g.clone()
+            }
+            .check()
+            .is_err()
+        );
+        assert_eq!(
+            parse_pads("1, 2; 3,4,5 ;").unwrap(),
+            vec![[1.0, 2.0, 24.0], [3.0, 4.0, 5.0]]
+        );
+        assert!(parse_pads("1").is_err() && parse_pads("a, b").is_err());
         assert!(
             Settings {
                 map_size_m: f64::NAN,
-                ..s
+                ..s.clone()
             }
             .check()
             .is_err()
@@ -523,7 +853,7 @@ mod tests {
         assert!(
             Settings {
                 water_level_m: -5.0,
-                ..s
+                ..s.clone()
             }
             .water_note()
             .unwrap()
@@ -556,11 +886,22 @@ mod tests {
                 water_level_m: 12.5,
                 ..Settings::default()
             },
+            base_bytes: b"base partition",
+        };
+        // the map's size must be the height map's (1 m samples)
+        assert!(save(&r).unwrap_err().contains("set the map size to 1024"));
+        let r = Request {
+            settings: Settings {
+                map_size_m: 1024.0,
+                ..r.settings.clone()
+            },
+            ..r
         };
         let path = save(&r).unwrap();
         assert_eq!(path, folder.join("Atoll.mapedit.json"));
         let p = MapProject::load(&path).unwrap();
-        assert!(p.is_import());
+        assert!(!p.is_import() && p.new_terrain().is_some());
+        assert_eq!(p.base.level, "mp_005");
         assert_eq!(p.base.profile, Profile::Ww2);
         let t = p.terrain_import.unwrap();
         assert_eq!(t.content_set, "WW2");

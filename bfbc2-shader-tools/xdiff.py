@@ -1,8 +1,14 @@
 """The shader translator's differential test: every BF1943 pixel shader run twice on the same inputs - its original Xenos
 microcode in xenos_exec.py (the reference) and xenos_hlsl's translation compiled for Direct3D 11 and drawn by
-shaderview.exe (WARP) - and the outputs compared pixel by pixel.
+shaderview.exe (WARP) - and the outputs compared pixel by pixel. Vertex shaders (--vs) the same way, vertex by vertex:
+every output (oPos and each interpolator) of the translation drawn as a pixel of its own (vs_wrapper).
 
-  python xdiff.py [--db wake] [--ps 317 ...] [--n 1024] [--seed 1] [-o out_dir] [--limit K]
+  python xdiff.py [--db wake] [--ps 317 ...] [--vs [12 ...]] [--n 1024] [--seed 1] [-o out_dir] [--limit K]
+
+--db: a short name (DBS), a level folder (levels/<level>/shaders/single.res: 'iwo_jima_s' ...), a database's
+resource name ('ui/shaders/single.res'), or bfbc2:<level> (a BFBC2 Xbox level's database from OPFOR's unpacked Xbox
+copy: 'bfbc2:mp_001'). Without --ps / --vs: every pixel shader; --vs with no numbers: every
+vertex shader.
 
 Inputs per shader: random constants (the engine's by constant-table name, the material's by name or register), random
 interpolants in [-1, 1] (+ pixel positions for the screen-position register), and per sampler a float texture whose
@@ -44,6 +50,8 @@ import xenos_exec as XE  # noqa: E402
 import xenos_hlsl as X  # noqa: E402
 
 DBS = {'wake': 'levels/wake_island_s/shaders/single.res'}
+VS_SEED = 70001                         # a vertex shader's seed offset (seed * 100003 + VS_SEED + index)
+VS_POS_SEMANTIC = 16                    # the wrapper's own input (pixel, output slot): past the Xenos usage indices 0-15
 W = 64                                  # render target width (pixels per row)
 SENTINEL = -12345.0                     # clear colour: a discarded pixel keeps it
 TEX = 16                                # ramp texture size
@@ -83,19 +91,44 @@ V2P main(VIn i) {
 """
 
 
-def engine_named(w: S.ShaderDb) -> dict[int, dict[int, str]]:
-    """{pixel shader: {register: name}} of the block constants the engine writes by name (pcbuild.ENGINE_NAMED: the
-    terrain strips' heightmapScaleAndOffsetXZ, dynamicMaskAtlasParams ...) in the programs' second blocks and the
-    shader's own block - translated as $Globals variables (xenos_hlsl Interface.named_ps), as the build does."""
+def db_key(name: str) -> str:
+    """A shader database's resource name from --db: a short name (DBS), a resource name, or a level folder."""
+    if name in DBS:
+        return DBS[name]
+    if '/' in name:
+        return name.lower()
+    return f'levels/{name.lower()}/shaders/single.res'
+
+
+def load_db(name: str) -> S.ShaderDb:
+    """--db's database: BF1943's (bf1943_entry, db_key) or, as bfbc2:<level>, a BFBC2 Xbox level's from OPFOR's
+    unpacked Xbox copy (work/xbox/dist/xenon/levels/<level>/level-00.fbrb: the programs test_xenos_native.py --game
+    reads beside BF1943's)."""
+    if name.lower().startswith('bfbc2:'):
+        lv = name.split(':', 1)[1]
+        path = os.path.join(S.find_opfor(None), 'work', 'xbox', 'dist', 'xenon', 'levels', lv, 'level-00.fbrb')
+        return S.load(path)[0]
+    return S.ShaderDb.parse(bf1943_entry(db_key(name)), where=name)
+
+
+def engine_named(w: S.ShaderDb, pixel: bool = True) -> dict[int, dict[int, str]]:
+    """{pixel (or vertex) shader: {register: name}} of the block constants the engine writes by name
+    (pcbuild.ENGINE_NAMED: the terrain strips' heightmapScaleAndOffsetXZ, dynamicMaskAtlasParams ...) in the programs'
+    second blocks and the shader's own block - translated as $Globals variables (xenos_hlsl Interface.named_ps /
+    named_vs), as the build does."""
     out: dict[int, dict[int, str]] = {}
+    shaders = w.ps if pixel else w.vs
     for rec in w.programs:
-        _, ps, _, b2 = struct.unpack_from(w.e + '4I', rec, 0x20)
-        for b in (b2, w.ps[ps].param):
+        vs, ps, _, b2 = struct.unpack_from(w.e + '4I', rec, 0x20)
+        k = ps if pixel else vs
+        # (a vertex shader's: its own block only - the program's second block names the pixel shader's registers;
+        # FORMAT.md section 1)
+        for b in (b2, shaders[k].param) if pixel else (shaders[k].param,):
             for name, reg, _, _ in S.block_constants(w.params[b], w.e):
                 if name in P.ENGINE_NAMED:
-                    have = out.setdefault(ps, {})
+                    have = out.setdefault(k, {})
                     if have.setdefault(reg, name) != name:
-                        raise ValueError(f'ps{ps}: c{reg} named {have[reg]} and {name}')
+                        raise ValueError(f'{"ps" if pixel else "vs"}{k}: c{reg} named {have[reg]} and {name}')
     return out
 
 
@@ -117,7 +150,15 @@ def case(sh: Any, rng: np.random.Generator, n: int, named: dict[int, str] | None
             material[c.name] = [tuple(map(float, v)) for v in vals]
         for k in range(c.count):
             consts[c.reg + k] = vals[k]
-    inputs = {it.reg: rng.uniform(-1, 1, (n, 4)).astype(np.float32) for it in sh.header.interpolators}
+    if sh.is_pixel:
+        inputs = {it.reg: rng.uniform(-1, 1, (n, 4)).astype(np.float32) for it in sh.header.interpolators}
+    else:
+        # a vertex shader: its elements' values (by usage index); the second half of the vertices in [0, 20): a bone
+        # index (trunc, x 3, c[k + a0]) is 0 for any value in (-1, 1), so the branches a bone's values decide (the
+        # skinned shaders' if / else on a bone's row) would go one way on every vertex
+        half = n // 2
+        inputs = {el.usage_index: np.concatenate([rng.uniform(-1, 1, (half, 4)), rng.uniform(0, 20, (n - half, 4))])
+                  .astype(np.float32) for el in sh.header.vertex_elements}
     textures = {}
     for c in ct:
         if c.regset == 'sampler':
@@ -132,8 +173,122 @@ def case(sh: Any, rng: np.random.Generator, n: int, named: dict[int, str] | None
 
 
 def translated(sh: Any, cs: dict[str, Any]) -> str:
+    """The plain interface (the shader's own interpolators; a vertex shader's elements as float4s)."""
     inter = sorted(it.usage_index for it in sh.header.interpolators)
+    if not sh.is_pixel:
+        vs_in = {el.usage_index: 'float4' for el in sh.header.vertex_elements}
+        return X.translate(sh, X.Interface(inter, vs_inputs=vs_in, material=cs['material'],
+                                           named_vs=cs.get('named')))
     return X.translate(sh, X.Interface(inter, material=cs['material'], named_ps=cs.get('named')))
+
+
+def vs_slots(sh: Any) -> list[int | None]:
+    """A vertex shader's outputs as the differential test reads them: None (oPos), then each interpolator's TEXCOORD
+    (V2P's fields t<k>: the export register o<k>, which the translation writes as o.t<k>)."""
+    return [None, *sorted(it.usage_index for it in sh.header.interpolators)]
+
+
+def vs_wrapper(hlsl: str, slots: list[int | None]) -> tuple[str, str]:
+    """(vertex, pixel) shader sources reading back a translated vertex shader: its main renamed xdiff_vs, called by
+    a main of the wrapper's own that also takes a TEXCOORD<VS_POS_SEMANTIC> (x, y: the pixel; z: the output slot; w:
+    the frame's height) and passes that slot's output (pos or t<k>) unchanged (nointerpolation) to the pixel shader,
+    which returns it."""
+    head = 'V2P main(VIn vin) {'
+    if hlsl.count(head) != 1:
+        raise ValueError('not a translated vertex shader (no "V2P main(VIn vin)")')
+    picks = ' '.join(f'if (k == {j}) v = r.{"pos" if s is None else f"t{s}"};' for j, s in enumerate(slots))
+    out = 'struct XOut { float4 pos : SV_Position; nointerpolation float4 v : TEXCOORD0; };\n'
+    vs = (hlsl.replace(head, 'V2P xdiff_vs(VIn vin) {') + '\n' + out +
+          f'XOut main(VIn vin, float4 xp : TEXCOORD{VS_POS_SEMANTIC}) {{\n'
+          '    V2P r = xdiff_vs(vin);\n'
+          '    int k = (int)xp.z;\n'
+          f'    float4 v = 0.0; {picks}\n'
+          f'    XOut o; o.pos = float4(xp.x / {W}.0 * 2.0 - 1.0, 1.0 - xp.y / xp.w * 2.0, 0.5, 1.0); o.v = v;\n'
+          '    return o;\n}\n')
+    return vs, out + 'float4 main(XOut i) : SV_Target0 { return i.v; }\n'
+
+
+def run_hlsl_vs(sh: Any, cs: dict[str, Any], n: int, work: str, hlsl: str) -> np.ndarray:
+    """A translated vertex shader's outputs ((len(vs_slots), n, 4)): vertex j's slot s drawn as pixel s * n + j, a
+    triangle of three copies of the vertex (the same inputs)."""
+    slots = vs_slots(sh)
+    vsrc, psrc = vs_wrapper(hlsl, slots)
+    vs = P.compile_hlsl(vsrc, 'main', 'vs_5_0')
+    ps = P.compile_hlsl(psrc, 'main', 'ps_5_0')
+    usages = sorted(cs['inputs'])
+    total = n * len(slots)
+    h = (total + W - 1) // W
+    verts = np.zeros((total, 3, 1 + len(usages), 4), np.float32)
+    pix = np.arange(total)
+    for j, (dx, dy) in enumerate(((0.1, 0.1), (1.4, 0.1), (0.1, 1.4))):
+        verts[:, j, 0, 0] = pix % W + dx
+        verts[:, j, 0, 1] = pix // W + dy
+        verts[:, j, 0, 2] = pix // n
+        verts[:, j, 0, 3] = h
+        for k, u in enumerate(usages):
+            verts[:, j, 1 + k] = np.tile(cs['inputs'][u], (len(slots), 1))
+    pack: list[bytes] = []
+    size = 0
+
+    def asset(data: bytes) -> str:
+        nonlocal size
+        pack.append(data)
+        size += len(data)
+        return f'*{size - len(data)}:{len(data)}'
+
+    out_raw = os.path.join(work, 'out.raw')
+    job = [f'frame {RQ.job_path(out_raw)} {W} {h} {SENTINEL} {SENTINEL} {SENTINEL} {SENTINEL}',
+           f'vs {asset(vs)}', f'ps {asset(ps)}', f'el {VS_POS_SEMANTIC} 2 0 0 0']
+    job += [f'el {u} 2 0 {16 * (1 + k)} 0' for k, u in enumerate(usages)]
+    job.append(f'vb {asset(verts.tobytes())} 0 {16 * (1 + len(usages))}')
+    job.append(f'ib {asset(np.arange(3 * total, dtype=np.uint32).tobytes())} 0 32 {3 * total} 0')
+    job.append(f'cb vs {asset(RQ.cbuffer(vs, cs["engine"], []))}')
+    for reg, t in cs['textures'].items():
+        tx = t.texels
+        hdr = struct.pack('<III', tx.shape[2], tx.shape[1], tx.shape[0])
+        job.append(f'vtex {reg} {"cube" if t.cube else "2d"} {asset(hdr + tx.tobytes())}')
+    job.append(f'samp 1 {sampler_desc()}')
+    job += ['draw', 'end']
+    pack_path = os.path.join(work, 'inputs.bin')
+    with open(pack_path, 'wb') as f:
+        f.write(b''.join(pack))
+    job.insert(0, f'pack {RQ.job_path(pack_path)}')
+    jp = os.path.join(work, 'job.txt')
+    with open(jp, 'wb') as f:
+        f.write('\n'.join(job).encode())
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(out_raw)
+    RQ.run_job(jp, warp=True)
+    img = np.fromfile(out_raw, np.float32).reshape(-1, 4)
+    return img[:total].reshape(len(slots), n, 4)
+
+
+def compare_vs(ref: XE.Result, got: np.ndarray, slots: list[int | None]) -> dict[str, Any]:
+    """A vertex shader's outputs against the interpreter's: every output of every vertex within tolerance (NaN = NaN,
+    infinities equal only to themselves)."""
+    n = got.shape[1]
+    zero = np.zeros((n, 4), np.float32)
+    pos = ref.position if ref.position is not None else zero
+    want = np.stack([pos if s is None else ref.outputs.get(s, zero) for s in slots])
+    with np.errstate(invalid='ignore'):
+        close = np.isclose(got, want, rtol=RTOL, atol=ATOL, equal_nan=True).all(2)
+    oob = ref.out_of_range if ref.out_of_range is not None else np.zeros(n, bool)
+    close |= oob[None, :]                   # (a c[k + a0] read outside its array: the register file's layout)
+    bad = np.argwhere(~close)
+    names = ['oPos' if s is None else f'o{s}' for s in slots]
+    res: dict[str, Any] = {'status': 'exact' if not len(bad) else 'differs', 'pixels': int(close.size),
+                           'bad': int(len(bad)), 'kill_mismatch': 0, 'outputs': names}
+    if oob.any():
+        res['out_of_range'] = int(oob.sum())
+    if oob.all():
+        res['status'] = 'out-of-range'
+    if len(bad):
+        s, i = (int(v) for v in bad[0])
+        res['first'] = {'output': names[s], 'vertex': i, 'ref': want[s, i].tolist(), 'hlsl': got[s, i].tolist()}
+        a, b = want[~close], got[~close]
+        fin = np.isfinite(a) & np.isfinite(b)
+        res['max_err'] = float(np.abs(a - b)[fin].max()) if fin.any() else None
+    return res
 
 
 PROBE_MISS = -23456.0                   # a probe's colour where the instruction did not run
@@ -243,9 +398,14 @@ def compare(ref: XE.Result, got: np.ndarray) -> dict[str, Any]:
         close = np.isclose(b, a, rtol=RTOL, atol=ATOL, equal_nan=True)
     okb = close.all(1)
     ok[np.where(both)[0]] = okb
+    oob = ref.out_of_range
+    if oob is not None and oob.any():       # (a c[k + a0] read outside its array: the register file's layout)
+        ok |= oob
     bad = np.where(~ok)[0]
     res: dict[str, Any] = {'status': 'exact' if not len(bad) else 'differs', 'pixels': int(len(got)),
            'bad': int(len(bad)), 'killed_ref': int((~alive).sum()), 'kill_mismatch': int(kill_mismatch.sum())}
+    if oob is not None and oob.any():
+        res['out_of_range'] = int(oob.sum())
     if len(bad):
         i = int(bad[0])
         res['first'] = {'pixel': i, 'ref': r0[i].tolist(), 'hlsl': got[i].tolist(), 'ref_alive': bool(alive[i])}
@@ -324,14 +484,17 @@ def default_workers() -> int:
         return max(1, min(4, os.cpu_count() or 1))
 
 
-def run_shader(code: bytes, p: int, seed: int, n: int, out: str, named: dict[int, str] | None) -> dict[str, Any]:
-    """One pixel shader through both sides: its result record (status, and the comparison or the reason). Writes
-    <out>\\ps<p>\\ (the draw's inputs and output, ps.hlsl, ps.xenos.txt). Thread-safe."""
-    rng = np.random.default_rng(seed * 100003 + p)
-    work = os.path.join(out, f'ps{p}')
+def run_shader(code: bytes, p: int, seed: int, n: int, out: str, named: dict[int, str] | None,
+               pixel: bool = True) -> dict[str, Any]:
+    """One pixel (or vertex) shader through both sides: its result record (status, and the comparison or the reason).
+    Writes <out>\\ps<p>\\ (vs<p>: the draw's inputs and output, ps.hlsl / vs.hlsl, ps.xenos.txt / vs.xenos.txt).
+    Thread-safe."""
+    kind = 'ps' if pixel else 'vs'
+    rng = np.random.default_rng(seed * 100003 + (0 if pixel else VS_SEED) + p)
+    work = os.path.join(out, f'{kind}{p}')
     os.makedirs(work, exist_ok=True)
     try:
-        sh = xenos.parse_shader(code, True)
+        sh = xenos.parse_shader(code, pixel)
         cs = case(sh, rng, n, named)
         # translated before the interpreter reads the microcode: the program kept in Rust, as the builds translate
         # it (a tree whose microcode was read is handed to the translator attribute by attribute: the same text)
@@ -350,12 +513,19 @@ def run_shader(code: bytes, p: int, seed: int, n: int, out: str, named: dict[int
     try:
         if isinstance(hlsl, Exception):
             raise hlsl
-        got, hlsl = run_hlsl(sh, cs, n, work, hlsl)
-        with open(os.path.join(work, 'ps.hlsl'), 'w') as f:
+        if pixel:
+            got, hlsl = run_hlsl(sh, cs, n, work, hlsl)
+        else:
+            vgot = run_hlsl_vs(sh, cs, n, work, hlsl)
+        with open(os.path.join(work, f'{kind}.hlsl'), 'w') as f:
             f.write(hlsl)
-        with open(os.path.join(work, 'ps.xenos.txt'), 'w') as f:
+        with open(os.path.join(work, f'{kind}.xenos.txt'), 'w') as f:
             f.write(xenos.disasm(sh))
-        return compare(ref, got)
+        res = compare(ref, got) if pixel else compare_vs(ref, vgot, vs_slots(sh))
+        if ref.jumps:                       # each jump's lanes that took it and that did not; the CFs never reached
+            res['jumps'] = {str(k): v for k, v in sorted(ref.jumps.items())}
+            res['unreached'] = ref.unreached
+        return res
     except (X.TranslateError, P.CompileError) as e:
         return {'status': 'translate', 'why': str(e)[:300]}
     except Exception as e:                                      # noqa: BLE001
@@ -366,6 +536,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--db', default='wake')
     ap.add_argument('--ps', type=int, nargs='*')
+    ap.add_argument('--vs', type=int, nargs='*', help='vertex shaders (no numbers: every one)')
     ap.add_argument('--n', type=int, default=1024)
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--limit', type=int)
@@ -373,14 +544,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('-o', default=os.path.join(tempfile.gettempdir(), 'xdiff'))
     ap.add_argument('--workers', type=int, help='shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)')
     a = ap.parse_args(argv)
-    w = S.ShaderDb.parse(bf1943_entry(DBS[a.db]), where=a.db)
-    todo = a.ps if a.ps else list(range(len(w.ps)))
+    w = load_db(a.db)
+    todo: list[tuple[bool, int]] = [(True, p) for p in (a.ps or ([] if a.vs is not None else range(len(w.ps))))]
+    if a.vs is not None:
+        todo += [(False, v) for v in (a.vs or range(len(w.vs)))]
     if a.limit:
         todo = todo[:a.limit]
     os.makedirs(a.o, exist_ok=True)
     named = engine_named(w)
+    named_vs = engine_named(w, False) if a.vs is not None else {}
     if a.bisect:
-        p = todo[0]
+        p = todo[0][1]
         sh = xenos.parse_shader(w.ps[p].code, True)
         cs = case(sh, np.random.default_rng(a.seed * 100003 + p), a.n, named.get(p))
         work = os.path.join(a.o, f'ps{p}')
@@ -393,20 +567,28 @@ def main(argv: list[str] | None = None) -> int:
         # takes them, or waits for one under way, while the interpreter runs (round E3d). The same seeds: the same
         # cases and translations as the loop's
         jobs: list[P.CompileJob] = []
-        for p in todo:
+        for pixel, p in todo:
             try:
-                sh = xenos.parse_shader(w.ps[p].code, True)
-                cs = case(sh, np.random.default_rng(a.seed * 100003 + p), a.n, named.get(p))
-                jobs += compile_jobs(sh, a.n, translated(sh, cs))
+                sh = xenos.parse_shader((w.ps if pixel else w.vs)[p].code, pixel)
+                cs = case(sh, np.random.default_rng(a.seed * 100003 + (0 if pixel else VS_SEED) + p), a.n,
+                          (named if pixel else named_vs).get(p))
+                if pixel:
+                    jobs += compile_jobs(sh, a.n, translated(sh, cs))
+                else:
+                    vsrc, psrc = vs_wrapper(translated(sh, cs), vs_slots(sh))
+                    jobs += [P.CompileJob(vsrc, 'main', 'vs_5_0'), P.CompileJob(psrc, 'main', 'ps_5_0')]
             except Exception:                                   # noqa: BLE001 - the loop reports it
                 pass
         P.prefetch(jobs)
-    results = {}
+    results: dict[int | str, Any] = {}
     counts: dict[str, int] = {}
     workers = max(1, min(a.workers or default_workers(), len(todo)))
 
-    def one(p: int) -> dict[str, Any]:
-        return run_shader(w.ps[p].code, p, a.seed, a.n, a.o, named.get(p))
+    def one(item: tuple[bool, int]) -> dict[str, Any]:
+        pixel, p = item
+        if pixel:
+            return run_shader(w.ps[p].code, p, a.seed, a.n, a.o, named.get(p))
+        return run_shader(w.vs[p].code, p, a.seed, a.n, a.o, named_vs.get(p), False)
     # the shaders on worker threads (round E3l): each one's interpreter (numpy) and its draw (a shaderview -serve
     # process of its own, renderqa.run_job) overlap the others'; reported in order, every result the one alone
     if workers > 1:
@@ -414,10 +596,10 @@ def main(argv: list[str] | None = None) -> int:
         done: Iterable[dict[str, Any]] = pool.map(one, todo)
     else:
         pool, done = None, map(one, todo)
-    for p, res in zip(todo, done):
-        results[p] = res
+    for (pixel, p), res in zip(todo, done):
+        results[p if pixel else f'vs{p}'] = res          # (a pixel shader's key its number, as before vertex shaders)
         counts[res['status']] = counts.get(res['status'], 0) + 1
-        line = f'ps{p}: {res["status"]}'
+        line = f'{"ps" if pixel else "vs"}{p}: {res["status"]}'
         if res['status'] == 'differs':
             line += f' {res["bad"]}/{res["pixels"]} px (kill mismatch {res["kill_mismatch"]}), max err {res.get("max_err")}'
         elif 'why' in res:
@@ -429,7 +611,8 @@ def main(argv: list[str] | None = None) -> int:
         json.dump(results, f, indent=1)
     total = len(todo)
     exact = counts.get('exact', 0)
-    print(f'\n{exact} of {total} pixel shaders exact ({100 * exact / max(total, 1):.1f} %): ' +
+    what = 'pixel shaders' if a.vs is None else 'shaders'
+    print(f'\n{exact} of {total} {what} exact ({100 * exact / max(total, 1):.1f} %): ' +
           ', '.join(f'{k} {v}' for k, v in sorted(counts.items())))
     return 0
 

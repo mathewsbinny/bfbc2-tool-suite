@@ -34,12 +34,35 @@ Round OR6 moves the map export's install into the suite and changes `bc2_editor:
 public API), so this merge releases a minor version (`RELEASING.md`, "A merge that removes something"). Project
 OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs `bfbc2 install mapedit`.
 
+### Fixed
+- **The shader translator's forward emitter refuses a bool-constant `cond_exec`** (round XD2), as the nested emitter
+  does; it had run the block unconditionally. No program of the corpus has one, so no translation changed.
+- **An export install no longer rebuilds the other exports from their live stage folders** (audit AU4-DS-12): each
+  install keeps its stage's description, texts and pictures in `Package\levels\<lv>\opfor-mapedit-stage\`, and
+  every later install or revert builds that level's share of the shared patches from it (spec XINST-MAP-5); an
+  install from before keeps working from its stage folder, with a line saying so.
+- **A kill at any write step of an export's install or revert is finished by the same command** (spec XINST-MAP-6):
+  the level's record is its folder's first write and a revert's last removal (a kill between the folder and the
+  record used to leave a folder the install refused as "not an exported level").
+- **DICE's `package.mft` keeps its last blank line under an export install** (spec XINST-MAP-7): only the levels'
+  blocks change. The build's scratch (`work\mapedit\<lv>\shared`, `_revert`) is removed when a run goes through
+  (XINST-STG-5).
+
 ### Changed
 - **The map editor installs an export itself** ("OPFOR in Rust", round OR6): Install..., Install now and
   Uninstall... run the map export's install in process (`bc2_install::mapedit`) instead of Project OPFOR's
   `mapedit_install.py` - no Python needed. The dialog shows the `bfbc2 install mapedit` command that does the same;
   `bc2_editor::export_ui::install_command(opfor, step, target)` and `install_step` replace the old
   `install_command(opfor, args)`.
+- `xenos_golden_game.json` re-recorded: the 20 Xbox programs the forward emitter now translates (all skinned vertex
+  shaders; 4 of BF1943's, 16 only in BFBC2's Xbox levels), each proven exact against the interpreter with both sides
+  of its if / else run (round XD2).
+- `bfbc2 xdiff --db <name>` with a name other than `wake` no longer stops with `KeyError`: the name is looked up as a
+  BF1943 level or resource (or `bfbc2:<level>`).
+- **Map project format 13**: a Create Level project records its base level and, for Generate, the generator's
+  settings (`terrain_import.generate`); older editors refuse it. A G4 height-map project without a base shows its
+  page and asks to be made again.
+- **Create Level's map size must be 1024 or 2048 m**, the height map's samples a side (TGEN-REQ-2: 1 m samples).
 - **The map editor's navigation edit tools and placing are view tools** (round E4-rest2, PR1b-0's leftovers): the AI
   workspace's nine edit tools are the views' tool while chosen (`Tool::Nav`; choosing Select, Move, Rotate or another
   tool turns them off, and the gizmo is not shown while one is chosen); placing from the content browser, a tile or
@@ -84,6 +107,18 @@ OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs
   installer builds on; `bc2_levelwrite::installpatch`: the overlay's texts and the awards bundle's pictures from
   stages (`mapexport overlay | awards` and the install share it), and `LevelWrite`, the install's check and patches
   (`bc2_install::mapedit::Patches`: the install itself does not depend on the export's crates).
+- **Map editor: Create Level writes the new level's terrain** (rounds E7 and TG3; spec `transforms/terrain_edit.md`
+  TEDIT-NEW-1 - 3, XVAL-TERR-4): "From a height map" (a 16-bit PNG or RAW of 1024 / 2048 samples; the map is as many
+  metres across) and **Generate** beside it (the terrain generator's biome, size, seed, border, water share, water
+  level, rough relief, objective pads and ring, `bfbc2 terrain generate`'s settings) make a project on a **base
+  level** (a multiplayer map: its mode layer, objects, weather and its terrain's look) that opens like any project.
+  Its export writes the new terrain under the level's own name (`Terrains/<LV>/<LV>`: height field, ring, material
+  map, water, visual terrain, colour / occlusion map, the base's patch shaders cloned into its databases, its terrain
+  partitions) in the level's **own terrain bundle**, registered without the base's (TGEN-REQ-5), and its path data is
+  sampled on the new ground. `mapexport check` reads it back (XVAL-TERR-4). DICE's 30 main height fields written out
+  as height maps import as DICE's samples, bounds and min / max tree. Nothing is loaded in game yet.
+- `bc2_levelwrite::newterrain` (the height-map import and the new terrain's entries), `pathdata::bot_measures`
+  (connectivity and coverage of path data on a playable area), `bc2_terragen::visual::clone_database`.
 - **The map editor inserts a Rush stage between two** (round E4-rest2, spec GAME-RUSH-12): the Gameplay panel's
   **Insert after** on a stage, then a click on the ground, puts a copy of the next stage there, played between the
   two (`bc2_levelwrite::rushstage::insert_stage`; one undo step, the `connect` operation of project format 10). The
@@ -128,18 +163,14 @@ OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs
   the material map is drawn around the brush; the game-accurate view follows a stroke while it is made. The export
   writes all of it (`mapexport check`: XVAL-TERR-2 / -3). Project format 12 (`terrain-range`, `material-add`, colour
   and ring strokes, strokes over several rasters).
-
-### Fixed
-- **An export install no longer rebuilds the other exports from their live stage folders** (audit AU4-DS-12): each
-  install keeps its stage's description, texts and pictures in `Package\levels\<lv>\opfor-mapedit-stage\`, and
-  every later install or revert builds that level's share of the shared patches from it (spec XINST-MAP-5); an
-  install from before keeps working from its stage folder, with a line saying so.
-- **A kill at any write step of an export's install or revert is finished by the same command** (spec XINST-MAP-6):
-  the level's record is its folder's first write and a revert's last removal (a kill between the folder and the
-  record used to leave a folder the install refused as "not an exported level").
-- **DICE's `package.mft` keeps its last blank line under an export install** (spec XINST-MAP-7): only the levels'
-  blocks change. The build's scratch (`work\mapedit\<lv>\shared`, `_revert`) is removed when a run goes through
-  (XINST-STG-5).
+- **The shader translator's differential test covers vertex shaders and every Xbox database** (round XD2):
+  `xdiff.py --vs [N ...]` runs vertex shaders through `xenos_exec.py` (now a vertex-shader interpreter too: vfetch,
+  oPos and o0-o15 exports) and draws each output of the translation (oPos and every interpolator) as a pixel of its own;
+  `--db` takes any BF1943 level (`iwo_jima_s`), a database's resource name, or `bfbc2:<level>` (a BFBC2 Xbox level's
+  database from Project OPFOR's unpacked Xbox copy). Results now list each jump's lanes (taken / not taken) and the CFs
+  no lane reached; lanes that read `c[k + a0]` outside the array of `c[k]` are left out of the comparison (counted as
+  `out_of_range`). `bfbc2 xdiff` takes the new option.
+- Spec XSH-CF-1: the forward emitter for overlapping forward jumps, with its evidence.
 
 ## [0.28.0] - 2026-11-27
 

@@ -68,6 +68,42 @@ whose BF1943 state OPFOR takes (wake_material_states) keeps BF1943's own referen
 [code: opfor:src/tools/ww2/wake_translate.py:763-776]
 [test: opfor:src/tools/tests/test_ww2_kitbags.py::test_cutout_and_textures_by_role]
 
+### XSH-CF-1: Overlapping forward jumps: a guard on every block
+
+Status: **verified** · Variants: BF1943, Xbox 360
+
+Xenos control flow is a list of CF instructions (XENOS-UC-1); a `cond_jmp` goes to a CF index. The translator nests a
+jump `k -> t` as an `if` around CFs k+1 .. t-1, which works while every jump's target lies inside the block that holds
+it. Where two forward jumps overlap - DICE's compiler's if / else: `(!p0) jmp else; (p0) exec then; (p0) jmp end;
+(!p0) exec else ...; end:` - nesting fails ("jump to cf N is not a nested forward jump"). Such a program, when every
+jump in it is forward and none is on a bool constant, is translated instead with `int _cf = 0;`: every CF k's block
+inside `if (_cf <= k)`, every jump `k -> t` as `if (_cf <= k && (cond)) { _cf = t; }` (cond `true` unconditional,
+`p0 == <condition>` predicated). `_cf` only grows, so a jump skips exactly the blocks k+1 .. t-1 and every block from
+t on runs as if reached in order: any pattern of forward jumps is exact without loops. The jumps are per lane (pixel
+or vertex), as the interpreter (xenos_exec.py) and Xenia run them. What else the forward emitter meets is the nested
+emitter's: a bool-constant `cond_exec` is refused ("control flow cond_exec is not supported"), as are a bool-constant
+jump and a backward jump; any program whose jumps nest keeps the nested emitter. (The forward emitter as first written
+ran a bool-constant `cond_exec` unconditionally; no program of the corpus has one, so no translation changed.)
+
+On the Xbox databases (test_xenos_native.py --game: 8,320 distinct programs) the forward emitter takes 20 programs,
+all vertex shaders of one shape, a skinned shader's if / else on a bone's values (Guadalcanal's vs285: `p0 = 0.5 >
+c[19 + a0].y`, a0 from a bone index): CF 3 `(!p0) jmp 6`, CF 4 `(p0) exec`, CF 5 `(p0) jmp 11` or `12`, then 5 or 6
+`(!p0) exec` blocks. 4 are in BF1943's Guadalcanal and Iwo Jima databases (vs285, vs469; vs255, vs520), 16 only in
+BFBC2's Xbox levels (mp_001 8, mp_002 to mp_004 and mp_008 2 each). Every jump in them skips only blocks predicated
+off for the lanes that take it, so lane and wave granularity give the same result on the hardware. Their
+translations, against the interpreter on 512 vertices with bone indices up to 19 (xdiff --vs): exact on oPos and every
+interpolator, each if / else's first jump taken by 17 to 356 vertices and not taken by the rest, every CF reached. A
+hand-built if / else of plain (unpredicated) execs, where the jumps alone decide what runs, is exact as a pixel and a
+vertex shader, and a translation with a jump's target moved by one block differs.
+
+[code: rust/bc2-shader/src/hlsl.rs:1013-1115]
+[code: rust/bc2-shader/src/hlsl.rs:1135-1139]
+[data: 20 of 8,320 distinct Xbox programs take the forward emitter (all vertex shaders, one if / else shape); their 20 translations exact against xenos_exec on 512 vertices, both sides of each if / else run]
+[test: bfbc2-shader-tools/tests/test_xdiff.py::forward_jumps]
+[test: bfbc2-shader-tools/tests/test_xdiff.py::forward_programs]
+[test: rust/bc2-shader/tests/forward_jumps.rs::overlapping_forward_jumps_take_the_forward_emitter]
+[test: rust/bc2-shader/tests/forward_jumps.rs::what_the_forward_emitter_does_not_take_fails_as_before]
+
 ## 3. Around the code
 
 ### XSH-BIND-1: Binding tables are generated from the compiled code

@@ -1006,6 +1006,26 @@ pub struct StageRecord {
     /// name, the entry it was cloned from.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shader_clones: Vec<(String, String)>,
+    /// Round E7 / TG3: the new terrain the level carries in place of the base's (TGEN-REQ-5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub new_terrain: Option<NewTerrainRecord>,
+}
+
+/// The new terrain of a stage (round E7 / TG3).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct NewTerrainRecord {
+    /// Its name (`Terrains/<name>/<name>`).
+    pub name: String,
+    /// The base terrain's entry stem it replaces (`terrains/mp_005/mp_005`), the donor of its look.
+    pub replaces: String,
+    /// `heightmap` or `generated`.
+    pub source: String,
+    /// The terrain bundle's new entries.
+    pub terrain: Vec<String>,
+    /// The level bundle's new entries (the colour / occlusion map, the terrain partition).
+    pub level: Vec<String>,
+    /// The height range in metres.
+    pub range_m: f64,
 }
 
 /// An object the export gave new cull leaves (round XF1): its blueprint, its slot and the shape's source
@@ -1401,6 +1421,52 @@ pub fn build(
     // round E5 / E5-rest: the terrain's resources the strokes rewrote, by entry name (lower case): the terrain
     // bundle's (height fields, material map, visual terrain, mask atlas) and the level bundle's (the colour /
     // occlusion map), and the patch shaders a visual paint clones into the databases
+    // round E7 / TG3: a new terrain (a height map's or the generator's) replaces the base's; strokes on the base's
+    // terrain do not apply to it (sculpt and paint on a new terrain: round TG4)
+    let new_terrain = match project.new_terrain() {
+        Some(t) => {
+            let strokes = edited_files.keys().any(|k| {
+                matches!(
+                    k,
+                    crate::files::Target::Terrain { .. }
+                        | crate::files::Target::Material { .. }
+                        | crate::files::Target::Paint { .. }
+                        | crate::files::Target::Colour { .. }
+                        | crate::files::Target::Ring { .. }
+                )
+            }) || !terrain_meta.0.is_empty()
+                || !terrain_meta.1.is_empty();
+            if strokes {
+                return Err(crate::rules::refusal(
+                    "XVAL-TERR-4",
+                    "the project makes a new terrain and also edits the base's terrain: the base's terrain is not \
+                     the level's, so its strokes do not apply (sculpt and paint on a new terrain come with round TG4)",
+                ));
+            }
+            let t_new = std::time::Instant::now();
+            let dx9 = crate::shaders::level_database(game, &base, "dx9_single.res")?;
+            let donor = crate::newterrain::DonorFiles::read(game, &base, dx9.as_deref())?;
+            let (terrain, notes) = crate::newterrain::terrain_of(t, Path::new(project_file), donor.water_level)?;
+            let tname = crate::newterrain::terrain_name(&lv);
+            let built = crate::newterrain::build(&terrain, &tname, &donor)?;
+            report.extend(notes);
+            report.extend(built.notes.iter().map(|n| format!("new terrain: {n}")));
+            report.push(format!(
+                "new terrain: Terrains/{tname}/{tname} from {} (the base {}'s terrain {} is not the level's, \
+                 TGEN-REQ-5) in {:.1} s",
+                if t.generate.is_some() {
+                    "the generator"
+                } else {
+                    "the height map"
+                },
+                base,
+                donor.stem,
+                t_new.elapsed().as_secs_f64()
+            ));
+            Some((tname, donor, built, terrain.height.range_m))
+        }
+        None => None,
+    };
     let tw = terrain_writes(game, &base, &edited_files, &terrain_meta, &mut report)?;
     let terrain_edits: BTreeMap<String, Vec<u8>> = tw.terrain;
     let colour_edits: BTreeMap<String, Vec<u8>> = tw.level;
@@ -1702,7 +1768,14 @@ pub fn build(
     for (k, t) in flag_names.iter().chain(&flag_messages) {
         report.push(format!("flag text: {k} = {t:?}"));
     }
-    // 5. the level partition renamed
+    // 5. the level partition renamed (round E7 / TG3: its terrain reference names the new terrain, TGEN-REQ-4)
+    if let Some((tname, donor, _, _)) = &new_terrain {
+        let n = crate::newterrain::rename_terrain(&mut w.d, donor.low(), tname)?;
+        report.push(format!(
+            "new terrain: the level's {n} reference(s) to {} renamed Terrains/{tname}/{tname}",
+            donor.stem
+        ));
+    }
     mpconvert::rename_strings(&mut w.d, &base, &low, &renamed)?;
     mpconvert::set_partition_guid(&mut w.d, &mpconvert::partition_guid_for(&format!("Levels/{lv}")))?;
     mpconvert::set_level_id(&mut w, &lv)?;
@@ -1845,6 +1918,19 @@ pub fn build(
         .filter(|c| !prof.commons("level").iter().any(|m| m.eq_ignore_ascii_case(c)))
         .collect();
     let mut blocks = mft_blocks(game, &low, &base, prof, &foreign);
+    // round E7 / TG3: a new terrain's level registers its own terrain bundle, not the base's (TGEN-REQ-5)
+    if new_terrain.is_some() {
+        let own = format!("BundleSource game:levels/{low}/terrain-00.fbrb");
+        let base_dir = format!("levels/{base}/");
+        for b in &mut blocks {
+            if b.first().is_some_and(|f| *f == own) {
+                b.retain(|l| {
+                    l.strip_prefix("BundleTarget ")
+                        .is_none_or(|t| !t.to_ascii_lowercase().contains(&base_dir))
+                });
+            }
+        }
+    }
     let mut block_loaded: Vec<PathBuf> = blocks.first().map_or_default(|b| {
         b.iter()
             .filter_map(|l| l.strip_prefix("BundleTarget "))
@@ -1978,6 +2064,29 @@ pub fn build(
             e.data = bytes;
         }
     }
+    // round E7 / TG3: the base terrain's patch, undergrowth, cache and water entries cloned under the new terrain's
+    // name into each staged database (TGEN-VIS-4), the colour / occlusion map and the terrain partition staged
+    if let Some((tname, donor, built, _)) = &new_terrain {
+        for e in &mut level_all {
+            let Some(file) = crate::shaders::database_file(&e.name, &e.type_name) else {
+                continue;
+            };
+            let dx = bc2_formats::shaderdb::open::dx_in_name(&file).unwrap_or(10);
+            let (bytes, note) =
+                bc2_terragen::visual::clone_database(dx, &e.data, &donor.donor(), tname, &built.textures)
+                    .map_err(|x| crate::rules::refusal("XVAL-TERR-4", format!("{}: {x}", e.name)))?;
+            report.push(format!("new terrain: {}: {note}", e.name));
+            e.data = bytes;
+        }
+        for n in &built.level {
+            level_all.retain(|e| !e.name.eq_ignore_ascii_case(&n.name));
+            level_all.push(StagedEntry {
+                name: n.name.clone(),
+                type_name: n.type_name.clone(),
+                data: n.data.clone(),
+            });
+        }
+    }
     for (name, data) in &colour_edits {
         let mut bundles = game.loaded(&base, "terrain");
         bundles.extend(game.loaded(&base, "level"));
@@ -2009,8 +2118,23 @@ pub fn build(
     };
     let mut terrain = pick(
         game.level_bundles(&base, "terrain").into_iter().take(1).collect(),
-        &|_| true,
+        &|n| {
+            new_terrain
+                .as_ref()
+                .is_none_or(|(_, d, _, _)| !crate::newterrain::is_base_terrain_entry(n, &d.stem))
+        },
     )?;
+    // round E7 / TG3: the new terrain's own resources (TGEN-REQ-1); the base's terrain is left out (TGEN-REQ-5)
+    if let Some((_, _, built, _)) = &new_terrain {
+        for n in &built.terrain {
+            terrain.retain(|e| !e.name.eq_ignore_ascii_case(&n.name));
+            terrain.push(StagedEntry {
+                name: n.name.clone(),
+                type_name: n.type_name.clone(),
+                data: n.data.clone(),
+            });
+        }
+    }
     // round E5: the sculpted height field and painted material map in place of the base's entries
     for (name, data) in &terrain_edits {
         if let Some(e) = terrain.iter_mut().find(|e| e.name.eq_ignore_ascii_case(name)) {
@@ -2169,6 +2293,18 @@ pub fn build(
             .iter()
             .map(|c| (c.name.clone(), c.donor.clone()))
             .collect(),
+        new_terrain: new_terrain.as_ref().map(|(tname, d, b, range)| NewTerrainRecord {
+            name: tname.clone(),
+            replaces: d.stem.clone(),
+            source: if project.new_terrain().is_some_and(|t| t.generate.is_some()) {
+                "generated".into()
+            } else {
+                "heightmap".into()
+            },
+            terrain: b.terrain.iter().map(|e| e.name.clone()).collect(),
+            level: b.level.iter().map(|e| e.name.clone()).collect(),
+            range_m: *range,
+        }),
     };
     let mut rec = rec;
     // round A2: the opt-in path-data step (refused in words when the base's path data is not the level's)
@@ -3077,6 +3213,29 @@ fn stock_refs(game: &Game, rec: &StageRecord, ours: &str) -> Result<Vec<String>>
     let low = rec.level.to_ascii_lowercase();
     let o = ours.to_ascii_lowercase();
     let mut sources: Vec<(Vec<PathBuf>, String)> = Vec::new();
+    // round E7 / TG3: the new terrain's partition is the base terrain's renamed (its DICE editor references, which
+    // never ship - TEDIT-SRC-1 - renamed with it)
+    if let Some(nt) = &rec.new_terrain
+        && o == format!("terrains/{0}/{0}.dbx", nt.name.to_ascii_lowercase())
+    {
+        let mut b = game.loaded(&rec.base, "terrain");
+        b.extend(game.loaded(&rec.base, "level"));
+        let live = game.live(&b)?;
+        let from = nt.replaces.rsplit('/').next().unwrap_or_default().to_owned();
+        let mut out = Vec::new();
+        if let Some(f) = live.get(&format!("{}.dbx", nt.replaces))
+            && let Some(data) = read_found(&[f])?.pop()
+            && let Ok(d) = EditDbx::parse(&data)
+        {
+            for r in refs_of(&d) {
+                out.push(
+                    crate::newterrain::renamed(r.as_bytes(), &from, &nt.name)
+                        .map_or(r, |v| String::from_utf8_lossy(&v).into_owned()),
+                );
+            }
+        }
+        return Ok(out);
+    }
     if o == format!("levels/{low}.dbx") {
         sources.push((game.loaded(&rec.base, "level"), format!("levels/{}.dbx", rec.base)));
         if !rec.donor.is_empty() {
@@ -3755,11 +3914,25 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
     // the terrain: the base's own bundle, entry for entry (its patch shaders with their own mask atlas), but for the
     // height field and material map the project's strokes rewrote (round E5), which must read back right against the
     // base's (from any bundle its terrain loads: a mode level's own terrain bundle may not hold its terrain)
-    let edited: BTreeSet<String> = rec.terrain_edits.iter().map(|n| n.to_ascii_lowercase()).collect();
+    // (round E7 / TG3: with a new terrain, the base's other entries, the base terrain's left out and the new one's
+    // added: XVAL-TERR-4)
+    let mut edited: BTreeSet<String> = rec.terrain_edits.iter().map(|n| n.to_ascii_lowercase()).collect();
+    if let Some(nt) = &rec.new_terrain {
+        edited.extend(nt.terrain.iter().map(|n| n.to_ascii_lowercase()));
+    }
+    let replaced = rec.new_terrain.as_ref().map(|n| n.replaces.clone());
     let ours = staged.get("terrain-00.fbrb");
     if let Some(tb) = game.level_bundles(&rec.base, "terrain").into_iter().next() {
         let live = game.live(std::slice::from_ref(&tb))?;
-        let mut names: Vec<&String> = live.keys().filter(|n| !edited.contains(*n)).collect();
+        let mut names: Vec<&String> = live
+            .keys()
+            .filter(|n| {
+                !edited.contains(*n)
+                    && replaced
+                        .as_ref()
+                        .is_none_or(|s| !crate::newterrain::is_base_terrain_entry(n, s))
+            })
+            .collect();
         names.sort();
         let found: Vec<&Found> = names.iter().filter_map(|n| live.get(*n)).collect();
         let datas = read_found(&found)?;
@@ -3801,6 +3974,38 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
             ),
         );
     }
+    // round E7 / TG3: the new terrain read back whole, registered alone (XVAL-TERR-4)
+    if let Some(nt) = &rec.new_terrain {
+        let low_own = format!("BundleSource game:levels/{low}/terrain-00.fbrb");
+        let block = rec
+            .mft_blocks
+            .iter()
+            .find(|b| b.first().is_some_and(|f| *f == low_own))
+            .cloned()
+            .unwrap_or_default();
+        let (bad, n) = crate::newterrain::check_stage(nt, &rec.base, ours, staged.get("level-00.fbrb"), &block);
+        r.add(
+            "XVAL-TERR-4",
+            bad.is_empty(),
+            format!(
+                "new terrain: {n} check(s) of Terrains/{t}/{t} ({}, in place of {}) - every resource staged in the \
+                 level's own terrain bundle and none of the base terrain's; the main block encodes back, its tree its \
+                 heights', its envelope under every sample, 1024 / 2048 samples from 0 m; the ring stitched; the \
+                 material map round-trips at 0.5 m; the patch maps name the new height field and shaders, each in \
+                 every staged database; the terrain partition staged; the terrain block names no bundle of {}{}",
+                nt.source,
+                nt.replaces,
+                rec.base,
+                if bad.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (not: {})", bad.iter().take(5).cloned().collect::<Vec<_>>().join("; "))
+                },
+                t = nt.name,
+            ),
+        );
+    }
+    let edited: BTreeSet<String> = rec.terrain_edits.iter().map(|n| n.to_ascii_lowercase()).collect();
     if !edited.is_empty() || !rec.colour_edits.is_empty() || !rec.shader_clones.is_empty() {
         let mut bundles = game.loaded(&rec.base, "terrain");
         bundles.extend(game.loaded(&rec.base, "level"));

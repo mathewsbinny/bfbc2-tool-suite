@@ -24,14 +24,14 @@ rounds NK4 and NK5.
 
 | Status | Files | Lines |
 |---|---:|---:|
-| live | 18 | 5,302 |
+| live | 18 | 5,529 |
 | partly | 20 | 16,528 |
 | twin | 56 | 19,672 |
 | ported | 22 | 2,890 |
 | retired-pending | 3 | 310 |
 | stays | 69 | 13,568 |
-| test | 191 | 52,529 |
-| **all** | **379** | **110,799** |
+| test | 191 | 52,667 |
+| **all** | **379** | **111,164** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -50,7 +50,7 @@ rounds NK4 and NK5.
 | `bfbc2-mesh-viewer` | 4 | 614 |  |  |  | 306 |  | 78 | 230 |
 | `bfbc2-model-tools` | 9 | 2,091 |  | 267 | 849 |  |  |  | 975 |
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
-| `bfbc2-shader-tools` | 18 | 11,171 | 1,430 | 3,775 | 984 | 126 |  |  | 4,856 |
+| `bfbc2-shader-tools` | 18 | 11,536 | 1,657 | 3,775 | 984 | 126 |  |  | 4,994 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
 | `core` | 76 | 20,400 | 761 |  | 2,429 | 1,909 |  |  | 15,301 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
@@ -357,13 +357,13 @@ Lines by status in the folder table.
 
 ## `bfbc2-shader-tools`
 
-18 files, 11,171 lines.
+18 files, 11,536 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `bfbc2-shader-tools/pcbuild.py` | 544 | library | live |  | renderqa, xdiff; tests 6; OPFOR 10 | OPFOR in Rust stage 3 | HLSL compiled with d3dcompiler_47 (ctypes), its cache and the database bindings; no Rust compile path |
-| `bfbc2-shader-tools/xdiff.py` | 394 | tool entry point | live | bfbc2 xdiff (argparse, errors only) | tests 5; OPFOR 4 (xdiff.main in process) | OPFOR in Rust stage 3 | the translator's differential test (xenos_exec, WARP draws) |
-| `bfbc2-shader-tools/xenos_exec.py` | 492 | library | live |  | xdiff; tests 2 | OPFOR in Rust stage 3 | the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement) |
+| `bfbc2-shader-tools/xdiff.py` | 562 | tool entry point | live | bfbc2 xdiff (argparse, errors only) | tests 5; OPFOR 4 (xdiff.main in process) | OPFOR in Rust stage 3 | the translator's differential test (xenos_exec, WARP draws) |
+| `bfbc2-shader-tools/xenos_exec.py` | 551 | library | live |  | xdiff; tests 2 | OPFOR in Rust stage 3 | the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement) |
 | `bfbc2-shader-tools/renderqa.py` | 2141 | tool entry point | partly | bfbc2 renderqa (argparse, errors); bc2-render (the draw) | meshview, xdiff; tests 7; OPFOR 6 | OPFOR in Rust stage 3 | left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets |
 | `bfbc2-shader-tools/shaderdb.py` | 1634 | tool entry point | partly | bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb; embedded | 33 suite modules; tests 37; OPFOR 54 | OPFOR in Rust stage 3 | reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; left: path glue, level_meshes (DBX reading) |
 | `bfbc2-shader-tools/xenos.py` | 984 | library | twin | bc2_shader::xenos (decoder, disasm) | xdiff, xenos_exec, xenos_hlsl; tests 5; OPFOR 4 | OPFOR in Rust stage 3 | parse_shader_python for damaged blobs and disasm for edited trees kept by ruling |
@@ -377,7 +377,7 @@ Lines by status in the folder table.
 | `bfbc2-shader-tools/tests/test_shaderdb_queries.py` | 337 | test | test |  | run_tests.py | Tests in Rust | Round E4b: the shader database kept in the Rust core (bc2_native.ShaderDbHandle) and the queries it answers... |
 | `bfbc2-shader-tools/tests/test_shadertranslate.py` | 225 | test | test |  | run_tests.py | Tests in Rust | The BF1943 shader translation's driver in the Rust core (round OR3c: bc2_convert::shadertranslate through s... |
 | `bfbc2-shader-tools/tests/test_shaderview_serve.py` | 261 | test | test |  | run_tests.py | Tests in Rust | shaderview -serve (round E3l): many jobs on one Direct3D device, against one shaderview process per job. |
-| `bfbc2-shader-tools/tests/test_xdiff.py` | 279 | test | test |  | run_tests.py | Tests in Rust | The shader translator's differential test (xdiff.py) and its reference interpreter (xenos_exec.py). |
+| `bfbc2-shader-tools/tests/test_xdiff.py` | 417 | test | test |  | run_tests.py | Tests in Rust | The shader translator's differential test (xdiff.py) and its reference interpreter (xenos_exec.py). |
 | `bfbc2-shader-tools/tests/test_xenos_native.py` | 870 | test | test |  | run_tests.py | Tests in Rust | The Xbox 360 shader translator in the Rust core (rust/bc2-shader through the bc2_native module: round E3f). |
 
 ## `bfbc2-stockmp-ai`

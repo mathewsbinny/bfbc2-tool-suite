@@ -677,6 +677,21 @@ const XVAL: &[Row] = &[
         &[Stage],
         "E5-rest",
     ),
+    (
+        "XVAL-TERR-4",
+        Error,
+        "A new level's terrain is its own, read back whole and registered alone",
+        "A level made by Create Level (round E7: from a height map; round TG3: the generator) carries its own terrain \
+         `Terrains/<LV>/<LV>` in its own terrain bundle: every resource staged and none of the base terrain's; the \
+         main block encodes back byte for byte, 1024 or 2048 samples from 0 m, its min / max tree its heights', its \
+         lower envelope under every sample; a ring stitched to it; the material map round-trips at 0.5 m; the visual \
+         terrain's patch maps name the new height field and its patch shaders, each present in every staged \
+         database; the renamed terrain partition staged; the terrain block of package.mft names no bundle of the \
+         base level. A project that also strokes the base's terrain is refused.",
+        &["TEDIT-NEW-1", "TEDIT-NEW-2", "TGEN-REQ-4", "TGEN-REQ-5"],
+        &[Stage],
+        "E7",
+    ),
     // ---- console data
     (
         "XVAL-CONS-1",

@@ -186,6 +186,10 @@ pub fn changes(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> C
         GAMEPLAY.iter().any(|t| ty.ends_with(&format!(".{t}")))
     };
     let mut c = Changes::default();
+    // round E7 / TG3: a new terrain is new ground everywhere: the level must be sampled on it
+    if project.new_terrain().is_some() {
+        c.terrain += 1;
+    }
     for o in &project.operations {
         match &o.op {
             // a sculpt (the main block, the ring) or a widened range moves the ground (round E5-rest: the ring and
@@ -926,4 +930,58 @@ pub fn routes_of(hpd: &bc2_formats::hpd::HpdFile<'_>, source: &str) -> crate::si
     let rank: std::collections::HashMap<usize, u32> = order.iter().enumerate().map(|(k, &r)| (r, k as u32)).collect();
     let island = roots.iter().map(|r| rank.get(r).copied().unwrap_or(0)).collect();
     crate::site::Routes::new(nodes, island, source)
+}
+
+/// The bots' measures of a level's path data on its playable area (round E7 / TG3, TGEN-OUT-5).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BotMeasures {
+    /// Route nodes (each sector's border nodes once).
+    pub nodes: usize,
+    /// Connectivity: the share of them on the main route network (the largest island).
+    pub connectivity: f64,
+    /// Walkable ground cells of [`COVER_CELL`] m in the playable box (dry, slope under [`WALK_SLOPE`] degrees).
+    pub cells: usize,
+    /// Coverage: the share of those a main-network node reaches (within `site::JOIN_XZ` in plan and `JOIN_Y` in
+    /// height of the ground, as the path rule XVAL-PLACE-5 reaches a spawn).
+    pub coverage: f64,
+}
+
+/// The side of a coverage cell in metres.
+pub const COVER_CELL: f64 = 8.0;
+/// The steepest ground a coverage cell counts as walkable, in degrees (the NavKit seed filter's 40, KYG-SEED-3).
+pub const WALK_SLOPE: f64 = 40.0;
+
+/// [`BotMeasures`] of `routes` over the box `area` (min x, z, max x, z), `ground` giving the height, the slope in
+/// degrees and whether the point is under water.
+#[must_use]
+pub fn bot_measures(
+    routes: &crate::site::Routes,
+    area: [f32; 4],
+    ground: &dyn Fn(f64, f64) -> Option<(f64, f64, bool)>,
+) -> BotMeasures {
+    let [x0, z0, x1, z1] = area.map(f64::from);
+    let (mut cells, mut covered) = (0usize, 0usize);
+    let mut z = z0 + COVER_CELL / 2.0;
+    while z < z1 {
+        let mut x = x0 + COVER_CELL / 2.0;
+        while x < x1 {
+            if let Some((y, slope, wet)) = ground(x, z)
+                && !wet
+                && slope < WALK_SLOPE
+            {
+                cells += 1;
+                if routes.reach([x, y, z]).is_some_and(|(island, _)| island == 0) {
+                    covered += 1;
+                }
+            }
+            x += COVER_CELL;
+        }
+        z += COVER_CELL;
+    }
+    BotMeasures {
+        nodes: routes.len(),
+        connectivity: routes.main_share(),
+        cells,
+        coverage: if cells == 0 { 0.0 } else { covered as f64 / cells as f64 },
+    }
 }

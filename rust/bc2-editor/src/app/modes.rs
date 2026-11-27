@@ -471,8 +471,8 @@ impl EditorApp {
             ),
             (
                 "From a height map",
-                "A 16-bit PNG or RAW height map, the map's size, height range and water level, and the mode its \
-                 content comes from. The terrain is generated in a later round.",
+                "A 16-bit PNG or RAW height map, or a terrain generated from a seed (Generate), on a base level \
+                 whose mode layer and look it takes. Export writes the new terrain.",
             ),
         ];
         let mut chosen = None;
