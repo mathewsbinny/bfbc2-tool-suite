@@ -81,6 +81,13 @@ objects/ui/uibackground, has no layout in BF1943's shader databases).
 
 ## Effects (`effectport.py`)
 
+Since round OR8 the effect porter and the sound porter run in the suite's Rust core (`rust/bc2-convert/src/effectport.rs`,
+`soundport.rs`; `bc2_native.effectport_*`, `soundport_port`); `effectport.py` is a wrapper keeping the API below, its
+Python twin retired after the parity proof (`rust/BENCHMARKS.md`, "OR8"). `effectport.port_sounds(src, ix, roots, out,
+donors=..., last_donors=...)` is the sound porter Project OPFOR's `wake_level.port_sounds` calls: the sound partitions
+the roots reach that BFBC2 lacks, aligned on the donors' sound partitions, the fields BFBC2's sound classes add set as
+DICE set them, the waves converted (EA-XMA -> EA-XAS) and a wave whose audio is now in memory marked not streaming.
+
 `effectport.port(src, ix, effect, level)` ports a BF1943 effect and everything it reaches: the EffectAsset, the
 emitter documents (BF1943 keeps them per level: `levels/<level>/emitters/...`, the partition inside named
 `emitters/...`), their textures (converted; BFBC2's own kept where it has the name) - sounds and other partitions
@@ -99,8 +106,9 @@ under `sound/` that draws particles (an EffectAsset with an EmitterEntityData: t
 sound and tracer in one) is ported as an effect, its sounds handed over; plain sound wrappers stay the sound porter's.
 
 `effectport.port_many(src, ix, effects, level)` ports several at once with one template search - Wake's 44 impact
-effects. The search over BFBC2's 18,343 emitter documents reads them a bundle at a time and parses only those whose
-bytes name a type still needed (it read and parsed them one by one: ~35 min). A BF1943 sound an effect reaches (BFBC2
+effects. The search over BFBC2's 18,343 emitter documents takes each document's instance types from an index (read
+once on all cores, kept as JSON in the `effectport` cache while the game copy's bundles are unchanged); the first
+document in name order naming and holding a type still needed joins the pool. A BF1943 sound an effect reaches (BFBC2
 lacking it) is not ported here: aligned on effect templates its Audio.* types stayed unaligned and its waves were left
 out. It is listed (a `sound` record, `sounds_of(report)`) for the caller's sound porter, and the effect's reference to
 it is kept. The report is a `dbxport.Report`: its records hold every partition's dbxport records (their `partition`

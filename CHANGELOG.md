@@ -28,12 +28,30 @@ landed on `main`.
 
 ## [Unreleased]
 
-## [0.31.0] - 2026-11-27
+## [0.32.0] - 2026-11-27
 
 Round OR9 retires Project OPFOR's Python of the console Onslaught port's stages 2 - 4: OPFOR now needs this version's
-`bc2_native.onsport_linux` / `onsport_mode` / `onsport_loadset`, so its `SUITE_REQUIRES` moves to 0.31.0 - 0.32.0.
+`bc2_native.onsport_linux` / `onsport_mode` / `onsport_loadset`, so its `SUITE_REQUIRES` moves to 0.32.0 - 0.33.0.
 
 ### Added
+- **The console Onslaught port's stages 2 - 4 in Rust** (round OR9, "OPFOR in Rust"): `bc2_install::onslaught::linux`
+  (the console gameplay put on the PC map's Linux server level: the merge, the renamed Linux files, the cull slots as
+  the Linux level's), `onslaught::mode` (the Onslaught game mode from PC Conquest, the console spawn manager, every
+  flag takeable, the doorway pre-destructions left out) and `onslaught::loadset` (the level's manifest blocks without
+  PC mp2_common, the files it takes only from there copied in), through `bc2_native.onsport_linux`, `onsport_mode`
+  and `onsport_loadset`. OPFOR's `console_linux_base.py`, `console_mode.py` and `console_loadset.py` keep their
+  command lines and the install ledger; their work files are the retired Python's byte for byte on the four console
+  levels (spec XCONS-ONS-2 - 4).
+- `bc2_pyrt::math`: CPython's `math.dist` (its compensated `vector_norm`), `x ** 2` and `x ** y` bit for bit.
+
+## [0.31.0] - 2026-11-27
+
+Round OR8 retires `effectport.py`'s Python (its emitter index `EmitterIndex`, `templates_reference`, `REFERENCE`,
+`_read_many`, `port`'s `shared` / `plan` arguments) and Project OPFOR's sound porter, a Python API Project OPFOR
+imports: this merge releases a minor version, and OPFOR's `SUITE_REQUIRES` moves to 0.31.0 - 0.32.0. Round TG4, merged before it unreleased, is in this version too.
+
+### Added
+
 - Round TG4: a Create Level project places its base level's forests, middlegrowth, rocks and natural props again on
   the new terrain (the form's **Vegetation** box, on by default; project format 14's `terrain_import.vegetation`), as
   DICE's multiplayer levels of the biome place them: their density by distance outside the playable area, their
@@ -45,21 +63,26 @@ Round OR9 retires Project OPFOR's Python of the console Onslaught port's stages 
   (MP_005, MP_006, MP_007).
 - Round TG4: `bc2_levelwrite::terrainpaint::layer_weights` (a terrain's tiled layers' weights read back from its patch
   maps and atlas), `newterrain::view` and the editor's `newterrain_view`.
-- **The console Onslaught port's stages 2 - 4 in Rust** (round OR9, "OPFOR in Rust"): `bc2_install::onslaught::linux`
-  (the console gameplay put on the PC map's Linux server level: the merge, the renamed Linux files, the cull slots as
-  the Linux level's), `onslaught::mode` (the Onslaught game mode from PC Conquest, the console spawn manager, every
-  flag takeable, the doorway pre-destructions left out) and `onslaught::loadset` (the level's manifest blocks without
-  PC mp2_common, the files it takes only from there copied in), through `bc2_native.onsport_linux`, `onsport_mode`
-  and `onsport_loadset`. OPFOR's `console_linux_base.py`, `console_mode.py` and `console_loadset.py` keep their
-  command lines and the install ledger; their work files are the retired Python's byte for byte on the four console
-  levels (spec XCONS-ONS-2 - 4).
-- `bc2_pyrt::math`: CPython's `math.dist` (its compensated `vector_norm`), `x ** 2` and `x ** y` bit for bit.
 
 ### Changed
-
+- **The WW2 effect porter and sound porter run in Rust** (round OR8, "OPFOR in Rust", the leftovers):
+  `bc2_convert::effectport` (the walk, the emitter documents' level copies, the template search over an index of
+  BFBC2's emitter documents kept as JSON in the `effectport` cache, the partition ports side by side, the report) and
+  `bc2_convert::soundport` (Project OPFOR's `wake_level.port_sounds`: the sound partitions, the donor pool, the fields
+  DICE sets, the waves converted side by side, `IsStreaming` false for in-memory audio), through
+  `bc2_native.effectport_port` / `effectport_port_many` / `effectport_walk` / `soundport_port`. `effectport.py` keeps
+  its API as a wrapper and gains `port_sounds`, `sound_fills`, `not_streaming`; every WW2 effect and sound port gave the
+  retired Python's files, report lines and records (spec XWW2-FX-1, XWW2-SND-1 - 2). A wave that does not convert is
+  reported with the Rust converter's reason (`wavport::convert_checked`).
+- A missing effect template now raises `dbxport.MissingTemplate` naming it (spec XWW2-FX-2), where the Python raised
+  the reader's `DeletedEntry`.
 - Round TG4: a Create Level project opens on its new terrain (it showed the base's), so the Terrain workspace's
   sculpt and paint work on the new ground and the export lays the strokes on it (TEDIT-NEW-4). Project format 14; a
   format-13 project with terrain strokes keeps them refused (they were made on the base's terrain).
+
+### Removed
+- `effectport.EmitterIndex`, `templates_reference`, `REFERENCE`, `EMITTER_BATCH`, `cache_dir`, `_read_many`; the
+  variable `BFBC2_EFFECTPORT_REFERENCE`. The index's old pickles (`emitters-*.pkl`) are left to the cache pruning.
 
 ## [0.30.0] - 2026-11-27
 
