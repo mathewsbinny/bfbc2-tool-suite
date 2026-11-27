@@ -55,6 +55,8 @@ pub mod meshconv;
 pub mod meshport;
 pub mod meshview;
 pub mod mopp;
+pub mod physmat;
+pub mod pictures;
 pub mod pyfmt;
 pub mod shaderlevels;
 pub mod shadertranslate;

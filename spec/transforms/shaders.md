@@ -186,7 +186,7 @@ for Dx10 / 11, and skips entries whose translated programs already cover their s
 needs a material whose donor has a program for the depth layout, else the fix re-clones from any covering entry (a
 kind 4 soldier entry once made the Type 38 invisible).
 
-[code: opfor:src/tools/ww2/wake_install.py:1660-1664]
+[code: opfor:src/tools/ww2/wake_install.py:1640-1644]
 
 ## 5. Dx9, Dx10 and Dx11
 

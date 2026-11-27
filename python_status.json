@@ -1283,6 +1283,18 @@
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "test",
+   "lines": 128,
+   "note": "Project OPFOR's physics-material edits in the Rust core (round OR4, \"OPFOR in Rust\" stage 4: bc2_convert::p...",
+   "path": "bfbc2-bf1943-import/tests/test_physmat_native.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "bfbc2-bf1943-import",
+   "kind": "test",
    "lines": 607,
    "note": "Round E3g (rust/BENCHMARKS.md, \"E3g\"): the BF1943 model / physics / effect ports' faster paths.",
    "path": "bfbc2-bf1943-import/tests/test_ports_native.py",
@@ -2113,12 +2125,12 @@
    ],
    "folder": "bfbc2-mesh-viewer",
    "kind": "tool entry point",
-   "lines": 386,
-   "note": "PR1b-2-rest: Index / load_mesh / mesh_surfaces / stack_models / render on the Rust port through bc2_native (MeshViewIndex, meshview_render), the pickle cache retired (meshview_index.bin); left in Python: the NumPy arrays and dicts, _bundles (OPFOR's step tracker sees its walk), the partition cache of read(), page() (OPFOR's WW2 preview pages)",
+   "lines": 306,
+   "note": "PR1b-2-rest: Index / load_mesh / mesh_surfaces / stack_models / render on the Rust port through bc2_native (MeshViewIndex, meshview_render), the pickle cache retired (meshview_index.bin); page() retired in OR4 (bc2_convert::meshview::page, OPFOR's preview pages); left in Python: the NumPy arrays and dicts, _bundles (OPFOR's step tracker sees its walk), the partition cache of read()",
    "path": "bfbc2-mesh-viewer/meshview.py",
    "retiring": "PR1b-2",
    "rust": "bc2_convert::meshview; bfbc2 meshview; the editor's preview",
-   "status": "partly"
+   "status": "ported"
   },
   {
    "callers": "by hand (gr3.rs reads its output)",
@@ -2137,7 +2149,7 @@
    "embedded_by": [],
    "folder": "bfbc2-mesh-viewer",
    "kind": "test",
-   "lines": 81,
+   "lines": 78,
    "note": "meshview.py on the game's files (game tier; skipped without them): - the M1 Garand's first-person mesh read...",
    "path": "bfbc2-mesh-viewer/tests/test_meshview.py",
    "retiring": "Tests in Rust",
@@ -2224,6 +2236,18 @@
    "lines": 123,
    "note": "skinmesh.py, shapes.py and the skinned mesh sets (console converter's meshset.py) on the game's files (game...",
    "path": "bfbc2-model-tools/tests/test_models.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "bfbc2-model-tools",
+   "kind": "test",
+   "lines": 164,
+   "note": "Project OPFOR's WW2 pictures in the Rust core (round OR4, \"OPFOR in Rust\" stage 4: bc2_convert::pictures an...",
+   "path": "bfbc2-model-tools/tests/test_pictures_native.py",
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
@@ -3555,7 +3579,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1378,
+   "lines": 1384,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3951,7 +3975,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 876,
+   "lines": 878,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4568,19 +4592,19 @@
  ],
  "totals": {
   "all": {
-   "files": 375,
-   "lines": 110190
+   "files": 377,
+   "lines": 110407
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1434,
+    "lines": 1440,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1378,
+    "test": 1384,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4617,14 +4641,14 @@
     "twin": 1106
    },
    "bfbc2-bf1943-import": {
-    "files": 26,
-    "lines": 10508,
+    "files": 27,
+    "lines": 10636,
     "live": 546,
     "partly": 1540,
     "ported": 56,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5093,
+    "test": 5221,
     "twin": 3273
    },
    "bfbc2-console-convert": {
@@ -4706,24 +4730,24 @@
    },
    "bfbc2-mesh-viewer": {
     "files": 4,
-    "lines": 697,
+    "lines": 614,
     "live": 0,
-    "partly": 386,
-    "ported": 0,
+    "partly": 0,
+    "ported": 306,
     "retired-pending": 0,
     "stays": 78,
-    "test": 233,
+    "test": 230,
     "twin": 0
    },
    "bfbc2-model-tools": {
-    "files": 8,
-    "lines": 1926,
+    "files": 9,
+    "lines": 2090,
     "live": 0,
     "partly": 267,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 810,
+    "test": 974,
     "twin": 849
    },
    "bfbc2-navigation-studio": {
@@ -4783,12 +4807,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6033,
+    "lines": 6035,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5766,
+    "stays": 5768,
     "test": 267,
     "twin": 0
    },
@@ -4821,12 +4845,12 @@
     "lines": 5284
    },
    "partly": {
-    "files": 21,
-    "lines": 16904
+    "files": 20,
+    "lines": 16518
    },
    "ported": {
-    "files": 21,
-    "lines": 2584
+    "files": 22,
+    "lines": 2890
    },
    "retired-pending": {
     "files": 3,
@@ -4834,11 +4858,11 @@
    },
    "stays": {
     "files": 67,
-    "lines": 13247
+    "lines": 13249
    },
    "test": {
-    "files": 189,
-    "lines": 52191
+    "files": 191,
+    "lines": 52486
    },
    "twin": {
     "files": 56,

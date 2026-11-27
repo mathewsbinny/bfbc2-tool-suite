@@ -59,7 +59,7 @@ of the lower-case name: `h = h * 33 ^ byte` from 5381, the function the physics 
 [test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: Hash equal to the 33-xor hash of the lower-case Name on 5,746 of 5,746 MaterialData instances of DICE's grids; categories Construction 1,771, Projectiles 1,135, Explosions 692, Vehicles 677, Terrain 573, Vegetation 395, Soldier 355, Default 148]
 [code: rust/bc2-formats/src/havok.rs:587-591]
-[doc: opfor:src/tools/ww2/material_grid.py:333-334]
+[doc: rust/bc2-install/src/levelbuild/materialgrid.rs:634-643]
 
 ### MAT-GRID-4: The flags belong to the name
 
@@ -185,7 +185,7 @@ one material all their parts have. OPFOR's part edits write both together and re
 disagree.
 
 [data: spec/probes/materials.py, 2026-11-22: 4,454 of 4,454 parts in 1,183 of 1,183 files; run forms d = 1 x 904 (84 with 2+ parts), one byte per part x 279]
-[code: opfor:src/tools/ww2/physmat.py:62-109]
+[code: rust/bc2-convert/src/physmat.rs:146-312]
 [doc: opfor:research/MATERIAL_SLOTS_RE.md:23-28]
 
 ### MAT-SLOT-3: DICE's part materials
@@ -234,7 +234,7 @@ material of every member (HAVOK-MAT-2). Changing how a group member is hit means
 `_HavokAsset.res` face list, not the member blueprint's file. OPFOR remaps members' faces in the group's packfile.
 
 [exe: the face material read at 0xAAEEE0 / 0xAADE10 is the hit material of a group member]
-[code: opfor:src/tools/ww2/physmat.py:112-140]
+[code: rust/bc2-convert/src/physmat.rs:324-385]
 [doc: opfor:research/MATERIAL_SLOTS_RE.md:103]
 
 ## 3. Penetration
@@ -676,8 +676,8 @@ materials its data names. Each pair's relation is DICE's when any BFBC2 grid hol
 their balance), else BF1943's, else a stand-in (the nearest BFBC2 material's relation with the BF1943 material in its
 place: an airframe against a shotgun pellet takes Attack_Helo's).
 
-[code: opfor:src/tools/ww2/material_grid.py:343-369]
-[code: opfor:src/tools/ww2/material_grid.py:55-63]
+[code: rust/bc2-install/src/levelbuild/materialgrid.rs:656-742]
+[code: opfor:src/tools/ww2/material_grid.py:53-61]
 [data: spec/probes/materials.py, 2026-11-22: 4 materials_xenon grids, 104 - 111 materials, 4,049 - 4,706 relations]
 [doc: opfor:research/PHYSICS_MATERIALS.md:84]
 

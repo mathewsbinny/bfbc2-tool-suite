@@ -19,6 +19,8 @@ rayon.workspace = true
 regex.workspace = true
 memchr.workspace = true
 flate2.workspace = true
+# meshview::page: the preview pages' textures (round OR4)
+png.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

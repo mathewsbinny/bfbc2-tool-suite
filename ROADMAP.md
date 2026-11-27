@@ -152,7 +152,6 @@ added or deleted without its row, so update the table (and regenerate) in the ro
 | `bfbc2-culltree` | ~1,050 | culltree's Python twin (its command line is Rust, CT1 / RT3) | PY1 |
 | `bfbc2-model-tools` | ~1,030 | texwrite's packing is Rust (PR1b-2-rest); `decimate.py` / `shapes.py` with PR1b-2-rest2 | PR1b-2-rest2 |
 | `bfbc2-console-readers` | ~840 | Xbox 360 readers | OPFOR in Rust stage 5 / the Onslaught re-port |
-| `bfbc2-mesh-viewer` | ~460 | `meshview.py`'s index, meshes, stacking and render are Rust (PR1b-2-rest); left: `page()` for OPFOR's WW2 preview pages | OPFOR in Rust stage 4 |
 | `bfbc2-navigation-studio`, `bfbc2-dbx-tools`, `bfbc2-fbrb-tool` | ~350 | Leftovers in retired tools' folders | PR1c (moved into core or their user) |
 | `rust/*.py` | ~3,400 | Benchmark and parity scripts against the old Python | stay (they are measurements, not tools) |
 
