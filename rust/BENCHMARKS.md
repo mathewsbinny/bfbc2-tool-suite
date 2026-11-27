@@ -5968,3 +5968,129 @@ deletion) and run `python spec/trace.py --emit`; `--check` then confirms the sha
 After merging main with OR9 (da8e3d0a; its `spec/rules.json` 979,615 bytes, 1,602 rules): `git rm spec/rules.json`,
 `--emit` (5 shards changed), `--check` ok with 1,602 rules (972 verified, 151 implemented, 417 observed, 62 inferred),
 and the same comparison against main's `rules.json`: equal element for element, the largest shard still 40,538 bytes.
+
+## OR14: OPFOR in Rust, the picture and menu leftovers (2026-11-27, branch `or14`, with Project OPFOR's `or14`)
+
+Version **0.33.0** (OPFOR's `SUITE_REQUIRES` 0.33.0 to below 0.34.0). The four items of the ROADMAP row; nothing was
+written to OPFOR's `game\` and the game never launched.
+
+### 1. The Type 95 silhouette (Pillow's polygon fill)
+
+`type95_icon.silhouette` (the WW2 rebuild's `type95_icon.py` / `weapon_icons.py`, and `console_icons.py`'s Onslaught
+boats) is `bc2_convert::pictures::side` over `pictures::polygon` (Pillow 12.3's `ImageDraw.polygon` from its C
+source: `(int)` vertices, `ROUND_UP` / `ROUND_DOWN` of single-precision crossings, the doubled last row, merged flat
+edges), through `bc2_native.pictures_side_silhouette`. NumPy's float work as it runs on the oracle machine: `np.cross`,
+`norm` as `(x^2 + y^2) + z^2`, `n @ light` as OpenBLAS's `dgemv` (two fused forms), the supersampled sums per sub-row.
+
+- `rust/parity_silhouette.py`: **20,000 of 20,000** random polygons identical to Pillow; 300 seeded synthetic meshes:
+  216 identical (5 refused by both), 84 differ only in the tie order (identical to the Python with
+  `argsort(kind='stable')`); 85 game-mesh pictures (the Type 95 at 7 size / ss pairs, MRKV, JETS, 12 vehicles x 3
+  sizes, 40 seeded meshes): 18 identical, 67 tie-order only, 0 other. **The Type 95 at its defaults, MRKV and JETS
+  are identical to the default-argsort Python**: every picture OPFOR ships.
+- Decided (XWW2-PIC-5): faces of equal depth sums are drawn in face order (a stable sort). NumPy's default `argsort`
+  on AVX-512 is x86-simd-sort, unstable, its order of equal keys processor- and version-dependent; DICE drew its
+  silhouettes by hand. `pictures_side_ties` bounds the pixels another order could change. A mesh of zero length along
+  z or with non-finite positions, and `w`, `h` or `ss` of 0, are refused (the Python divided by zero).
+- 7.1 s against 0.67 s for the 85 game pictures (1 - 4 ms a picture against 20 - 350 ms).
+
+### 2. texwrite's principal axes (`numpy.linalg.eigh`)
+
+`bc2_convert::eigh3` is LAPACK `dsyevd` (`UPLO='L'`) for 3 x 3 as NumPy 2.5.4 / scipy-openblas 0.3.34 computes it on
+this SkylakeX-kernel machine: `dsytd2` (one reflector), `dsteqr`, `dorm2r` / `dlarf1f`; LAPACK's code unfused in
+source order, the BLAS kernels' `y += a * b` fused (`dsymv`'s, `ddot`'s, `daxpy`'s tails, `dsyr2` as `daxpy`s,
+`dger`, `dgemv_t`'s `m = 1` path), `dger`'s `alpha * y[j]` and `dsymv`'s `alpha * x[j]` rounded first. A Python
+prototype matched 4,000 of 4,000 only with all three kernel families fused (unfused `dsymv` 832 misses, `ddot` 355,
+`daxpy` 3,185). `texwrite.py`'s native path is one call (`TexWriteJob.encode()`); the reference keeps NumPy's eigh.
+
+- `rust/parity_texwrite_axes.py`: **0 axes and 0 encoded blocks differ** on 3,000 random pictures (17,420 levels,
+  279,092 blocks: DXT1, normals, 1-bit alpha, DXT5), 1,495 pictures from disk (111,346,730 blocks, each as two kinds),
+  10,000,000 random covariances of texwrite's kind and 8,017 degenerate ones (zero, rank 1 / 2, repeated eigenvalues,
+  2^-1070 - 2^1000, subnormal).
+- Decided (XWW2-PIC-6): the oracle machine's bits are the rule (DICE's own encoder made DICE's textures); NumPy on a
+  processor without FMA may differ in the last bits, the Rust does not.
+- 1,000,000 axes: Rust 0.07 s (all cores) against NumPy 1.3 - 1.7 s; a 2048 x 2048 texture with 12 levels: 0.016 s
+  (DXT1) / 0.027 s (DXT5) against 0.29 / 0.32 s.
+- `bc2_levelwrite::awards` (the editor's award and loading-screen exports) drops its own Jacobi axis for `eigh3`.
+
+### 3. One Pillow resize
+
+`bc2_menu::pil::Rgba::resize_lanczos` (OR5's menu art) is a thin call of `bc2_convert::pictures::resample::resize`
+(OR4's); OR5's copy (`coeffs`, `resample`, `lanczos`, `muldiv255`) is deleted, `bc2-menu` depends on `bc2-convert`.
+The kept one sums in `i64` and clips where OR5's wrapped `i32` as Pillow's C does: no 8-bit picture can reach the
+wrap (the Lanczos weights' absolute sum times 255 times 2^22 stays under 2^31). Proof: `rust/parity_menuart.py` (400
+random cases each) **resize, cut-out, fit, layer, crop, flip, DXT5 decode / encode, untile: 3,600 of 3,600**
+identical to Pillow / numpy and the retired `onslaught_art.py`; `pil.rs::pillow_answers`' recorded digests pass;
+`resample.rs`' callers (`pictures::icons`, `loading`) unchanged (their tests and the WW2 rebuild below).
+
+### 4. OPFOR's WW2 menu tools off aptgraft's and bc2loc's Python API
+
+| OPFOR file | its aptgraft / bc2loc use | now |
+|---|---|---|
+| `ww2\type95_icon.py`, `onslaught\console_icons.py` | Movie.load, add_icon_frame, add_label_alias, label hiding | `bc2_native.AptMovie` (`graft::icon`) |
+| `ww2\weapon_icons.py`, `duplicates.py`, `bf1943_hud_icons.py`, `qa_checks.py` | labels, places, geometry, add_label_alias | `AptMovie` |
+| `ww2\wake_ui.py` | the constant-key swap | `AptMovie.rename_constants` (`graft::consts`) |
+| `ww2\ww2_crosshairs.py` | crosshair_table / objects, deps, timeline_display, add_crosshair with image tiles | `AptMovie` (`graft::tiles`, `add_crosshair_tiles`) |
+| `ww2\menu_install.py` | ~370 lines building code and characters on aptgraft's objects; the dump | `bc2_native.pacific_main_nav` / `main_root` (`bc2_menu::pacific`), `apt_dump_text` |
+| `ww2\names.py`, `ww2_awards.py`, `wake_install.py`, `menu_install.py` | `bc2loc.LocFile`, `languages`, `load`, `khash` | `bc2_native.LocFile`, `loc_languages`, `loc_load` (`bc2_menu::loc`, moved out of `bfbc2 bc2loc`) |
+
+`aptgraft.py`, `bc2loc.py` (and with them `aptcheck.py`, `menucommon.py`, `apt.py`) are now the Rust's test
+references only (PYTHON_STATUS: twin, PR1c delete). The console readers' tests run on the Rust against answers recorded
+from `stfs.py` / `xisolib.py` (`bfbc2-console-readers/tests/console_readers_answers.json`, its recorder), so PR1c can
+delete those twins once `bc2-cli/src/readers/stfs.rs`'s `include_str!` usage text, `CLI_TOOLS['stfs']`,
+`tests/test_cli_errors.py` and four spec citations stop naming them.
+
+Proof:
+
+- `rust/parity_menu_movies.py` (old: OPFOR 0e4d0d3 on main's aptgraft; new: the or14 worktrees; the real game copy
+  read, every write in scratch): type95_icon **16 of 16** files, weapon_icons 5 of 5, duplicates 4 of 4, wake_ui 12 of
+  12 (the crosshair movie, atlas and reported numbers among them), bf1943_hud_icons 22 of 22, qa_checks' crosshair
+  check 2 of 2, console_icons (ons_mp_002, both bundles) 103 of 103; every printed line identical. Damaged inputs 32 of
+  32 alike (22 refused by both with the same words); 500 random synthetic movies through add_icon_frame / add_label_alias
+  and 500 random parts through split_image_part: all alike.
+- `rust/parity_pacific_menu.py` (old: menu_install.py at 0e4d0d3 on this checkout's aptgraft.py and bc2loc.py): the
+  menu step's movies (`work\ww2\menu_install\orig`, the ledger's bundle from before the stage) at the step's sizes and
+  40 random label / logo sizes, 26 damaged movies (cut short, edited twice, a character of another type, a frame placed
+  or unlabelled, the selector's labels renamed, the logo frame's character, setGameMod renamed / changed / moved,
+  getGModStringExtensino missing) and the dumps: **120 of 120** alike (28 refused by both, every one an `AptError` with
+  the Python's words); the whole step (`menu_install.build`: unpack, edits, atlas, DbxEdit, aptcheck, the dump diff,
+  pack) old against new: **301 of 301 files identical** (the packed bundle among them), 28 of 28 printed lines; the
+  texts: every language of the game copy (names.py's texts set, written and read back, every lookup), without a
+  histogram, cut, magic and count damaged, random keys and texts: **121 of 121** alike. main_nav's edits: Python 72.6 s
+  against Rust 16.3 s for the 84 cases; the step 64 s against 17 s.
+- Two differences found and fixed on the Rust side: a movie cut short is an `AptError` with the reference's words
+  (`... runs past the end of the file`, `bc2_formats::aptmodel::APT_ERROR`); `add_icon_frame` of an integer size 0
+  keeps Python's `+0.0` for `-w / 2`.
+
+### WW2 rebuild
+
+- In OPFOR's `or14` worktree with its own `work\ww2` seeded with the 14 declared inputs (599 files; `game\`, the
+  other `work\` folders and `research\ww2 models` junctions to the main checkout, read only), `OPFOR_SUITE_STRICT=1`,
+  defaults: **all 55 steps in 17.1 min**, `compare_oracle` **7,945 of 7,945 identical** (every texture `texwrite`
+  encodes, the icons, menus and texts these tools write among them), `qa_checks` exit 0. Peak: a level chain 4.3 GB;
+  at most 4 steps at once.
+- **Install oracle**: `wake_install.py --plan` exit 0; `compare_oracle --install` **21,149 of 21,149 identical**.
+- `game\`: its 1,582 files (11.6 GB) hashed (path, size, time, SHA-256) before and after: 0 changed; OPFOR's main
+  checkout untouched.
+- `menu_install.py` is not a rebuild step: its proof is `parity_pacific_menu.py`'s whole-step run above.
+
+### Tests
+
+- Rust: `bc2-menu` (pil, api_tests: 4 synthetic movies), `bc2-convert` (eigh3's recorded NumPy bits, polygon,
+  side), `bc2-formats`, `bc2-install`; clippy `-D warnings` on the changed crates and on each of `bc2-cli`'s 19 groups
+  alone.
+- Python: the suite's quick tier; OPFOR's quick tests (test_onslaught_icons, test_ww2_crosshairs against the game copy
+  read only, test_rebuild_tracker); ruff and mypy on the changed Python of both repositories; `spec/trace.py --check`.
+- **The rebuild tracker's side-by-side test** (coordinator's request): OPFOR's
+  `test_independent_steps_run_side_by_side_and_a_failure_stops_the_run` failed on a busy PC (with about 3.5 GB free
+  the runner's free-memory gate ran the two tiny steps one at a time). `bc2_install::rebuild::Plan` takes
+  `free_gate` (default true; `rebuild_all.FREE_GATE`), the test runs with it off and a 64 GB budget; real rebuilds
+  keep the gate. With 1.9 GB free (memory held by a helper): the old test fails ("at most 1 steps at once"), the new
+  one passes.
+
+### What is left
+
+- PR1c: delete `aptgraft.py`, `bc2loc.py`, `aptcheck.py`, `menucommon.py`, `aptrefslib.py`, `apt.py`, `stfs.py`,
+  `xisolib.py` with their tests moved to recorded answers (the console readers' are), and the four places above that
+  still name `stfs.py`.
+- The preview tools (`wake_preview`, `weapon_preview`) and the preview sheets (Pillow's text) stay Python.
+- `attachments.py` still calls `np.linalg.eigh(c.T @ c)` (its own fit, not texwrite's).

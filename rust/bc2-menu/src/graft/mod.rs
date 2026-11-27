@@ -2,7 +2,8 @@
 //! `bc2_formats::aptmodel` (round E4c): [`Movie`] is `aptgraft.Movie` (its members, label and constant index around a
 //! [`Model`]), [`Grafter`] / [`Builder`] / `code_range` copy characters and code between movies or build code, and
 //! [`edit`] / [`crosshair`] hold the commands' edits (`mode-case`, `mode-alias`, `label-alias`, `deps`,
-//! `onslaught-timer`, `crosshair-add`).
+//! `onslaught-timer`, `crosshair-add`), [`icon`] / [`tiles`] the API's (`add_icon_frame`, `split_image_part`: round
+//! OR14, Project OPFOR's WW2 tools through `bc2_native.AptMovie`).
 //!
 //! The model's node numbers stand for the Python objects: an instruction is its index in its code node, a list of
 //! instructions a stream index ([`Code::streams`]), so `is` / `id()` comparisons of the reference are comparisons of
@@ -24,8 +25,13 @@
               against aptgraft.py"
 )]
 
+#[cfg(test)]
+mod api_tests;
+pub mod consts;
 pub mod crosshair;
 pub mod edit;
+pub mod icon;
+pub mod tiles;
 
 use std::collections::HashMap;
 
@@ -257,7 +263,11 @@ impl Movie {
         }
         let a = &members[apt].1;
         let big = aptmodel::movie_big(a, cb).ok_or(MenuError::Reference)?;
-        let m = Model::parse(a, cb, g.map(|k| members[k].1.as_slice()), big).map_err(|_| MenuError::Reference)?;
+        // a refusal the Python parse raises as an AptError (a movie cut short) keeps its words (round OR14)
+        let m = Model::parse(a, cb, g.map(|k| members[k].1.as_slice()), big).map_err(|e| {
+            e.0.strip_prefix(aptmodel::APT_ERROR)
+                .map_or(MenuError::Reference, |w| apt_err(format!("{label}: {w}")))
+        })?;
         Ok(Self {
             m,
             label: label.to_owned(),

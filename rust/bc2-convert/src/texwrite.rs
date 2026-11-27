@@ -5,11 +5,12 @@
 //! Every value is the reference's to the bit: the sums are NumPy's own orders (a block's mean and covariance summed
 //! texel by texel from the first; a projection on the axis `(x*a + y*b) + z*c`, as `einsum` sums with the axis
 //! NumPy's eigensolver returns; a squared error over three channels `(r + g) + b`), each rounding as NumPy's
-//! (`np.round`: half to even). One step stays NumPy's: the principal axis of each block's covariance is
-//! `numpy.linalg.eigh`'s (LAPACK `dsyevd` through OpenBLAS, whose kernels' use of fused multiply-adds depends on
-//! the processor, so its last bits are not portable): [`Prepared::covariances`] gives the matrices (exact sums of
-//! products of the texels' integers, or of the filled-in means of a block with transparent texels), the caller
-//! solves them, and [`Prepared::finish`] encodes with the axes.
+//! (`np.round`: half to even). The principal axis of each block's covariance is `numpy.linalg.eigh`'s as the
+//! machine that recorded the WW2 oracle computes it (LAPACK `dsyevd` through OpenBLAS 0.3.34's SkylakeX kernels,
+//! whose fused multiply-adds decide the last bits): [`crate::eigh3`] writes that path out step for step (round
+//! OR14), so [`Prepared::encode`] needs no NumPy and gives the same bytes on any processor. [`Prepared::covariances`]
+//! (exact sums of products of the texels' integers, or of the filled-in means of a block with transparent texels),
+//! [`Prepared::axes`] and [`Prepared::finish`] (encoding with given axes) stay for the parity checks.
 
 #![allow(
     clippy::indexing_slicing,
@@ -447,6 +448,35 @@ impl Prepared {
             .collect()
     }
 
+    /// Each block's principal axis: `numpy.linalg.eigh(cov)[1][:, -1]` of its covariance, to the bit
+    /// ([`crate::eigh3::principal_axis`]).
+    #[must_use]
+    pub fn axes(&self) -> Vec<[f64; 3]> {
+        use rayon::prelude::*;
+        self.colour
+            .par_iter()
+            .map(|b| crate::eigh3::principal_axis(&covariance(&centred(b, mean(b)))))
+            .collect()
+    }
+
+    /// The level's blocks, encoded with their own principal axes (`dxt1` / `dxt5` whole): [`Prepared::finish`] with
+    /// [`Prepared::axes`], in one pass.
+    #[must_use]
+    pub fn encode(&self) -> Vec<u8> {
+        use rayon::prelude::*;
+        let per: Vec<[u8; 16]> = self
+            .colour
+            .par_iter()
+            .enumerate()
+            .map(|(i, b)| {
+                let m = mean(b);
+                let axis = crate::eigh3::principal_axis(&covariance(&centred(b, m)));
+                self.block(i, b, axis)
+            })
+            .collect();
+        self.join(&per)
+    }
+
     /// The level's blocks, each block's principal axis given (the eigenvector of its largest eigenvalue).
     #[must_use]
     pub fn finish(&self, axes: &[[f64; 3]]) -> Vec<u8> {
@@ -456,24 +486,32 @@ impl Prepared {
             .par_iter()
             .zip(axes)
             .enumerate()
-            .map(|(i, (b, &axis))| {
-                let mut o = [0u8; 16];
-                let colour = match &self.clear {
-                    Some(m) if m[i] != 0 => three_colour(b, m[i], axis),
-                    _ => four_colour(b, axis),
-                };
-                if self.enc == Encoding::Dxt5 {
-                    o[..8].copy_from_slice(&alpha_block(&self.alpha[i]));
-                    o[8..].copy_from_slice(&colour);
-                } else {
-                    o[..8].copy_from_slice(&colour);
-                }
-                o
-            })
+            .map(|(i, (b, &axis))| self.block(i, b, axis))
             .collect();
+        self.join(&per)
+    }
+
+    /// Block `i` (`b` its colours) with the axis: the DXT5 alpha half then the colour half, or the colour half.
+    fn block(&self, i: usize, b: &Rgb, axis: [f64; 3]) -> [u8; 16] {
+        let mut o = [0u8; 16];
+        let colour = match &self.clear {
+            Some(m) if m[i] != 0 => three_colour(b, m[i], axis),
+            _ => four_colour(b, axis),
+        };
+        if self.enc == Encoding::Dxt5 {
+            o[..8].copy_from_slice(&alpha_block(&self.alpha[i]));
+            o[8..].copy_from_slice(&colour);
+        } else {
+            o[..8].copy_from_slice(&colour);
+        }
+        o
+    }
+
+    /// The blocks' bytes in order (8 or 16 each).
+    fn join(&self, per: &[[u8; 16]]) -> Vec<u8> {
         let size = if self.enc == Encoding::Dxt5 { 16 } else { 8 };
         let mut out = Vec::with_capacity(per.len() * size);
-        for o in &per {
+        for o in per {
             out.extend_from_slice(&o[..size]);
         }
         out
@@ -648,6 +686,21 @@ mod tests {
         assert_eq!(p.covariances(), vec![[0.0; 9]]);
         let out = p.finish(&[[0.0, 0.0, 1.0]]);
         assert_eq!(out.get(4..8), Some(&[0u8; 4][..]));
+        // the axis of a zero covariance is NumPy's last unit vector, and encode is finish with the own axes
+        assert_eq!(p.axes(), vec![[0.0, 0.0, 1.0]]);
+        assert_eq!(p.encode(), out);
+    }
+
+    #[test]
+    fn encode_is_finish_with_own_axes() {
+        let px: Vec<u8> = (0..8 * 8 * 4).map(|i| ((i * 37 + i / 7 * 11) % 256) as u8).collect();
+        let img = Image { h: 8, w: 8, ch: 4, px };
+        for enc in [Encoding::Dxt1, Encoding::Dxt5] {
+            let p = Prepared::new(&img, enc).unwrap_or_else(|| unreachable!());
+            let axes: Vec<[f64; 3]> = p.covariances().iter().map(crate::eigh3::principal_axis).collect();
+            assert_eq!(p.axes(), axes);
+            assert_eq!(p.encode(), p.finish(&axes));
+        }
     }
 
     #[test]
