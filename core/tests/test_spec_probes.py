@@ -837,16 +837,17 @@ def registries(game: Path) -> None:
 
 
 # spec: SET-INI-1, SET-GS-1, SET-GS-2, SET-UI-1, INP-ENUM-1, INP-ENUM-2, INP-DATA-1, INP-DATA-2, INP-CFG-1, INP-UI-1
+# spec: SET-CLI-2, SET-BIN-1, INP-SET-2, SCR-DEV-2
 def options(game: Path) -> None:
     probe_checks('options', game)
 
 
-# spec: SCR-EVT-1, SCR-EVT-2, SCR-CMD-1
+# spec: SCR-EVT-1, SCR-EVT-2, SCR-CMD-1, SCR-EVT-3, SCR-CMD-2
 def event_graph(game: Path) -> None:
     probe_checks('scripting', game)
 
 
-# spec: XDEP-REF-1, XDEP-REF-2, XDEP-REF-3, XDEP-RES-1
+# spec: XDEP-REF-1, XDEP-REF-2, XDEP-REF-3, XDEP-RES-1, XDEP-RES-2
 def asset_graph(game: Path) -> None:
     probe_checks('dependencies', game)
 
