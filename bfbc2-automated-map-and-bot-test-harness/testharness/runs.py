@@ -40,8 +40,10 @@ try:
     import navregress as _nr
     PARITY_HIGHER, PARITY_LOWER, PARITY_TOL = list(_nr.HIGHER), list(_nr.LOWER), 0.05
 except Exception:                                  # quick tests without NavKit on the path still compare
-    PARITY_HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'costs', 'nodes_same', 'nodes_near',
-                     'edges_same', 'connectivity', 'ai_coverage', 'ai_pairwise']
+    PARITY_HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'nodes_near', 'nodes_paired',
+                     'edges_paired', 'costs_paired', 'nodes_paired_candidate', 'connectivity', 'runtime_connectivity',
+                     'strong_share', 'ai_coverage', 'ai_pairwise', 'df_d_precision', 'df_d_recall', 'df_f_precision',
+                     'df_f_recall']           # navregress.HIGHER (round NKS-deep D: the old exact-match measures out)
     PARITY_LOWER = ['extra_ground', 'over_connection', 'sectors_missing']
     PARITY_TOL = 0.05
 

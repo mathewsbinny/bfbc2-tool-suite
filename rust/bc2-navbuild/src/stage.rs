@@ -300,6 +300,13 @@ pub struct Switches {
     /// ([`crate::propagate`]) in place of NavKit's centre, portal and coverage nodes and its spanner. On by the user's
     /// ruling (2026-11-23), its regressions named exceptions (`spec/transforms/navkit.md`, "Parity target").
     pub placement: bool,
+    /// The terrain under a sampling hole (round NKS-deep D, XNAV-BLD-5; [`crate::terrain_fill`]): a narrow strip of
+    /// columns whose casts stopped on an object above the ground gets the height field's surface. Needs the level's
+    /// height field.
+    pub terrain_fill: bool,
+    /// The mesh's corners in DICE's placement (round NKS-deep D, KYG-NODE-9; [`crate::propagate::Ground::corners`]):
+    /// probes and straight walks turn a cell corner through a side cell, never across it.
+    pub mesh_corners: bool,
     /// `navdetail.CHAIN_TURNS`.
     pub chain_turns: bool,
     /// `navislands`' rule when `SHADOW_ISLANDS`, else `None`.
@@ -363,6 +370,8 @@ impl Default for Switches {
             cut_corners: true,
             df_slope: Some(DF_TERRAIN_SLOPE),
             placement: true,
+            terrain_fill: false,
+            mesh_corners: false,
             chain_turns: true,
             shadow: Some(graphfile::Shadow::default()),
             header: HEADER,
@@ -1675,6 +1684,7 @@ pub fn stage(
         // infantry pitches only: a vehicle build (pitch 1 m) keeps NavKit's own nodes (DICE's vehicle run, NbSectors 64
         // and DistPropagation 15.35 m, is not measured: no vehicle sample run)
         dice_seeds: sw.dice_seeds,
+        mesh_corners: sw.mesh_corners,
         placement: (sw.placement && ((cfg.pitch - 0.8).abs() < 1e-6 || cfg.is_detailed()))
             .then(|| crate::propagate::Params::at_pitch(cfg.pitch, cfg.dist_edge_max)),
     };

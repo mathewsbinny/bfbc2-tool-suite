@@ -948,6 +948,10 @@ pub struct WalkSettings {
     pub lip_object_rise: Option<f64>,
     /// `bool(LIP_OBJECT_SLOPE_MAX)`.
     pub lip_object_slope_max: bool,
+    /// `LIP_OBJECT_FLAT_ALL` (round NKS-deep D): every object lip, at any steepness, needs flat floor on both sides
+    /// (`lip_flat_cos`); `false`: only those steeper than `steep_max_cos`. On by the user's ruling (2026-11-27; its
+    /// dips named exceptions in `spec/transforms/navkit.md`).
+    pub lip_object_flat_all: bool,
     /// `cos(radians(LIP_OBJECT_FLAT))`.
     pub lip_flat_cos: Option<f64>,
     /// `ROOF_PRUNE`.
@@ -998,6 +1002,7 @@ impl WalkSettings {
             lip_width: Some(2),
             lip_object_rise: Some(0.3),
             lip_object_slope_max: false,
+            lip_object_flat_all: true,
             lip_flat_cos: Some(rad(15.0).cos()),
             roof_prune: true,
             roof: RoofCfg {
@@ -1511,6 +1516,11 @@ pub fn walkable(s: &Samples, inp: &WalkInputs, set: &WalkSettings) -> Result<Wal
                 .map(|k| !flag(&terrain, k) && flag(&clear, k) && !flag(&character, k) && !flag(&ok, k))
                 .collect();
             let c1: Vec<bool> = (0..n).map(|k| flag(&obj_c, k) && flag(&steep_c, k)).collect();
+            let ny1 = if set.lip_object_flat_all {
+                Some(s.normal.ys())
+            } else {
+                None
+            };
             let more = grid.narrow_lips(
                 &ok,
                 &c1,
@@ -1518,7 +1528,7 @@ pub fn walkable(s: &Samples, inp: &WalkInputs, set: &WalkSettings) -> Result<Wal
                 width,
                 LipTests {
                     rise: Some(rise),
-                    flat: None,
+                    flat: ny1.as_ref().zip(set.lip_flat_cos),
                 },
             )?;
             or_into(&mut lips, more);
@@ -1875,6 +1885,8 @@ pub struct StageInputs {
     pub water: Option<(WaterMesh, f64)>,
     /// The reference extent (min x, min z, max x, max z), when the build clips to it.
     pub bounds: Option<[f64; 4]>,
+    /// The height field whose surface fills the run's sampling holes (`Switches::terrain_fill`), or `None`.
+    pub terrain_fill: Option<Arc<bc2_formats::terrain::Heightfield>>,
 }
 
 /// What the stage logs before its walkability (`hand edits: ...`, `water: ...`, `reference extent ...`).
@@ -1886,6 +1898,8 @@ pub struct StageCounts {
     pub water: Option<usize>,
     /// Surfaces left out outside the reference extent.
     pub outside: Option<usize>,
+    /// Terrain surfaces filled into sampling holes (`Switches::terrain_fill`), when any were.
+    pub terrain_filled: Option<usize>,
 }
 
 /// `navbuild.stage`'s walkability: the run loaded (made coarse when its pitch is not the stage's), the hand edits'
@@ -1906,6 +1920,17 @@ pub fn stage(
         f
     };
     let mut counts = StageCounts::default();
+    let s = match si
+        .terrain_fill
+        .as_deref()
+        .and_then(|hf| crate::terrain_fill::fill(&s, hf, set.terrain_vtable))
+    {
+        Some((filled, added)) => {
+            counts.terrain_filled = Some(added);
+            filled
+        }
+        None => s,
+    };
     let (mut fw, mut fu): (Option<Vec<bool>>, Option<Vec<bool>>) = (None, None);
     if let Some(ops) = &si.edits {
         let (w, u) = edit_masks(&s, ops)?;

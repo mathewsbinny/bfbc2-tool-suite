@@ -1,4 +1,4 @@
-r"""NavKit's narrow lips and door sills (navwalk.LIP_WIDTH, LIP_OBJECT_RISE, LIP_OBJECT_FLAT) on sample rows built here
+r"""NavKit's narrow lips and door sills (navwalk.LIP_WIDTH, LIP_OBJECT_RISE, LIP_OBJECT_FLAT, LIP_OBJECT_FLAT_ALL) on sample rows built here
 (no game data): at pitch 0.2 a band of up to two terrain samples steeper than 40 deg between walkable ground is walkable,
 a band of three is not; a 5 cm object sill steeper than 55 deg between flat floors is walkable, between sloped floors
 or 0.5 m high it is not; at pitch 0.8 nothing changes; the rules off keep the row cut.
@@ -66,7 +66,16 @@ def main(argv):
     check(not reaches_end(row([sloped] * 4 + [sill] + [sloped] * 4))[0], 'object: the same sill between 30 deg floors is not')
     check(not reaches_end(row([floor] * 4 + [(0.5, 75.0, False)] + [floor] * 4))[0], 'object: a strip 0.5 m above the floor is not')
     mild = (0.05, 50.0, False)
-    check(reaches_end(row([sloped] * 4 + [mild] + [sloped] * 4))[0], 'object: a 50 deg strip needs no flat floor (the old cap)')
+    check(not reaches_end(row([sloped] * 4 + [mild] + [sloped] * 4))[0],
+          'object: a 50 deg strip between 30 deg floors is not crossed (LIP_OBJECT_FLAT_ALL, round NKS-deep D)')
+    check(reaches_end(row([floor] * 4 + [mild] + [floor] * 4))[0], 'object: a 50 deg strip between flat floors is')
+    flat_all = navwalk.LIP_OBJECT_FLAT_ALL
+    try:
+        navwalk.LIP_OBJECT_FLAT_ALL = False
+        check(reaches_end(row([sloped] * 4 + [mild] + [sloped] * 4))[0],
+              'LIP_OBJECT_FLAT_ALL off: a 50 deg strip needs no flat floor (the old cap)')
+    finally:
+        navwalk.LIP_OBJECT_FLAT_ALL = flat_all
 
     old = navwalk.LIP_WIDTH, navwalk.LIP_OBJECT_RISE
     try:

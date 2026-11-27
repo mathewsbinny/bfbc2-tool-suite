@@ -42,11 +42,14 @@ import hpdcheck  # noqa: E402
 import navparity  # noqa: E402
 import navwalk  # noqa: E402
 
-HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'costs', 'nodes_same', 'nodes_near', 'edges_same',
+HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'nodes_near',
           'nodes_paired', 'edges_paired', 'costs_paired', 'nodes_paired_candidate',    # all nodes and edges (NKS-deep E)
           'connectivity', 'runtime_connectivity', 'strong_share', 'ai_coverage', 'ai_pairwise',
           'df_d_precision', 'df_d_recall', 'df_f_precision', 'df_f_recall']     # D lines / F cells (navdf.py)
 LOWER = ['extra_ground', 'over_connection', 'sectors_missing']
+# The old exact-match measures (within 5 cm; a handful of edges per level): listed when they change, never failing
+# since round NKS-deep D - the pairing measures above (XNAV-MEAS-1) took their place, as round NKS-deep E planned.
+INFO = ['nodes_same', 'edges_same', 'costs']
 COUNTS = ['sectors_candidate', 'areas_candidate', 'detailed_candidate', 'islands_candidate', 'large_islands_candidate',
           'ai_main_candidate', 'df_d_candidate', 'df_f_candidate']
 
@@ -118,20 +121,26 @@ def reference_bounds(root, lv):
 
 
 SPAWN_REACH = 24.5      # KYG-RECT-1: sample points kept up to the spawns' box grown by 25 m, less radius 0.4 and 0.1 m
+ALTERNATE_SPAWN = 'AlternateSpawnEntityData'   # KYG-RECT-1 (round NKS-deep D): the player's alternate spawns are not in
+                                               # DICE's box (all 52 campaign sides at the box without them, 45 with)
+# A campaign level with DICE path data bounded by the spawns' rectangle instead of DICE's extent (the Onslaught levels
+# keep DICE's: KYG-RECT-1's exception). Measured in round NKS-deep D (rust/BENCHMARKS.md).
+RECT_ON_DICE_LEVELS = False
 
 
 def spawn_bounds(root, lv, reach=SPAWN_REACH):
     """(minX, minZ, maxX, maxZ) of DICE's generator rectangle for a level (KYG-RECT-1, verified on the 13 campaign
-    levels): the box of its soldier spawns (alternates included) and vehicle spawns, grown by `reach` - the sample
-    columns a build keeps; None when the level holds no spawn or does not load. Builds take it where the level has no
-    DICE path data (reference_bounds wins: the Onslaught files are not bounded by their partitions' spawns, and DICE's
-    ground ends before the box on 7 of 52 campaign sides, where its own ground ends)."""
+    levels): the box of its soldier spawns (the player's alternate spawns left out, round NKS-deep D) and vehicle
+    spawns, grown by `reach` - the sample columns a build keeps; None when the level holds no spawn or does not load.
+    Builds take it where the level has no DICE path data, and on campaign levels with RECT_ON_DICE_LEVELS
+    (reference_bounds wins otherwise: the Onslaught files are not bounded by their partitions' spawns)."""
     from bfbc2core import level as levelmod
     try:
         L = levelmod.load(lv, root, log=lambda *a: None, geometry=False)
     except Exception:
         return None
-    P = [e.position for e in L.entities if e.category in ('soldier spawn', 'vehicle spawn') and e.position is not None]
+    P = [e.position for e in L.entities if e.category in ('soldier spawn', 'vehicle spawn') and e.position is not None
+         and e.short_type != ALTERNATE_SPAWN]
     if not P:
         return None
     xs, zs = [float(p[0]) for p in P], [float(p[2]) for p in P]
@@ -139,9 +148,13 @@ def spawn_bounds(root, lv, reach=SPAWN_REACH):
 
 
 def build_bounds(root, lv):
-    """The extent a build keeps: DICE's (reference_bounds) on a level with DICE path data, else the spawns' rectangle
-    (spawn_bounds), else None (the sampling box)."""
-    return reference_bounds(root, lv) or spawn_bounds(root, lv)
+    """The extent a build keeps: DICE's (reference_bounds) on a level with DICE path data (the spawns' rectangle
+    instead on a campaign level with RECT_ON_DICE_LEVELS), else the spawns' rectangle (spawn_bounds), else None (the
+    sampling box)."""
+    ref = reference_bounds(root, lv)
+    if ref is not None and RECT_ON_DICE_LEVELS and not lv.lower().startswith('ons_'):
+        return spawn_bounds(root, lv) or ref
+    return ref or spawn_bounds(root, lv)
 
 
 def area_orders_of(root, lv):
@@ -243,7 +256,8 @@ def estimates(root, levels, *runs):
 
 
 def compare(ref, now, tol):
-    """(worse, better, count changes) for one level: lists of (measure, reference, now)."""
+    """(worse, better, count changes) for one level: lists of (measure, reference, now). The INFO measures are
+    listed with the counts: they never fail."""
     worse, better, counts = [], [], []
     for k in HIGHER + LOWER:
         a, b = ref.get(k), now.get(k)
@@ -254,7 +268,7 @@ def compare(ref, now, tol):
             worse.append((k, a, b))
         elif d > tol:
             better.append((k, a, b))
-    for k in COUNTS:
+    for k in INFO + COUNTS:
         if ref.get(k) != now.get(k):
             counts.append((k, ref.get(k), now.get(k)))
     return worse, better, counts
@@ -324,7 +338,7 @@ def main(argv):
             worse.append(('structure (hpdcheck)', ref.get('structure_problems', 0), row['structure_problems']))
         failed += bool(worse)
         print(f'{"FAIL" if worse else "ok  "} {lv:9s} ground {row["ground"]:6.2f}  extra {row["extra_ground"]:6.2f}  '
-              f'nodes {row["nodes_same"]:5.2f}  connect {row["connectivity"]:6.2f}  over {row["over_connection"]:6.2f}  '
+              f'paired {row["nodes_paired"]:5.2f}  connect {row["connectivity"]:6.2f}  over {row["over_connection"]:6.2f}  '
               f'AI {row["ai_coverage"]:5.1f}  ({time.time() - t0:.0f} s)')
         for k, a, b in worse:
             print(f'       worse:  {k} {a} -> {b}')

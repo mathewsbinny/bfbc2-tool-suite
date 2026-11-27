@@ -44,7 +44,8 @@ fn files_in(dir: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// The box (min x, max x, min z, max z) of the level's soldier spawns (alternates included) and vehicle spawns.
+/// The box (min x, max x, min z, max z) of the level's soldier spawns (the player's alternate spawns left out:
+/// round NKS-deep D) and vehicle spawns.
 fn spawn_box(root: &Path, lv: &str) -> Option<[f64; 4]> {
     let base = root.join("work").join("levels").join(lv);
     let bases = vec![base.join("pkg"), base.join("dist")];
@@ -57,6 +58,7 @@ fn spawn_box(root: &Path, lv: &str) -> Option<[f64; 4]> {
     let mut b = [f64::MAX, f64::MIN, f64::MAX, f64::MIN];
     for e in &sc.entities {
         if (e.category == "soldier spawn" || e.category == "vehicle spawn")
+            && e.short_type != "AlternateSpawnEntityData"
             && let Some(p) = e.position()
         {
             b = [b[0].min(p[0]), b[1].max(p[0]), b[2].min(p[2]), b[3].max(p[2])];
@@ -140,6 +142,7 @@ fn ground_stops_25_m_beyond_the_spawns() {
         tally[1].1, tally[1].0, tally[1].2
     );
     if n > 0 {
-        assert!(at * 100 >= n * 85, "infantry: under 85 % of the sides end at the box");
+        // round NKS-deep D: without the alternate spawns every campaign side ends at the box (45 of 52 with them)
+        assert_eq!(at, n, "infantry: a side ends before the box");
     }
 }

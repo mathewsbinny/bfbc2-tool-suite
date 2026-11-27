@@ -123,6 +123,10 @@ pub struct Ground<'a, S: std::hash::BuildHasher> {
     pub blocked: &'a HashSet<(usize, usize), S>,
     /// The sector's surfaces and their cells (its areas').
     pub cell_of: FastMap<usize, (i64, i64)>,
+    /// The mesh's corners (round NKS-deep D, KYG-NODE-9, `Switches::mesh_corners`): a probe or a straight walk turns
+    /// a cell corner through one of the two side cells, over the sides the mesh links (an area's interior or a
+    /// portal), never straight across the corner; `false`: the link rule's diagonal step.
+    pub corners: bool,
 }
 
 impl<S: std::hash::BuildHasher> Ground<'_, S> {
@@ -152,6 +156,7 @@ impl<S: std::hash::BuildHasher> Ground<'_, S> {
             rule,
             blocked,
             cell_of,
+            corners: false,
         }
     }
 
@@ -164,6 +169,23 @@ impl<S: std::hash::BuildHasher> Ground<'_, S> {
 
     fn height(&self, k: usize) -> f64 {
         self.level.y(k) + self.y_offset
+    }
+
+    /// [`Self::step`], a diagonal one with `corners` through a side cell (`xfirst`: that of (di, 0) first; `None`:
+    /// either).
+    fn step_via(&self, k: usize, c: (i64, i64), di: i64, dj: i64, xfirst: Option<bool>) -> Option<usize> {
+        if !self.corners || di == 0 || dj == 0 {
+            return self.step(k, c, di, dj);
+        }
+        let via = |x: bool| {
+            let (a, b) = if x { ((di, 0), (0, dj)) } else { ((0, dj), (di, 0)) };
+            let m = self.step(k, c, a.0, a.1)?;
+            self.step(m, (c.0 + a.0, c.1 + a.1), b.0, b.1)
+        };
+        match xfirst {
+            Some(x) => via(x),
+            None => via(true).or_else(|| via(false)),
+        }
     }
 
     /// One step from surface k in cell c to the next cell (di, dj): the surface there, if the sector holds it, the
@@ -206,7 +228,7 @@ impl<S: std::hash::BuildHasher> Ground<'_, S> {
             if nc != c {
                 let (di, dj) = (nc.0 - c.0, nc.1 - c.1);
                 let step = if di.abs() <= 1 && dj.abs() <= 1 {
-                    self.step(k, c, di, dj)
+                    self.step_via(k, c, di, dj, None)
                 } else {
                     None
                 };
@@ -227,8 +249,38 @@ impl<S: std::hash::BuildHasher> Ground<'_, S> {
     /// A straight walk from node a's surface to b's cell ending on b's surface (or within 0.6 m of it):
     /// [`Level::line_walkable`] over the route edges' D sides.
     fn walk(&self, a: &PNode, b: &PNode) -> bool {
-        self.level
-            .line_walkable(a.k, a.cell, b.cell, self.gi0, self.gj0, b.k, self.blocked, self.rule)
+        if !self.corners {
+            return self
+                .level
+                .line_walkable(a.k, a.cell, b.cell, self.gi0, self.gj0, b.k, self.blocked, self.rule);
+        }
+        // `Level::line_walkable`'s cells, each diagonal move through the side cell the line crosses first
+        let ((i0, j0), (i1, j1)) = (a.cell, b.cell);
+        let n = (i1 - i0).abs().max((j1 - j0).abs());
+        let (mut k, mut ci, mut cj) = (a.k, i0, j0);
+        for t in 1..=n {
+            let ti = i0 + (((i1 - i0) * t) as f64 / n as f64).round_ties_even() as i64;
+            let tj = j0 + (((j1 - j0) * t) as f64 / n as f64).round_ties_even() as i64;
+            let (di, dj) = (ti - ci, tj - cj);
+            if di == 0 && dj == 0 {
+                continue;
+            }
+            let mut xfirst = None;
+            if di != 0 && dj != 0 {
+                let zc = j0 as f64 + (j1 - j0) as f64 * (ci as f64 + di as f64 * 0.5 - i0 as f64) / (i1 - i0) as f64;
+                let off = (zc - cj as f64).abs();
+                xfirst = if (off - 0.5).abs() < 1e-9 {
+                    None
+                } else {
+                    Some(off < 0.5)
+                };
+            }
+            let Some(nk) = self.step_via(k, (ci, cj), di, dj, xfirst) else {
+                return false;
+            };
+            (k, ci, cj) = (nk, ti, tj);
+        }
+        k == b.k || (self.level.y(k) - self.level.y(b.k)).abs() <= 0.6
     }
 
     /// The surface a straight walk from a reaches at (x, z), with its cell.

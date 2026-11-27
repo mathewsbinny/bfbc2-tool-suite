@@ -892,7 +892,8 @@ fn sorted_dir(d: &Path) -> Vec<PathBuf> {
 }
 
 /// `navregress.spawn_bounds(root, lv)`: DICE's generator rectangle (KYG-RECT-1, verified on the 13 campaign levels):
-/// the box of the level's soldier spawns (alternates included) and vehicle spawns grown by [`SPAWN_REACH`], as
+/// the box of the level's soldier spawns (alternate spawns left out: round NKS-deep D) and vehicle spawns grown by
+/// [`SPAWN_REACH`], as
 /// (min x, min z, max x, max z); `None` without a spawn or a partition that loads (the level read as
 /// `level.load(geometry=False)` reads it: Package, Dist, then NavKit's shared data).
 pub fn spawn_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
@@ -924,6 +925,7 @@ pub fn spawn_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
     let mut b = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
     for e in &sc.entities {
         if (e.category == "soldier spawn" || e.category == "vehicle spawn")
+            && e.short_type != ALTERNATE_SPAWN
             && let Some(p) = e.position()
         {
             b = [b[0].min(p[0]), b[1].min(p[2]), b[2].max(p[0]), b[3].max(p[2])];
@@ -939,11 +941,21 @@ pub fn spawn_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
     }))
 }
 
+/// The type of the spawns DICE's rectangle leaves out (KYG-RECT-1, round NKS-deep D): the player's alternate spawn
+/// positions (`GameSharedResources.AlternateSpawnEntityData`).
+pub const ALTERNATE_SPAWN: &str = "AlternateSpawnEntityData";
+
+/// `navregress.RECT_ON_DICE_LEVELS`: a campaign level with DICE path data is bounded by the spawns' rectangle
+/// ([`spawn_bounds`]) instead of DICE's extent (the Onslaught levels, `ons_*`, keep DICE's: KYG-RECT-1's exception).
+pub const RECT_ON_DICE_LEVELS: bool = false;
+
 /// `navregress.build_bounds(root, lv)`: the extent a build keeps - DICE's ([`reference_bounds`]) on a level with DICE
-/// path data, else the spawns' rectangle ([`spawn_bounds`]), else `None`.
+/// path data (the spawns' rectangle instead on a campaign level with [`RECT_ON_DICE_LEVELS`]), else the spawns'
+/// rectangle ([`spawn_bounds`]), else `None`.
 pub fn build_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
     match reference_bounds(r, lv)? {
-        Some(b) => Ok(Some(b)),
+        Some(b) if !RECT_ON_DICE_LEVELS || lv.to_lowercase().starts_with("ons_") => Ok(Some(b)),
+        Some(b) => Ok(spawn_bounds(r, lv)?.or(Some(b))),
         None => spawn_bounds(r, lv),
     }
 }

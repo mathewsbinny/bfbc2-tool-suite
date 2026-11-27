@@ -35,6 +35,7 @@ counts as numbers) before navbuild.py went, with the diagonal-neighbour links of
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
 """
+import contextlib
 import hashlib
 import json
 import math
@@ -44,6 +45,7 @@ import struct
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any, cast
@@ -432,6 +434,19 @@ WANT: dict[str, list[str]] = {}             # the recording's
 MODE = {'record': False}
 
 
+@contextlib.contextmanager
+def retired_lips() -> Iterator[None]:
+    """The walkability the retired Python's answers were recorded with: object lips held to flat floor only above
+    STEEP_TERRAIN_MAX (navwalk.LIP_OBJECT_FLAT_ALL off; on since round NKS-deep D by the user's ruling, 2026-11-27).
+    The recorded answers test the port, not the rule; the whole builds (--game) run the shipped defaults."""
+    old = navwalk.LIP_OBJECT_FLAT_ALL
+    navwalk.LIP_OBJECT_FLAT_ALL = False
+    try:
+        yield
+    finally:
+        navwalk.LIP_OBJECT_FLAT_ALL = old
+
+
 def twin(section: str, name: str, got: Any) -> None:
     """got (the Rust core's answer) against the retired Python's, recorded as a digest in navbuild_golden.json
     ('retired', round R1); recording (--record), got's digest is written instead."""
@@ -625,7 +640,8 @@ def rules(rng: random.Random) -> int:
                                   dynamic_tris=tris_near(rng, s, 6), stair_tris=tris_near(rng, s, 6),
                                   exclude_tris=tris_near(rng, s, 4), exclude_footprint_tris=tris_near(rng, s, 3),
                                   forbid_tris=tris_near(rng, s, 5))
-        twin('e2a', f'walkable (every rule) case {case}', navwalk.walkable(s, **kw))
+        with retired_lips():
+            twin('e2a', f'walkable (every rule) case {case}', navwalk.walkable(s, **kw))
         calls += 1
     # numbers of another kind are cast as the core takes them; triangles of another shape raise
     s = runs(rng, 5, 5, 0.2)
@@ -1046,8 +1062,9 @@ def e3h(rng: random.Random) -> int:
             k = rng.randrange(int(s.start[c]), int(s.start[c + 1]))
             seeds.append((float(s.min_x + (c % s.nx) * s.pitch), float(s.y[k]), float(s.min_z + (c // s.nx) * s.pitch)))
         kw: dict[str, Any] = dict(extra_seeds=seeds[:3], unseeds=seeds[3:] + seeds[:1], return_gradients=True)
-        x = navwalk.walkable(s, **kw)
-        whole = navwalk.walkable(s, extra_seeds=seeds[:3])
+        with retired_lips():
+            x = navwalk.walkable(s, **kw)
+            whole = navwalk.walkable(s, extra_seeds=seeds[:3])
         dropped += int(whole.sum() - x[0].sum())
         twin('e3h', f'walkable with unseeds case {case}', x)
         calls += 1
