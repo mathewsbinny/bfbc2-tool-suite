@@ -25,6 +25,7 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **DBX** binary / XML / types / references | bc2-formats, dbx tools, editor DBX inspector | PY1, PR1b-1 (one DBX document) | formats/dbx (28), xmlinst (4), model/types (27), references (19) | covered | covered | as after SPG |
 | **Bundles, precedence, registration, checksum** | bc2-formats, bc2-install, levelwrite export | IN1, OPFOR in Rust 2 | model/bundles (16), registration (18), engine/loading (13) | covered | covered | as after SPG |
 | **Level structure, modes, gameplay** | editor (E3, V1, VW2 mode layer), levelwrite, L1 study | E4, A1 | model/level (31), engine/levels (6), engine/gameplay (45), transforms/validation (59) | covered | covered | as after SPG |
+| **Game modes and eras** (GameModeData, the game mod 0 / 1, per-era resources, licence checks) | OPFOR's module (gamemode, levelfix, server_browser), bc2-install onslaught mode | UI0 - UI7, the battlefield-opfor era work | none -> **engine/gamemodes (24)** (GM0) | thin (GAME-MODE-1 - 8, MOD-MODE-1) | thin | GM0: covered statically: every reader of GameModeData's fields and of the game mod (33 + 8 instructions), the 26 mode-id compares, per-era resources, the licence checks, the authoring design; in-game checks pending |
 | **Terrain** (height field, patches, masks, destruction layer) | bc2-formats terrain, bc2-render, editor | E5 sculpt and paint, E7 | formats/terrain (19), RNDR-TERR (5), DSTR-TERR (4) | thin (no writer side) | thin: E5 needs the terrain writer rules (TERR open questions) | covered for E5: transforms/terrain_edit (15): what an edit writes, the atlas, flags, donors; SPG2-rest: covered for E7 too - the main block's tail (TERR-HF-4, 9 - 11: depth map, min / max tree, lower envelope) and the material map (TERR-MM-2 - 4) decoded, 30 of 30 re-encoded byte for byte |
 | **Water** | bc2-formats, bc2-render, wake_water | - | formats/water (8), RNDR-WATER (3) | covered | covered | as after SPG |
 | **Collision / Havok** | bc2-convert havokport, bc2-formats havok | OPFOR in Rust 4 | formats/havok (24), collision (9) | covered | covered (the material hash closed, MAT-SLOT-1) | as after SPG |
@@ -93,6 +94,14 @@ game folder's files, the remaining resource types, the soldier, squads, HUD data
 internals, every DBX class). The game tier gained `resources.py`'s and `census.py`'s checks (about 3 minutes more).
 
 ## 2. What is left, in the order the queued rounds need it
+
+Round GM0 (2026-11-27, static only) wrote `engine/gamemodes.md` (24 rules: 10 verified by `spec/probes/gamemodes.py`, 8 observed,
+5 inferred, 1 implemented). Found: the game mod follows the loaded level's
+`MatchmakingModID` (ERA-MOD-2; GAME-MODE-6 corrected: no profile setting), the exe's 26 mode-id compares and the mode-kind
+object (GMD-SW-1, GMD-SW-2), the catalogue keyed by ModeID (GMD-CAT-1), the SP / MP-only persistence template
+(GMD-PERS-1), the Vietnam patch's half of `UISharedConfigAsset` (ERA-RES-2), and battlefield-opfor's level-parser
+detour that forces every level into the active era (ERA-OPF-2). Left: the playtests the file lists, the readers of
+`AddToIngameBundleRefs` / `AddToLoaderBundleRefs` and `KickIfLicenseMissing`, the mode-kind objects' virtual functions.
 
 Round SPG2-rest6 (2026-11-27, static only; capstone over a scratch copy of the executable, D3DCompiler's disassembler
 over DICE's Dx11 programs in memory) worked SPG2-rest5's list (below). Found:

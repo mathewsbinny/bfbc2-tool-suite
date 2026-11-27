@@ -65,7 +65,7 @@ are their names in lower case without spaces.
 Status: **observed**
 
 The session code maps the mode's `MatchmakingQueryID` to the stats system's mode category (RUSH and CONQUEST 0x20,
-SQDM 0x10, SQRUSH 8, anything else -1). A mode with an unknown query id keeps no score, kills or round-end stats, so
+SQDM 0x10, SQRUSH 8, else 1 for the ModeID `singleplayer` and -1 for anything else: GMD-SW-3). A mode with an unknown query id keeps no score, kills or round-end stats, so
 a new mode (OPFOR's Onslaught) keeps `CONQUEST` and changes only its `ModeID`.
 
 [exe: BFBC2Game.exe 0x5680C0 maps MatchmakingQueryID to the stats category]
@@ -80,20 +80,21 @@ The UI decides the flag HUD and the loading text by comparing the mode's `ModeID
 with another `ModeID` gets neither unless that comparison is answered for it (OPFOR's DLL answers true for
 `onslaught`).
 
-[exe: BFBC2Game.exe literal at 0x0142ABD8, compared at 7 sites through 0x92AB10]
+[exe: BFBC2Game.exe literal at 0x0142ABD8, compared at 9 sites (8 through 0x92AB10, one on the description's mode): GMD-SW-1]
 [doc: opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:245-248]
 
 ### GAME-MODE-6: The game mod is BC2 or VIETNAM
 
 Status: **observed**
 
-The client holds a game mod (UiManager +0xC8C8C current, +0xC8C90 requested): 0 BFBC2, 1 Vietnam. At start-up and
-at level load it is parsed from the stored `gameMod` setting: `BC2` 0, `VIETNAM` 1, anything else 0, so the profile
-can never hold another value. The HUD builds its icon set from it right after: mod 0 asks for BFBC2's icon set,
-which a Vietnam-based common bundle lacks (an empty icon table: flag markers drawn at the screen's origin). The
-setter re-runs the whole switch even when the mode is unchanged.
+The client holds a game mod (UiManager +0xC8C8C current, +0xC8C90 requested): 0 BFBC2, 1 Vietnam. At the loading
+screen and at the HUD's start it is parsed from the level description's `MatchmakingModID` (not a stored setting:
+ERA-MOD-2): `BC2` 0, `VIETNAM` 1, anything else 0, so a level of another content set plays as BFBC2. The HUD builds
+its icon set from it right after: mod 0 asks for BFBC2's icon set, which a Vietnam-based common bundle lacks (an empty
+icon table: flag markers drawn at the screen's origin). The setter re-runs the whole switch even when the mode is
+unchanged.
 
-[exe: BFBC2Game.exe parser 0x8FF330; setter 0x75FCB0; start-up writer 0x775D0A; HUD icon set 0x775D02 -> 0xF9C9E0; icon lookup 0xF88510]
+[exe: BFBC2Game.exe parser 0x8FF330; setter 0x75FCB0; level-load writers 0x775D0A (HUD start) and 0x77332C (loading screen); HUD icon set 0x775D02 -> 0xF9C9E0; icon lookup 0xF88510]
 [data: Wake Island before OPFOR's parser hook: every icon id looked up as 0 and the flag pass drew no diamonds; stock Atacama unchanged]
 [doc: opfor:research/WW2_THIRD_MODE.md:15-56] [doc: opfor:research/QA_SWEEP_2026-11-14.md:52]
 

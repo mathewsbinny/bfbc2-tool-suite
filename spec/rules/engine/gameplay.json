@@ -85,7 +85,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe literal at 0x0142ABD8, compared at 7 sites through 0x92AB10"
+     "ref": "BFBC2Game.exe literal at 0x0142ABD8, compared at 9 sites (8 through 0x92AB10, one on the description's mode): GMD-SW-1"
     },
     {
      "kind": "doc",
@@ -101,7 +101,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe parser 0x8FF330; setter 0x75FCB0; start-up writer 0x775D0A; HUD icon set 0x775D02 -> 0xF9C9E0; icon lookup 0xF88510"
+     "ref": "BFBC2Game.exe parser 0x8FF330; setter 0x75FCB0; level-load writers 0x775D0A (HUD start) and 0x77332C (loading screen); HUD icon set 0x775D02 -> 0xF9C9E0; icon lookup 0xF88510"
     },
     {
      "kind": "data",

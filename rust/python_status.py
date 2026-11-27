@@ -714,6 +714,8 @@ TABLE: tuple[Row, ...] = (
       'read-only probe for spec/transforms/dependencies.md (the asset graph; --steps the WW2 step graph); game tier'),
     R('spec/probes/effects_chain.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
       'read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier'),
+    R('spec/probes/gamemodes.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
+      'read-only probe for spec/engine/gamemodes.md (game modes, the game mod: data and exe sites); game tier'),
     R('spec/probes/grime.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
       'read-only probe for spec/engine/materials.md section 5 (grime, dirt, camouflage); checked in the game tier'),
     R('spec/probes/level.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',

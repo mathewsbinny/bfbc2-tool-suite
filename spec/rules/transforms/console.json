@@ -380,6 +380,109 @@
    "evidence": [
     {
      "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/markv.rs:489-520"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/markv.rs:640-680"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/files.rs:44-56"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_markv.py:37-48"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/markv.rs::restore_spawn_grafts_and_copies_the_fields_that_named_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/markv.rs::console_layouts_find_the_record_after_its_guid"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR11, 2026-11-27: the user's ONS_MP_002 (Valparaiso), stages 8 - 10 chained, every work and game file of the Rust stages identical to the Python's (rust/BENCHMARKS.md \"OR11\")"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-8",
+   "status": "verified",
+   "title": "The Mark V stage gives the retired Python's work files; its base and its texture check",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/input.rs:121-175"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/input.rs:236-292"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_input.py:54-79"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/input.rs::an_ai_seat_and_its_radius_stay"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/input.rs::the_role_rule_without_a_counterpart"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR11, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's (rust/BENCHMARKS.md \"OR11\")"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-9",
+   "status": "verified",
+   "title": "The input stage gives the retired Python's work files",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/deps.rs:181-200"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/deps.rs:218-232"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/files.rs:44-56"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_deps.py:31-39"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/deps.rs::the_first_name_with_a_prefix_in_insertion_order"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR11, 2026-11-27: the user's four levels on the stock install, every work and game file of the Rust stage identical to the Python's (rust/BENCHMARKS.md \"OR11\")"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-10",
+   "status": "verified",
+   "title": "The dependency stage gives the retired Python's work files; stock sources only",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
      "ref": "rust/bc2-install/src/onslaught/cull.rs:139-182"
     },
     {

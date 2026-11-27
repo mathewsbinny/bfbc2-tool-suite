@@ -794,6 +794,75 @@ pub fn convert_wrapper(b: &[u8], o: usize) -> std::result::Result<Vec<u8>, Wrapp
     Ok(out)
 }
 
+/// `havok.classes(exe)` as the converter's [`Classes`] (round OR11): the executable's hkClass rows
+/// ([`crate::hkclasses::classes`]) in the reference's dict (by name: the first place, the last value).
+#[must_use]
+pub fn classes_of(rows: Vec<crate::hkclasses::Klass>) -> Classes {
+    let mut out: Vec<Klass> = Vec::new();
+    for (name, parent, size, members) in rows {
+        let k = Klass {
+            name: name.clone(),
+            parent,
+            size,
+            members: members
+                .into_iter()
+                .map(|(name, cls, ty, subtype, carray, _flags, offset)| Member {
+                    name,
+                    cls,
+                    ty,
+                    subtype,
+                    carray,
+                    offset: u32::from(offset),
+                })
+                .collect(),
+        };
+        if let Some(slot) = out.iter_mut().find(|x| x.name == name) {
+            *slot = k;
+        } else {
+            out.push(k);
+        }
+    }
+    Classes::new(&out)
+}
+
+/// `havok.convert(b, classes)` (round OR11): a console `HavokPhysicsData` resource as the PC's (the same size) - DICE's
+/// wrapper ([`convert_wrapper`]) and the packfile after it ([`convert_packfile`]).
+///
+/// # Errors
+/// The reference's `ConvertError` message: no packfile, a wrapper cut short or damaged, a packfile not converted.
+pub fn convert(b: &[u8], classes: &Classes) -> std::result::Result<Vec<u8>, String> {
+    let o = b
+        .windows(MAGIC.len())
+        .position(|w| w == MAGIC)
+        .ok_or_else(|| "no Havok packfile in the resource".to_owned())?;
+    let w = match convert_wrapper(b, o) {
+        Ok(w) => w,
+        Err(WrapperError::Refused(m)) => return Err(m),
+        Err(WrapperError::Reference) => {
+            return Err(
+                "wrapper: cut short or damaged (a read past the data, or a value the converter does not take)".into(),
+            );
+        }
+    };
+    let out = match convert_packfile(b, o, classes) {
+        Ok(out) => out,
+        Err(HavokError::Refused(m)) => return Err(m),
+        Err(HavokError::Reference) => {
+            let v = b.get(o + 40..(o + 56).min(b.len())).unwrap_or_default();
+            return Err(if v.starts_with(b"Havok-5.5.0") {
+                "the packfile is not converted: it reads past the end of the data, names a class or member type the \
+                 game's layouts lack, or nests objects too deeply"
+                    .to_owned()
+            } else {
+                format!("Havok version {}, not 5.5.0", crate::meshconv::bytes_repr(v))
+            });
+        }
+    };
+    let mut r = w;
+    r.extend_from_slice(out.get(o..).unwrap_or_default());
+    Ok(r)
+}
+
 #[cfg(test)]
 #[path = "havok_tests.rs"]
 mod tests;
