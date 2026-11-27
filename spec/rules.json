@@ -4426,6 +4426,27 @@
    ]
   },
   {
+   "id": "INP-SET-2",
+   "title": "Which control writes which input setting",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe controlsSliderMoved 0x962F37 (split at \",\" 0x5175F0; `atof` IAT 0x14054EC at 0x962FDE; name compares 0x963002 - 0x9630C1; float setter 0x82F860 at 0x9630E4); controlsSliderValues 0x95A63B (\"Sensitivity%d\" 0x1440BB8, `sprintf`, getter 0x80D0C0, 6 values); controlInvertToggle 0x962D45 (\"look\" 0x1440E24, \"fly\" 0x1440E20, \"wheel\" 0x1440E18, \"accelerate\" 0x1440E0C; int setter 0x82FAB0 at 0x962E0B - 0x962EC9)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: the pushed names of the two commands' compares, in code order"
+    }
+   ]
+  },
+  {
    "id": "INP-PAD-1",
    "title": "The PC reads one pad through DirectInput; the console's XInput path is present but not connected",
    "file": "spec/engine/input.md",
@@ -10261,6 +10282,27 @@
    ]
   },
   {
+   "id": "SCR-EVT-3",
+   "title": "The 107 classes DICE's graphs do not use: which make an entity, and the events they take",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe server registry 0x0157041C filled in 0x71C7F0 (`mov ecx, 0x157041C; call 0x71C790` x 148), client registry 0x01572768 in 0x8B6AC0 (`call 0x8B6A60` x 100); factory slot 1 `mov eax, <data class info>; ret`; data class infos from the static initialisers `push <type record>; mov ecx, <info>; call 0x500880`; lookup 0x71DD00 -> 0x716BF0 (exact class: lower bound and equality, 0 when absent); handlers: static models 0x714C90 (client 0x8DD7F0), ammo box / medic bag 0x6FB890, pickups 0x6C73B0, disable team 0x673870, event memory 0x66D9B0, event sequence trigger 0x724FC0, speed event gate 0x674EB0, continue 0x6C3F10, tactical objective 0x674F90, projectile impulse test 0x6987E0, game test 0x681290, game setting 0x67A400, console command 0x68EFF0, debug text 0x698790, base 0xFFE580"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-27: 148 and 100 registrations, 123 data classes with a factory, of the 107 unused 62 with and 45 without; each named event's hash in its handler's first 0x300 bytes"
+    }
+   ]
+  },
+  {
    "id": "SCR-CMD-1",
    "title": "Entities that set a setting or run a command; the debug menu in DICE's data",
    "file": "spec/engine/scripting.md",
@@ -10282,6 +10324,27 @@
    ]
   },
   {
+   "id": "SCR-CMD-2",
+   "title": "The game setting entity inverts the look axis; the console command entity does nothing",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factories 0x6FCC80 (GameSettingEntityData, class info 0x1BFECB0 -> constructor 0x6690A0, vtable 0x141EA98) and 0x6FDE10 (ConsoleCommandEntityData, 0x1C05EFC -> 0x698680, vtable 0x14230A0); ServerGameSettingEntity handler 0x67A400 (`cmp [edi+0xC"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-27: \"ChangeSetting\" hashed into 0x67A400's bytes; 0x68EFF0 is `ret 4`"
+    }
+   ]
+  },
+  {
    "id": "SCR-DEV-1",
    "title": "No developer console in the PC client; developer options and debug pages are switched off",
    "file": "spec/engine/scripting.md",
@@ -10291,6 +10354,27 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe name table entries enableDevOpts 0xF3, debugdata 0xD2, consoleTrace 0x8C; Client field IsMenuDevOptsEnabled +0xF4 (field table 0x01C14338); \"/settings\" 0x14123A0 and \"/settings/*\" 0x1412394 registered in 0x501BF0 (handlers 0x4FFEC0, 0x4FFC60, \"Settings - %s\"); \"/stats\" 0x1411DA4, \"/types\" 0x140FDF8; \"Unknown command - This mopp data has been corrupted\" 0x148EF90 (Havok)"
+    }
+   ]
+  },
+  {
+   "id": "SCR-DEV-2",
+   "title": "The debug document server is never made",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe provider registration 0x4D06B0 (callers 0x43BFEA, 0x43C022, 0x4A9885, 0x4D09CA, 0x4F7076, 0x4FEDB9 in the settings manager's constructor 0x4FED50, vtable 0x1411CBC = {0x501BF0}); provider set getter 0x4D05D0, server set getter 0x4D0640 (globals 0x155CF3C - 0x155CF5C, referenced only there and in the destructor 0x1381130); add server 0x4D07D0 (no E8 / E9 site, no stored pointer); \"/types\" 0x140FDF8 (0x4AF5D0), \"/db\" 0x140FE10, \"/stats\" 0x1411DA4 (0x5002F0), \"/settings\" 0x14123A0 (0x501BF0); HTML head writer 0x4BADD0"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: 6 provider registrations, 0 references to the add"
     }
    ]
   },
@@ -10482,6 +10566,44 @@
    ]
   },
   {
+   "id": "SET-BIN-1",
+   "title": "GameSettings.bin holds the settings the INI does not: a typed list per category",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe category enumeration 0x01C38890 - 0x01C38998 (GstAudio 0 ... GstStatsCache 10, GstCount 11); serializer 0x80DA10 (`mov [esp+0x24"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: the enumeration (12 names, GstCount 11) and the code bytes cited"
+    },
+    {
+     "kind": "data",
+     "ref": "one GameSettings.bin the game wrote (`<Documents>\\BFBC2`, 242,795 bytes; a second in OPFOR's user folder, 159,208 bytes), walked by this layout to its last byte; structure, names and sizes only, no value read: the counts above"
+    }
+   ]
+  },
+  {
+   "id": "SET-PARSE-1",
+   "title": "What a bad value does: a number that does not parse becomes 0",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe float parse 0x4E5680 (`strtod` IAT 0x14054F0; fails when the end pointer did not move), int parse 0x4E6C90 -> scanner 0x428A40 (`isspace`, sign, digits, 64-bit overflow check) and the 32-bit range check at 0x4E6D07 - 0x4E6D2A; both strip `\"...\"` at 0x4E569F / 0x4E6CB0; 0x512320 / 0x512360 (default on failure); INI reader type switch 0x831FEA with defaults pushed at 0x832227 (0) and 0x832241 (fldz); skip on 0 characters at 0x831FE4; setters 0x82FAB0, 0x82F860; DxVersion: \"auto\" 0x142FBE8 at 0x7DCC87, 0x512360 at 0x7DCCF2, map 0x7DCCFA - 0x7DCD1A, \"Render.Renderer\" 0x142FBD8 set through 0x7DA7E0; enumeration SelectedRenderer_None 0 ... _Ps3 6 (0x01C15370 - 0x01C15400), GameRenderSettings.Renderer +0x6C"
+    }
+   ]
+  },
+  {
    "id": "SET-ENG-1",
    "title": "Engine settings are reflected objects looked up by name",
    "file": "spec/engine/settings.md",
@@ -10507,7 +10629,28 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 40 callers (the names pushed before each); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; \"-noAsync\" 0x14123AC at 0x501F86, \"-host\" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438"
+     "ref": "BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 41 callers (the names pushed before each; SET-CLI-2); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; \"-noAsync\" 0x14123AC at 0x501F86, \"-host\" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438"
+    }
+   ]
+  },
+  {
+   "id": "SET-CLI-2",
+   "title": "No command-line option sets an engine setting by name",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe finder 0x4F4CF0 (41 E8 sites, each with a `push imm32` naming a string within 16 bytes before it); 0x4FDD10 (one caller, 0x56EF29: the log line); registry text reader 0x5017C0 (`cmp cl, 0x23 / 0x3B / 0x2F` at 0x501859 - 0x50186B, the pending list +0x44, then 0x4F6EC0), adder 0x501AB0, thunks 0x501CF0 / 0x501D10 (no E8 / E9 site, no stored pointer); apply 0x4F4A00 (\".\" 0x140BA68), 0x4F3FA0; field parser 0x4EB0F0 (\"Field '%s' not found in class '%s'\" 0x14117D4, \"Parse error '%s.%s', value = '%s'\" 0x14117B0); OptionDescriptor type record 0x1BF0638 (its only reference the static initialiser at 0x13865D1); value setter thunk 0x4F4C00 -> 0x4F41E0 (callers 0x5595AE and 0x7DA82E - 0x7DA9AE, the latter from the settings.ini reader 0x7DBD60 and 0x7DE0D4); \"Network.Version\" set through 0x4F4BD0 at 0x5658E2, 0x5659C2, 0x565B29"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: 41 finder call sites, 41 with a pushed name; the reader and the adder reached only from their thunks, the thunks from nothing"
     }
    ]
   },
@@ -25409,6 +25552,30 @@
    ]
   },
   {
+   "id": "XDEP-RES-2",
+   "title": "References held inside resources",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-27: the counts above; a name is a C string of 4 - 200 characters of `[A-Za-z0-9_-. /"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG3-rest's one-off comparison, 2026-11-27: of the visual terrains' 3,182 distinct names 338 are strings of a Dx9 shader database, of the mesh sets' none (their entries are `<mesh>/<shader>`); 3,964 of the mesh sets' 4,303 other names are targets of DICE's partitions' unresolved references"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the edges' meaning from MSET-LOD-4, SHDB-NAME-1, SHDB-PB-1, SND-VO-1 and the names' folders"
+    }
+   ]
+  },
+  {
    "id": "XDEP-REG-1",
    "title": "Bundle and registry edges",
    "file": "spec/transforms/dependencies.md",
@@ -25693,6 +25860,10 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_the_levels_run_in_two_parts_and_the_graph_declares_their_reads"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27: rebuild_all --graph on the tracker-4 records of a seeded-empty rebuild: 55 steps, 514 edges, 62 after the reduction, the longest path 6.2 min of measured step times; no edge between two level chains; the graph derived from the main checkout's tracker-3 records ordered the three chains one after another"
     }
    ]
   },
@@ -25729,6 +25900,14 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_writer_a_rerun_leaves_unchanged_is_still_sent_back_to"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27, OPFOR's or7 worktree, work\\ww2 seeded with the 14 declared inputs (599 files), a PC shared with other rounds: seeded-empty runs 9.8 min (3 at once, --memory-gb 7) and 10.5 min (4 at once, defaults), a --changed run of all 55 steps 7.6 min (4 at once), against 11.8 - 14 min one after another; each 7,945 of 7,945 against the oracle; --changed with nothing changed 0 of 55 steps (0.2 min); install_ports\\plans.json touched: 7 of 55 (wake_translate and the writers XDEP-STEP-7 sends back to), 1.7 min; one leaf's code touched: 1 of 55; wake_install --plan afterwards 21,149 of 21,149; game\\ 0 of 1,582 files changed"
     }
    ]
   },
@@ -28705,6 +28884,43 @@
    ]
   },
   {
+   "id": "XSH-CF-1",
+   "title": "Overlapping forward jumps: a guard on every block",
+   "file": "spec/transforms/shaders.md",
+   "status": "verified",
+   "variants": "BF1943, Xbox 360",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:1013-1115"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:1135-1139"
+    },
+    {
+     "kind": "data",
+     "ref": "20 of 8,320 distinct Xbox programs take the forward emitter (all vertex shaders, one if / else shape); their 20 translations exact against xenos_exec on 512 vertices, both sides of each if / else run"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xdiff.py::forward_jumps"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xdiff.py::forward_programs"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-shader/tests/forward_jumps.rs::overlapping_forward_jumps_take_the_forward_emitter"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-shader/tests/forward_jumps.rs::what_the_forward_emitter_does_not_take_fails_as_before"
+    }
+   ]
+  },
+  {
    "id": "XSH-BIND-1",
    "title": "Binding tables are generated from the compiled code",
    "file": "spec/transforms/shaders.md",
@@ -29519,6 +29735,81 @@
    ]
   },
   {
+   "id": "TEDIT-NEW-1",
+   "title": "A height map is stored from 0 m, its values kept as they are",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::dice_heights_through_the_import"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs::tests::a_height_map_read_and_written"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:119-160"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs on the game copy, 2026-11-27: 30 of 30 DICE main blocks (Dist's and Package's levels, bundles before 2013) through the import give DICE's stored samples, bounds and min / max tree"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-NEW-2",
+   "title": "A new level carries its own terrain under its own name, its base's left out",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:1-30"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1423-1465"
+    },
+    {
+     "kind": "inferred",
+     "ref": "TGEN-REQ-4, TGEN-REQ-5, XEXP-BLD-2, LVL-MODE-2"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-NEW-3",
+   "title": "A new level's path data is sampled and built on its own ground",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_path_data"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:189-192"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs on the game copy with MP_005 prepared for NavKit, 2026-11-27: as given; rust/BENCHMARKS.md E7-TG3"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/sample.rs:296-325"
+    }
+   ]
+  },
+  {
    "id": "TGEN-REQ-1",
    "title": "A level's terrain is eight kinds of data, most of them in the terrain bundle",
    "file": "spec/transforms/terrain_gen.md",
@@ -29598,12 +29889,20 @@
    "id": "TGEN-REQ-5",
    "title": "The export registers the new level's own terrain bundle",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "inferred",
+   "status": "implemented",
    "variants": "PC",
    "evidence": [
     {
      "kind": "inferred",
      "ref": "XEXP-BLD-2 (base bundles read at run time), XEXP-REG-1, XEXP-CHK-1; LVL-MODE-2"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1920-1932"
     }
    ]
   },
@@ -31387,6 +31686,26 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-TERR-4",
+   "title": "A new level's terrain is its own, read back whole and registered alone",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:681"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:553-570"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks"
     }
    ]
   },

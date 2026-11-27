@@ -28,25 +28,20 @@ landed on `main`.
 
 ## [Unreleased]
 
-### Added
-- **Project OPFOR's WW2 rebuild runs as a step graph** (round OR7, "OPFOR in Rust": `rebuild_all` as a step graph):
-  `bc2_install::rebuild` (feature `rebuild`) and `bc2_native.rebuild_run` / `rebuild_graph` / `rebuild_derive` run
-  OPFOR's 55 rebuild steps, each as soon as the steps it waits for are done, side by side within a memory budget
-  (each step's last measured peak, the commit of all its processes through a job object); a step whose code, inputs
-  and outputs are as recorded is skipped. Which step waits for which comes from the step records (a file one writes
-  and the other reads, edits, writes, or lists the folder of) and OPFOR's declared graph (`rebuild_graph.json`, derived
-  from a full rebuild's records, and the folders a step reads whole). The records (`stepstamps.py`'s `finish`, `why`,
-  `stale_inputs`, the hash cache) are made and judged in Rust; tracker version 4 holds each step's peak memory and
-  time. After a run, two steps the new records order that ran at once fail the run. Spec XDEP-STEP-8 - 10 new,
-  XDEP-STEP-4 implemented.
-
 ### Fixed
-- **The rebuild tracker no longer records 50,000 unrelated files as a step's inputs** (round OR7, spec XDEP-STEP-10):
-  the cache budget's prune of `wake_install`'s indexes was handed all of `work\ww2`, and the hook kept the first
-  50,000 files of a folder too big to stamp as read. Each level's chain looked to read the other levels' outputs, so
-  the chains could not run side by side.
+- **The shader translator's forward emitter refuses a bool-constant `cond_exec`** (round XD2), as the nested emitter
+  does; it had run the block unconditionally. No program of the corpus has one, so no translation changed.
 
 ### Changed
+- `xenos_golden_game.json` re-recorded: the 20 Xbox programs the forward emitter now translates (all skinned vertex
+  shaders; 4 of BF1943's, 16 only in BFBC2's Xbox levels), each proven exact against the interpreter with both sides
+  of its if / else run (round XD2).
+- `bfbc2 xdiff --db <name>` with a name other than `wake` no longer stops with `KeyError`: the name is looked up as a
+  BF1943 level or resource (or `bfbc2:<level>`).
+- **Map project format 13**: a Create Level project records its base level and, for Generate, the generator's
+  settings (`terrain_import.generate`); older editors refuse it. A G4 height-map project without a base shows its
+  page and asks to be made again.
+- **Create Level's map size must be 1024 or 2048 m**, the height map's samples a side (TGEN-REQ-2: 1 m samples).
 - **The map editor's navigation edit tools and placing are view tools** (round E4-rest2, PR1b-0's leftovers): the AI
   workspace's nine edit tools are the views' tool while chosen (`Tool::Nav`; choosing Select, Move, Rotate or another
   tool turns them off, and the gizmo is not shown while one is chosen); placing from the content browser, a tile or
@@ -60,6 +55,9 @@ landed on `main`.
 - Specification (round SPG2-rest5): MENU-LOAD-1 no longer says the Flash loading roots are named by no data
   (MENU-LOAD-2), and round SPG2-rest4's "slot 12 of vtable 0x142B4C8" is the main menu's third vtable; FX-PROC-4's
   inferred "the input is an offset" is the `EmittableField` enumeration.
+- Specification (round SPG3-rest): round SPG3's guess that the three mouse sliders are the infantry, land and air
+  sensitivities is replaced by the code's names (INP-SET-2); SET-CLI-1's finder has 41 callers, not 40; SCR-DEV-1
+  points at SCR-DEV-2 for the document server.
 - **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
   corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
   without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7
@@ -81,12 +79,40 @@ landed on `main`.
   it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
 
 ### Added
+- **Map editor: Create Level writes the new level's terrain** (rounds E7 and TG3; spec `transforms/terrain_edit.md`
+  TEDIT-NEW-1 - 3, XVAL-TERR-4): "From a height map" (a 16-bit PNG or RAW of 1024 / 2048 samples; the map is as many
+  metres across) and **Generate** beside it (the terrain generator's biome, size, seed, border, water share, water
+  level, rough relief, objective pads and ring, `bfbc2 terrain generate`'s settings) make a project on a **base
+  level** (a multiplayer map: its mode layer, objects, weather and its terrain's look) that opens like any project.
+  Its export writes the new terrain under the level's own name (`Terrains/<LV>/<LV>`: height field, ring, material
+  map, water, visual terrain, colour / occlusion map, the base's patch shaders cloned into its databases, its terrain
+  partitions) in the level's **own terrain bundle**, registered without the base's (TGEN-REQ-5), and its path data is
+  sampled on the new ground. `mapexport check` reads it back (XVAL-TERR-4). DICE's 30 main height fields written out
+  as height maps import as DICE's samples, bounds and min / max tree. Nothing is loaded in game yet.
+- `bc2_levelwrite::newterrain` (the height-map import and the new terrain's entries), `pathdata::bot_measures`
+  (connectivity and coverage of path data on a playable area), `bc2_terragen::visual::clone_database`.
 - **The map editor inserts a Rush stage between two** (round E4-rest2, spec GAME-RUSH-12): the Gameplay panel's
   **Insert after** on a stage, then a click on the ground, puts a copy of the next stage there, played between the
   two (`bc2_levelwrite::rushstage::insert_stage`; one undo step, the `connect` operation of project format 10). The
   wiring between the two stages is split as DICE's chain is read; every stage plays as before. Checked on every stock
   Rush and Squad Rush level between every two stages, and Port Valdez with a stage inserted exports and passes the
   stage check.
+- **Specification (round SPG3-rest): settings, input, scripting and the asset graph, read from the executable and
+  checked on DICE's data** (`rust/BENCHMARKS.md` "SPG3-rest"; 1,524 -> 1,532 rules):
+  - `GameSettings.bin` is 11 typed lists, one per settings category, of the settings that are not user-exposed (the
+    INI holds the rest; SET-BIN-1, checked against a file the game wrote); a number in `GameSettings.ini` that does
+    not parse becomes 0, an empty value keeps the default, an unknown `DxVersion` selects no renderer (SET-PARSE-1);
+  - no `-<Object>.<Field> <value>` command-line option sets an engine setting: the settings registry's own text path
+    is never reached in the retail build (SET-CLI-2);
+  - the controls page's sliders: `Sensitivity0` - `2` are the mouse's sensitivity, yaw factor and pitch factor, and
+    the invert switches' settings (INP-SET-2);
+  - a level's game setting entity inverts every player's vertical look over the network; the console command entity
+    does nothing (SCR-CMD-2); of the 107 entity classes DICE's level graphs do not use, 45 make no entity at all and
+    62 do, with their input events (SCR-EVT-3); the debug document server (`/settings`, `/stats` ...) is never made
+    (SCR-DEV-2);
+  - the references held inside resources (mesh sets, shader databases, Flash movies, terrain and water visuals) and
+    the voice-over waves the line banks name (XDEP-RES-2); the probes `options.py`, `scripting.py` and
+    `dependencies.py` hold the new counts (the game tier about 20 seconds longer).
 - **Specification (round SPG2-rest5), read from the executable and checked on DICE's data** (`rust/BENCHMARKS.md`
   "SPG2-rest5"; 1,506 -> 1,518 rules):
   - the render settings that scale the undergrowth (`VisualTerrainSettings`: density, view distance and its fade,
@@ -125,6 +151,36 @@ landed on `main`.
   the material map is drawn around the brush; the game-accurate view follows a stroke while it is made. The export
   writes all of it (`mapexport check`: XVAL-TERR-2 / -3). Project format 12 (`terrain-range`, `material-add`, colour
   and ring strokes, strokes over several rasters).
+- **The shader translator's differential test covers vertex shaders and every Xbox database** (round XD2):
+  `xdiff.py --vs [N ...]` runs vertex shaders through `xenos_exec.py` (now a vertex-shader interpreter too: vfetch,
+  oPos and o0-o15 exports) and draws each output of the translation (oPos and every interpolator) as a pixel of its own;
+  `--db` takes any BF1943 level (`iwo_jima_s`), a database's resource name, or `bfbc2:<level>` (a BFBC2 Xbox level's
+  database from Project OPFOR's unpacked Xbox copy). Results now list each jump's lanes (taken / not taken) and the CFs
+  no lane reached; lanes that read `c[k + a0]` outside the array of `c[k]` are left out of the comparison (counted as
+  `out_of_range`). `bfbc2 xdiff` takes the new option.
+- Spec XSH-CF-1: the forward emitter for overlapping forward jumps, with its evidence.
+
+## [0.29.0] - 2026-11-27
+
+Round OR7 retires Project OPFOR's Python rebuild runner (`rebuild_all.run_chains` / `run_step`, `stepstamps.Tracker.begin` / `finish` / `why`): OPFOR now needs this version's `bc2_native.rebuild_run`, so its `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0.
+
+### Added
+- **Project OPFOR's WW2 rebuild runs as a step graph** (round OR7, "OPFOR in Rust": `rebuild_all` as a step graph):
+  `bc2_install::rebuild` (feature `rebuild`) and `bc2_native.rebuild_run` / `rebuild_graph` / `rebuild_derive` run
+  OPFOR's 55 rebuild steps, each as soon as the steps it waits for are done, side by side within a memory budget
+  (each step's last measured peak, the commit of all its processes through a job object); a step whose code, inputs
+  and outputs are as recorded is skipped. Which step waits for which comes from the step records (a file one writes
+  and the other reads, edits, writes, or lists the folder of) and OPFOR's declared graph (`rebuild_graph.json`, derived
+  from a full rebuild's records, and the folders a step reads whole). The records (`stepstamps.py`'s `finish`, `why`,
+  `stale_inputs`, the hash cache) are made and judged in Rust; tracker version 4 holds each step's peak memory and
+  time. After a run, two steps the new records order that ran at once fail the run. Spec XDEP-STEP-8 - 10 new,
+  XDEP-STEP-4 implemented.
+
+### Fixed
+- **The rebuild tracker no longer records 50,000 unrelated files as a step's inputs** (round OR7, spec XDEP-STEP-10):
+  the cache budget's prune of `wake_install`'s indexes was handed all of `work\ww2`, and the hook kept the first
+  50,000 files of a folder too big to stamp as read. Each level's chain looked to read the other levels' outputs, so
+  the chains could not run side by side.
 
 ## [0.28.0] - 2026-11-27
 

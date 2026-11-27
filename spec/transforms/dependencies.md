@@ -95,6 +95,49 @@ by-name lookups of their own.
 [test: core/tests/test_spec_probes.py::asset_graph]
 [data: spec/probes/dependencies.py, 2026-11-23: 80,991 resources, the counts per rule above]
 
+### XDEP-RES-2: References held inside resources
+
+Status: **verified**
+
+The string-table listing (XDEP-REF-1) sees only partitions. Eight resource types also name assets in their own bytes
+(a C string holding a `/`). Over DICE's resources of those types, each once, the distinct names per resource by what
+they resolve to:
+
+| Resource type (files) | A partition | `<partition>/<guid>` | A resource | A partition DICE never shipped | Not resolved |
+|---|---|---|---|---|---|
+| `RigidMeshSet` (1,741) | 1,741 | 1,927 (+179 of unshipped partitions) | | 3,192 | 179 |
+| `CompositeMeshSet` (353) | 353 | 587 (+4) | | 1,945 | 4 |
+| `SkinnedMeshSet` (326) | 326 | 323 | | 1,472 | 146 |
+| `TreeMeshSet` (92) | 92 | 92 | | 293 | 60 |
+| `Dx9ShaderDatabase` (76) | 625 | | 37,210 textures | | 47,055 |
+| `SwfMovie` (55) | 103 | | 3 textures | | 92 |
+| `VisualTerrain` (30) | 1 | (1 unshipped) | 318 height fields, 167 mesh sets, 30 textures | | 2,731 |
+| `VisualWater` (30) | | | | | 145 |
+
+Read as edges: a mesh set names its LOD settings partition (`Systems/Mesh/...`, MSET rules), its mesh asset's
+instance per shader set (`<mesh asset>/<shader set guid>`) and one shader
+name per part, which is the name of a material partition DICE's partitions also name but never shipped (XDEP-REF-2:
+the "unshipped" column); the level's shader database finds the part's entry as `<mesh asset>/<shader name>`
+(SHDB-NAME-1), so those names are by-name lookups into the level's shader database, not files. A shader database
+names its textures (its parameter blocks' 0x80-byte texture names, SHDB-PB-1): 37,210 texture resources across the
+76 Dx9 databases; most of its other names are its own entry, fragment and mesh-part names (SHDB-NAME-1 - 3). A
+visual terrain names its height-field pages, its undergrowth mesh sets and its mask atlas texture; its unresolved
+names are its own generated shaders (`.../PatchMaskShaders/...`, `.../UgMaskShaders/...`; 338 of its 3,182 names
+appear as such in a Dx9 shader database), the water's are its shaders. A Flash movie names the texture partitions it
+draws (the award images).
+
+Voice-over waves are named by composition: a wave `sound/vo/.../<node>[_<n>]_wave` belongs to the line node whose
+name `<node>` a line bank (`sound/vo/vo_<bank>`, each set's own copies included, SND-VO-2) holds. 41,393 of DICE's
+41,463 voice-over waves resolve this way; 70 are named by no bank. A dependency tool therefore adds, beyond
+XDEP-RES-1: mesh set -> LOD settings and mesh instance partitions, mesh set and visual terrain -> the level's shader
+database (by name), shader database -> textures, visual terrain -> height fields, mesh sets and its atlas, movie ->
+image partitions, line bank -> its waves.
+
+[test: core/tests/test_spec_probes.py::asset_graph]
+[data: spec/probes/dependencies.py, 2026-11-27: the counts above; a name is a C string of 4 - 200 characters of `[A-Za-z0-9_-. /]` holding a `/`, after a control byte; voice-over waves 41,393 named by a bank, 70 not]
+[data: round SPG3-rest's one-off comparison, 2026-11-27: of the visual terrains' 3,182 distinct names 338 are strings of a Dx9 shader database, of the mesh sets' none (their entries are `<mesh>/<shader>`); 3,964 of the mesh sets' 4,303 other names are targets of DICE's partitions' unresolved references]
+[inferred: the edges' meaning from MSET-LOD-4, SHDB-NAME-1, SHDB-PB-1, SND-VO-1 and the names' folders]
+
 ### XDEP-REG-1: Bundle and registry edges
 
 Status: **inferred**
@@ -451,8 +494,9 @@ The same records gave a step graph in which no level's chain waits for another's
 
 - Which asset references the engine follows at load (a partition named but never loaded is no dependency at run
   time): the graph is the data's, not the loader's.
-- Edges held outside the string table: resources that name partitions or other resources inside their own bytes
-  (a mesh set's shader names, a shader database's texture names), and the VO tables' wave names.
+- Edges held outside the string table: measured by round SPG3-rest (XDEP-RES-2). Left: the 70 voice-over waves no
+  bank names, the resources' names that resolve nowhere (most are their own entry names), and the types read
+  only as strings (Havok data, animation trees and the soot and water meshes held no asset names).
 - Whether the rebuild should own the install plan's porting (XDEP-STEP-5: proposed, not done), or the plan's
   staging should stay a declared external input.
 - The stale records of steps renamed since (`ww2_level_build.py <level>` without its parts) are ignored by the probe;

@@ -1,5 +1,6 @@
 """A reference interpreter for Xenos (Xbox 360) shader microcode, as decoded by xenos.py: runs a pixel shader on N
-pixels at once (numpy, float32) from given inputs, constants and textures, and returns its outputs.
+pixels, or a vertex shader on N vertices, at once (numpy, float32) from given inputs, constants and textures, and
+returns its outputs.
 
 It is the other half of the translator's differential test (xdiff.py): the same inputs go through BF1943's original
 microcode here and through xenos_hlsl's translation compiled for Direct3D 11, and the outputs are compared. The
@@ -8,9 +9,12 @@ session's xenia_ref), not from xenos_hlsl.py, so the two implementations check e
 through xenos.py, so a decoding error is common to both (the Xenia trace replay is the check for that).
 
   run(sh, inputs, consts, textures, n) -> Result
-    sh        xenos.parse_shader(...) of a pixel shader
-    inputs    {interpolator register: (n, 4) float32} - what the PS finds in r0.. at entry (dcl_texcoord); the
-              screen-position register (param gen) is filled from 'pos' when given ((n, 2) pixel positions)
+    sh        xenos.parse_shader(...) of a pixel or a vertex shader
+    inputs    pixel shader: {interpolator register: (n, 4) float32} - what the PS finds in r0.. at entry
+              (dcl_texcoord); the screen-position register (param gen) is filled from 'pos' when given ((n, 2) pixel
+              positions). Vertex shader: {vertex element usage index: (n, 4) float32} - what each vfetch of that
+              element returns (before its destination swizzle: the vertex format's decoding is the input layout's
+              layer, as texture formats are the texture unit's)
     consts    {c register: (4,) floats} - the engine's and the material's values; the shader's own literals (def)
               are added
     textures  {fetch constant (sampler register): Texture}
@@ -21,6 +25,12 @@ Semantics notes (ucode.h):
     scalar result; every scalar op but retain_prev sets ps
   - predicated instructions / cond_exec_pred blocks run where p0 == condition; cond_jmp jumps where it holds
   - kills discard the pixel (its outputs stay as they were when it was killed; Result.alive marks the survivors)
+  - a vertex shader's exports: oPos (Result.position) and o0..o15 (Result.outputs by o register), each (n, 4) and 0
+    where never written;
+  - c[k + a0] reads outside the constant-table array that holds c[k] (a bone index past the bones, a negative one)
+    mark the lane in Result.out_of_range: what such a read gives is the register file's layout (here the next
+    registers, on Direct3D 11 the constant buffer's), not the shader's, so a comparison leaves those lanes out; the vertex index the hardware leaves in r0.x is not modelled (every temp starts at 0, as
+    in the translation: its vfetches read the vertex's own element, not an address)
 """
 from __future__ import annotations
 
@@ -64,6 +74,11 @@ class Result:
     alive: np.ndarray                                   # (n,) bool: not killed
     trace: list[str] = field(default_factory=list)
     snaps: dict[int, Any] | None = None
+    position: np.ndarray | None = None                  # a vertex shader's oPos (n, 4)
+    jumps: dict[int, list[int]] = field(default_factory=dict)   # cond_jmp's CF index -> [taken, not taken] (lanes
+    #                                                               in range: out_of_range ones not counted)
+    out_of_range: np.ndarray | None = None              # (n,) bool: a c[k + a0] read outside its array
+    unreached: list[int] = field(default_factory=list)  # the CF indices no lane in range reached
 
 
 def _mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -91,11 +106,19 @@ class _Machine:
         self.p0 = np.zeros(n, bool)
         self.a0 = np.zeros(n, np.int64)
         self.alive = np.ones(n, bool)
-        self.out: dict[int, np.ndarray] = {}
+        self.out: dict[int, np.ndarray] = {}             # oC (pixel shader) / o (vertex shader) registers
+        self.pos: np.ndarray | None = None              # oPos
+        self.vin: dict[int, np.ndarray] = {}            # vertex shader: usage index -> (n, 4) element values
+        self.vfetch_element: dict[int, int] = {}        # vertex shader: vfetch address -> usage index
         self.tex = textures
         self.tex_lod = np.zeros(n, F)
         self.last_mask = np.zeros(n, bool)
         self.snaps: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] | None = None     # trace: address -> (registers, alive)
+        self.jumps: dict[int, list[np.ndarray]] = {}    # cond_jmp's CF index -> [lanes that jumped, lanes that did not]
+        self.oob = np.zeros(n, bool)                    # lanes that read c[k + a0] outside c[k]'s array
+        self.reached: list[np.ndarray] = []             # per CF: the lanes that reached it
+        self.arrays = [(c.reg, c.reg + c.count) for c in (sh.ctab.constants if getattr(sh, 'ctab', None) else [])
+                       if c.regset == 'float4']
 
     # ------------------------------------------------------------------ operands
     def read(self, o: Any, mask: np.ndarray) -> np.ndarray:
@@ -106,8 +129,7 @@ class _Machine:
             v = self.r[o.index]
         else:
             if o.rel == 'a0':
-                idx = np.clip(o.index + self.a0, 0, 255)
-                v = self.c[idx]
+                v = self.c[self._rel(o.index, mask)]
             elif o.rel:
                 raise ExecError('loop-relative constant addressing')
             else:
@@ -119,6 +141,13 @@ class _Machine:
         if o.negate:
             v = -v
         return v.astype(F)
+
+    def _rel(self, k: int, mask: np.ndarray) -> np.ndarray:
+        """The registers c[k + a0] (clipped to the file); lanes of mask reading outside c[k]'s array marked oob."""
+        idx = k + self.a0
+        lo, hi = next(((a, b) for a, b in self.arrays if a <= k < b), (0, 256))
+        self.oob |= mask & ((idx < lo) | (idx >= hi))
+        return np.clip(idx, 0, 255)
 
     def scalar_in(self, ins: Any, mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """(a, b) of a scalar op: one operand's two components (W, X), or c#.w and r#.x."""
@@ -138,7 +167,7 @@ class _Machine:
             v = self.r[o.index][:, XYZW.index(ch)]
         else:
             if o.rel == 'a0':
-                v = self.c[np.clip(o.index + self.a0, 0, 255)][:, XYZW.index(ch)]
+                v = self.c[self._rel(o.index, mask)][:, XYZW.index(ch)]
             elif o.rel:
                 raise ExecError('loop-relative constant addressing')
             else:
@@ -326,8 +355,14 @@ class _Machine:
             if dest.rel:
                 raise ExecError('relative destination')
             tgt = self.r[dest.index]
-        elif dest.file == 'oC':
+        elif dest.file == ('oC' if self.sh.is_pixel else 'o'):
             tgt = self.out.setdefault(dest.index, np.zeros((self.n, 4), F))
+        elif dest.file == 'oPos' and not self.sh.is_pixel:
+            if self.pos is None:
+                self.pos = np.zeros((self.n, 4), F)
+            tgt = self.pos
+        elif dest.file in ('o', 'oPts', 'export?'):
+            raise ExecError(f'export to {dest.file}')
         else:
             return                                      # oDepth, memory exports: not compared
         for k, ch in enumerate(comps):
@@ -372,6 +407,12 @@ class _Machine:
             return
         if not getattr(ins, 'has_dest', True):
             return
+        if getattr(ins, 'fetch_kind', 'texture') == 'vertex':
+            usage = self.vfetch_element.get(ins.address)
+            if usage is None:
+                raise ExecError(f'vfetch at {ins.address} has no vertex element')
+            self._fetch_write(ins, self.vin.get(usage, np.zeros((self.n, 4), F)), mask)
+            return
         t = self.tex.get(ins.const_index)
         if t is None:
             raise ExecError(f'no texture for tf{ins.const_index}')
@@ -394,6 +435,9 @@ class _Machine:
             val = self._sample2d(t, src[:, :2], off, point or t.point)
         else:
             raise ExecError(f'fetch {op}')
+        self._fetch_write(ins, val, mask)
+
+    def _fetch_write(self, ins: Any, val: np.ndarray, mask: np.ndarray) -> None:
         reg = self.r[ins.dst]
         for k, ch in enumerate(ins.dst_swizzle):
             if ch in '_?':
@@ -445,6 +489,7 @@ class _Machine:
         cfs = self.sh.cf
         by_index = {c.index: k for k, c in enumerate(cfs)}
         pc = np.zeros(self.n, np.int64)                  # per pixel: position in cfs
+        self.reached = [np.zeros(self.n, bool) for _ in cfs]
         done = np.zeros(self.n, bool)
         guard = 0
         while not done.all():
@@ -459,6 +504,7 @@ class _Machine:
             c = cfs[k]
             op = c.op
             nxt = k + 1
+            self.reached[k] |= here
             if op in ('exec', 'exec_end', 'cond_exec', 'cond_exec_end', 'cond_exec_pred', 'cond_exec_pred_end',
                       'cond_exec_pred_clean', 'cond_exec_pred_clean_end'):
                 m = here.copy()
@@ -488,10 +534,20 @@ class _Machine:
                     raise ExecError(f'jump to CF {c.address}: no such instruction')
                 pc[take] = tgt
                 pc[here & ~take] = nxt
+                seen = self.jumps.setdefault(c.index, [np.zeros(self.n, bool), np.zeros(self.n, bool)])
+                seen[0] |= take
+                seen[1] |= here & ~take
             elif op in ('nop', 'alloc', 'mark_vs_fetch_done'):
                 pc[here] = nxt
             else:
                 raise ExecError(f'control flow {op}')
+
+    def finish(self, res: Result) -> Result:
+        res.snaps = self.snaps
+        res.out_of_range = self.oob
+        res.jumps = {k: [int((t & ~self.oob).sum()), int((f & ~self.oob).sum())] for k, (t, f) in self.jumps.items()}
+        res.unreached = [c.index for c, r in zip(self.sh.cf, self.reached) if not (r & ~self.oob).any()]
+        return res
 
     def _bool_const(self, c: Any) -> bool:
         raise ExecError('bool-constant conditions (none in BF1943) are not supported')
@@ -500,11 +556,19 @@ class _Machine:
 def run(sh: Any, inputs: dict[int, np.ndarray], consts: dict[int, Any], textures: dict[int, Texture], n: int,
         pos: np.ndarray | None = None, front: np.ndarray | None = None, trace: bool = False) -> Result:
     """trace: Result.snaps holds the registers and the live pixels after every instruction (by address)."""
-    if not sh.is_pixel:
-        raise ExecError('pixel shaders only (vertex shaders: not yet)')
     m = _Machine(sh, n, consts, textures)
     if trace:
         m.snaps = {}
+    if not sh.is_pixel:
+        for el in sh.header.vertex_elements:
+            if el.usage != 'TEXCOORD':
+                raise ExecError(f'vertex input usage {el.usage}')
+            m.vfetch_element[el.fetch_address] = el.usage_index
+        m.vin = {k: np.asarray(v, F) for k, v in inputs.items()}
+        m.run()
+        res = Result(dict(sorted(m.out.items())), m.alive)
+        res.position = m.pos if m.pos is not None else np.zeros((n, 4), F)
+        return m.finish(res)
     for it in sh.header.interpolators:
         v = inputs.get(it.reg)
         if v is not None:
@@ -521,6 +585,4 @@ def run(sh: Any, inputs: dict[int, np.ndarray], consts: dict[int, Any], textures
         m.r[cm.param_gen_pos] = g
     m.run()
     outs = [k for k in range(4) if sh.header.outputs >> k & 1]
-    res = Result({k: m.out.get(k, np.zeros((n, 4), F)) for k in outs}, m.alive)
-    res.snaps = m.snaps
-    return res
+    return m.finish(Result({k: m.out.get(k, np.zeros((n, 4), F)) for k in outs}, m.alive))
