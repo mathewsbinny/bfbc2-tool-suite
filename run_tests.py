@@ -198,6 +198,8 @@ def tests():
          [PY, os.path.join(SUITE, 'tests', 'test_runner_parallel.py')]),
         ('runner-args', 'test runner: its command line (--help, unknown arguments run nothing)', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_runner_args.py')]),
+        ('decomp-tools', 'the decompiled database tools (tools/decomp) on synthetic input: names from spec text, the type plan, the lookup', 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_decomp_tools.py')]),
         ('lint', 'lint (ruff check, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
         ('types', 'types (mypy, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
         ('core-edges', 'core edges (terrain / water names, errors in threads)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_core_edges.py')]),

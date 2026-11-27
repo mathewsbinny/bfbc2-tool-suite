@@ -2751,7 +2751,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 173,
+   "lines": 175,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -3591,7 +3591,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1387,
+   "lines": 1389,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -4047,7 +4047,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 910,
+   "lines": 921,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4443,6 +4443,18 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
+   "lines": 120,
+   "note": "The decompiled database's tools (tools/decomp) on synthetic input only: the name extraction from spec-style...",
+   "path": "tests/test_decomp_tools.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "tests",
+   "kind": "test",
    "lines": 252,
    "note": "Regression tests for the suite deep scan of 2026-11-15 (no game data): - C1 stock-MP install --apply is one...",
    "path": "tests/test_deep_scan_fixes.py",
@@ -4689,6 +4701,66 @@
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
+  },
+  {
+   "callers": "tools/decomp/run_dc.py",
+   "embedded_by": [],
+   "folder": "tools",
+   "kind": "build or dev script",
+   "lines": 95,
+   "note": "the private decompiled database's SQLite index (round DC0)",
+   "path": "tools/decomp/build_index.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "later rounds (GM1, UI0, RCX0)",
+   "embedded_by": [],
+   "folder": "tools",
+   "kind": "tool entry point",
+   "lines": 157,
+   "note": "lookup in the private decompiled database of BFBC2Game.exe by address, name, string, caller or rule",
+   "path": "tools/decomp/decomp.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "tools/decomp/run_dc.py",
+   "embedded_by": [],
+   "folder": "tools",
+   "kind": "build or dev script",
+   "lines": 278,
+   "note": "the named exe addresses of the spec and Project OPFOR's notes, for Ghidra",
+   "path": "tools/decomp/extract_names.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "tools/decomp/run_dc.py",
+   "embedded_by": [],
+   "folder": "tools",
+   "kind": "build or dev script",
+   "lines": 109,
+   "note": "spec/typeinfo.json as a Ghidra type plan",
+   "path": "tools/decomp/gen_types.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "tools",
+   "kind": "build or dev script",
+   "lines": 84,
+   "note": "builds the private decompiled database with Ghidra headless",
+   "path": "tools/decomp/run_dc.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
   }
  ],
  "generator": "rust/python_status.py",
@@ -4712,19 +4784,19 @@
  ],
  "totals": {
   "all": {
-   "files": 387,
-   "lines": 114501
+   "files": 393,
+   "lines": 115359
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1443,
+    "lines": 1445,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1387,
+    "test": 1389,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4905,8 +4977,8 @@
    },
    "core": {
     "files": 76,
-    "lines": 20433,
-    "live": 764,
+    "lines": 20435,
+    "live": 766,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
@@ -4927,12 +4999,12 @@
    },
    "rust": {
     "files": 38,
-    "lines": 7832,
+    "lines": 7843,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7565,
+    "stays": 7576,
     "test": 267,
     "twin": 0
    },
@@ -4948,21 +5020,32 @@
     "twin": 0
    },
    "tests": {
-    "files": 29,
-    "lines": 7630,
+    "files": 30,
+    "lines": 7750,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7630,
+    "test": 7750,
+    "twin": 0
+   },
+   "tools": {
+    "files": 5,
+    "lines": 723,
+    "live": 0,
+    "partly": 0,
+    "ported": 0,
+    "retired-pending": 0,
+    "stays": 723,
+    "test": 0,
     "twin": 0
    }
   },
   "by_status": {
    "live": {
     "files": 17,
-    "lines": 5085
+    "lines": 5087
    },
    "partly": {
     "files": 19,
@@ -4977,12 +5060,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 76,
-    "lines": 16802
+    "files": 81,
+    "lines": 17536
    },
    "test": {
-    "files": 192,
-    "lines": 53071
+    "files": 193,
+    "lines": 53193
    },
    "twin": {
     "files": 57,
