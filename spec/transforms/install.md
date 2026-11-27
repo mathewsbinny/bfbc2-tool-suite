@@ -169,7 +169,7 @@ since DF2 that re-run is refused while a later layer sits on it (revert that one
 forwarded `-applied` records of before DF2 are retired (audit AU4, DS-10: a forwarded record let an earlier tool's revert
 put its old backup over a later stage).
 
-[code: opfor:src/tools/opforcore/stages.py:220-238] [code: opfor:src/tools/onslaught/console_linux_base.py:134-143]
+[code: opfor:src/tools/opforcore/stages.py:220-238] [code: opfor:src/tools/onslaught/console_linux_base.py:46-54]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_linux_base_redo_builds_on_the_first_stage_and_a_later_stage_refuses]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_hud_source_is_the_current_bundle_unless_a_redo]
 [test: opfor:src/tools/tests/test_onslaught.py::test_hud_builds_on_the_current_movie_and_never_patches_twice]
