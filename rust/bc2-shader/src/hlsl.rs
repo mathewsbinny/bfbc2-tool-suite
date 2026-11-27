@@ -1010,6 +1010,108 @@ impl<'a> Emitter<'a> {
         Ok(())
     }
 
+    fn has_non_nested_forward_jumps(lst: &[Cf]) -> bool {
+        fn check(lst: &[Cf], start: usize, end: usize) -> std::result::Result<(), bool> {
+            let mut i = start;
+            while i < end {
+                let Some(cf) = lst.get(i) else { break };
+                if cf.op() == "cond_jmp"
+                    && let CfKind::Jump { address, .. } = cf.kind
+                {
+                    match lst.iter().position(|c| c.index == address) {
+                        Some(t) if t > i && t <= end => {
+                            check(lst, i + 1, t)?;
+                            i = t;
+                            continue;
+                        }
+                        Some(t) if t > i => return Err(true),
+                        _ => return Err(false),
+                    }
+                }
+                i += 1;
+            }
+            Ok(())
+        }
+        // Only a shader whose every jump the forward emitter takes (forward, not on a bool constant): any other
+        // keeps the nested emitter, so it fails with the same error as before.
+        let all_forward = lst.iter().enumerate().all(|(i, cf)| match cf.kind {
+            CfKind::Jump { address, type_, .. } if cf.op() == "cond_jmp" => {
+                !matches!(type_, CfType::Conditional)
+                    && lst.iter().position(|c| c.index == address).is_some_and(|t| t > i)
+            }
+            _ => true,
+        });
+        all_forward && matches!(check(lst, 0, lst.len()), Err(true))
+    }
+
+    /// Forward-only CFG emitter for shaders with overlapping forward jumps (e.g. if/else blocks).
+    /// Emits `int _cf = 0;` with `if (_cf <= k)` guards so any forward jump `k -> t` (`t > k`)
+    /// is mathematically exact without loops.
+    fn cfs_forward(&mut self, lst: &[Cf]) -> Result<()> {
+        let sh = self.sh;
+        self.w("int _cf = 0;");
+        for (i, cf) in lst.iter().enumerate() {
+            let op = cf.op();
+            match op {
+                "exec" | "exec_end" | "cond_exec" | "cond_exec_end" | "cond_exec_pred" | "cond_exec_pred_end" => {
+                    let (is_end, condition) = match cf.kind {
+                        CfKind::Exec { is_end, condition, .. } => (is_end, condition.unwrap_or(0) != 0),
+                        _ => (false, false),
+                    };
+                    if is_end && i != lst.len() - 1 && lst.iter().skip(i + 1).any(|c| c.op() != "alloc") {
+                        return Err(terr("exec_end before the last CF"));
+                    }
+                    self.w(format!("if (_cf <= {i}) {{"));
+                    self.depth += 1;
+                    let pred_block = op.starts_with("cond_exec_pred");
+                    if pred_block {
+                        self.w(format!("if (p0 == {}) {{", py_true(condition)));
+                        self.depth += 1;
+                        self.block_pred = Some(condition);
+                    } else {
+                        self.block_pred = None;
+                    }
+                    for &k in cf.instructions.as_deref().unwrap_or(&[]) {
+                        if let Some(ins) = sh.instructions.get(k) {
+                            self.instr(ins)?;
+                        }
+                    }
+                    if pred_block {
+                        self.depth -= 1;
+                        self.w("}");
+                    }
+                    self.block_pred = None;
+                    self.depth -= 1;
+                    self.w("}");
+                }
+                "alloc" | "nop" => {}
+                "cond_jmp" => {
+                    let CfKind::Jump {
+                        address,
+                        type_,
+                        condition,
+                        ..
+                    } = cf.kind
+                    else {
+                        return Err(TranslateError::Unsupported("a jump without its fields"));
+                    };
+                    let t = match lst.iter().position(|c| c.index == address) {
+                        Some(t) if t > i => t,
+                        _ => return Err(terr(format!("jump to cf {address} is not a nested forward jump"))),
+                    };
+                    let jump_cond = match type_ {
+                        CfType::Unconditional => "true".to_owned(),
+                        CfType::Predicated => format!("p0 == {}", py_true(condition != 0)),
+                        CfType::Conditional => return Err(terr("bool-constant jump")),
+                    };
+                    self.w(format!("if (_cf <= {i} && ({jump_cond})) {{ _cf = {t}; }}"));
+                }
+                _ => return Err(terr(format!("control flow {op} is not supported"))),
+            }
+        }
+        Ok(())
+    }
+
     // ------------------------------------------------------------------------------------------- whole shader
     fn run(mut self) -> Result<String> {
         let sh = self.sh;
@@ -1028,7 +1130,11 @@ impl<'a> Emitter<'a> {
                 self.vfetch_element.insert(el.fetch_address, el.usage_index);
             }
         }
-        self.cfs(&sh.cf, 0, sh.cf.len())?;
+        if Self::has_non_nested_forward_jumps(&sh.cf) {
+            self.cfs_forward(&sh.cf)?;
+        } else {
+            self.cfs(&sh.cf, 0, sh.cf.len())?;
+        }
         let body = std::mem::take(&mut self.lines);
         self.assemble(&body)
     }
