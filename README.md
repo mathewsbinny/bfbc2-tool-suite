@@ -137,8 +137,8 @@ it does, how to build and run it, its command-line switches, `mapexport.exe`, it
 In short: view any map of the game copy (BFBC1, BFBC2, Vietnam and WW2 levels, the Package-only ones too), read-only;
 edit a copy of it as a **map project** (objects, gameplay, the AI workspace's navigation, layers, undo; the project
 holds only the edits, never game files); see it as the game draws it (the game-accurate view, DICE's own Direct3D 11
-shaders); and export it as a new multiplayer level for any era and mode, installed and uninstalled through Project
-OPFOR's `mapedit_install.py`. The exports are built and checked offline; none has been tested in the game yet (the
+shaders); and export it as a new multiplayer level for any era and mode, installed and uninstalled by the editor itself
+(`bc2_install::mapedit`, round OR6; `bfbc2 install mapedit` and Project OPFOR's `mapedit_install.py` run the same). The exports are built and checked offline; none has been tested in the game yet (the
 user paused in-game tests on 2026-11-20). The Map Inspector (GR1) and the Navigation Studio's window (GR2) were
 folded into it and retired (`RETIRED.md`).
 

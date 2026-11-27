@@ -1,5 +1,6 @@
 //! `mapexport`: a map project exported as a NEW multiplayer level, staged; never writes the game copy
-//! (`EDITOR_ARCHITECTURE.md` 3.12). Project OPFOR's `mapedit_install.py` runs it and installs the stage.
+//! (`EDITOR_ARCHITECTURE.md` 3.12). The install of a stage is `bfbc2 install mapedit` (`bc2_install::mapedit`, round
+//! OR6), which builds the shared bundles with the same library calls as `startup`, `overlay` and `awards` here.
 //!
 //! ```text
 //! mapexport build   <project.mapedit.json> <export.json> --game <game folder> --out <stage folder>
@@ -36,6 +37,7 @@ use std::process::ExitCode;
 
 use bc2_levelwrite::MapProject;
 use bc2_levelwrite::export::{self, ExportSpec, Game};
+use bc2_levelwrite::installpatch;
 use bc2_levelwrite::rules::Severity;
 
 fn value(args: &[String], key: &str) -> Option<PathBuf> {
@@ -180,55 +182,35 @@ fn run(args: &[String]) -> Result<bool, String> {
             );
             let out_p = value(args, "--out").ok_or("--out <file> is needed")?;
             let work = value(args, "--work").ok_or("--work <folder> is needed")?;
-            let (mut strings, mut pictures, mut remove_keys, mut remove_pics) =
-                (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-            let mut by_language: std::collections::BTreeMap<String, Vec<(String, String)>> =
-                std::collections::BTreeMap::new();
+            let (mut stages, mut remove) = (Vec::new(), Vec::new());
             let mut i = 0;
             while let Some(a) = args.get(i) {
                 match a.as_str() {
                     "--add" => {
-                        let stage = PathBuf::from(args.get(i + 1).ok_or("--add <stage folder>")?);
-                        let rec = export::read_record(&stage).map_err(|e| format!("{}: {e}", stage.display()))?;
-                        strings.extend(rec.strings.iter().cloned());
-                        for (lang, l) in &rec.strings_by_language {
-                            by_language.entry(lang.clone()).or_default().extend(l.iter().cloned());
-                        }
-                        for f in &rec.awards {
-                            let bytes = std::fs::read(stage.join(&f.path)).map_err(|e| format!("{}: {e}", f.path))?;
-                            pictures.push((f.install.clone(), bytes));
-                        }
+                        stages.push(PathBuf::from(args.get(i + 1).ok_or("--add <stage folder>")?));
                         i += 2;
                     }
                     "--remove" => {
-                        let lv = args.get(i + 1).ok_or("--remove <LEVEL>")?;
-                        let (n, d) = export::loc_keys(lv);
-                        remove_keys.extend([n, d]);
-                        remove_keys.extend(export::flag_loc_keys(lv));
-                        remove_pics.extend(export::picture_entries(lv));
+                        remove.push(args.get(i + 1).ok_or("--remove <LEVEL>")?.clone());
                         i += 2;
                     }
                     _ => i += 1,
                 }
             }
+            // round OR6: the stages' texts and pictures read by the library the installer uses
             if cmd == "overlay" {
-                let langs = export::patch_overlay_langs(&src, &strings, &by_language, &remove_keys, &work, &out_p)
-                    .map_err(|e| e.to_string())?;
+                let (langs, n) =
+                    installpatch::overlay(&src, &stages, &remove, &work, &out_p).map_err(|e| e.to_string())?;
                 say(&format!(
-                    "{}: {} texts in {} languages ({})",
+                    "{}: {n} texts in {} languages ({})",
                     out_p.display(),
-                    strings.len(),
                     langs.len(),
                     langs.join(", ")
                 ));
             } else {
-                let n =
-                    export::patch_awards(&src, &pictures, &remove_pics, &work, &out_p).map_err(|e| e.to_string())?;
-                say(&format!(
-                    "{}: {} pictures added, {n} entries",
-                    out_p.display(),
-                    pictures.len()
-                ));
+                let (added, n) =
+                    installpatch::awards(&src, &stages, &remove, &work, &out_p).map_err(|e| e.to_string())?;
+                say(&format!("{}: {added} pictures added, {n} entries", out_p.display()));
             }
             Ok(true)
         }

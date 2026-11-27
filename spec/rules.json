@@ -24902,7 +24902,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:344-368"
+     "ref": "rust/bc2-install/src/mapedit.rs:1038-1055"
     },
     {
      "kind": "code",
@@ -27110,39 +27110,55 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:274-290"
+     "ref": "rust/bc2-install/src/mapedit.rs:663-700"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:356-366"
+     "ref": "rust/bc2-install/src/mapedit.rs:918-960"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/stages.rs:251-309"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_needed_shared_files"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::the_patches_come_from_each_installs_kept_copy"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
     }
    ]
   },
   {
    "id": "XINST-MAP-2",
-   "title": "The order: bundles, record, startup and menus, registration last",
+   "title": "The order: the level's record, its kept copy and bundles, its path data, the shared files",
    "file": "spec/transforms/install.md",
    "status": "verified",
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:346-378"
+     "ref": "rust/bc2-install/src/mapedit.rs:918-960"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:234-275"
+     "ref": "rust/bc2-install/src/mapedit.rs:962-999"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:579-661"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:1038-1055"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::path_data_goes_through_the_ledger_under_its_own_owner"
     }
    ]
   },
@@ -27154,19 +27170,19 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:346-354"
+     "ref": "rust/bc2-install/src/mapedit.rs:1071-1130"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:380-403"
+     "ref": "rust/bc2-install/src/mapedit.rs:1132-1146"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     },
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy"
-    },
-    {
-     "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:937-949"
     }
    ]
   },
@@ -27178,19 +27194,111 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:162-224"
+     "ref": "rust/bc2-install/src/mapedit.rs:332-358"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:360-373"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:375-389"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_text_patches_add_and_take_out"
-    },
-    {
-     "kind": "test",
-     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_any_mode_gets_its_maps_line"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
     },
     {
      "kind": "test",
      "ref": "opfor:src/tools/opforcore/tests/test_slots.py::test_mft_add_remove_any_order"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-5",
+   "title": "Each install keeps its own copy of what the shared patches are built from",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:1001-1036"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:564-577"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::the_patches_come_from_each_installs_kept_copy"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-6",
+   "title": "A kill at any write step is finished by the next run",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/stages.rs:82-93"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/stages.rs:133-146"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:490-501"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::a_kill_at_every_write_step_is_finished_by_the_next_run"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR6, real exports on scratch copies: an apply of a second export (18 write steps: the folder, its record, 4 kept files, 4 bundles, 8 ledger steps) and a revert of one level of two (17: 8 ledger steps, 9 removals), each killed before every step and run again: 35 of 35 with the files and ledger records of an uninterrupted run"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-7",
+   "title": "On DICE's package.mft only the levels' blocks change",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:332-358"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's package.mft (the ledger's original): 136,251 bytes ending CRLF CRLF; through the Python's patch with no level: one CRLF fewer; bundleManifest (835 lines, LF) unchanged by its patch"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-8",
+   "title": "The files, records and lines are the Python installer's",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/mapedit_cli.rs:1-40"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR6, scratch copies of the six shared files migrated into the ledger, two fresh exports and a plain variant (rust/BENCHMARKS.md OR6): 10 of 10 steps identical, 38 to 54 game files and 5 to 6 ledger records a step"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     }
    ]
   },

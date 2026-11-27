@@ -1,6 +1,7 @@
 //! The game-copy installer on the install ledger (round OR1, "OPFOR in Rust" stage 1; audit AU3 OP-1, OP-6): Project
 //! OPFOR's WW2 install - `wake_install.py --plan / --apply / --revert` and `ww2_level_install.py`'s install side -
-//! as a library, run by `bfbc2 install` (bc2-cli) and, later, the map editor's installer (round IN1).
+//! as a library, run by `bfbc2 install` (bc2-cli); and the map export's install (round OR6, feature `mapedit`:
+//! `bfbc2 install mapedit`, the map editor's Install dialog in process), which IN1's installer builds on.
 //!
 //! OPFOR's build stages every bundle and writes the install plan ([`plan::Plan`]: its decisions as data - the
 //! levels, their registration blocks, the DLL's markers, what marks a backup as holding the install's content). This
@@ -19,10 +20,14 @@
 //! | `wake_install.build` and the parts it calls (round OR2, feature `levelbuild`) | [`levelbuild`] |
 //! | `console_onslaught.build` / `install`'s preparation, the console Onslaught import (round OR5, feature `onslaught`) | [`onslaught`] |
 //! | `opforcore\migrate.py`; the mod manager (round MM1): enable / disable / uninstall / restore-original / verify | [`mods`] |
+//! | `mapedit_install.py` (the map export's install: plan, apply, revert, status; round OR6, feature `mapedit`) | `mapedit` |
+//! | `opforcore.stages.Stages`' whole-file operations as `console_common` calls them (round OR6) | [`stages`] |
 
 #[cfg(feature = "levelbuild")]
 pub mod levelbuild;
 pub mod lock;
+#[cfg(feature = "mapedit")]
+pub mod mapedit;
 pub mod marks;
 pub mod mods;
 #[cfg(feature = "onslaught")]
@@ -31,4 +36,5 @@ pub mod plan;
 pub mod pytext;
 pub mod run;
 pub mod staged;
+pub mod stages;
 pub mod text;

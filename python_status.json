@@ -2739,7 +2739,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 169,
+   "lines": 170,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -4215,7 +4215,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 472,
+   "lines": 473,
    "note": "the executable's reflection record by record (spec/typeinfo.json, spec/engine/typeinfo/*.md tables)",
    "path": "spec/probes/typeinfo.py",
    "retiring": "stays",
@@ -4641,7 +4641,7 @@
  "totals": {
   "all": {
    "files": 381,
-   "lines": 112113
+   "lines": 112115
   },
   "by_folder": {
    "(root)": {
@@ -4833,8 +4833,8 @@
    },
    "core": {
     "files": 76,
-    "lines": 20409,
-    "live": 760,
+    "lines": 20410,
+    "live": 761,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
@@ -4866,12 +4866,12 @@
    },
    "spec": {
     "files": 22,
-    "lines": 7634,
+    "lines": 7635,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7634,
+    "stays": 7635,
     "test": 0,
     "twin": 0
    },
@@ -4890,7 +4890,7 @@
   "by_status": {
    "live": {
     "files": 18,
-    "lines": 5528
+    "lines": 5529
    },
    "partly": {
     "files": 20,
@@ -4906,7 +4906,7 @@
    },
    "stays": {
     "files": 71,
-    "lines": 14505
+    "lines": 14506
    },
    "test": {
     "files": 191,

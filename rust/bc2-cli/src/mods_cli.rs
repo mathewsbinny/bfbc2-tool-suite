@@ -381,7 +381,7 @@ fn install(
         _ => {
             let how = match head {
                 "pacific-menus" => "Project OPFOR's build_menus.bat (menu_install.py)",
-                "mapedit" => "the map editor's Install (Project OPFOR's mapedit_install.py --apply <stage>)",
+                "mapedit" => "the map editor's Install (bfbc2 install mapedit apply <stage> --game <game>)",
                 "navkit" => "bfbc2 navkit install <level>",
                 "stockmp" => "bfbc2 stockmp install <level> --apply",
                 "base" => "Project OPFOR's import (build.bat)",
