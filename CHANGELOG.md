@@ -34,6 +34,17 @@ Round OR9 retires Project OPFOR's Python of the console Onslaught port's stages 
 `bc2_native.onsport_linux` / `onsport_mode` / `onsport_loadset`, so its `SUITE_REQUIRES` moves to 0.31.0 - 0.32.0.
 
 ### Added
+- Round TG4: a Create Level project places its base level's forests, middlegrowth, rocks and natural props again on
+  the new terrain (the form's **Vegetation** box, on by default; project format 14's `terrain_import.vegetation`), as
+  DICE's multiplayer levels of the biome place them: their density by distance outside the playable area, their
+  clustering, slope and height preferences and poses measured on DICE's 19 multiplayer terrains
+  (`bc2_terragen::vegetation`, `bc2_levelwrite::vegetation`; spec TGEN-VEG-1 - 4). The export writes them as model
+  group member edits, so the groups' leaves, physics and cull trees are made as for any member edit.
+- Round TG4: the base's tiled paint layers (paths, dry grass, rubble ...) are laid on a new terrain as the base lays
+  them on its own, with their paired physics materials (TGEN-MAT-3), for bases whose layers are one kind each
+  (MP_005, MP_006, MP_007).
+- Round TG4: `bc2_levelwrite::terrainpaint::layer_weights` (a terrain's tiled layers' weights read back from its patch
+  maps and atlas), `newterrain::view` and the editor's `newterrain_view`.
 - **The console Onslaught port's stages 2 - 4 in Rust** (round OR9, "OPFOR in Rust"): `bc2_install::onslaught::linux`
   (the console gameplay put on the PC map's Linux server level: the merge, the renamed Linux files, the cull slots as
   the Linux level's), `onslaught::mode` (the Onslaught game mode from PC Conquest, the console spawn manager, every
@@ -43,6 +54,12 @@ Round OR9 retires Project OPFOR's Python of the console Onslaught port's stages 
   command lines and the install ledger; their work files are the retired Python's byte for byte on the four console
   levels (spec XCONS-ONS-2 - 4).
 - `bc2_pyrt::math`: CPython's `math.dist` (its compensated `vector_norm`), `x ** 2` and `x ** y` bit for bit.
+
+### Changed
+
+- Round TG4: a Create Level project opens on its new terrain (it showed the base's), so the Terrain workspace's
+  sculpt and paint work on the new ground and the export lays the strokes on it (TEDIT-NEW-4). Project format 14; a
+  format-13 project with terrain strokes keeps them refused (they were made on the base's terrain).
 
 ## [0.30.0] - 2026-11-27
 

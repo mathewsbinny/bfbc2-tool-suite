@@ -839,6 +839,51 @@ pub fn cells_with(vt: &VisualTerrain, model: &LayerModel, l: usize) -> Vec<bool>
     })
 }
 
+/// Each tiled layer's weights (0 - 255) over the main height field's samples as the visual terrain draws them (round
+/// TG4): per cell, the layer's mask tile (the cell's part of its aligned block's tile) sampled at each sample of the
+/// cell, 0 where the cell's shader does not draw the layer. The inverse of [`paint`]; a layer no cell draws is left
+/// out.
+///
+/// # Errors
+/// The files do not read, or the terrain's layers are not one kind each.
+pub fn layer_weights(visual: &[u8], atlas: &[u8], hf_size: u32) -> Result<BTreeMap<String, Raster>, LevelWriteError> {
+    let vt = VisualTerrain::decode(visual).map_err(|e| refused(format!("the visual terrain: {e}")))?;
+    let model = LayerModel::of(&vt).map_err(refused)?;
+    let map = vt.maps.first().ok_or_else(|| refused("no patch map"))?;
+    let at = Atlas::of(atlas, map.header).map_err(refused)?;
+    let w = map.header[4] as usize;
+    let n = hf_size as usize;
+    let q = (n / w.max(1)).max(1);
+    let span = at.span();
+    let mut out: BTreeMap<usize, Raster> = BTreeMap::new();
+    for k in 0..w * w {
+        let s = usize::from(map.shader.get(k).copied().unwrap_or(0));
+        let (cx, cz) = (k % w, k / w);
+        for (slot, l) in model.tiled_layers(s).into_iter().enumerate().take(4) {
+            let (Some(t), Some(f)) = (
+                map.tiles.get(k).and_then(|t| t.get(slot)),
+                map.flags.get(k).and_then(|f| f.get(slot)),
+            ) else {
+                continue;
+            };
+            let f = usize::from(*f).max(1);
+            let part = span / f;
+            let r = out.entry(l).or_insert_with(|| Raster::new(hf_size, hf_size, 0));
+            for j in 0..q {
+                for i in 0..q {
+                    let (x, y) = ((i * part) / q, (j * part) / q);
+                    let v = at.get(usize::from(*t), (cx % f) * part + x, (cz % f) * part + y);
+                    r.set((cx * q + i) as u32, (cz * q + j) as u32, u16::from(v));
+                }
+            }
+        }
+    }
+    Ok(out
+        .into_iter()
+        .filter_map(|(l, r)| Some((model.layers.get(l)?.clone(), r)))
+        .collect())
+}
+
 // ------------------------------------------------------------------------------------------------ the pairing
 
 /// A tiled layer's paired material (TEDIT-MM-2): the material map's name most cells carry where the layer's mask is

@@ -42,6 +42,8 @@ pub mod paint;
 pub mod ring;
 pub mod rng;
 pub mod shape;
+pub mod vegetation;
+mod vegetation_dice;
 pub mod visual;
 pub mod water;
 

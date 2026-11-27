@@ -229,6 +229,9 @@ pub struct Settings {
     pub biome: bc2_terragen::Biome,
     /// A sub-terrain ring around a height map's terrain (TGEN-RING-1).
     pub ring: bool,
+    /// Round TG4: the base's forests, middlegrowth, rocks and natural props placed again on the new terrain
+    /// (TGEN-VEG-1 - 3), for both forms.
+    pub vegetation: bool,
 }
 
 impl Default for Settings {
@@ -242,6 +245,7 @@ impl Default for Settings {
             base: DEFAULT_BASE.to_owned(),
             biome: bc2_terragen::Biome::Arid,
             ring: false,
+            vegetation: true,
         }
     }
 }
@@ -549,6 +553,11 @@ pub fn save_generated(r: &GenerateRequest<'_>) -> Result<PathBuf, EditorError> {
             generate: Some(r.generate.spec()),
             biome: Some(r.generate.biome.name().to_owned()),
             ring: r.generate.ring,
+            vegetation: r
+                .settings
+                .vegetation
+                .then(bc2_levelwrite::project::VegetationSpec::default),
+            strokes_on_base: false,
         },
     );
     write_new(&project, r.folder)
@@ -630,6 +639,11 @@ pub fn save(r: &Request<'_>) -> Result<PathBuf, EditorError> {
             generate: None,
             biome: Some(r.settings.biome.name().to_owned()),
             ring: r.settings.ring,
+            vegetation: r
+                .settings
+                .vegetation
+                .then(bc2_levelwrite::project::VegetationSpec::default),
+            strokes_on_base: false,
         },
     );
     let file = project.file_name();

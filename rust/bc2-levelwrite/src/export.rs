@@ -629,6 +629,18 @@ struct ExportSources<'a> {
     bundles: &'a [PathBuf],
     base: &'a str,
     tiles: crate::delta::DirStore,
+    /// Round TG4: a new terrain's files under the base's names (lower case), read in place of the base terrain's.
+    terrain: Option<&'a BTreeMap<String, Vec<u8>>>,
+}
+
+impl ExportSources<'_> {
+    /// A terrain file by the base's name: the new terrain's when the project makes one, else the base's.
+    fn terrain_file(&self, name: &str) -> Option<Vec<u8>> {
+        match self.terrain {
+            Some(t) => t.get(&name.to_ascii_lowercase()).cloned(),
+            None => base_terrain_file(self.game, self.base, name),
+        }
+    }
 }
 
 impl crate::files::Sources for ExportSources<'_> {
@@ -639,25 +651,21 @@ impl crate::files::Sources for ExportSources<'_> {
     fn raster(&self, target: &crate::files::Target) -> Option<crate::delta::Raster> {
         match target {
             crate::files::Target::Terrain { file } => {
-                let hf = bc2_formats::terrain::parse(&base_terrain_file(self.game, self.base, file)?).ok()?;
+                let hf = bc2_formats::terrain::parse(&self.terrain_file(file)?).ok()?;
                 Some(crate::delta::Raster::from_samples(hf.size, hf.size, &hf.raw))
             }
             crate::files::Target::Material { file } => {
-                let m =
-                    bc2_formats::terrain_codec::MaterialMap::decode(&base_terrain_file(self.game, self.base, file)?)
-                        .ok()?;
+                let m = bc2_formats::terrain_codec::MaterialMap::decode(&self.terrain_file(file)?).ok()?;
                 Some(crate::terrainedit::material_raster(&m))
             }
             // round E5-rest: the colour / occlusion map's texels, the ring's 12 blocks as one raster
-            crate::files::Target::Colour { file } => {
-                crate::terrainpaint::colour_raster(&base_terrain_file(self.game, self.base, file)?)
-            }
+            crate::files::Target::Colour { file } => crate::terrainpaint::colour_raster(&self.terrain_file(file)?),
             crate::files::Target::Ring { file } => {
-                let hf = bc2_formats::terrain::parse(&base_terrain_file(self.game, self.base, file)?).ok()?;
+                let hf = bc2_formats::terrain::parse(&self.terrain_file(file)?).ok()?;
                 let stem = file.strip_suffix("-000.res").unwrap_or(file);
                 let blocks: Vec<Vec<u16>> = (1..=crate::terrainedit::RING_BLOCKS)
                     .map(|k| {
-                        let d = base_terrain_file(self.game, self.base, &format!("{stem}-{k:03}.res"))?;
+                        let d = self.terrain_file(&format!("{stem}-{k:03}.res"))?;
                         bc2_formats::terrain::parse(&d).ok().map(|h| h.raw)
                     })
                     .collect::<Option<_>>()?;
@@ -712,12 +720,35 @@ fn terrain_writes(
     meta: &TerrainMeta,
     report: &mut Vec<String>,
 ) -> Result<TerrainWrites> {
+    let src = |name: &str| base_terrain_file(game, base, name);
+    let main = || game_heightfield_name(game, base);
+    let textures = || -> Result<Option<crate::terrainpaint::EntryTextures>> {
+        Ok(crate::shaders::level_database(game, base, "dx9_single.res")?
+            .and_then(|db| crate::terrainpaint::entry_textures(&db).ok()))
+    };
+    terrain_writes_from(&src, &main, &textures, edited, meta, report)
+}
+
+/// [`terrain_writes`] over any terrain's files (round TG4: a new terrain's built resources under the base's names):
+/// `src` a file by its lower-case name, `main` the main height field's name, `textures` the Dx9 database's patch
+/// entries' textures.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the terrain's layers in order: heights and ring, materials, paint, colour"
+)]
+fn terrain_writes_from(
+    src: &dyn Fn(&str) -> Option<Vec<u8>>,
+    main: &dyn Fn() -> Option<String>,
+    textures: &dyn Fn() -> Result<Option<crate::terrainpaint::EntryTextures>>,
+    edited: &BTreeMap<crate::files::Target, Vec<u8>>,
+    meta: &TerrainMeta,
+    report: &mut Vec<String>,
+) -> Result<TerrainWrites> {
     use crate::files::Target;
     let (ranges, names) = meta;
     let mut out = TerrainWrites::default();
     let need = |name: &str, what: &str| -> Result<Vec<u8>> {
-        base_terrain_file(game, base, name)
-            .ok_or_else(|| crate::rules::refusal("XVAL-EDIT-6", format!("{what} {name} is not in the base level")))
+        src(name).ok_or_else(|| crate::rules::refusal("XVAL-EDIT-6", format!("{what} {name} is not in the base level")))
     };
     // the main height fields: edited samples, a widened range, the ring
     let mut mains: BTreeSet<String> = BTreeSet::new();
@@ -738,10 +769,7 @@ fn terrain_writes(
         // the ring (TERR-HF-12): stitched to the main block's edges, its own strokes laid in
         let stem = file.strip_suffix("-000.res").unwrap_or(file);
         let ring_names: Vec<String> = (1..=12).map(|k| format!("{stem}-{k:03}.res")).collect();
-        let ring_bases: Vec<Vec<u8>> = ring_names
-            .iter()
-            .map_while(|n| base_terrain_file(game, base, n))
-            .collect();
+        let ring_bases: Vec<Vec<u8>> = ring_names.iter().map_while(|n| src(n)).collect();
         let ring_edit = edited
             .get(&Target::Ring { file: file.clone() })
             .map(|d| crate::terrainedit::raster_of(d, crate::terrainedit::RING_SIDE, crate::terrainedit::RING_SIDE));
@@ -813,7 +841,7 @@ fn terrain_writes(
         })
         .collect();
     if !paints.is_empty() {
-        let main = game_heightfield_name(game, base).ok_or_else(|| {
+        let main = main().ok_or_else(|| {
             crate::rules::refusal(
                 "XVAL-EDIT-5",
                 "the project paints visual layers and the base level names no terrain",
@@ -846,8 +874,7 @@ fn terrain_writes(
             .map(|(l, r)| crate::terrainpaint::PaintLayer { layer: l, weights: r })
             .collect();
         // the textures each patch entry samples (the base level's Dx9 database), for a combination the terrain lacks
-        let textures = crate::shaders::level_database(game, base, "dx9_single.res")?
-            .and_then(|db| crate::terrainpaint::entry_textures(&db).ok());
+        let textures = textures()?;
         let p = crate::terrainpaint::paint(&vb, &ab, n, &layers, textures.as_ref())
             .map_err(|e| crate::rules::refusal("XVAL-EDIT-5", e.to_string()))?;
         report.extend(p.notes.iter().map(|x| format!("project: {x}")));
@@ -1386,61 +1413,15 @@ pub fn build(
     }
     let base_w = LevelWriter::parse(&base_bytes)?;
     let schema = Schema::scan([&base_w.d]);
-    // round OP1: the log's other files (static group files) read from the base's bundles when it names them
-    let (edited_files, applied, member_orders, members_added, terrain_meta) = {
-        let sources = ExportSources {
-            game,
-            bundles: &base_bundles,
-            base: &base,
-            tiles: crate::delta::DirStore::of(Path::new(project_file)),
-        };
-        let all = crate::files::apply_files(
-            &base_bytes,
-            &project.operations,
-            &schema,
-            &|lv| level_partition(game, lv).ok(),
-            &sources,
-        )
-        .map_err(|e| {
-            let m = e.to_string();
-            crate::rules::refusal(crate::rules::apply_code(&m), m)
-        })?;
-        (
-            all.files,
-            all.partition,
-            all.orders,
-            all.added,
-            (all.ranges, all.material_names),
-        )
-    };
-    report.push(format!(
-        "project: {} operations applied ({} transforms, {} deleted, {} duplicated, {} placed, {} fields)",
-        applied.operations, applied.transforms, applied.deleted, applied.duplicated, applied.placed, applied.fields
-    ));
-    let mut edited_groups: HashMap<String, Vec<u8>> = HashMap::new();
-    // round E5 / E5-rest: the terrain's resources the strokes rewrote, by entry name (lower case): the terrain
-    // bundle's (height fields, material map, visual terrain, mask atlas) and the level bundle's (the colour /
-    // occlusion map), and the patch shaders a visual paint clones into the databases
-    // round E7 / TG3: a new terrain (a height map's or the generator's) replaces the base's; strokes on the base's
-    // terrain do not apply to it (sculpt and paint on a new terrain: round TG4)
-    let new_terrain = match project.new_terrain() {
+    let mut vegetation_op: Option<crate::ops::Operation> = None;
+    let mut new_terrain = match project.new_terrain() {
         Some(t) => {
-            let strokes = edited_files.keys().any(|k| {
-                matches!(
-                    k,
-                    crate::files::Target::Terrain { .. }
-                        | crate::files::Target::Material { .. }
-                        | crate::files::Target::Paint { .. }
-                        | crate::files::Target::Colour { .. }
-                        | crate::files::Target::Ring { .. }
-                )
-            }) || !terrain_meta.0.is_empty()
-                || !terrain_meta.1.is_empty();
-            if strokes {
+            if t.strokes_on_base && project.operations.iter().any(|o| o.op.is_terrain()) {
                 return Err(crate::rules::refusal(
                     "XVAL-TERR-4",
-                    "the project makes a new terrain and also edits the base's terrain: the base's terrain is not \
-                     the level's, so its strokes do not apply (sculpt and paint on a new terrain come with round TG4)",
+                    "the project makes a new terrain and its strokes were made on the base's terrain (an editor \
+                     before round TG4 showed the base's): they do not apply to the new terrain; undo them and \
+                     sculpt the new terrain again",
                 ));
             }
             let t_new = std::time::Instant::now();
@@ -1448,9 +1429,22 @@ pub fn build(
             let donor = crate::newterrain::DonorFiles::read(game, &base, dx9.as_deref())?;
             let (terrain, notes) = crate::newterrain::terrain_of(t, Path::new(project_file), donor.water_level)?;
             let tname = crate::newterrain::terrain_name(&lv);
-            let built = crate::newterrain::build(&terrain, &tname, &donor)?;
+            let mut built = crate::newterrain::build(&terrain, &tname, &donor)?;
             report.extend(notes);
             report.extend(built.notes.iter().map(|n| format!("new terrain: {n}")));
+            // round TG4: the donor's tiled layers painted on the new ground as the donor lays them (TGEN-MAT-2)
+            let textures = dx9
+                .as_deref()
+                .and_then(|db| crate::terrainpaint::entry_textures(db).ok());
+            let tiled = crate::newterrain::paint_tiled(
+                &mut built,
+                &terrain,
+                &tname,
+                &donor,
+                textures.as_ref(),
+                crate::newterrain::seed_of_import(t),
+            );
+            report.extend(tiled.notes.iter().map(|n| format!("new terrain: {n}")));
             report.push(format!(
                 "new terrain: Terrains/{tname}/{tname} from {} (the base {}'s terrain {} is not the level's, \
                  TGEN-REQ-5) in {:.1} s",
@@ -1463,11 +1457,177 @@ pub fn build(
                 donor.stem,
                 t_new.elapsed().as_secs_f64()
             ));
-            Some((tname, donor, built, terrain.height.range_m))
+            Some((tname, donor, built, terrain, tiled.clones))
         }
         None => None,
     };
-    let tw = terrain_writes(game, &base, &edited_files, &terrain_meta, &mut report)?;
+    // round TG4: the new terrain's files under the base's names, the strokes' sources (the editor showed them)
+    let new_files: Option<BTreeMap<String, Vec<u8>>> = new_terrain.as_ref().map(|(tname, donor, built, _, _)| {
+        let to = format!("terrains/{0}/{0}", tname.to_ascii_lowercase());
+        let mut m = BTreeMap::new();
+        for e in built.terrain.iter().chain(&built.level) {
+            let low = e.name.to_ascii_lowercase();
+            if let Some(rest) = low.strip_prefix(&to) {
+                m.insert(format!("{}{rest}", donor.stem), e.data.clone());
+            }
+        }
+        if let (Some((old, _)), Some((_, new))) = (&donor.occlusion, built.textures.first())
+            && let Some(e) = built
+                .level
+                .iter()
+                .find(|e| e.name.eq_ignore_ascii_case(&format!("{new}.res")))
+        {
+            m.insert(format!("{}.res", old.to_ascii_lowercase()), e.data.clone());
+        }
+        m
+    });
+    // round OP1: the log's other files (static group files) read from the base's bundles when it names them
+    let sources = ExportSources {
+        game,
+        bundles: &base_bundles,
+        base: &base,
+        tiles: crate::delta::DirStore::of(Path::new(project_file)),
+        terrain: new_files.as_ref(),
+    };
+    // round TG4: the log, then the new terrain's vegetation edits when there are some
+    let apply_log = |extra: Option<&crate::ops::Operation>| -> Result<crate::files::AppliedFiles> {
+        crate::files::apply_files(
+            &base_bytes,
+            project.operations.iter().chain(extra),
+            &schema,
+            &|lv| level_partition(game, lv).ok(),
+            &sources,
+        )
+        .map_err(|e| {
+            let m = e.to_string();
+            crate::rules::refusal(crate::rules::apply_code(&m), m)
+        })
+    };
+    let all = apply_log(None)?;
+    let terrain_meta: TerrainMeta = (all.ranges.clone(), all.material_names.clone());
+    let mut edited_groups: HashMap<String, Vec<u8>> = HashMap::new();
+    // round E5 / E5-rest: the terrain's resources the strokes rewrote, by entry name (lower case): the terrain
+    // bundle's (height fields, material map, visual terrain, mask atlas) and the level bundle's (the colour /
+    // occlusion map), and the patch shaders a visual paint clones into the databases
+    // round E7 / TG3: a new terrain (a height map's or the generator's) replaces the base's
+    // round TG4: the strokes of a Create Level project are made on its new terrain (the editor shows it) and laid on
+    // its built resources; a version-13 project's were made on the base's and are refused; the donor's tiled layers
+    // painted (TGEN-MAT-2) and the base's vegetation placed again on the final ground (TGEN-VEG-1 - 3)
+    let tw = match new_terrain.as_mut() {
+        None => terrain_writes(game, &base, &all.files, &terrain_meta, &mut report)?,
+        Some((tname, donor, built, _, _)) => {
+            // the strokes name the base's files (the level's partition names the base's terrain until the export
+            // renames it): read from and written back into the new terrain's built entries
+            let from = donor.stem.to_ascii_lowercase();
+            let to = format!("terrains/{0}/{0}", tname.to_ascii_lowercase());
+            let renames = built.textures.clone();
+            let map = |n: &str| crate::newterrain::mapped_name(n, &from, &to, &renames);
+            let snapshot: Vec<(String, Vec<u8>)> = built
+                .terrain
+                .iter()
+                .chain(&built.level)
+                .map(|e| (e.name.to_ascii_lowercase(), e.data.clone()))
+                .collect();
+            let src = |n: &str| {
+                let m = map(n)?.to_ascii_lowercase();
+                snapshot.iter().find(|e| e.0 == m).map(|e| e.1.clone())
+            };
+            let main = || Some(format!("{from}.heightfield-000.res"));
+            let textures = || -> Result<Option<crate::terrainpaint::EntryTextures>> {
+                Ok(crate::shaders::level_database(game, &base, "dx9_single.res")?
+                    .and_then(|db| crate::terrainpaint::entry_textures(&db).ok()))
+            };
+            let w = terrain_writes_from(&src, &main, &textures, &all.files, &terrain_meta, &mut report)?;
+            let mut n = 0;
+            for (name, data) in w.terrain.iter().chain(&w.level) {
+                let m = map(name).unwrap_or_else(|| name.clone());
+                if let Some(e) = built
+                    .terrain
+                    .iter_mut()
+                    .chain(built.level.iter_mut())
+                    .find(|e| e.name.eq_ignore_ascii_case(&m))
+                {
+                    e.data.clone_from(data);
+                    n += 1;
+                }
+            }
+            if n > 0 {
+                report.push(format!(
+                    "new terrain: {n} of its resources rewritten from the project's strokes (made on the new terrain)"
+                ));
+            }
+            TerrainWrites {
+                terrain: BTreeMap::new(),
+                level: BTreeMap::new(),
+                clones: w.clones,
+            }
+        }
+    };
+    // round TG4: the vegetation on the final ground, as member edits after the log's (TGEN-VEG-1 - 3)
+    if let (Some((tname, donor, built, terrain, _)), Some(t)) = (&new_terrain, project.new_terrain())
+        && let Some(v) = &t.vegetation
+    {
+        let t_veg = std::time::Instant::now();
+        let cur = LevelWriter::parse(&all.partition.bytes)?;
+        let files = |name: &str| -> Option<Vec<u8>> {
+            let tg = crate::files::Target::group(name);
+            all.files
+                .get(&tg)
+                .cloned()
+                .or_else(|| base_level_file(game, &base_bundles, &base, &tg))
+        };
+        let main_name = format!("terrains/{0}/{0}.heightfield-000.res", tname.to_ascii_lowercase());
+        let ground = built
+            .terrain
+            .iter()
+            .find(|e| e.name.eq_ignore_ascii_case(&main_name))
+            .and_then(|e| bc2_formats::terrain::parse(&e.data).ok())
+            .map(|h| crate::vegetation::ground_of(&h, terrain.height.water_y.or(donor.water_level)))
+            .ok_or_else(|| err("the new terrain's main height field does not read"))?;
+        let base_ground = donor
+            .heights
+            .as_deref()
+            .and_then(|d| bc2_formats::terrain::parse(d).ok())
+            .map(|h| crate::vegetation::ground_of(&h, donor.water_level))
+            .ok_or_else(|| err(format!("the base {base}'s main height field does not read")))?;
+        let biome = crate::newterrain::biome_of_import(t);
+        let seed = v.seed.unwrap_or_else(|| crate::newterrain::seed_of_import(t));
+        let placed =
+            crate::vegetation::place_on(&cur, &files, &all.orders, &base_ground, &ground, biome, v.density, seed)?;
+        report.extend(placed.notes.iter().map(|n| format!("new terrain: {n}")));
+        report.push(format!(
+            "new terrain: the vegetation placed in {:.1} s",
+            t_veg.elapsed().as_secs_f64()
+        ));
+        if !placed.edits.is_empty() {
+            vegetation_op = Some(crate::ops::Operation {
+                n: u64::MAX,
+                by: "export".into(),
+                when: String::new(),
+                label: "Vegetation on the new terrain (round TG4)".into(),
+                op: crate::Op::Files { edits: placed.edits },
+            });
+        }
+    }
+    let all = match &vegetation_op {
+        Some(o) => {
+            let t_apply = std::time::Instant::now();
+            let a = apply_log(Some(o))?;
+            report.push(format!(
+                "new terrain: the vegetation's member edits applied in {:.1} s",
+                t_apply.elapsed().as_secs_f64()
+            ));
+            a
+        }
+        None => all,
+    };
+    let (edited_files, applied, member_orders, members_added) = (all.files, all.partition, all.orders, all.added);
+    report.push(format!(
+        "project: {} operations applied ({} transforms, {} deleted, {} duplicated, {} placed, {} fields)",
+        applied.operations, applied.transforms, applied.deleted, applied.duplicated, applied.placed, applied.fields
+    ));
+    let new_terrain =
+        new_terrain.map(|(tname, donor, built, terrain, clones)| (tname, donor, built, terrain.height.range_m, clones));
     let terrain_edits: BTreeMap<String, Vec<u8>> = tw.terrain;
     let colour_edits: BTreeMap<String, Vec<u8>> = tw.level;
     let shader_clones: Vec<crate::terrainpaint::NewShader> = tw.clones;
@@ -1769,7 +1929,7 @@ pub fn build(
         report.push(format!("flag text: {k} = {t:?}"));
     }
     // 5. the level partition renamed (round E7 / TG3: its terrain reference names the new terrain, TGEN-REQ-4)
-    if let Some((tname, donor, _, _)) = &new_terrain {
+    if let Some((tname, donor, _, _, _)) = &new_terrain {
         let n = crate::newterrain::rename_terrain(&mut w.d, donor.low(), tname)?;
         report.push(format!(
             "new terrain: the level's {n} reference(s) to {} renamed Terrains/{tname}/{tname}",
@@ -2033,40 +2193,9 @@ pub fn build(
         "shaders: the reach and the merges in {:.1} s",
         t_shaders.elapsed().as_secs_f64()
     ));
-    // round E5-rest: the patch shaders a visual paint needs (TEDIT-SH-1) cloned into each of the level's databases,
-    // and the colour / occlusion map the project painted or re-shaded (the base's level bundle holds it: the level's
-    // own bundle, read first, gets the edited copy)
-    if !shader_clones.is_empty() {
-        for e in &mut level_all {
-            let Some(file) = crate::shaders::database_file(&e.name, &e.type_name) else {
-                continue;
-            };
-            let dx = bc2_formats::shaderdb::open::dx_in_name(&file).unwrap_or(10);
-            let mut bytes = e.data.clone();
-            let mut made = 0;
-            for c in &shader_clones {
-                let done = bc2_formats::shaderdb::terrain::clone_entries(
-                    &bytes,
-                    &bytes,
-                    dx,
-                    &[(c.donor.clone(), c.name.clone())],
-                    &c.textures,
-                )
-                .map_err(|x| err(format!("{}: cloning {}: {x}", e.name, c.donor)))?;
-                made += done.added.len();
-                bytes = done.bytes;
-            }
-            report.push(format!(
-                "shaders: {}: {made} patch shader entr{} cloned for the visual paint's new layer combinations",
-                e.name,
-                if made == 1 { "y" } else { "ies" }
-            ));
-            e.data = bytes;
-        }
-    }
     // round E7 / TG3: the base terrain's patch, undergrowth, cache and water entries cloned under the new terrain's
     // name into each staged database (TGEN-VIS-4), the colour / occlusion map and the terrain partition staged
-    if let Some((tname, donor, built, _)) = &new_terrain {
+    if let Some((tname, donor, built, _, _)) = &new_terrain {
         for e in &mut level_all {
             let Some(file) = crate::shaders::database_file(&e.name, &e.type_name) else {
                 continue;
@@ -2085,6 +2214,43 @@ pub fn build(
                 type_name: n.type_name.clone(),
                 data: n.data.clone(),
             });
+        }
+    }
+    // round E5-rest: the patch shaders a visual paint needs (TEDIT-SH-1) cloned into each of the level's databases,
+    // and the colour / occlusion map the project painted or re-shaded (the base's level bundle holds it: the level's
+    // own bundle, read first, gets the edited copy)
+    // (round TG4: on a new terrain, after its own entries are cloned, the generator's tiled paint's clones first)
+    let all_clones: Vec<&crate::terrainpaint::NewShader> = new_terrain
+        .iter()
+        .flat_map(|x| x.4.iter())
+        .chain(&shader_clones)
+        .collect();
+    if !all_clones.is_empty() {
+        for e in &mut level_all {
+            let Some(file) = crate::shaders::database_file(&e.name, &e.type_name) else {
+                continue;
+            };
+            let dx = bc2_formats::shaderdb::open::dx_in_name(&file).unwrap_or(10);
+            let mut bytes = e.data.clone();
+            let mut made = 0;
+            for c in &all_clones {
+                let done = bc2_formats::shaderdb::terrain::clone_entries(
+                    &bytes,
+                    &bytes,
+                    dx,
+                    &[(c.donor.clone(), c.name.clone())],
+                    &c.textures,
+                )
+                .map_err(|x| err(format!("{}: cloning {}: {x}", e.name, c.donor)))?;
+                made += done.added.len();
+                bytes = done.bytes;
+            }
+            report.push(format!(
+                "shaders: {}: {made} patch shader entr{} cloned for the visual paint's new layer combinations",
+                e.name,
+                if made == 1 { "y" } else { "ies" }
+            ));
+            e.data = bytes;
         }
     }
     for (name, data) in &colour_edits {
@@ -2121,11 +2287,11 @@ pub fn build(
         &|n| {
             new_terrain
                 .as_ref()
-                .is_none_or(|(_, d, _, _)| !crate::newterrain::is_base_terrain_entry(n, &d.stem))
+                .is_none_or(|(_, d, _, _, _)| !crate::newterrain::is_base_terrain_entry(n, &d.stem))
         },
     )?;
     // round E7 / TG3: the new terrain's own resources (TGEN-REQ-1); the base's terrain is left out (TGEN-REQ-5)
-    if let Some((_, _, built, _)) = &new_terrain {
+    if let Some((_, _, built, _, _)) = &new_terrain {
         for n in &built.terrain {
             terrain.retain(|e| !e.name.eq_ignore_ascii_case(&n.name));
             terrain.push(StagedEntry {
@@ -2289,11 +2455,13 @@ pub fn build(
         path_data: None,
         terrain_edits: terrain_edits.keys().cloned().collect(),
         colour_edits: colour_edits.keys().cloned().collect(),
-        shader_clones: shader_clones
+        shader_clones: new_terrain
             .iter()
+            .flat_map(|x| x.4.iter())
+            .chain(&shader_clones)
             .map(|c| (c.name.clone(), c.donor.clone()))
             .collect(),
-        new_terrain: new_terrain.as_ref().map(|(tname, d, b, range)| NewTerrainRecord {
+        new_terrain: new_terrain.as_ref().map(|(tname, d, b, range, _)| NewTerrainRecord {
             name: tname.clone(),
             replaces: d.stem.clone(),
             source: if project.new_terrain().is_some_and(|t| t.generate.is_some()) {

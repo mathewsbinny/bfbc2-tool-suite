@@ -543,6 +543,15 @@ impl Op {
         }
     }
 
+    /// Whether it edits the terrain (a brush stroke, a widened range, an added material: rounds E5 / E5-rest).
+    #[must_use]
+    pub const fn is_terrain(&self) -> bool {
+        matches!(
+            self,
+            Self::Stroke { .. } | Self::TerrainRange { .. } | Self::MaterialAdd { .. }
+        )
+    }
+
     /// The partition operations it is made of: itself, or a multi-file operation's partition edits.
     #[must_use]
     pub fn parts(&self) -> Vec<&Self> {

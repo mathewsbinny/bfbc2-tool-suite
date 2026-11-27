@@ -30732,6 +30732,39 @@
    ]
   },
   {
+   "id": "TEDIT-NEW-4",
+   "title": "A new terrain is sculpted and painted as the base's is, under the base's names",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::a_version_13_create_levels_strokes_stay_on_the_base"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/newterrain_view.rs::a_new_terrain_replaces_the_scenes_under_the_bases_names"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1417-1565"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:1277-1342"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/newterrain_view.rs:1-68"
+    }
+   ]
+  },
+  {
    "id": "TGEN-REQ-1",
    "title": "A level's terrain is eight kinds of data, most of them in the terrain bundle",
    "file": "spec/transforms/terrain_gen.md",
@@ -31349,15 +31382,115 @@
    ]
   },
   {
-   "id": "TGEN-VEG-1",
-   "title": "Vegetation and props are placed as the level's model groups",
+   "id": "TGEN-MAT-3",
+   "title": "The donor's tiled layers are laid on new ground as the donor lays them",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "inferred",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:889-1276"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:842-885"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-1",
+   "title": "Vegetation and props are placed as the level's model groups",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vegetation.rs:23-45"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vegetation.rs:378-590"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1566-1624"
+    },
+    {
      "kind": "inferred",
-     "ref": "VEG-CLS-1 / -2, VEG-UG-1 / -3, COLL-MG-2, XCULL-RES-1; the per-biome instance counts of TGEN-BIOME-2"
+     "ref": "VEG-CLS-1 / -2, LEVEL-MG-7, XLOG-MEM-2, COLL-MG-2, XCULL-RES-1"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-2",
+   "title": "DICE's vegetation per biome: dense in the playable area, clustered, by slope and height",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::dice_biome_statistics"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/vegetation.rs:490-690"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs on the game copy, 2026-11-27: 19 terrains (arid 3, jungle 3, snow 4, temperate 4, vietnam 5), each kind's statistics per terrain and the medians as tabled; rust/BENCHMARKS.md TG4"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-3",
+   "title": "The placement falls on its biome's statistics",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/vegetation.rs::every_biome_falls_on_dices_statistics"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/vegetation.rs::a_placement_is_its_seeds"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/vegetation.rs:692-1230"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-4",
+   "title": "DICE's model groups written again through the member writer are DICE's bytes",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::dice_groups_round_trip_through_the_member_writer"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:420-560"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs on the game copy, 2026-11-27: 17 of 17 groups of MP_005, MP_009CQ, MP_007, MP_004 and NAM_MP_003CQ byte for byte (group file, partition, physics), 15,499 members added again, in 200 s"
     }
    ]
   },

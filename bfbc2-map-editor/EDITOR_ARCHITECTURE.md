@@ -722,9 +722,16 @@ opens on three buttons (`rust/bc2-editor/src/app/modes.rs`, `create.rs`; Back an
   sample range, `generate`) and the height map and colour map copied beside it with their sha1s; the project opens on
   the base level as any project. Round E7's export (`bc2_levelwrite::newterrain`) makes the terrain from the record
   and writes it as the level's own (`Terrains/<LV>/<LV>`, its own terrain bundle, the base's not registered,
-  XVAL-TERR-4) and samples its path data on it; strokes on the base's terrain in such a project are refused (round
-  TG4). The views show the base's terrain until then (the export's stage is the new terrain). A G4 project saved
-  without a base opens on its own page and asks to be made again.
+  XVAL-TERR-4) and samples its path data on it. Round TG4: the project opens on its new terrain
+  (`newterrain_view::apply_project`, in the level's loading task: `bc2_levelwrite::newterrain::view` builds what the
+  export builds and the scene's height field, mesh, material map, visual terrain, atlas, ring, colour map and water
+  are replaced under the base's file names), so the Terrain workspace's sculpt and paint strokes are made on the new
+  ground and the export lays them on the new terrain's resources (TEDIT-NEW-4; a format-13 project's strokes, made on
+  the base's view, stay refused). Both forms have a **Vegetation** box (on by default, format 14's
+  `terrain_import.vegetation`): the export places the base's forests, middlegrowth, rocks and natural props again on
+  the final ground (TGEN-VEG-1 - 3). The simplified and game-accurate views show the base's objects and vegetation
+  where the base has them until the export. A G4 project saved without a base opens on its own page and asks to be
+  made again.
 - **Multiplayer or campaign, from the data:** each level's description's `GameMode` (read by `catalog.rs`): a
   campaign mode (`gamemodes/singelplayer...`) is campaign, any other mode multiplayer; a level whose description is
   not read is listed under Create level only. On OPFOR's game copy: BFBC2 38 multiplayer + 13 campaign, BFBC1 8 + 0,
