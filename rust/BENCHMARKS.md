@@ -4980,8 +4980,8 @@ Files the ruling changed, and why:
 - `navtools_golden.json` (`test_navtools_native.py --record --game --only measures`): the parity rows of sp_009 and
   sp_004_b, whose candidates are the new golden builds (sp_004_b `connectivity` 99.90 -> 99.86, within navregress's
   0.05 tolerance).
-- OPFOR's `work
-avkit\parityegression.json` (not in the repository): re-recorded, the old one kept dated.
+- OPFOR's `work/navkit/parity/regression.json` (not in the repository): re-recorded, the old one kept dated.
+egression.json` (not in the repository): re-recorded, the old one kept dated.
 
 ### 4. navregress and the harness
 
