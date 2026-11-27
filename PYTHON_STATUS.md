@@ -24,14 +24,14 @@ rounds NK4 and NK5.
 
 | Status | Files | Lines |
 |---|---:|---:|
-| live | 17 | 5,083 |
+| live | 17 | 5,085 |
 | partly | 20 | 16,528 |
 | twin | 56 | 19,673 |
 | ported | 23 | 3,030 |
 | retired-pending | 3 | 310 |
 | stays | 71 | 14,508 |
 | test | 191 | 52,679 |
-| **all** | **381** | **111,811** |
+| **all** | **381** | **111,813** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -52,7 +52,7 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 18 | 11,536 | 1,657 | 3,775 | 984 | 126 |  |  | 4,994 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 20,412 | 762 |  | 2,430 | 1,909 |  |  | 15,311 |
+| `core` | 76 | 20,414 | 764 |  | 2,430 | 1,909 |  |  | 15,311 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 34 | 6,150 |  |  |  |  |  | 5,883 | 267 |
 | `spec` | 22 | 7,635 |  |  |  |  |  | 7,635 |  |
@@ -400,12 +400,12 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 20,412 lines.
+76 files, 20,414 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `core/bfbc2core/__init__.py` | 25 | library | live |  | every Python tool; OPFOR | the last Python | the package; __version__ from VERSION |
-| `core/bfbc2core/envvars.py` | 171 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
+| `core/bfbc2core/envvars.py` | 173 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
 | `core/bfbc2core/native.py` | 566 | library | live | bc2-cli pyproc (RETIRED list mirrored) | 63 suite modules, CI workflows; tests 53; OPFOR 11 | PR1b-2 (one registry), then the last Python | finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI |
 | `core/bfbc2core/appicon.py` | 35 | library | twin | rust/app_icon.rs, bc2-editor appicon | hub (.pyw); tests 1 | proposed: with the hub | the icon lookup the Rust builds also make |
 | `core/bfbc2core/atomicio.py` | 150 | library | twin | bc2_formats' one whole-file writer (PR1a) | 17 suite modules; tests 5 | PR1b-2 | atomic whole-file writes for the Python tools |

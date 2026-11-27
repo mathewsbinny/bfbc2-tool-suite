@@ -87,6 +87,8 @@ fn import_of(file: &str, n: u32, range: [f64; 2], water: f64, generate: Option<G
         colour_map: None,
         biome: Some("arid".into()),
         ring: false,
+        vegetation: None,
+        strokes_on_base: false,
         generate,
     }
 }

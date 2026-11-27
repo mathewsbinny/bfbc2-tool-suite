@@ -152,6 +152,43 @@ fn seed_of(sha1: &str) -> u64 {
     u64::from_str_radix(sha1.get(..16).unwrap_or("0"), 16).unwrap_or(0)
 }
 
+/// A new terrain's seed (round TG4: its tiled paint's and vegetation's): the generator's, else the height map's
+/// sha1's.
+#[must_use]
+pub fn seed_of_import(t: &TerrainImport) -> u64 {
+    t.generate
+        .as_ref()
+        .map_or_else(|| seed_of(&t.heightmap.sha1), |g| g.seed)
+}
+
+/// A new terrain's biome (the generator's, else the import's materials', else arid).
+#[must_use]
+pub fn biome_of_import(t: &TerrainImport) -> Biome {
+    t.generate
+        .as_ref()
+        .map(|g| g.biome.as_str())
+        .or(t.biome.as_deref())
+        .and_then(|b| b.parse().ok())
+        .unwrap_or(Biome::Arid)
+}
+
+/// A base terrain file's name in the new terrain (round TG4: the strokes name the base's files): `from`'s stem
+/// (`terrains/mp_005/mp_005`) replaced by `to`'s, or a renamed texture (`renames`: the colour / occlusion map, names
+/// without `.res`); `None` for a name of neither.
+#[must_use]
+pub fn mapped_name(name: &str, from: &str, to: &str, renames: &[(String, String)]) -> Option<String> {
+    let low = name.to_ascii_lowercase();
+    if let Some(rest) = low.strip_prefix(from)
+        && (rest.starts_with('.') || rest.starts_with('-'))
+    {
+        return Some(format!("{to}{rest}"));
+    }
+    renames
+        .iter()
+        .find(|(old, _)| format!("{}.res", old.to_ascii_lowercase()) == low)
+        .map(|(_, new)| format!("{new}.res"))
+}
+
 /// A height map's terrain (round E7): its stored heights ([`stored`]), the ring when asked (TGEN-RING-1, its distant
 /// hills seeded by the map's sha1), the 0.5 m material cells painted with the biome's names (TGEN-MAT-2).
 ///
@@ -359,6 +396,11 @@ pub struct DonorFiles {
     /// The terrain's partitions (entry name, type, bytes): `Terrains/<T>/<T>.dbx` and those named after it
     /// (`<T>-MaterialMap.dbx`), from the bundles the base's terrain and level load.
     pub partitions: Vec<(String, String, Vec<u8>)>,
+    /// Round TG4: the base terrain's main height field (its vegetation's poses on its own ground, where its tiled
+    /// layers lie).
+    pub heights: Option<Vec<u8>>,
+    /// Round TG4: the base terrain's material map (its tiled layers' paired materials, TEDIT-MM-2).
+    pub materials: Option<Vec<u8>>,
 }
 
 impl DonorFiles {
@@ -430,6 +472,8 @@ impl DonorFiles {
         }
         Ok(Self {
             terrain,
+            heights: get(&hf)?,
+            materials: get(&format!("{stem}-materialmap.res"))?,
             water: get(&format!("{stem}.water.res"))?,
             atlas: get(&format!("{stem}.masktileatlas.res"))?,
             stem,
@@ -819,6 +863,8 @@ mod tests {
             generate: None,
             biome: Some("snow".into()),
             ring: true,
+            vegetation: None,
+            strokes_on_base: false,
         };
         // the map's size must be its samples' (1 m)
         assert!(from_heightmap(&t, &d).unwrap_err().0.contains("1024 m"));
@@ -838,4 +884,459 @@ mod tests {
         assert!(res.iter().any(|r| r.name.ends_with("-012.res")));
         let _ = std::fs::remove_dir_all(&d);
     }
+}
+
+// ------------------------------------------------------------------------------------------------ tiled layers
+
+/// One tiled layer as the donor lays it on its own ground (round TG4, TGEN-MAT-3): its mean weight over the dry
+/// ground, and its weight's share per slope and height-over-water band over the ground's share (the vegetation's
+/// bands, `bc2_terragen::vegetation::SLOPE_BANDS` / `HEIGHT_BANDS`; neutral 1 where the ground has under 1 %).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LayerLay {
+    /// The layer.
+    pub layer: String,
+    /// Its mean weight (0 - 1) over the dry ground.
+    pub coverage: f64,
+    /// Its preference per slope band.
+    pub slope_pref: [f64; 6],
+    /// Its preference per height-over-water band.
+    pub height_pref: [f64; 6],
+    /// The material most of its strong mask lies on (TEDIT-MM-2), when that is over half of it.
+    pub material: Option<String>,
+}
+
+/// Each tiled layer of a terrain as it lies on its ground (its weights from [`crate::terrainpaint::layer_weights`],
+/// the ground sampled every 4 m).
+#[must_use]
+#[allow(clippy::cast_precision_loss, reason = "sample and cell counts, far below 2^52")]
+pub fn layer_lays(
+    weights: &BTreeMap<String, crate::delta::Raster>,
+    g: &bc2_terragen::vegetation::Ground,
+    pairs: &BTreeMap<String, crate::terrainpaint::Pair>,
+) -> Vec<LayerLay> {
+    use bc2_terragen::vegetation::{HEIGHT_BANDS, SLOPE_BANDS};
+    let band = |b: &[f64], v: f64| b.iter().position(|&x| v < x).unwrap_or(b.len() - 1);
+    let mut out = Vec::new();
+    for (layer, r) in weights {
+        let (mut gs, mut gh, mut ws, mut wh) = ([0f64; 6], [0f64; 6], [0f64; 6], [0f64; 6]);
+        let (mut sum, mut n) = (0.0, 0usize);
+        for j in (2..g.n).step_by(4) {
+            for i in (2..g.n).step_by(4) {
+                let (x, z) = (g.x0 + i as f64 * g.cell, g.z0 + j as f64 * g.cell);
+                if g.water.is_some_and(|w| g.height(x, z) <= w) {
+                    continue;
+                }
+                let w = f64::from(r.get(i as u32, j as u32)) / 255.0;
+                let (bs, bh) = (
+                    band(&SLOPE_BANDS, g.slope(x, z)),
+                    band(&HEIGHT_BANDS, g.over_water(x, z)),
+                );
+                if let (Some(a), Some(b), Some(c), Some(d)) =
+                    (gs.get_mut(bs), gh.get_mut(bh), ws.get_mut(bs), wh.get_mut(bh))
+                {
+                    *a += 1.0;
+                    *b += 1.0;
+                    *c += w;
+                    *d += w;
+                }
+                sum += w;
+                n += 1;
+            }
+        }
+        let pref = |wv: [f64; 6], gv: [f64; 6]| -> [f64; 6] {
+            let (tw, tg) = (wv.iter().sum::<f64>(), gv.iter().sum::<f64>().max(1.0));
+            std::array::from_fn(|k| {
+                let share = gv.get(k).copied().unwrap_or(0.0) / tg;
+                if share >= 0.01 && tw > 0.0 {
+                    wv.get(k).copied().unwrap_or(0.0) / tw / share
+                } else {
+                    1.0
+                }
+            })
+        };
+        out.push(LayerLay {
+            layer: layer.clone(),
+            coverage: sum / n.max(1) as f64,
+            slope_pref: pref(ws, gs),
+            height_pref: pref(wh, gh),
+            material: pairs.get(layer).filter(|p| p.share > 0.5).map(|p| p.material.clone()),
+        });
+    }
+    out
+}
+
+/// A seeded value noise of four octaves (128, 64, 32 and 16 m, amplitudes 1, 1/2, 1/4, 1/8), about unit spread.
+fn noise(seed: u64, stream: u64, x: f64, z: f64) -> f64 {
+    let s = bc2_terragen::rng::Stream::new(seed, stream);
+    let mut v = 0.0;
+    for (o, (scale, amp)) in [(128.0, 1.0), (64.0, 0.5), (32.0, 0.25), (16.0, 0.125)]
+        .into_iter()
+        .enumerate()
+    {
+        let (u, w) = (x / scale, z / scale);
+        let (i, j) = (u.floor(), w.floor());
+        let (fx, fz) = (u - i, w - j);
+        let (fx, fz) = (fx * fx * (3.0 - 2.0 * fx), fz * fz * (3.0 - 2.0 * fz));
+        let at = |a: f64, b: f64| {
+            let key = ((a as i64 as u64) << 32) ^ (b as i64 as u64 & 0xFFFF_FFFF) ^ ((o as u64) << 60);
+            2.0 * s.unit(key) - 1.0
+        };
+        let top = at(i, j) * (1.0 - fx) + at(i + 1.0, j) * fx;
+        let bottom = at(i, j + 1.0) * (1.0 - fx) + at(i + 1.0, j + 1.0) * fx;
+        v += amp * (top * (1.0 - fz) + bottom * fz);
+    }
+    v * 1.6
+}
+
+/// A tiled layer's weights on new ground (TGEN-MAT-3): a seeded noise plus the log of the layer's slope and height
+/// preferences, its edge 0.5 wide, its threshold found by bisection so its mean weight over the dry ground is the
+/// donor's coverage times `scale`; 0 under the water.
+#[must_use]
+#[allow(clippy::cast_precision_loss, reason = "sample and cell counts, far below 2^52")]
+pub fn lay_layer(
+    lay: &LayerLay,
+    g: &bc2_terragen::vegetation::Ground,
+    seed: u64,
+    stream: u64,
+    scale: f64,
+) -> crate::delta::Raster {
+    use bc2_terragen::vegetation::{HEIGHT_BANDS, SLOPE_BANDS};
+    let band = |b: &[f64], v: f64| b.iter().position(|&x| v < x).unwrap_or(b.len() - 1);
+    let n = g.n;
+    let mut score = vec![f64::NEG_INFINITY; n * n];
+    for j in 0..n {
+        for i in 0..n {
+            let (x, z) = (g.x0 + i as f64 * g.cell, g.z0 + j as f64 * g.cell);
+            let h = f64::from(g.heights.get(j * n + i).copied().unwrap_or(0.0));
+            if g.water.is_some_and(|w| h <= w) {
+                continue;
+            }
+            let ps = lay
+                .slope_pref
+                .get(band(&SLOPE_BANDS, g.slope(x, z)))
+                .copied()
+                .unwrap_or(1.0);
+            let ph = lay
+                .height_pref
+                .get(band(&HEIGHT_BANDS, g.over_water(x, z)))
+                .copied()
+                .unwrap_or(1.0);
+            if let Some(s) = score.get_mut(j * n + i) {
+                *s = noise(seed, stream, x, z) + ps.max(1e-3).ln() + ph.max(1e-3).ln();
+            }
+        }
+    }
+    let want = (lay.coverage * scale).clamp(0.0, 1.0);
+    let mean_at = |thr: f64| {
+        let (mut sum, mut k) = (0.0, 0usize);
+        for s in score.iter().step_by(7).filter(|s| s.is_finite()) {
+            sum += ((s - thr) / 0.5).clamp(0.0, 1.0);
+            k += 1;
+        }
+        sum / k.max(1) as f64
+    };
+    let (mut lo, mut hi) = (-20.0, 20.0);
+    for _ in 0..40 {
+        let mid = f64::midpoint(lo, hi);
+        if mean_at(mid) > want {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let thr = f64::midpoint(lo, hi);
+    let mut r = crate::delta::Raster::new(n as u32, n as u32, 0);
+    if want <= 0.0 {
+        return r;
+    }
+    for j in 0..n {
+        for i in 0..n {
+            let s = score.get(j * n + i).copied().unwrap_or(f64::NEG_INFINITY);
+            let w = ((s - thr) / 0.5).clamp(0.0, 1.0);
+            if w > 0.0 {
+                r.set(i as u32, j as u32, (w * 255.0).round() as u16);
+            }
+        }
+    }
+    r
+}
+
+/// What [`paint_tiled`] did.
+#[derive(Debug, Clone, Default)]
+pub struct Tiled {
+    /// Patch shaders the paint added, to be cloned into every database.
+    pub clones: Vec<crate::terrainpaint::NewShader>,
+    /// The layers painted: (layer, the donor's coverage, the new terrain's, its paired material).
+    pub layers: Vec<(String, f64, f64, Option<String>)>,
+    /// Lines for the report.
+    pub notes: Vec<String>,
+}
+
+/// The donor's tiled layers painted on a new terrain (round TG4, TGEN-MAT-3), through E5-rest's paint
+/// ([`crate::terrainpaint::paint`]: each reached cell's shader the donor's own combination or a clone, its tiles in
+/// free atlas slots): each layer laid as the donor lays it on its own ground ([`layer_lays`], [`lay_layer`]), its
+/// paired material painted under its strong mask (weight 200 or more) in the new material map, its name added when
+/// the map lacks it (TEDIT-MM-2, MAT-GRID-2: the donor's names are its level grid's). A layer the paint refuses (no
+/// shader to clone: TEDIT-SH-2) is left out; when the atlas has no room, every layer's coverage is cut by a third
+/// until it fits. A donor whose layers are not one kind each (TEDIT-VT-2) paints nothing: its rule layers draw alone
+/// (TGEN-VIS-1).
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::too_many_lines,
+    reason = "sample counts far below 2^52; the paint's steps in order: measure, lay, paint, fit the atlas, pair the materials"
+)]
+pub fn paint_tiled(
+    built: &mut Built,
+    t: &Terrain,
+    name: &str,
+    donor: &DonorFiles,
+    textures: Option<&crate::terrainpaint::EntryTextures>,
+    seed: u64,
+) -> Tiled {
+    let mut out = Tiled::default();
+    let (Some(atlas), Some(hb)) = (donor.atlas.as_deref(), donor.heights.as_deref()) else {
+        out.notes
+            .push("tiled layers: the donor has no mask atlas or height field; rule layers only (TGEN-VIS-1)".into());
+        return out;
+    };
+    let Ok(dh) = bc2_formats::terrain::parse(hb) else {
+        out.notes
+            .push("tiled layers: the donor's height field does not read".into());
+        return out;
+    };
+    let weights = match crate::terrainpaint::layer_weights(&donor.visual, atlas, dh.size) {
+        Ok(w) if !w.is_empty() => w,
+        Ok(_) => {
+            out.notes
+                .push("tiled layers: the donor draws none; rule layers only (TGEN-VIS-1)".into());
+            return out;
+        }
+        Err(e) => {
+            out.notes.push(format!(
+                "tiled layers: not painted, the donor's are not one kind each (TEDIT-VT-2: {e}); rule layers only"
+            ));
+            return out;
+        }
+    };
+    let pairs = donor
+        .materials
+        .as_deref()
+        .and_then(|m| bc2_formats::terrain_codec::MaterialMap::decode(m).ok())
+        .and_then(|m| crate::terrainpaint::pairing(&donor.visual, atlas, dh.size, &m).ok())
+        .unwrap_or_default();
+    let dg = crate::vegetation::ground_of(&dh, donor.water_level);
+    let lays = layer_lays(&weights, &dg, &pairs);
+    let g = bc2_terragen::vegetation::Ground::of_generated(&t.height);
+    let n = t.height.size;
+    let low = |e: &NewEntry, end: &str| e.name.to_ascii_lowercase().ends_with(end);
+    let (Some(vi), Some(ai)) = (
+        built.terrain.iter().position(|e| low(e, ".visual.res")),
+        built.terrain.iter().position(|e| low(e, ".masktileatlas.res")),
+    ) else {
+        out.notes
+            .push("tiled layers: the new terrain has no visual terrain or atlas".into());
+        return out;
+    };
+    let (Some(visual), Some(atl)) = (
+        built.terrain.get(vi).map(|e| e.data.clone()),
+        built.terrain.get(ai).map(|e| e.data.clone()),
+    ) else {
+        return out;
+    };
+    let rasters: Vec<(LayerLay, crate::delta::Raster)> = lays
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.coverage > 0.0)
+        .map(|(k, l)| (l.clone(), lay_layer(l, &g, seed, 0x7A1E_0000 + k as u64, 1.0)))
+        .collect();
+    // the layers the paint takes on their own (a combination it cannot make is left out)
+    let mut ok: Vec<usize> = Vec::new();
+    for (k, (l, r)) in rasters.iter().enumerate() {
+        let one = [crate::terrainpaint::PaintLayer {
+            layer: &l.layer,
+            weights: r,
+        }];
+        match crate::terrainpaint::paint(&visual, &atl, n, &one, textures) {
+            Ok(_) => ok.push(k),
+            Err(e) => out.notes.push(format!("tiled layers: {} left out ({e})", l.layer)),
+        }
+    }
+    let mut scale = 1.0;
+    let mut cur: Vec<(LayerLay, crate::delta::Raster)> = ok.iter().filter_map(|&k| rasters.get(k).cloned()).collect();
+    for round in 0..8 {
+        let layers: Vec<crate::terrainpaint::PaintLayer<'_>> = cur
+            .iter()
+            .map(|(l, r)| crate::terrainpaint::PaintLayer {
+                layer: &l.layer,
+                weights: r,
+            })
+            .collect();
+        match crate::terrainpaint::paint(&visual, &atl, n, &layers, textures) {
+            Ok(p) => {
+                out.notes.extend(p.notes.iter().map(|x| format!("tiled layers: {x}")));
+                out.notes.push(format!(
+                    "tiled layers: {} painted ({} cells, {} tiles, {} shader(s) cloned){}",
+                    cur.iter().map(|x| x.0.layer.as_str()).collect::<Vec<_>>().join(", "),
+                    p.cells,
+                    p.tiles,
+                    p.added.len(),
+                    if round > 0 {
+                        format!(", coverage x {scale:.2} for the atlas's room")
+                    } else {
+                        String::new()
+                    }
+                ));
+                if let Some(e) = built.terrain.get_mut(vi) {
+                    e.data = p.visual;
+                }
+                if let Some(e) = built.terrain.get_mut(ai) {
+                    e.data = p.atlas;
+                }
+                out.clones = p.added;
+                break;
+            }
+            Err(e) if round < 7 && !cur.is_empty() => {
+                scale *= 2.0 / 3.0;
+                out.notes
+                    .push(format!("tiled layers: {e}; coverage cut to x {scale:.2}"));
+                cur = cur
+                    .iter()
+                    .enumerate()
+                    .map(|(k, (l, _))| (l.clone(), lay_layer(l, &g, seed, 0x7A1E_0000 + k as u64, scale)))
+                    .collect();
+            }
+            Err(e) => {
+                out.notes.push(format!("tiled layers: not painted ({e})"));
+                cur.clear();
+                break;
+            }
+        }
+    }
+    // the coverage laid, and the paired materials under the strong masks (TEDIT-MM-2)
+    let Some(mi) = built.terrain.iter().position(|e| low(e, "-materialmap.res")) else {
+        return out;
+    };
+    let mut added: Vec<String> = Vec::new();
+    let Some(base_map) = built.terrain.get(mi).map(|e| e.data.clone()) else {
+        return out;
+    };
+    let Ok(m) = bc2_formats::terrain_codec::MaterialMap::decode(&base_map) else {
+        return out;
+    };
+    let mut raster = crate::terrainedit::material_raster(&m);
+    let mut names = m.names.clone();
+    let per = (m.width / n.max(1)).max(1);
+    for (l, r) in &cur {
+        let dry: Vec<u16> = (0..n)
+            .flat_map(|j| (0..n).map(move |i| (i, j)))
+            .filter(|&(i, j)| {
+                g.water
+                    .is_none_or(|w| f64::from(g.heights.get((j * n + i) as usize).copied().unwrap_or(0.0)) > w)
+            })
+            .map(|(i, j)| r.get(i, j))
+            .collect();
+        let laid = dry.iter().map(|&v| f64::from(v) / 255.0).sum::<f64>() / dry.len().max(1) as f64;
+        out.layers.push((l.layer.clone(), l.coverage, laid, l.material.clone()));
+        let Some(mat) = &l.material else { continue };
+        let idx = if let Some(k) = names.iter().position(|x| x.eq_ignore_ascii_case(mat)) {
+            k
+        } else if names.len() < crate::terrainedit::MAX_MATERIALS {
+            names.push(mat.clone());
+            added.push(mat.clone());
+            names.len() - 1
+        } else {
+            continue;
+        };
+        for j in 0..n {
+            for i in 0..n {
+                if r.get(i, j) >= 200 {
+                    for b in 0..per {
+                        for a in 0..per {
+                            raster.set(i * per + a, j * per + b, idx as u16);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if let Ok(written) = crate::terrainedit::write_materials_named(&base_map, &raster, &added) {
+        if let Some(e) = built.terrain.get_mut(mi) {
+            e.data = written;
+        }
+        if !added.is_empty() {
+            out.notes.push(format!(
+                "tiled layers: the material map names {} added for the layers' paired materials (TEDIT-MM-2)",
+                added.join(", ")
+            ));
+        }
+    }
+    let _ = name;
+    out
+}
+
+// ------------------------------------------------------------------------------------------------ the editor's view
+
+/// A Create Level project's new terrain as the editor shows and sculpts it (round TG4): the resources the export
+/// builds (the terrain, its visual side, the donor's tiled layers painted), each under the **base's** name (the
+/// level's partition names the base's terrain until the export renames it, so the strokes' targets are the base's
+/// files and the export lays them on the new terrain's: `export`'s `mapped_name`).
+#[derive(Debug, Clone, Default)]
+pub struct View {
+    /// The base terrain's stem (`terrains/mp_005/mp_005`).
+    pub stem: String,
+    /// The resources by the base's lower-case names (`terrains/mp_005/mp_005.heightfield-000.res` ...).
+    pub files: BTreeMap<String, Vec<u8>>,
+    /// The colour / occlusion map under the base's name (`terrains/mp_005/textures/mp05_ambientocclusion.res`).
+    pub colour: Option<(String, Vec<u8>)>,
+    /// Lines for the editor's notes.
+    pub notes: Vec<String>,
+}
+
+/// The new terrain of a project on a base level, built as the export builds it ([`View`]).
+///
+/// # Errors
+/// The base's terrain does not read, or the terrain does not build.
+pub fn view(game: &Game, base: &str, t: &TerrainImport, project_file: &Path) -> Result<View> {
+    let dx9 = crate::shaders::level_database(game, base, "dx9_single.res")?;
+    let donor = DonorFiles::read(game, base, dx9.as_deref())?;
+    let (terrain, mut notes) = terrain_of(t, project_file, donor.water_level)?;
+    // the name is the export's to give; any name builds the same bytes but for the names inside
+    let tname = "NEWTERRAIN";
+    let mut built = build(&terrain, tname, &donor)?;
+    let textures = dx9
+        .as_deref()
+        .and_then(|db| crate::terrainpaint::entry_textures(db).ok());
+    let tiled = paint_tiled(
+        &mut built,
+        &terrain,
+        tname,
+        &donor,
+        textures.as_ref(),
+        seed_of_import(t),
+    );
+    notes.extend(tiled.notes);
+    let to = format!("terrains/{0}/{0}", tname.to_ascii_lowercase());
+    let mut files = BTreeMap::new();
+    for e in &built.terrain {
+        let low = e.name.to_ascii_lowercase();
+        if let Some(rest) = low.strip_prefix(&to) {
+            files.insert(format!("{}{rest}", donor.stem), e.data.clone());
+        }
+    }
+    let colour = donor.occlusion.as_ref().and_then(|(old, _)| {
+        let (_, new) = built.textures.first()?;
+        let data = built
+            .level
+            .iter()
+            .find(|e| e.name.eq_ignore_ascii_case(&format!("{new}.res")) || e.name.eq_ignore_ascii_case(new))?
+            .data
+            .clone();
+        Some((format!("{}.res", old.to_ascii_lowercase()), data))
+    });
+    Ok(View {
+        stem: donor.stem,
+        files,
+        colour,
+        notes,
+    })
 }

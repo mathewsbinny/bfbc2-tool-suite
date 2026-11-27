@@ -5608,6 +5608,105 @@ byte-identical to the oracle.
 
 Checks on the final tree (main bceb84f4 and 6d95c313 merged): cargo fmt; `cargo clippy --all-targets -D warnings` on bc2-install (feature `rebuild`) and bc2-py, and bc2-cli's 19 tool groups alone and together, clean; bc2-install's tests 41 passed (the rebuild module's 8 among them); the quick tier 134 of 137 on the first merge - the three failures were the new `OPFOR_REBUILD_TRACK` (now registered) and the spec / native-census checks reading OPFOR's main checkout, which does not have OR7's OPFOR side yet (against OPFOR's `or7`: `trace.py --check` ok, 1,574 rules, XDEP-STEP-8 - 10 unused on main; `native_census.py --check` 378 exports, 0 without a caller); OPFOR's `run_tests.py quick` 372 passed, 15 skipped; ruff and mypy clean on OPFOR's `ww2` and `tests`.
 
+
+## TG4: vegetation, tiled layers and sculpt on a generated terrain (2026-11-27, branch `tg4`)
+
+ROADMAP row TG4. Spec: `transforms/terrain_gen.md` TGEN-VEG-1 (implemented), TGEN-VEG-2 / -3 / -4 and TGEN-MAT-3 (new,
+verified), TGEN-MAT-2 and TGEN-PLAN-1 updated; `transforms/terrain_edit.md` TEDIT-NEW-4 (new, verified), TEDIT-NEW-2
+updated; `engine/vegetation.md`'s density question answered. Project format 14. Paused about an hour for OR7's
+rebuild (the coordinator's hold); nothing was installed or launched, OPFOR's `game\` was only read.
+
+### 1. DICE's vegetation, measured (TGEN-VEG-2)
+
+`bc2_levelwrite::vegetation::dice_terrain_stats` reads DICE's 19 multiplayer terrains (the 30 of TGEN-BIOME-1 with
+multiplayer levels; per terrain the level with the most forest and middlegrowth instances, the playable area the
+union of all its multiplayer levels' combat areas) in 13.9 s, and `bc2_terragen::vegetation::measure` gives per kind
+(forest, middlegrowth, rock, prop): density per hectare of dry ground inside the playable area and in bands of 0 -
+50, 50 - 150, 150 - 300, 300 - 600 and 600+ m outside it, nearest-neighbour distances, Ripley's K ratio at 3 / 10 /
+30 / 100 m, Clark and Evans, slope and height-over-water preferences, tilt (from the vertical and the normal), yaw,
+scale and sink. The biome medians are kept as `vegetation_dice.rs` (`BiomeStats::dice`); the game tier measures them
+again and holds them equal (`vegetation::dice_biome_statistics`). The table is in TGEN-VEG-2. Findings: DICE never
+scales a member; trees and bushes stand upright with no favoured yaw, rocks are turned freely and sunk; densities fall
+off steeply outside the playable area (snow's forests excepted); everything is clustered and prefers 20 - 30 degree
+ground to flat ground.
+
+Kinds: forest and middlegrowth groups' members; a static or rigid group's member is a rock by its blueprint's name
+(rock, cliff, stone, boulder) and a prop when its blueprint lies under `vegetation/`, `objects/vegetation/` or a
+terrain's folder. Man-made props, buildings and gameplay stay where the base has them (TG5 / A3).
+
+### 2. The placement (TGEN-VEG-3)
+
+`place_biome`: per kind and band, a Thomas cluster process (parents uniform on the band's dry ground, Gaussian
+offspring), thinned by DICE's slope and height preferences, a hard-core gap of half DICE's 10th-percentile
+nearest-neighbour distance, the type by the base's shares, the pose one of the type's own DICE instances' (yaw taken
+out, vertical or normal frame, sink kept) at a uniform yaw. Fitting the Thomas formula to DICE's K ratios alone gave
+the wrong clustering after the thinning (arid forest K10 1.4 too low at first; with each cluster enlarged by the
+thinning's keep rate 5.2 against DICE's 2.3); calibrating the count and spread on the ground for six rounds (K10
+excess and nearest-neighbour median, the best round kept) brings every kind within the test's bounds:
+
+| Biome (1,024, seed 7) | Instances | Time | Kinds within the bounds |
+|---|---:|---:|---|
+| arid | 632 | 1.9 s | 4 of 4 (forest K10 4.2 against 2.3, inside the factor 3) |
+| jungle | 5,224 | 3.2 s | 4 of 4 |
+| snow | 3,949 | 2.8 s | 3 of 3 |
+| temperate | 2,497 | 2.7 s | 3 of 3 (rock: DICE has one instance, not checked) |
+| vietnam | 4,080 | 2.1 s | 3 of 3 |
+
+Bounds: the playable area's density within 10 % (20 % under 100 instances), the nearest-neighbour median within a
+factor 1.6 and the K10 excess within a factor 3 (kinds of 50 or more), the slope median within 12 degrees. The
+per-kind numbers against DICE's medians are TGEN-VEG-3's table (`rust/bc2-terragen/tests/vegetation.rs`).
+
+### 3. The writer: DICE's groups round-trip (TGEN-VEG-4)
+
+The placement is written as round SG1's member edits (moves, then copies, then deletes). DICE's 17 model groups of
+MP_005, MP_009CQ, MP_007, MP_004 and NAM_MP_003CQ (forest, middlegrowth, static, rigid; 15,699 members), every type's
+members but its first added again at DICE's transforms and the originals deleted: group file, partition and physics
+byte for byte, 17 of 17 (200 s: the member edits are applied one by one). The first version copied a type's first
+member and failed on MP_005's static group: 17 `SpawnDatas` records there name another `MeshShaderSet` than their
+type's first. So each added instance copies the DICE instance whose pose it took, and copies are made before deletes.
+
+### 4. Tiled layers (TGEN-MAT-3)
+
+`terrainpaint::layer_weights` reads a terrain's tiled layers back from its patch maps and atlas;
+`newterrain::paint_tiled` measures each on the donor's own ground (coverage, slope and height preferences, paired
+material) and lays it on the new terrain (seeded value noise plus the preferences, threshold by bisection to the
+donor's coverage) through E5-rest's paint. MP_005 on an arid 1,024 terrain: Dirtfloor, DryGrass, Rubble, Trash over
+307 cells, 47 tiles (105 slots left), no clone; Asphalt left out (no `Dunes_Asphalt_Seafloor_Destruction` to use or
+clone); `Dirt` added to the material map for Dirtfloor's pair.
+
+### 5. Sculpt and paint on the new terrain (TEDIT-NEW-4)
+
+The editor opens a Create Level project on its new terrain (`newterrain_view`, in the loading task). The strokes keep
+the base's file names, and the export reads and writes them on the new terrain's built resources: the new terrain is
+built before the log is applied (`ExportSources::terrain`; the first run refused a stroke as 1,024 samples on a
+2,048 height field). E7-TG3's refusal is lifted; a version-13 project's strokes, made on the base's view, are marked
+in the 13 -> 14 migration and still refused.
+
+### 6. Exports (game tier, release, MP_005 as Conquest, a generated arid 1,024 terrain)
+
+| Test | Result |
+|---|---|
+| `vegetation::a_generated_level_with_vegetation_exports_and_checks` (vegetation, a 15 m hill and an Asphalt stroke made on the new terrain) | built in 38 - 46 s (terrain and tiled layers 7.8 s, placement 0.6 s, member edits 1.8 s); 111 forest and 137 middlegrowth instances in place of the base's 110 / 359 (MP_005 has no rock or prop types); `export::check` (35 - 41 s) passes every rule, the four groups' rules among them; the hill 15.00 m on the staged ground; forest inside 13.6 per ha against DICE's arid 14.8, middlegrowth 18.7 against 20.3 |
+| `vegetation::a_generated_level_with_vegetation_has_path_data` (with `bin\bfbc2.exe` of main 9f61d758, the sampler unchanged) | with vegetation: built with path data in 79 s, 6,780 route nodes, connectivity 0.879, coverage 0.858; without: 60 s, 6,620 nodes, 0.883, 0.857 |
+| `vegetation::dice_groups_round_trip_through_the_member_writer` | 17 of 17 groups byte for byte |
+| `vegetation::dice_biome_statistics` | the 19 terrains measured again equal the kept table |
+| `new_terrain::*`, `terrain_edits::*`, `terrain_layers::*`, `model_group_members::*` (E7-TG3's, E5's, E5-rest's, SG1's game tier) | 13 of 13 pass after the export's change (XVAL-PLACE-5's lines are the layers' own, as before) |
+
+### Left
+
+- **Unproven until a playtest:** the placed vegetation, rocks and props in game (look, collision, destruction of
+  trees on new ground), the tiled layers' look, the sculpted and painted new terrain. Nothing was installed or
+  launched.
+- The editor's simplified and game-accurate views show the base's vegetation and objects where the base has them
+  until the export; the game-accurate view draws the base's terrain for a Create Level project.
+- Man-made props, buildings and gameplay stay where the base had them (TG5 / A3). Bases with no rock or prop types
+  (MP_005) place none; no member type is added.
+- Tiled layers only for donors whose layers are one kind each (MP_005, MP_006, MP_007); a layer with no shader for a
+  combination is left out.
+- The member edits are applied one by one (quadratic on large groups: 200 s for 15,699 members in the round-trip
+  test, 1.8 s for MP_005's export); a bulk writer would be faster.
+- The playable area of a generated level is the base's combat area, laid out for the base's map (TG5 places it).
+
 ## OR8: OPFOR in Rust, the leftovers - the WW2 effect porter and the sound porter (2026-11-27, branch `or8`, with Project OPFOR's `or8`)
 
 What OR4 left of stage 4 ("OR4", "What is left"): `effectport` (the material grid's, the level builds' and the

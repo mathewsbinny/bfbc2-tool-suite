@@ -38,6 +38,7 @@ mod real_levels;
 mod rush_stages;
 mod terrain_edits;
 mod terrain_layers;
+mod vegetation;
 mod vw2;
 
 /// At most this many of the binary's tests run at the same time.

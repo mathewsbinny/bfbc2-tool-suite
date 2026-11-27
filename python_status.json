@@ -2739,7 +2739,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 171,
+   "lines": 173,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -4641,7 +4641,7 @@
  "totals": {
   "all": {
    "files": 381,
-   "lines": 111811
+   "lines": 111813
   },
   "by_folder": {
    "(root)": {
@@ -4833,8 +4833,8 @@
    },
    "core": {
     "files": 76,
-    "lines": 20412,
-    "live": 762,
+    "lines": 20414,
+    "live": 764,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
@@ -4890,7 +4890,7 @@
   "by_status": {
    "live": {
     "files": 17,
-    "lines": 5083
+    "lines": 5085
    },
    "partly": {
     "files": 20,

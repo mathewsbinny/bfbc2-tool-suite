@@ -250,8 +250,11 @@ pub const GETTING_STARTED: [(&str, &str); 15] = [
          samples a side, or 1025 / 2049: the map is as many metres across), the height range and water level, an \
          optional colour map, the materials and a ring; Generate takes the terrain generator's biome, size, seed, \
          border, water share, water level, rough relief, pads and ring. Both build on a base level (a multiplayer \
-         map: its mode layer, objects, weather and its terrain's look) and open on it; Export writes the new terrain \
-         as the level's own terrain bundle, and its path data is sampled on it.",
+         map: its mode layer, objects, weather and its terrain's look) and open on the new terrain, where the \
+         Terrain workspace sculpts and paints it as any terrain; Vegetation (on by default) places the base's \
+         trees, bushes, rocks and natural props again on the new ground as DICE's levels of its biome place them. \
+         Export writes the new terrain as the level's own terrain bundle, with the base's tiled layers painted, \
+         and its path data is sampled on it.",
     ),
     (
         "Look around",
