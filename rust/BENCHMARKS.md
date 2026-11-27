@@ -6110,7 +6110,7 @@ OPFOR were read only.
 | code that switches on a mode | 26 ModeID compares (conquest 9, goldrush 2, squadrush 3, tdm 7, singleplayer 5) with what each decides; the mode-kind object at 0x15666C0 (tdm 2, squadrush 1, else 0); the query id's stats category (+ `singleplayer` 1), the "any" search's fixed four; the catalogue keyed by ModeID; SP / MP persistence templates only (`Ons_Template` shipped, never named) | GMD-SW-1 - 4, GMD-CAT-1, GMD-PERS-1, GMD-MM-1 |
 | the game mod's readers | exactly 33 instructions on +0xC8C8C (2 dead, 5 stores, 20 `== 1`, 7 loads / 1 compare) and 8 on +0xC8C90, each named | ERA-MOD-1 |
 | where the mod comes from | the loading screen (0x772DD0, the `_description` asset) and the HUD's start (0x775C00, LevelData) parse the level's `MatchmakingModID`; no profile setting exists (GAME-MODE-6 and OPFOR's first study corrected) | ERA-MOD-2 |
-| a third era | only 0 / 1 in code; no third tag; `UISharedConfigAsset` has a fixed era pair (the Vietnam patch sets it: 2 + 26 items); not data-possible; a host layer over 0 / 1 with a 6-step patch set | ERA-MOD-3, ERA-RES-1, ERA-RES-2, ERA-NEW-1, ERA-NEW-2 |
+| a third era | only 0 / 1 in code; no third tag; `UISharedConfigAsset` has a fixed era pair (the Vietnam patch sets it: 2 + 26 items); not data-possible; a host layer over 0 / 1 with a 6-step patch set (native eras are the user's GM1 - GM3) | ERA-MOD-3, ERA-RES-1, ERA-RES-2, ERA-NEW-1, ERA-NEW-2 |
 | licences | the setter's sign-in gate, `playerHasLicenseToNam`, level licences, `applyLicenses`, the five entitlement queries: described, not designed around | ERA-LIC-1, ERA-MM-1 |
 | OPFOR / battlefield-opfor | OPFOR: Pacific levels keep Vietnam's HUD configuration and icon set; battlefield-opfor's 0x8FF330 detour returns the active era for every level | ERA-OPF-1, ERA-OPF-2 |
 
@@ -6130,5 +6130,5 @@ rewritten for the new rules), the spec probes' test, the quick tier, ruff and my
 
 ### What is left (GM0)
 
-- Queued as GM1: the readers of the bundle refs and `KickIfLicenseMissing`, the mode-kind objects' virtual functions,
+- Queued as GM0-rest (beside the user's native-era rounds GM1 - GM3): the readers of the bundle refs and `KickIfLicenseMissing`, the mode-kind objects' virtual functions,
   the server's game-mod strings; OPFOR's era-aware HUD configuration and icon set; battlefield-opfor's parser fix.

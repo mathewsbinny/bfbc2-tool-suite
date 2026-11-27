@@ -456,14 +456,16 @@ every site tests `== 1`. Each place a third value would touch, with the work it 
 | 8 | the menus | every ActionScript test of `extern.gameMod` (main_nav and the backend pages) |
 | 9 | persistence, awards, stats | nothing selects them by era (GMD-PERS-1): a separate career is the module's |
 
-So the engine cannot support game mod 2, 3 natively by data. It can by patches, but rows 4 - 7 are 30 sites whose
-miss falls back silently to BFBC2's content, and row 6 has no data slot anywhere. Eras stay a host concept layered on
-0 / 1 (ERA-NEW-2).
+So the engine cannot support game mod 2, 3 natively by data. It can by patches: rows 1 - 5 and 7 - 8 are small,
+documented patches; rows 4 - 7 are 30 sites whose miss falls back silently to BFBC2's content, so each needs its
+decision; row 6 has no data slot anywhere and needs module-held data whatever the engine value. The user chose
+native eras 2 and 3 on 2026-11-27 (ROADMAP GM1 - GM3: a decision per site, then the patch set and the data);
+ERA-NEW-2 is the layered design those rounds compare against, and its steps are needed by both.
 
 [inferred: from ERA-MOD-1 - ERA-MOD-3, ERA-RES-1, ERA-RES-2, ERA-LIC-1, GMD-PERS-1]
 [doc: opfor:research/WW2_THIRD_MODE.md:257-311]
 
-### ERA-NEW-2: An era is a host layer over 0 / 1 with per-site own content
+### ERA-NEW-2: An era as a host layer over 0 / 1 with per-site own content
 
 Status: **inferred** · Variants: PC
 

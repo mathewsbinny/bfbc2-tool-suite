@@ -404,7 +404,7 @@
    "file": "spec/engine/gamemodes.md",
    "id": "ERA-NEW-2",
    "status": "inferred",
-   "title": "An era is a host layer over 0 / 1 with per-site own content",
+   "title": "An era as a host layer over 0 / 1 with per-site own content",
    "variants": "PC"
   },
   {
