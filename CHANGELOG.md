@@ -32,7 +32,7 @@ landed on `main`.
 
 Round OR10 retires Project OPFOR's Python of the console Onslaught port's stages 5 - 7: OPFOR now needs this
 version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`, so its `SUITE_REQUIRES` moves to
-0.36.0 - 0.37.0.
+0.36.0 - 0.37.0. Round GM1's research, merged before it unreleased, is in this version too.
 
 ### Added
 
@@ -46,18 +46,6 @@ version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`
 - **`bc2_convert::shadercmd`**: `shaderdb.py`'s `needs` and `merge` (with `load`, `level_meshes`, `read_need`,
   `check`, `verify_merge` and the report) as a library, moved from `bfbc2.exe shaderdb` (which keeps its command line
   over it, the same output), so OPFOR's stage 7 merges in process instead of running `shaderdb.py`.
-
-### Fixed
-
-- **OPFOR's console port stage 6 ran again**: `console_soldiers.py` read its class map from `console_onslaught.py`'s
-  text, which round OR5 moved into Rust; since then the stage stopped at once (`ValueError: substring not found`). The
-  stage now takes `bc2_install::onslaught::SOLDIERS`, stage 1's own map (XCONS-ONS-6).
-- **The mesh index follows junctions** as `meshview._bundles` (Python's `os.walk`) does: a game copy whose level
-  folders are junctions (a round's checkout, a test's stand-in) had those levels' bundles missing from the index
-  `bfbc2.exe meshview`, the map editor and OPFOR's tools share.
-
-### Added
-
 - `spec/engine/eras.md` (round GM1, research): native eras for Project OPFOR. The four values are 0 BFBC2, 1 Vietnam,
   2 BF1943 / Pacific War (tag `PACIFIC`, label `BFBC2143`) and 3 BFBC1 (tag `BC1`, label `BFBC2Beach`). The file covers:
   - a decision (as 0, as 1, or the era's own resource), the reason and round GM2's patch for each of the game mod's
@@ -74,10 +62,24 @@ version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`
   instruction boundary and that no patch range overlaps a kept one. `core/tests/test_spec_probes.py::game_modes`
   checks 24 answers.
 
+### Changed
+
+- **One copy of the console port's file helpers** (round OR10, after merging OR11 and OR12): `xml_of`, `under`,
+  `manifest_lines`, `write_manifest` and `drop_xml` live in `bc2_install::onslaught::port` only; the private copies
+  in `onslaught/files.rs` (OR11), `loading.rs` (OR12) and `mode.rs` (OR9) are gone. No output changes.
+
 ### Fixed
 
+- **OPFOR's console port stage 6 ran again**: `console_soldiers.py` read its class map from `console_onslaught.py`'s
+  text, which round OR5 moved into Rust; since then the stage stopped at once (`ValueError: substring not found`). The
+  stage now takes `bc2_install::onslaught::SOLDIERS`, stage 1's own map (XCONS-ONS-6).
+- **The mesh index follows junctions** as `meshview._bundles` (Python's `os.walk`) does: a game copy whose level
+  folders are junctions (a round's checkout, a test's stand-in) had those levels' bundles missing from the index
+  `bfbc2.exe meshview`, the map editor and OPFOR's tools share.
 - `spec/engine/gamemodes.md` ERA-MOD-1: the unlock-tree reader 0x93D14F is in 0x93D120, which `extern.playerStats`
   reaches through 0x944D50. It is not in 0x93CF40.
+- `bc2-install`'s level-build tests read the process-wide stock index one at a time: two tests replaced each other's
+  kept index between two reads (`stock_bundles_index_and_our_files` failed now and then, "kept for the process").
 
 ## [0.35.0] - 2026-11-27
 
