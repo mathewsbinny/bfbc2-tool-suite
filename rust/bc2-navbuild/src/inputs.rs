@@ -954,7 +954,7 @@ pub const RECT_ON_DICE_LEVELS: bool = false;
 /// rectangle ([`spawn_bounds`]), else `None`.
 pub fn build_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
     match reference_bounds(r, lv)? {
-        Some(b) if !(RECT_ON_DICE_LEVELS && !lv.to_lowercase().starts_with("ons_")) => Ok(Some(b)),
+        Some(b) if !RECT_ON_DICE_LEVELS || lv.to_lowercase().starts_with("ons_") => Ok(Some(b)),
         Some(b) => Ok(spawn_bounds(r, lv)?.or(Some(b))),
         None => spawn_bounds(r, lv),
     }

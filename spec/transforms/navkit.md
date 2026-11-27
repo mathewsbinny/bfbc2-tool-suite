@@ -69,6 +69,33 @@ vertices contain nothing).
 [test: bfbc2-auto-navkit/tests/test_navedits.py::matplotlib_agreement]
 [data: the 15 regression levels' 30 walkability stages give the retired Python's run, kept flags, gradients and stair flags bit for bit, and the same path data (rust/parity_nk4_walk.py, round NK4)]
 
+### XNAV-BLD-5: The terrain under a sampling hole (a switch, off)
+
+Status: **implemented**
+
+The samplers (in game and offline) cast down a column and, after a hit, start the next cast just under it; a cast
+that starts inside geometry steps down 0.5 m at a time, at most 10 m (`formats/navsample.md`). Under a thick object
+the column then ends on the object's top and the ground below is never sampled, while DICE's generator, querying the
+collision world itself, keeps that ground: on sp_003_b a forbidden rock's slab 34 m tall leaves a diagonal strip of
+1-4 columns at 0.2 m without terrain, which cuts DICE's one area (sector 0x811) in two and the route network with it
+(`ai_pairwise` 74.4 %). With `Switches::terrain_fill` (`navwalk.TERRAIN_FILL`) the walkability stage gives a column the
+level height field's surface when the column has surfaces but none within 0.5 m of the field, its lowest lies more
+than 1 m above the field, and along an axis or a diagonal the first column on each side that is not such a hole lies
+within 1.2 m and holds a terrain surface within 0.3 m of its field height (a narrow strip between sampled ground, never
+the floor under a building). The surface takes the field's normal and the terrain's hit words; its capsule flag is
+blocked when the column's lowest surface lies closer above it than the capsule's top plus its radius.
+
+Off by the rule of XNAV-BLD-3 until the user rules: on the 15 regression levels `ai_pairwise` 95.57 -> 96.77 %,
+`connectivity` 99.06 -> 99.24 %, `over_connection` 15.74 -> 15.70 % (sp_003_b 74.4 -> 93.4 %, 95.28 -> 98.44 %,
+37.02 -> 36.38 %), but `extra_ground` 8.31 -> 8.40 % (the filled terrain under objects DICE also leaves out: sp_008_b
++0.64, sp_008 +0.40) and per-level dips on 9 levels (largest: sp_03 `ai_pairwise` 98.1 -> 97.4, ons_mp_004
+`connectivity` 98.04 -> 97.88; `rust/BENCHMARKS.md` "NKS-deep D").
+
+[code: rust/bc2-navbuild/src/terrain_fill.rs:38] [code: rust/bc2-navbuild/src/walk.rs:1925]
+[test: rust/bc2-navbuild/src/terrain_fill.rs::tests::a_narrow_hole_under_a_slab_gets_the_terrain]
+[test: rust/bc2-navbuild/src/terrain_fill.rs::tests::wide_holes_and_empty_columns_are_left]
+[data: round NKS-deep D, `holes` (scratch): columns with no surface near the terrain under a surface more than 1 m above it, on the 0.8 m grid with DICE ground there: sp_003_b 72, sp_007 251, sp_01 895 (of 1,858 / 1,631 / 20,859 such columns)]
+
 ### XNAV-MEAS-1: The graph measured over every DICE node and edge by nearest-node pairing
 
 Status: **implemented**
@@ -83,7 +110,9 @@ partners hold the edge in the same direction; `costs_paired`, those whose cost w
 (within 1 m in height) as shares up to 0.05 / 0.1 / 0.25 / 0.5 / 1 / 2 / 4 m and beyond. The Rust core
 (`bc2_navbuild::measures`) and the Python (`navdiff.paired_graph`) give the same counts. `navparity` reports them
 beside the old exact-match measures (0.05 m: `nodes_same`, `edges_same`, `costs` over the matched edges only) and
-`navregress` fails a level when one drops.
+`navregress` fails a level when one drops. Since round NKS-deep D the old measures are navregress's `INFO`: listed
+when they change, never failing (the test harness's parity directions, `testharness/runs.py` and `harness/runs.rs`,
+take the same lists).
 
 [code: bfbc2-auto-navkit/tools/navdiff.py:288-353] [code: rust/bc2-navbuild/src/measures.rs:454-555]
 [test: bfbc2-auto-navkit/tests/test_navtools_native.py::quick]
@@ -171,7 +200,8 @@ Set by the user, 2026-11-22. "100 % parity" with DICE's path data means a full c
    `edges_paired` and `costs_paired` (DICE's edges held by the partners, and those with the cost within a tenth),
    with the nearest-node distance histogram; `nodes_near` (within 2 m) stays. The old exact-match measures
    (`nodes_same`, `edges_same` within 5 cm, `costs` of those few edges) are kept beside them for one round
-   (NKS-deep E) so the change is visible, then dropped from the target.
+   (NKS-deep E) so the change is visible, then dropped from the target (round NKS-deep D: navregress lists them,
+never failing).
 3. **Listed exceptions only:** DICE data that describes a level as it no longer is (SP_03's 93 nodes under the PC
    ground, `navparity.stale_nodes`), where the current level wins; and any rule shown to be unrecoverable from
    DICE's output, named with its evidence. Nothing else may stay short of the target unexplained. Named by the user's

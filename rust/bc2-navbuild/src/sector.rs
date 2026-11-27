@@ -19,6 +19,7 @@ use crate::{Cell, FastMap, FastSet, Level, NavError, graph, pick, propagate, pym
 
 /// The build's settings a sector graph reads (`cfg`, the module's switches).
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools, reason = "the build's switches, one flag each")]
 pub struct GraphCfg {
     /// `cfg.pitch`.
     pub pitch: f64,

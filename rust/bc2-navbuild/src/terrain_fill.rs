@@ -5,7 +5,7 @@
 //! just under it, and a cast that starts inside geometry steps down 0.5 m at a time, at most 10 m (`navsample.md`).
 //! Under a thick object - a cliff mesh's slab, a tall invisible wall - the column then ends on the object's top and
 //! the ground below is never sampled. DICE's generator queries the collision world directly and keeps that ground:
-//! on sp_003_b a forbidden rock's slab 34 m tall leaves a diagonal strip of 1-4 columns at 0.2 m without terrain, which
+//! on `sp_003_b` a forbidden rock's slab 34 m tall leaves a diagonal strip of 1-4 columns at 0.2 m without terrain, which
 //! cuts DICE's one area into two and the route network with it.
 //!
 //! The rule: a column inside the height field with surfaces but none within [`NEAR`] of the terrain, whose lowest
@@ -14,6 +14,12 @@
 //! within [`SIDE`] of its own field height (a narrow strip between sampled ground, never the floor under a building).
 //! The new surface's normal is the field's, its hit words the terrain's, and its capsule flag blocked when the column's
 //! lowest surface is closer above it than the capsule's top plus its radius.
+
+#![allow(
+    clippy::many_single_char_names,
+    clippy::too_many_lines,
+    reason = "the grid's names (c a column, k a surface, h a height, x / z a position); one pass over the columns"
+)]
 
 use std::sync::Arc;
 
@@ -29,6 +35,9 @@ pub const ABOVE: f64 = 1.0;
 pub const REACH: f64 = 1.2;
 /// The sampled ground on each side: a terrain surface within this of its field height (m).
 pub const SIDE: f64 = 0.3;
+
+/// The field's slope: a central difference over this (m).
+const E: f64 = 0.01;
 
 const DIRS: [(i64, i64); 4] = [(1, 0), (0, 1), (1, 1), (1, -1)];
 
@@ -59,7 +68,10 @@ pub fn fill(s: &Samples, hf: &Heightfield, vtable: u32) -> Option<(Samples, usiz
             }
             let (x, z) = pos(c);
             let h = hf.height(x, z);
-            let low = r.clone().map(|k| s.y.get(k).copied().unwrap_or(f64::NAN)).fold(f64::INFINITY, f64::min);
+            let low = r
+                .clone()
+                .map(|k| s.y.get(k).copied().unwrap_or(f64::NAN))
+                .fold(f64::INFINITY, f64::min);
             let near = r.clone().any(|k| s.y.get(k).is_some_and(|&y| (y - h).abs() < NEAR));
             (h.is_finite() && !near && low > h + ABOVE).then_some(h)
         })
@@ -88,7 +100,9 @@ pub fn fill(s: &Samples, hf: &Heightfield, vtable: u32) -> Option<(Samples, usiz
     let add: Vec<Option<f64>> = (0..cols)
         .map(|c| {
             let h = hole.get(c).copied().flatten()?;
-            DIRS.iter().any(|&(di, dj)| side(c, (di, dj)) && side(c, (-di, -dj))).then_some(h)
+            DIRS.iter()
+                .any(|&(di, dj)| side(c, (di, dj)) && side(c, (-di, -dj)))
+                .then_some(h)
         })
         .collect();
     let added = add.iter().filter(|a| a.is_some()).count();
@@ -119,8 +133,9 @@ pub fn fill(s: &Samples, hf: &Heightfield, vtable: u32) -> Option<(Samples, usiz
         }
         if let Some(Some(h)) = add.get(c) {
             let (x, z) = pos(c);
-            let low = range(c).map(|k| s.y.get(k).copied().unwrap_or(f64::NAN)).fold(f64::INFINITY, f64::min);
-            const E: f64 = 0.01;
+            let low = range(c)
+                .map(|k| s.y.get(k).copied().unwrap_or(f64::NAN))
+                .fold(f64::INFINITY, f64::min);
             let gx = (hf.height(x + E, z) - hf.height(x - E, z)) / (2.0 * E);
             let gz = (hf.height(x, z + E) - hf.height(x, z - E)) / (2.0 * E);
             let len = (gx * gx + 1.0 + gz * gz).sqrt();
@@ -159,6 +174,7 @@ pub fn fill(s: &Samples, hf: &Heightfield, vtable: u32) -> Option<(Samples, usiz
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 mod tests {
     use super::*;
 

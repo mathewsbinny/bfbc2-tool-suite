@@ -1515,7 +1515,11 @@ pub fn walkable(s: &Samples, inp: &WalkInputs, set: &WalkSettings) -> Result<Wal
                 .map(|k| !flag(&terrain, k) && flag(&clear, k) && !flag(&character, k) && !flag(&ok, k))
                 .collect();
             let c1: Vec<bool> = (0..n).map(|k| flag(&obj_c, k) && flag(&steep_c, k)).collect();
-            let ny1 = if set.lip_object_flat_all { Some(s.normal.ys()) } else { None };
+            let ny1 = if set.lip_object_flat_all {
+                Some(s.normal.ys())
+            } else {
+                None
+            };
             let more = grid.narrow_lips(
                 &ok,
                 &c1,
@@ -1523,7 +1527,7 @@ pub fn walkable(s: &Samples, inp: &WalkInputs, set: &WalkSettings) -> Result<Wal
                 width,
                 LipTests {
                     rise: Some(rise),
-                    flat: ny1.as_ref().and_then(|ny| set.lip_flat_cos.map(|c| (ny, c))),
+                    flat: ny1.as_ref().zip(set.lip_flat_cos),
                 },
             )?;
             or_into(&mut lips, more);
@@ -1915,7 +1919,11 @@ pub fn stage(
         f
     };
     let mut counts = StageCounts::default();
-    let s = match si.terrain_fill.as_deref().and_then(|hf| crate::terrain_fill::fill(&s, hf, set.terrain_vtable)) {
+    let s = match si
+        .terrain_fill
+        .as_deref()
+        .and_then(|hf| crate::terrain_fill::fill(&s, hf, set.terrain_vtable))
+    {
         Some((filled, added)) => {
             counts.terrain_filled = Some(added);
             filled

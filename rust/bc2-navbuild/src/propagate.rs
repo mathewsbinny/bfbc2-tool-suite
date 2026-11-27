@@ -269,7 +269,11 @@ impl<S: std::hash::BuildHasher> Ground<'_, S> {
             if di != 0 && dj != 0 {
                 let zc = j0 as f64 + (j1 - j0) as f64 * (ci as f64 + di as f64 * 0.5 - i0 as f64) / (i1 - i0) as f64;
                 let off = (zc - cj as f64).abs();
-                xfirst = if (off - 0.5).abs() < 1e-9 { None } else { Some(off < 0.5) };
+                xfirst = if (off - 0.5).abs() < 1e-9 {
+                    None
+                } else {
+                    Some(off < 0.5)
+                };
             }
             let Some(nk) = self.step_via(k, (ci, cj), di, dj, xfirst) else {
                 return false;

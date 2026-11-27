@@ -28,6 +28,28 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Changed
+- **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
+  corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
+  without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7
+  sides where the ground ends on its own" were alternate spawns). New maps built without DICE path data get the
+  corrected box.
+- **navregress: the old exact-match measures no longer fail a level** (round NKS-deep D): `nodes_same`, `edges_same`
+  and `costs` are listed when they change (`INFO`); the pairing measures of round NKS-deep E judge the graph. The test
+  harness's parity directions (`testharness/runs.py`, `bfbc2 harness`) take the same lists.
+
+### Added
+- **NavKit: four walkability and placement switches, measured and off for the user's ruling** (round NKS-deep D,
+  `rust/BENCHMARKS.md` "NKS-deep D"): `navregress.RECT_ON_DICE_LEVELS` (the rectangle in place of DICE's extent on
+  campaign levels), `navwalk.TERRAIN_FILL` / `Switches::terrain_fill` (XNAV-BLD-5: the height field's surface in
+  narrow sampling holes under thick objects; sp_003_b `ai_pairwise` 74.4 -> 93.4 %), `navwalk.MESH_CORNERS` /
+  `Switches::mesh_corners` (KYG-NODE-9: the placement's probes turn cell corners through a side cell) and
+  `navwalk.LIP_OBJECT_FLAT_ALL` (object lips need flat floor on both sides; every mean better, 5 levels dip). Path
+  data NavKit builds is unchanged.
+- **Spec: the autoseed step and the map builder's derived limits** (round NKS-deep D): KYG-SEED-3 (autoseeds are
+  terrain, within the slope limit and open to the sky for 100 m; every sector is probed), KYG-PAR-4 (HoleMax is
+  -StepMax; the step and slope limits as ratios).
+
 ## [0.26.0] - 2026-11-23
 
 Round OR2 retires the suite's `terrain._Walk` and `ROAD_VERTEX` (a Python API Project OPFOR used) and the

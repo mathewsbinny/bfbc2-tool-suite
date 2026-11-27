@@ -159,14 +159,15 @@ partitions NavKit prepares for those levels: ONS_MP_002's infantry ground reache
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:784-816]
 
 NavKit today: on a new map (no DICE path data) the build keeps the sample columns inside this rectangle, the spawns'
-box grown by 24.5 m (`navregress.spawn_bounds`, `bc2_navbuild::inputs::spawn_bounds`, round NKG2). On a level with
-DICE data it still clips to DICE's extent (`clip_to_reference`). Round NKG2 measured the rectangle against that extent
-on the 15 regression levels: on 45 of the 52 campaign sides the two lie within 0.41 m of each other (the rule's
-0.11-0.91 m band), but on the 7 sides where DICE's ground ends on its own (sp_03 +z 59.2 m, sp_04 -x 347.0 m, sp_005
-+x 276.5 m, sp_006 -z 64.4 m, sp_008_b -x 140.9 / -z 12.5 / +z 239.5 m) the rectangle keeps ground DICE has none of:
-there the end is the seeding's (KYG-SEED-1), not the rectangle's, and NavKit seeds objects and spawns more widely. So
-on DICE's levels the extent stays the reference's until the seeding matches (XNAV-BLD-3), and the Onslaught levels
-keep it by the exception above. `navparity:sectors_extra` 1.33 mean (sp_01 12), `extra_ground` 8.31 %.
+box (alternate spawns left out since round NKS-deep D) grown by 24.5 m (`navregress.spawn_bounds`,
+`bc2_navbuild::inputs::spawn_bounds`). On a level with DICE data it still clips to DICE's extent
+(`clip_to_reference`); `navregress.RECT_ON_DICE_LEVELS` / `inputs::RECT_ON_DICE_LEVELS` (off) takes the rectangle on
+the campaign levels instead (the Onslaught levels keep DICE's extent by the exception above). Round NKG2's attempt
+failed on the 7 alternate-spawn sides (`extra_ground` 8.31 -> 11.03 %); round NKS-deep D's, with the corrected box, on
+the 15 regression levels: `extra_ground` 8.31 -> 8.28 %, `areas_same` 5.18 -> 5.23 %, `portals` 6.48 -> 6.79 %,
+`ai_pairwise` 95.57 -> 95.67 %, but `over_connection` 15.74 -> 15.80 % and per-level dips on 7 levels within half a
+pitch of DICE's own sides (largest: sp_008 `borders` 91.43 -> 90.32 %, sp_004_b `over_connection` 17.62 -> 18.17 %,
+sp_003_b `portals` 6.32 -> 5.97 %): left off for the user's ruling (`rust/BENCHMARKS.md` "NKS-deep D").
 
 ### KYG-SEC-1: Sectors: a 100 m grid numbered from the file's offsets
 
@@ -606,6 +607,30 @@ NKS-deep D; small per-level dips).
 [exe: dense edges 0x01154B00 (ConnectionDistance +0x588; set to DistPropagation x 1.2 (double 0x0142EE90) at 0x0114E2B1 when not positive; Kynapse's default -1 at 0x01146AEF); the simplification 0x0115B3C0 (its graph 0x011B81D0, edges sorted by `CSimplifyEdgeLess` 0x011B8030, a new edge dirty with its length 0x01152C00; state word +0x83C: 0 dirty edges, 1 OverSimplify's edges under (2 OneMeter)^2 = 4 with the cell lock +0x28 of the 5 m grid and rerouting, 2 every edge; leaves 0x011B64C0; the two-edge apex 0x011B6500; the collapse test 0x01158510 with 0x01157CA0 / 0x01158100: DistEdgeMax^2 +0x558, MaxDeltaHeight +0x578, the straight walk 0x01351F80 with EdgeRadius); the graph rebuilt 0x011B6740]
 [data: round NKS-deep B, NavKit with this placement (`Switches::placement`) against DICE's files of the 15 regression levels: the structure counts and parity in `rust/BENCHMARKS.md` "NKS-deep B"]
 [code: rust/bc2-navbuild/src/propagate.rs:1-40]
+
+### KYG-NODE-9: The probes walk the mesh: no step across a cell corner the mesh does not link
+
+Status: **inferred**
+
+KYG-NODE-7's probes and KYG-NODE-8's straight walks go "along the mesh": from an area to the next only over a side
+the mesh links (the area's interior or a B portal). Where two of DICE's areas meet at a cell corner, or lie side by
+side with no portal between them, DICE's graph does not cross: on sp_007 (sector 0xF0D) DICE's areas 73 (a deck,
+y 141.6-142.8) and 75 (the ground beside it) share no portal, and DICE's nodes 39222 (the deck's 142-node island) and
+39137 (the main group) stand 1.3 m apart at one height with no edge. NavKit's own areas there (285, 278) share no
+portal either, yet its placement joined them with edges of 0.28-0.64 m: its probes stepped diagonally under the link
+rule, which joins a diagonal neighbour directly. With `Switches::mesh_corners` (`navwalk.MESH_CORNERS`) a probe or a
+walk turns a corner through one of the two side cells, each straight step under the link rule and the D sides.
+
+Measured, off (round NKS-deep D, the 15 regression levels): `over_connection` 15.74 -> 15.57 % (sp_007 17.47 ->
+15.99), `ai_pairwise` 95.57 -> 95.69 %, `connectivity` 99.06 -> 99.08 %, but `nodes_near` 56.21 -> 55.93 %,
+`nodes_paired` 23.30 -> 22.90 %, `edges_paired` 4.78 -> 4.66 % and dips on 14 of 15 levels: the corner rule is
+applied to every probe, also inside one area, where DICE's probes evidently cross corners (its step pairs lie on the
+NbSectors directions, KYG-NODE-7). The rule at area boundaries only is the next test (`rust/BENCHMARKS.md`
+"NKS-deep D").
+
+[inferred: Kynapse's probes run over the built mesh (KYG-NODE-7), whose areas join only over interior sides and portals; DICE's graph never crosses between two of its areas that share no portal where NavKit's diagonal steps did (sp_007's island); the exploration's step code itself was not traced]
+[code: rust/bc2-navbuild/src/propagate.rs:176] [test: rust/bc2-navbuild/src/propagate_tests.rs::mesh_corners_keep_ground_that_meets_at_a_corner_apart]
+[data: round NKS-deep D, `bridge` / `spot` (scratch) on sp_007: the NavKit route from the 142-node island to the main group, and the two files' areas, portals and nodes around (567.3, 140.6, 425.9)]
 
 ## 6. Route edges
 
@@ -1066,7 +1091,9 @@ movement detail, then bytes):
    replaces `navbuild.CLIP_TO_REFERENCE` on campaign levels; the Onslaught levels keep DICE's extent (their files are
    not bounded by the prepared partitions' spawns). **Round NKG2**: the rule bounds every build without DICE path data
    (new maps, the editor's stages); on DICE's campaign levels it was measured in place of DICE's extent and kept off
-   (KYG-RECT-1: the 7 sides where DICE's ground ends before the rectangle).
+   (KYG-RECT-1: the 7 sides where DICE's ground ends before the rectangle). **Round NKS-deep D**: the 7 sides are
+   the player's alternate spawns, which DICE's box leaves out (all 52 campaign sides at the corrected box); the
+   rectangle on the campaign levels (`RECT_ON_DICE_LEVELS`) measured and left off for the user's ruling (KYG-RECT-1).
 6. **D / F** (KYG-DF-1, KYG-DF-2): coarse recall 19 % / 33 %, nothing for vehicles or detailed areas. **NKG3's
    target** stays the coarse rule's recall. The vehicle rule cannot be fitted from the files on disk (no vehicle-shaped
    sample run exists, KYG-DF-2): NKG3 needs one in-game `[dev] navsample` run at the vehicle settings (pitch 1.0 m, a

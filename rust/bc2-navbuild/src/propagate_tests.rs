@@ -218,7 +218,14 @@ fn mesh_corners_keep_ground_that_meets_at_a_corner_apart() {
             .count()
     };
     let mut g = Ground::of(&lv, &areas, 0, 0, (0.0, 0.0), 0.8, 0.95, Rule::Slope, &blocked);
-    assert!(far(&place(&g, &p, std::slice::from_ref(&seed), &areas)) > 0, "the link rule crosses the corner");
+    assert!(
+        far(&place(&g, &p, std::slice::from_ref(&seed), &areas)) > 0,
+        "the link rule crosses the corner"
+    );
     g.corners = true;
-    assert_eq!(far(&place(&g, &p, &[seed], &areas)), 0, "the mesh's corner is not crossed");
+    assert_eq!(
+        far(&place(&g, &p, &[seed], &areas)),
+        0,
+        "the mesh's corner is not crossed"
+    );
 }

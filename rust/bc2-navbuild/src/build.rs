@@ -322,7 +322,17 @@ pub fn build_graphs(
     };
     stop(log)?;
     let fill = if sw.terrain_fill { inp.terrain.clone() } else { None };
-    let ground = walk_ground(inp, &inp.samples, inp.high.as_deref(), &[], cfg, ws, fill.clone(), report, log)?;
+    let ground = walk_ground(
+        inp,
+        &inp.samples,
+        inp.high.as_deref(),
+        &[],
+        cfg,
+        ws,
+        fill.clone(),
+        report,
+        log,
+    )?;
     stop(log)?;
     let args = StageArgs {
         xoff: inp.xoff,
@@ -355,7 +365,17 @@ pub fn build_graphs(
                 have.iter().map(|s| s.1).min().unwrap_or(0),
             );
             let dcfg = cfg.detailed();
-            let ground = walk_ground(inp, &det.samples, det.high.as_deref(), &pts, &dcfg, ws, fill, report, log)?;
+            let ground = walk_ground(
+                inp,
+                &det.samples,
+                det.high.as_deref(),
+                &pts,
+                &dcfg,
+                ws,
+                fill,
+                report,
+                log,
+            )?;
             drop(pts);
             stop(log)?;
             let bargs = StageArgs {
