@@ -286,7 +286,16 @@ pub struct Ported {
     pub pc_layouts: Vec<Vec<Vec<u8>>>,
     /// What was not converted.
     pub notes: Vec<String>,
+    /// Whether the mesh is skinned to the soldier skeleton (`plan['skinned_to_soldier']`).
+    pub soldier: bool,
+    /// Each part's layout choice, by part name in the order first met (`plan['parts']`): (part, how, donor).
+    pub plan_parts: Vec<(String, String, Donor)>,
+    /// The mesh set's material names, sorted (`plan['materials']`).
+    pub materials: Vec<String>,
 }
+
+/// A layout's donor: (the donor mesh, the part's folder), or none.
+pub type Donor = Option<(String, String)>;
 
 /// The soldier skeleton.
 pub const SOLDIER: &str = "characters/skeletons/ske01";
@@ -398,15 +407,27 @@ impl<'a> Porter<'a> {
         part: &str,
         bf: &[u8],
         donors: &[String],
-    ) -> Result<Vec<u8>, PortError> {
+    ) -> Result<(Vec<u8>, String, Donor), PortError> {
         let ix = self.ix;
         let s = self.search()?;
         let found = s.search(name, lod, part, bf, donors).map_err(|_| PortError {
             kind: "IndexError".into(),
             msg: "tuple index out of range".into(),
         })?;
-        let k = match found {
-            Found::Own(k) | Found::Donor(k, ..) | Found::Layout(k) | Found::Fallback(k, ..) => k,
+        let name_of = |k: usize| s.names().get(k).cloned().unwrap_or_default();
+        let (k, how, donor) = match found {
+            Found::Own(k) => (k, "BFBC2 has this part".to_owned(), None),
+            Found::Donor(k, d, folder) => (
+                k,
+                "donor".to_owned(),
+                Some((donors.get(d).cloned().unwrap_or_default(), folder)),
+            ),
+            Found::Layout(k) => (k, format!("layout of {}", name_of(k)), None),
+            Found::Fallback(k, left, d, folder) => (
+                k,
+                format!("layout of {} ({left} element(s) left out)", name_of(k)),
+                d.map(|d| (donors.get(d).cloned().unwrap_or_default(), folder.unwrap_or_default())),
+            ),
             Found::Nothing => {
                 let sig = signature(bf).unwrap_or_default();
                 return perr(
@@ -419,7 +440,7 @@ impl<'a> Porter<'a> {
             }
         };
         let n = s.names().get(k).cloned().unwrap_or_default();
-        Ok(ix.layout(&n).unwrap_or_default().to_vec())
+        Ok((ix.layout(&n).unwrap_or_default().to_vec(), how, donor))
     }
 
     /// The source's entry names starting with `folder`, in name order.
@@ -442,26 +463,40 @@ impl<'a> Porter<'a> {
     ///
     /// # Errors
     /// The reference's exception where it raises.
+    pub fn port(&mut self, name: &str) -> Result<Ported, PortError> {
+        self.port_with(name, false)
+    }
+
+    /// `port(name)`; `bare`: a mesh skinned to no soldier whatever its partition says (Project OPFOR's
+    /// `port_mesh(..., bare=True)`: the partition is not read).
+    ///
+    /// # Errors
+    /// The reference's exception where it raises.
     #[allow(
         clippy::too_many_lines,
         clippy::many_single_char_names,
         reason = "Porter.port, step for step (its names)"
     )]
-    pub fn port(&mut self, name: &str) -> Result<Ported, PortError> {
+    pub fn port_with(&mut self, name: &str, bare: bool) -> Result<Ported, PortError> {
         use bc2_formats::meshdata::{self, Kind};
         let low = name.to_lowercase();
         let Some((kind, _)) = self.src.entry(&format!("{low}.res")) else {
             return perr("PortError", format!("{name}: no mesh set in the BF1943 source"));
         };
         let kind = kind.to_owned();
-        let xml = bc2_formats::dbx::to_xml(&self.data(&format!("{low}.dbx"))?).map_err(|e| PortError {
-            kind: "ValueError".into(),
-            msg: e.to_string(),
-        })?;
-        let soldier = xml.to_lowercase().contains(&format!("{SOLDIER}/"));
+        let soldier = if bare {
+            false
+        } else {
+            let xml = bc2_formats::dbx::to_xml(&self.data(&format!("{low}.dbx"))?).map_err(|e| PortError {
+                kind: "ValueError".into(),
+                msg: e.to_string(),
+            })?;
+            xml.to_lowercase().contains(&format!("{SOLDIER}/"))
+        };
         let bones = if soldier { Some(self.bones()?) } else { None };
         let mut out = Ported {
             kind: kind.clone(),
+            soldier,
             ..Ported::default()
         };
         for lod in 0..16i64 {
@@ -489,7 +524,10 @@ impl<'a> Porter<'a> {
                         format!("{name} LOD {lod} {pn}: no layout in BF1943's shader databases"),
                     );
                 };
-                let pc = self.pc_layout(name, lod, &pn, &bf, &[])?;
+                let (pc, how, donor) = self.pc_layout(name, lod, &pn, &bf, &[])?;
+                if !out.plan_parts.iter().any(|(p, _, _)| *p == pn) {
+                    out.plan_parts.push((pn.clone(), how, donor));
+                }
                 pairs.push((bf, pc));
             }
             let refs: Vec<(&[u8], &[u8])> = pairs.iter().map(|(a, c)| (a.as_slice(), c.as_slice())).collect();
@@ -523,6 +561,15 @@ impl<'a> Porter<'a> {
                 format!("{kind}: a mesh set the reader does not read (cut short or damaged)"),
             );
         };
+        let mut materials: Vec<String> = s
+            .lods
+            .iter()
+            .flat_map(|l| l.sets.iter().flat_map(|(_, shs)| shs.iter()))
+            .map(|sh| sh.iter().map(|&c| char::from(c)).collect::<String>())
+            .collect();
+        materials.sort();
+        materials.dedup();
+        out.materials = materials;
         for (l, pc) in s.lods.iter_mut().zip(&out.lods) {
             let Ok(h) = meshdata::parse_mesh(pc, false) else {
                 return perr("Refused", "mesh data: a converted LOD the header reader does not read");

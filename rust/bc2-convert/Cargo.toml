@@ -12,6 +12,8 @@ repository.workspace = true
 bc2-formats.workspace = true
 bc2-gamefs.workspace = true
 bc2-xma.workspace = true
+# shadertranslate: BF1943's vertex shaders read for the translation plan (round OR3c)
+bc2-shader.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
 regex.workspace = true

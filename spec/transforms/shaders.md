@@ -65,7 +65,7 @@ its kept pixels are above 0.5). Without it palm fronds and their shadow cards dr
 keeps BF1943's render state and takes the template's alpha test only where the template has that same state; an entry
 whose BF1943 state OPFOR takes (wake_material_states) keeps BF1943's own reference.
 
-[code: opfor:src/tools/ww2/wake_translate.py:1017-1040]
+[code: opfor:src/tools/ww2/wake_translate.py:763-776]
 [test: opfor:src/tools/tests/test_ww2_kitbags.py::test_cutout_and_textures_by_role]
 
 ## 3. Around the code
@@ -111,7 +111,8 @@ composite. BFBC2's kind 9 uses `boneMatrices` only as a per-part visibility flag
 matrices; BFBC2's composite vertices hold the composite part number (not a palette slot).
 
 [code: opfor:src/tools/ww2/wake_translate.py:1-12]
-[code: opfor:src/tools/ww2/wake_translate.py:275-280]
+[code: opfor:src/tools/ww2/wake_translate.py:240-245]
+[code: rust/bc2-convert/src/shadertranslate.rs:1043-1054]
 [data: OPFOR's Wake Island carrier, 2026-11-07: the deck drew blotchy until the key's layout GUID was the part's; verified in game after]
 
 ### XSH-FETCH-1: A BF1943 program is picked by fetch format, not by offset alone
@@ -127,7 +128,8 @@ coordinate sets than any of the material's programs) one is wired by role: its k
 layout's k-th element of that format.
 
 [code: opfor:src/tools/ww2/wake_translate.py:14-23]
-[code: opfor:src/tools/ww2/wake_translate.py:186-204]
+[code: rust/bc2-convert/src/shadertranslate.rs:896-913]
+[code: rust/bc2-convert/src/shadertranslate.rs:457-474]
 
 ### XSH-FETCH-2: Overlapping PC layout elements are skipped
 
@@ -139,7 +141,7 @@ from its tangent: black hull). The pairing takes the stream-0 elements in offset
 inside the previous one (85 entries changed on 2026-11-08). BFBC2's same-named models can hold more texture
 coordinate sets than BF1943's vertex: the k-th element of a kind pairs with the k-th, extras unread.
 
-[code: opfor:src/tools/ww2/wake_translate.py:207-219]
+[code: rust/bc2-convert/src/shadertranslate.rs:271-283]
 
 ### XSH-PATCH-1: Terrain patches translate onto BFBC2's two patch layouts
 
@@ -184,7 +186,7 @@ for Dx10 / 11, and skips entries whose translated programs already cover their s
 needs a material whose donor has a program for the depth layout, else the fix re-clones from any covering entry (a
 kind 4 soldier entry once made the Type 38 invisible).
 
-[code: opfor:src/tools/ww2/wake_install.py:2343-2347]
+[code: opfor:src/tools/ww2/wake_install.py:1660-1664]
 
 ## 5. Dx9, Dx10 and Dx11
 

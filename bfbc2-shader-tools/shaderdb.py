@@ -1323,6 +1323,188 @@ def merge(base: ShaderDb, donors: Iterable[tuple[ShaderDb, str]], need: Collecti
 
 # ------------------------------------------------------------------------------------------------ commands
 
+# ------------------------------------------------------------------------------------------------ the translation driver
+
+# Round OR3c: the driver of Project OPFOR's BF1943 shader translation (wake_translate.translate_db, foreign_entries,
+# add_missing_entries; ww2_char_shaders' soldier glue) in the Rust core, bc2_convert::shadertranslate. The plan says,
+# per entry, which of BF1943's programs each (mesh-part layout, permutation) is made from and how its vertex inputs are
+# wired; the caller translates (xenos_hlsl), compiles (pcbuild) and writes the records, one program of the plan at a
+# time, raising each entry's error where the plan puts it. Needs the Rust core (the Python driver was retired).
+
+class TranslateProgram(NamedTuple):
+    """One program of a translate_plan entry, in the order translate_db makes them: the PC layout, instancing, the
+    template's permutation (key bytes 0x30-) and program, BF1943's program and its (vertex shader, pixel shader,
+    block, block), the vertex inputs [(stream, offset, DXGI format, semantic, False)], {semantic: BF1943 vertex
+    offset}, rank (1 by layout or order, 0 by role), by ('layout' / 'role' / 'order'), BF1943's mesh kind, strip /
+    patch, the renderer fragment (or the exception the Python raised making it), the program's key and id."""
+    layout: bytes
+    instanced: bool
+    perm: bytes
+    template: int
+    source: int
+    refs: tuple[int, int, int, int]
+    inputs: list[tuple[int, int, int, int, bool]]
+    src: dict[int, int]
+    rank: int
+    by: str
+    kind: int
+    strip: bool
+    patch: bool
+    fragment: bytes | BaseException
+    key: bytes
+    pid: bytes
+
+
+class TranslateEntry(NamedTuple):
+    """An entry translate_db translates: its name, GUID, programs, and the exception that ends it after them."""
+    name: str
+    guid: bytes
+    programs: list[TranslateProgram]
+    error: BaseException | None
+
+
+def _translate_error(err: tuple[str, Any]) -> BaseException:
+    """The exception the Python driver raised: (its name, its argument)."""
+    kind, arg = err
+    if kind == 'TranslateError':
+        import xenos_hlsl
+        return xenos_hlsl.TranslateError(arg)
+    if kind == 'XenosError':
+        import xenos
+        return xenos.XenosError(arg)
+    if kind == 'KeyError':
+        return KeyError(arg)
+    return ValueError(arg)
+
+
+def _translate_native(attr: str) -> Any:
+    from bfbc2core import native
+    return getattr(native.require('the shader translation driver', attr), attr)
+
+
+def translate_plan(w: ShaderDb, db: ShaderDb, dx: int, filters: Iterable[str], exclude: Iterable[str] = (),
+                   keep_donor: Iterable[str] = (), only: Collection[str] | None = None,
+                   dice_twins: Iterable[str] = (), bf_layouts: dict[str, bytes] | None = None,
+                   strip_layout: bytes = b'', patch_layouts: Sequence[bytes] = (), patches: str = '',
+                   terrain_fragments: tuple[str, str] = ('', ''), soldier: bool = False,
+                   planned: Callable[[], dict[str, list[tuple[str, bytes, bool]]]] = dict) -> list[TranslateEntry]:
+    """translate_db's entries and programs (bc2_convert::shadertranslate::plan): db's entries that w (BF1943's) has,
+    whose lower name holds a filter and no exclude, whose material leaf holds no keep_donor word, in only (when
+    given), whose mesh is not in dice_twins - each with the programs to make, in order. bf_layouts: BF1943's mesh part
+    layouts {part: record}; strip_layout / patch_layouts (this renderer's, tiled first) / patches (the patch entries'
+    name part) / terrain_fragments (the patch and strip fragment names): the terrain's; soldier: DICE's soldier
+    layouts wired by meaning; planned() -> {mesh: [(part key, layout, instanced)]}, asked once if an entry has no
+    other layout. ValueError: a record the Python could not have read."""
+    rows = _translate_native('shadertranslate_plan')(
+        w, db, dx, list(filters), list(exclude), list(keep_donor), None if only is None else list(only),
+        list(dice_twins), dict(bf_layouts or {}), bytes(strip_layout), [bytes(g) for g in patch_layouts], patches,
+        tuple(terrain_fragments), bool(soldier), planned)
+    out = []
+    for name, guid, progs, err in rows:
+        programs = [TranslateProgram._make([*p[:13], _translate_error(p[13]) if isinstance(p[13], tuple) else p[13],
+                                            p[14], p[15]]) for p in progs]
+        out.append(TranslateEntry(name, guid, programs, None if err is None else _translate_error(err)))
+    return out
+
+
+def missing_entries(w: ShaderDb, db: ShaderDb, filters: Iterable[str], exclude: Iterable[str],
+                    keep_donor: Iterable[str], ported: Iterable[str]) -> list[tuple[str, str]]:
+    """add_missing_entries' choice: [(BF1943 material db lacks, the sibling entry to clone it from)] for the ported
+    meshes (lower) with parts in db, in w's entry order."""
+    return list(_translate_native('shadertranslate_missing')(w, db, list(filters), list(exclude), list(keep_donor),
+                                                             list(ported)))
+
+
+def foreign_entries(wake: Iterable[str], db: ShaderDb, levels: Iterable[tuple[str, list[str]]],
+                    filters: Iterable[str], exclude: Iterable[str], ported: Iterable[str],
+                    variant_tags: Iterable[str], templates: dict[str, str] | None,
+                    materials: Callable[[str], Iterable[str]]) -> list[tuple[Any, ...]]:
+    """foreign_entries' choice, in order: ('make', level database, entry, template, cutout) or ('missing', entry,
+    the template given or None). wake: the names of Wake's BF1943 entries; levels: [(level database, its entry
+    names)]; materials(mesh) -> the lower materials its staged mesh set names; templates: those chosen on another
+    database (else chosen here: a vegetation entry of the same alpha test, discards)."""
+    return list(_translate_native('shadertranslate_foreign')(
+        list(wake), db, [(k, list(n)) for k, n in levels], list(filters), list(exclude), list(ported),
+        list(variant_tags), templates, materials))
+
+
+def discards(code: bytes) -> bool:
+    """Whether a compiled Dx10 / Dx11 shader discards (its shader chunk holds discard_z / discard_nz; what
+    "'discard' in pcbuild.disassemble(code)" answered, without the disassembler)."""
+    return bool(_translate_native('shadertranslate_discards')(bytes(code)))
+
+
+def match_entries(w: ShaderDb, db: ShaderDb, keep_donor: Iterable[str], weapons: dict[str, str]) -> dict[str, str]:
+    """{our entry: BF1943's} for db's soldier entries (Characters/WW2 -> Characters/Beach, Shaders folders dropped)
+    and weapon entries (weapons: {our mesh: BF1943's}) that w has; materials with a keep_donor word left out."""
+    return dict(_translate_native('shadertranslate_match_entries')(w, db, list(keep_donor), dict(weapons)))
+
+
+def entry_perms(db: ShaderDb, names: Iterable[str]) -> dict[str, set[tuple[int, bytes, int, int, int, bytes]]]:
+    """{entry: {(pass, layout, instanced, point light, kind, fragment)}} of the named entries' programs."""
+    return dict(_translate_native('shadertranslate_perms')(db, list(names)))
+
+
+def part_users(db: ShaderDb, names: Iterable[str]) -> dict[str, set[bytes]]:
+    """{entry: {layout guid}} of the Standard / StreamInstancingFloat parts of each named entry's mesh."""
+    return {k: set(v) for k, v in _translate_native('shadertranslate_part_users')(db, list(names)).items()}
+
+
+def offer_kinds(w: ShaderDb, entries: dict[str, str], need: dict[str, Iterable[tuple[int, int]]],
+                single: dict[str, bool], log: Callable[[str], object] = print) -> dict[str, str]:
+    """BF1943's programs of a material copied into w as the skinning kinds (1 / 4) our parts need that BF1943 did not
+    compile, for a material whose parts are all single-bone (entries {our entry: its name in w}; need {our entry:
+    {(pass, kind)}}; single {our entry: bool}). Returns {our entry: why} of those that cannot have a needed kind."""
+    added, groups, bad, lines = _translate_native('shadertranslate_offer_kinds')(
+        w, dict(entries), {k: list(v) for k, v in need.items()}, dict(single))
+    for i, key in added:
+        w.programs.append(w.programs[i])
+        w.keys.append(key)
+    w.groups = [(g, list(idx)) for g, idx in groups]
+    for line in lines:
+        log(line)
+    return dict(bad)
+
+
+def entry_blocks(w: ShaderDb, names: Iterable[str]) -> set[int]:
+    """The parameter blocks the programs of w's named entries use (theirs and their shaders' own)."""
+    return set(_translate_native('shadertranslate_entry_blocks')(w, list(names)))
+
+
+def element_map(bf_layout: bytes | None, pc_layout: bytes) -> dict[int, tuple[int, int, int, int]] | None:
+    """{BF1943 vertex offset: the PC element (format, usage, offset, stream) meshport wrote it into}: the two layout
+    record bodies paired by kind; None without a BF1943 layout or with BF1943 data the PC vertex has no place for."""
+    return cast(Any, _translate_native('shadertranslate_element_map')(
+        None if bf_layout is None else bytes(bf_layout), bytes(pc_layout)))
+
+
+def soldier_element_map(bf: bytes, pc: bytes, kind: str) -> dict[int, tuple[int, int, int, int]] | None:
+    """A BF1943 soldier vertex (layout body bf) in DICE's soldier layout pc ('1p' / '3p') as soldiers.py re-lays it;
+    None when an element has no place, KeyError when DICE's layout lacks a wanted offset."""
+    return cast(Any, _translate_native('shadertranslate_soldier_element_map')(bytes(bf), bytes(pc), kind))
+
+
+def vertex_elements(layout: bytes) -> list[tuple[int, int, int, int]]:
+    """A PC layout body's stream-0 elements in offset order, an element lying inside the one before it left out."""
+    return list(_translate_native('shadertranslate_vertex_elements')(bytes(layout)))
+
+
+def by_role(bfel: Iterable[tuple[int, int]], fetch: dict[int, int], bf_fmt: dict[int, int]) -> dict[int, int] | None:
+    """{input: BF1943 layout offset} for a program of another vertex format: each fetch (offset order) takes the next
+    unused layout element read in the same Xenos format; None when a fetch has none."""
+    return cast(Any, _translate_native('shadertranslate_by_role')(list(bfel), dict(fetch), dict(bf_fmt)))
+
+
+def mesh_of(entry: str) -> str:
+    """The mesh (lower) an entry's name begins with ('<mesh>/<material path>')."""
+    return str(_translate_native('shadertranslate_mesh_of')(entry))
+
+
+def patch_inputs(tail: bytes) -> dict[int, tuple[int, int, int]]:
+    """{semantic: (stream, offset, DXGI format)} of a Dx10 / Dx11 vertex shader's per-vertex input elements."""
+    return dict(_translate_native('shadertranslate_patch_inputs')(bytes(tail)))
+
+
 def entry_rows(db: ShaderDb) -> list[tuple[str, str, int, int]]:
     """[(mesh, shader, programs, shader bytes)] in file order."""
     meshes = db.mesh_names()
@@ -1524,13 +1706,16 @@ def donor_levels(levels: Iterable[str], need: Iterable[str], dx: int = 9, opfor:
 class LevelScan(NamedTuple):
     """A level database's entries as the queries answer them (level_scan): {entry: (constant names, samplers)}
     (entry_signatures), {entry: [(sampler, cube, texture name)]} (entry_textures), {entry: {layout guid}}
-    (entry_layouts), {entry: {skinning kind}} of its main-pass programs (key byte 0x33 where byte 0x30 is 0), and
-    its mesh parts [(name, layout guid)]."""
+    (entry_layouts), {entry: {skinning kind}} of its main-pass programs (key byte 0x33 where byte 0x30 is 0), its
+    mesh parts [(name, layout guid)], and {entry: frozenset(layout record bodies)} - the bodies (bytes 16-) of the
+    layout records its layouts name, the last record of a GUID (round OR3c: Project OPFOR's
+    wake_install.index_templates)."""
     signatures: dict[str, tuple[tuple[str, ...], int]]
     textures: dict[str, list[TextureRef]]
     layouts: dict[str, set[bytes]]
     kinds: dict[str, set[int]]
     parts: list[tuple[str, bytes]]
+    layout_records: dict[str, frozenset[bytes]]
 
 
 def level_scan(levels: Iterable[str], dx: int = 9, opfor: str | None = None,

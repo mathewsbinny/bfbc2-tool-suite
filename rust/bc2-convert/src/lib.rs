@@ -31,6 +31,8 @@
 //!   [`skinmesh`] (`skinmesh.py`'s vertex work) and [`granny_edit`] (`granny.py`'s writing side).
 //! - Round `OR3b`: [`shaderlevels`] (`shaderdb.py`'s level cover index and its cache, `level_scan`): the game copy's
 //!   level shader databases read as a whole.
+//! - Round `OR3c`: [`shadertranslate`] (Project OPFOR's BF1943 shader translation driver: `translate_db`'s plan,
+//!   the entries made for missing and foreign materials, the soldier glue).
 //! - Round GR3: [`meshview`] (`bfbc2-mesh-viewer/meshview.py`'s index and its cache, `load_mesh`, `stack_models` and
 //!   `render`, pixel for pixel), for the map editor's asset preview.
 //! - Round PR1b-2-rest2: [`decimate`] (`bfbc2-model-tools/decimate.py`'s edge collapses) and [`shapes`]
@@ -55,6 +57,7 @@ pub mod meshview;
 pub mod mopp;
 pub mod pyfmt;
 pub mod shaderlevels;
+pub mod shadertranslate;
 pub mod shapes;
 pub mod skinmesh;
 pub mod terrain;

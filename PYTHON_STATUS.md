@@ -25,22 +25,22 @@ rounds NK4 and NK5.
 | Status | Files | Lines |
 |---|---:|---:|
 | live | 18 | 5,284 |
-| partly | 21 | 16,759 |
-| twin | 56 | 19,708 |
+| partly | 21 | 16,904 |
+| twin | 56 | 19,670 |
 | ported | 21 | 2,584 |
 | retired-pending | 3 | 310 |
-| stays | 67 | 13,240 |
-| test | 188 | 51,955 |
-| **all** | **374** | **109,840** |
+| stays | 67 | 13,247 |
+| test | 189 | 52,191 |
+| **all** | **375** | **110,190** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,431 | 56 |  |  |  |  |  | 1,375 |
+| `(root)` | 2 | 1,434 | 56 |  |  |  |  |  | 1,378 |
 | `bfbc2-anim-tools` | 8 | 2,717 |  | 1,027 |  | 106 |  |  | 1,584 |
 | `bfbc2-auto-navkit` | 56 | 14,803 | 1,859 | 4,408 | 2,821 | 273 |  |  | 5,442 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
 | `bfbc2-bf1943-import` | 26 | 10,508 | 546 | 1,540 | 3,273 | 56 |  |  | 5,093 |
-| `bfbc2-console-convert` | 24 | 6,536 |  | 1,817 | 1,247 | 36 |  |  | 3,436 |
+| `bfbc2-console-convert` | 24 | 6,498 |  | 1,817 | 1,209 | 36 |  |  | 3,436 |
 | `bfbc2-console-readers` | 5 | 1,449 |  |  | 835 |  |  |  | 614 |
 | `bfbc2-culltree` | 4 | 1,898 |  |  | 1,051 |  |  |  | 847 |
 | `bfbc2-dbx-tools` | 1 | 22 |  |  |  |  | 22 |  |  |
@@ -50,11 +50,11 @@ rounds NK4 and NK5.
 | `bfbc2-mesh-viewer` | 4 | 697 |  | 386 |  |  |  | 78 | 233 |
 | `bfbc2-model-tools` | 8 | 1,926 |  | 267 | 849 |  |  |  | 810 |
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
-| `bfbc2-shader-tools` | 17 | 10,793 | 1,430 | 3,630 | 984 | 126 |  |  | 4,623 |
+| `bfbc2-shader-tools` | 18 | 11,171 | 1,430 | 3,775 | 984 | 126 |  |  | 4,856 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
 | `core` | 76 | 20,378 | 757 |  | 2,429 | 1,909 |  |  | 15,283 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 33 | 6,026 |  |  |  |  |  | 5,759 | 267 |
+| `rust` | 33 | 6,033 |  |  |  |  |  | 5,766 | 267 |
 | `spec` | 19 | 6,491 |  |  |  |  |  | 6,491 |  |
 | `tests` | 29 | 7,622 |  |  |  |  |  |  | 7,622 |
 
@@ -62,12 +62,12 @@ Lines by status in the folder table.
 
 ## `(root)`
 
-2 files, 1,431 lines.
+2 files, 1,434 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 56 | library | live |  | every Python tool and test; OPFOR 2 | the last Python | the one sys.path bootstrap |
-| `run_tests.py` | 1375 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1378 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
@@ -179,7 +179,7 @@ Lines by status in the folder table.
 | `bfbc2-bf1943-import/effectport.py` | 447 | library | live |  | tests 3; rust/bench_ports; OPFOR 5 | proposed: OPFOR in Rust stage 2 (its only users are OPFOR's WW2 steps) | BF1943 effects with their emitters and textures; no Rust port (its *_reference is a faster Python algorithm) |
 | `bfbc2-bf1943-import/bf1943import.py` | 877 | tool entry point | partly | bc2_formats::bf1943 (Source: the bundle check, payload reads, RESTARTS); bc2-cli bf1943src / import; bfbc2 bf1943import; embedded | meshport, texqa, renderqa, xdiff; tests 28; OPFOR 28 | PR1b-1c | Source reads through the Rust reader (PR1b-1-rest: restart points on disk); left: import / check (the Importer), the source index pickle, the Python reader kept as the reference |
 | `bfbc2-bf1943-import/dbxcatalogue.py` | 288 | tool entry point | partly | bc2_convert::dbxcatalogue (catalogue_build) and its cache (catalogue_load); bfbc2 dbxcatalogue | dbxport; tests 8; OPFOR 8 | proposed: OPFOR in Rust stage 2 | the pass is Rust (F2b), the cache Rust's own file (PR1b-1e: the pickle retired); left: the Catalogue class OPFOR's WW2 modules and dbxport's Python ask, and build_reference (the reference) |
-| `bfbc2-bf1943-import/meshport.py` | 375 | library | partly | bc2_convert::meshport (the searches; Porter for bfbc2 portparity) | tests 4; OPFOR 6 | proposed: OPFOR in Rust stage 2 | searches in Rust; the Porter in Rust too (PR1b-1d, without renames, donors, poses or the shader plan); left: OPFOR's ports through the Python Porter |
+| `bfbc2-bf1943-import/meshport.py` | 375 | library | partly | bc2_convert::meshport (the searches; Porter for bfbc2 portparity and OPFOR's install ports) | tests 4; OPFOR 5 | OPFOR in Rust stage 4 (the soldiers' and kits' renamed ports) | searches in Rust; the Porter in Rust too (PR1b-1d; its shader plan and bare meshes OR2: OPFOR's install ports, bc2_install::levelbuild::ports); left: renames, donors and poses (OPFOR's soldier and kit builds) |
 | `bfbc2-bf1943-import/dbxport.py` | 2058 | library | twin | bc2_convert::dbxport (port, rules) | effectport; tests 9; OPFOR 10 | PR1b-1c | the partition port is Rust (E4d); port_python kept as reference and fallback |
 | `bfbc2-bf1943-import/emitteratlas.py` | 807 | library | twin | bc2_convert::emitteratlas | texqa, texwrite; tests 3; OPFOR 3 | PR1b-1c | Rust since F2b; the Python kept (an unreadable chunk is recorded, float near-ties by design) |
 | `bfbc2-bf1943-import/havokport.py` | 306 | library | twin | bc2_convert::havokport | tests 3; rust/bench_ports; OPFOR 5 | PR1b-1c | Rust since F2b; its Python reference waits for recorded goldens (RT1) |
@@ -204,7 +204,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-console-convert`
 
-24 files, 6,536 lines.
+24 files, 6,498 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -214,7 +214,7 @@ Lines by status in the folder table.
 | `bfbc2-console-convert/havok.py` | 177 | library | twin | bc2_convert havok / hkclasses (convert_wrapper) | havokport, convert; tests 7; OPFOR 7 | PR1b-1c | F2a's references kept until recorded goldens retire them |
 | `bfbc2-console-convert/mesh.py` | 368 | library | twin | bc2_formats::meshdata, bc2_convert mesh | 17 suite modules (meshport, meshview, renderqa ...); tests 9; OPFOR 18 | PR1b-1c | Rust for parse / write / relayout; element, pair_by_kind, strip_to_list still Python for callers |
 | `bfbc2-console-convert/meshset.py` | 85 | library | twin | bc2_formats meshset | meshport, mesh, renderqa; tests 5; OPFOR 15 | PR1b-1c | write_reference kept for objects the core refuses |
-| `bfbc2-console-convert/terrain.py` | 205 | library | twin | bc2_convert::terrain | navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2 | PR1b-1c | Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens |
+| `bfbc2-console-convert/terrain.py` | 167 | library | twin | bc2_convert::terrain | navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2 | PR1b-1c | Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens; _Walk and ROAD_VERTEX retired (OR2: OPFOR's VisualTerrain walk is bc2_install::levelbuild::terrainfiles) |
 | `bfbc2-console-convert/texture.py` | 231 | library | twin | bc2_formats texture (tiled, packed, layout) | 16 suite modules; tests 13; OPFOR 29 | PR1b-1c | tiled / packed / layout references kept by ruling: texqa's independent decoder |
 | `bfbc2-console-convert/soot.py` | 36 | library | ported | bc2_convert terrain / converters (soot) | tests 2; OPFOR 2 | PR1b-1c | a thin call into the Rust core (F2a) |
 | `bfbc2-console-convert/tests/test_audio.py` | 256 | test | test |  | run_tests.py | Tests in Rust | Sound conversion (audio.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's sounds. |
@@ -355,7 +355,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-shader-tools`
 
-17 files, 10,793 lines.
+18 files, 11,171 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -363,16 +363,17 @@ Lines by status in the folder table.
 | `bfbc2-shader-tools/xdiff.py` | 394 | tool entry point | live | bfbc2 xdiff (argparse, errors only) | tests 5; OPFOR 4 (xdiff.main in process) | OPFOR in Rust stage 3 | the translator's differential test (xenos_exec, WARP draws) |
 | `bfbc2-shader-tools/xenos_exec.py` | 492 | library | live |  | xdiff; tests 2 | OPFOR in Rust stage 3 | the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement) |
 | `bfbc2-shader-tools/renderqa.py` | 2141 | tool entry point | partly | bfbc2 renderqa (argparse, errors); bc2-render (the draw) | meshview, xdiff; tests 7; OPFOR 6 | OPFOR in Rust stage 3 | left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets |
-| `bfbc2-shader-tools/shaderdb.py` | 1489 | tool entry point | partly | bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb; embedded | 33 suite modules; tests 37; OPFOR 54 | OPFOR in Rust stage 3 | reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) are Rust; left: path glue, level_meshes (DBX reading) |
+| `bfbc2-shader-tools/shaderdb.py` | 1634 | tool entry point | partly | bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb; embedded | 33 suite modules; tests 37; OPFOR 54 | OPFOR in Rust stage 3 | reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; left: path glue, level_meshes (DBX reading) |
 | `bfbc2-shader-tools/xenos.py` | 984 | library | twin | bc2_shader::xenos (decoder, disasm) | xdiff, xenos_exec, xenos_hlsl; tests 5; OPFOR 4 | OPFOR in Rust stage 3 | parse_shader_python for damaged blobs and disasm for edited trees kept by ruling |
 | `bfbc2-shader-tools/xenos_hlsl.py` | 126 | library | ported | bc2_shader::hlsl (translate) | xdiff, xenos_exec; tests 3; OPFOR 3 | OPFOR in Rust stage 3 | translate_python retired (R3); a thin call into the Rust translator |
 | `bfbc2-shader-tools/tests/test_pcbuild_batch.py` | 203 | test | test |  | run_tests.py | Tests in Rust | pcbuild's compile cache and batches (round E3d): compile_hlsl remembers compiles (memory, disk), compile_ma... |
 | `bfbc2-shader-tools/tests/test_renderqa.py` | 765 | test | test |  | run_tests.py | Tests in Rust | renderqa.py, the offline render harness: on files built here (quick), and with --game on Project OPFOR BFBC... |
 | `bfbc2-shader-tools/tests/test_shaderdb.py` | 559 | test | test |  | run_tests.py | Tests in Rust | shaderdb.py on databases built here (quick), and with --game on Project OPFOR BFBC2's game copy: - built Dx... |
-| `bfbc2-shader-tools/tests/test_shaderdb_levels.py` | 467 | test | test |  | run_tests.py | Tests in Rust | The level side of shaderdb in the Rust core (round OR3b): `retexture` (bc2_native.shaderdb_retexture), the... |
+| `bfbc2-shader-tools/tests/test_shaderdb_levels.py` | 475 | test | test |  | run_tests.py | Tests in Rust | The level side of shaderdb in the Rust core (round OR3b): `retexture` (bc2_native.shaderdb_retexture), the... |
 | `bfbc2-shader-tools/tests/test_shaderdb_merge.py` | 460 | test | test |  | run_tests.py | Tests in Rust | The shader merge in the Rust core (bc2_native.ShaderMerger, made by shaderdb.merger; round OR3a) against th... |
 | `bfbc2-shader-tools/tests/test_shaderdb_native.py` | 422 | test | test |  | run_tests.py | Tests in Rust | The Rust shader database reader and writer (rust/bc2-formats shaderdb, through the bc2_native module) again... |
 | `bfbc2-shader-tools/tests/test_shaderdb_queries.py` | 337 | test | test |  | run_tests.py | Tests in Rust | Round E4b: the shader database kept in the Rust core (bc2_native.ShaderDbHandle) and the queries it answers... |
+| `bfbc2-shader-tools/tests/test_shadertranslate.py` | 225 | test | test |  | run_tests.py | Tests in Rust | The BF1943 shader translation's driver in the Rust core (round OR3c: bc2_convert::shadertranslate through s... |
 | `bfbc2-shader-tools/tests/test_shaderview_serve.py` | 261 | test | test |  | run_tests.py | Tests in Rust | shaderview -serve (round E3l): many jobs on one Direct3D device, against one shaderview process per job. |
 | `bfbc2-shader-tools/tests/test_xdiff.py` | 279 | test | test |  | run_tests.py | Tests in Rust | The shader translator's differential test (xdiff.py) and its reference interpreter (xenos_exec.py). |
 | `bfbc2-shader-tools/tests/test_xenos_native.py` | 870 | test | test |  | run_tests.py | Tests in Rust | The Xbox 360 shader translator in the Rust core (rust/bc2-shader through the bc2_native module: round E3f). |
@@ -488,7 +489,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-33 files, 6,026 lines.
+33 files, 6,033 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -514,7 +515,7 @@ Lines by status in the folder table.
 | `rust/bench_xenos.py` | 114 | benchmark or parity script | stays |  | by hand | stays | E3f timings |
 | `rust/build_native.py` | 365 | build or dev script | stays | cargo, maturin (it drives them) | CI, hub, 25 suite modules (the fix text); tests 27; OPFOR 4 | Release | builds or downloads bc2_native and the binaries |
 | `rust/hang_stacks.py` | 163 | build or dev script | stays |  | bc2-editor's test hang guard (tests/main.rs); tests 1 | stays | a hung process's thread stacks (HG1) |
-| `rust/native_census.py` | 130 | build or dev script | stays |  | by hand | PR1b-2 (made a check) | who calls each bc2_native export (AU5 ARC-12) |
+| `rust/native_census.py` | 132 | build or dev script | stays |  | by hand | PR1b-2 (made a check) | who calls each bc2_native export (AU5 ARC-12) |
 | `rust/parity_e3o_nav.py` | 106 | benchmark or parity script | stays |  | by hand; tests 2 | stays | kymesh Rust reader against parse_mesh_reference |
 | `rust/parity_navkit_paths.py` | 336 | benchmark or parity script | stays |  | by hand | stays | NavKit's level driver through the command line, the editor in process and the export step (files, lines) |
 | `rust/parity_nk1_apply.py` | 114 | benchmark or parity script | stays |  | by hand | stays | NK1 parity against a pre-NK1 checkout |
@@ -522,7 +523,7 @@ Lines by status in the folder table.
 | `rust/parity_nk3_detail.py` | 512 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py) |
 | `rust/parity_nk4_walk.py` | 181 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk5_build.py` | 109 | benchmark or parity script | stays |  | by hand | stays | round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory) |
-| `rust/python_status.py` | 871 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 876 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 

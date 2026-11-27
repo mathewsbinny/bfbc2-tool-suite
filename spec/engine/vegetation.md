@@ -206,7 +206,7 @@ layouts. BF1943's undergrowth meshes have part layouts that none of BF1943's sha
 be ported as BF1943 has them (VEG-OPF-1).
 
 [data: OPFOR's Wake Island port, 2026-11-08 onward: BF1943's beach grass and fern meshes have no part layouts in BF1943's five level databases]
-[doc: opfor:src/tools/ww2/wake_install.py:716-719]
+[doc: rust/bc2-install/src/levelbuild/levelfiles.rs:405-411]
 
 ## 3. OPFOR's undergrowth step
 
@@ -220,9 +220,9 @@ the donor mesh sets copied with their set names renamed, their LOD data as DICE'
 cloned into Wake's databases under the new names, and each use's 12 numbers set to the block the donor's own level
 uses most for that mesh (MP_004 uses one block in all 40 of its grass's patch groups, SP_01 one in its fern's 14).
 
-[code: opfor:src/tools/ww2/wake_install.py:716-768]
-[code: opfor:src/tools/ww2/wake_install.py:2722-2741]
-[code: opfor:src/tools/ww2/wake_install.py:2751-2769]
+[code: rust/bc2-install/src/levelbuild/levelfiles.rs:294-415]
+[code: rust/bc2-install/src/levelbuild/terrainfiles.rs:76-113]
+[code: rust/bc2-install/src/levelbuild/terrainfiles.rs:125-172]
 
 ## Open questions
 

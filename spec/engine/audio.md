@@ -46,7 +46,7 @@ copy sources of an export or port leave the streaming bundles out. `mapexport ch
 such an entry (round QW2).
 
 [exe: BFBC2Game.exe 0x49EDF4, the loader reading streamed wave data as a partition]
-[doc: opfor:src/tools/ww2/wake_install.py:177-181] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369]
+[doc: opfor:src/tools/ww2/wake_install.py:193-197] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369]
 [code: rust/bc2-levelwrite/src/export.rs:2682-2687] [code: rust/bc2-levelwrite/src/export.rs:2759-2764] [test: rust/bc2-levelwrite/src/export.rs::streamed_waves_named]
 
 ### SND-OD-1: On-demand waves play only from their own bundle's partitions
@@ -59,7 +59,7 @@ such a wave in a level bundle resolves to nothing (SND-NULL-1). A level that nee
 `IsOnDemand` false, its audio unwrapped from the on-demand form into the level bundle.
 
 [data: OPFOR's Wake Island install: copied on-demand waves of mp_common resolved to a null wave on the client; the unwrapped copies play]
-[doc: opfor:src/tools/ww2/wake_install.py:3083-3088] [doc: opfor:src/tools/ww2/wake_install.py:177-190]
+[code: rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148] [doc: opfor:src/tools/ww2/wake_install.py:193-206]
 
 ## 2. Sound set-up at load
 
@@ -72,7 +72,7 @@ loaded sound names must resolve under that stack (PREC-ORD-1): a common bundle r
 partitions brings all its sounds with it.
 
 [data: OPFOR's Wake Island: with sp_common in its targets (as the Onslaught ports had) the client set up sp_common's AI XM8 burst, whose waves nam_common's deleted markers hide, and crashed (SND-NULL-1); without sp_common it loads]
-[doc: opfor:src/tools/ww2/wake_install.py:103-106]
+[doc: opfor:src/tools/ww2/wake_install.py:98-101]
 
 ### SND-NULL-1: A null wave in a sampler crashes the client (0xFF2AC2)
 
@@ -86,8 +86,8 @@ level's name, PART-NAME-3), must resolve; OPFOR's WW2 levels take their animatio
 this reason.
 
 [exe: BFBC2Game.exe 0xFF2AC2, client sound set-up]
-[doc: opfor:src/tools/ww2/wake_install.py:103-106] [doc: opfor:src/tools/ww2/wake_install.py:145-147]
-[doc: opfor:src/tools/ww2/wake_install.py:3083-3088] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369]
+[doc: opfor:src/tools/ww2/wake_install.py:98-101] [doc: opfor:src/tools/ww2/wake_install.py:147-149]
+[code: rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369]
 
 ## 3. The announcer
 

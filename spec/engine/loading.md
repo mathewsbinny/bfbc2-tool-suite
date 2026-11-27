@@ -67,7 +67,7 @@ Coral Sea without it in the shared startup patch crashed at load at 0x74EAB3 (LE
 the mode partition goes into the startup patch whenever an installed level runs it.
 
 [exe: BFBC2Game.exe 0x74EAB3, Coral Sea's load, play test 2026-11-14]
-[doc: opfor:src/tools/ww2/wake_install.py:3677-3681] [doc: opfor:research/WW2_PORT_PLAN.md:418-420]
+[code: opfor:src/tools/ww2/wake_install.py:2710-2711] [doc: opfor:research/WW2_PORT_PLAN.md:418-420]
 
 ## 3. The level checksum
 
@@ -111,7 +111,7 @@ null there and the load faults at 0x49EDF4. The known cause is streamed wave dat
 loader reads as a partition (SND-STRM-1; Wake Island's first load, session state 4).
 
 [exe: BFBC2Game.exe partition load 0x4AAB60 -> stream parse 0x4A3390 -> 0x49EDF0, fault at 0x49EDF4 (state 4)]
-[doc: opfor:src/dll/levelfix.cpp:272-275] [doc: opfor:src/tools/ww2/wake_install.py:181]
+[doc: opfor:src/dll/levelfix.cpp:272-275] [doc: rust/bc2-install/src/levelbuild/index.rs:156-182]
 
 ### LOAD-PART-2: A reference element must carry its target (0x4EB538)
 
