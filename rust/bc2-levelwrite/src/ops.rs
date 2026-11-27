@@ -480,7 +480,40 @@ pub enum Op {
         size: [u32; 2],
         /// The tiles changed, in row order.
         tiles: Vec<crate::delta::TileDelta>,
+        /// The other rasters the same stroke changed (round E5-rest: a sculpt that reaches the sub-terrain ring, a
+        /// visual paint with its paired material): one operation, one undo step.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        also: Vec<StrokePart>,
     },
+    /// A main height field's range widened (round E5-rest, TEDIT-HF-2): its max y from `from` to `to` metres (min y
+    /// stays 0), every stored height scaled so the ground stays where it was ([`crate::terrainedit::rescale`]).
+    TerrainRange {
+        /// The height field's file ([`crate::files::Target::Terrain`]'s).
+        file: String,
+        /// The max y before, metres.
+        from: f32,
+        /// The max y after, metres.
+        to: f32,
+    },
+    /// A material name added to a terrain's material map (round E5-rest, TEDIT-MM-1: one the level's grid holds,
+    /// MAT-GRID-2), so the material brush can paint it.
+    MaterialAdd {
+        /// The material map's file ([`crate::files::Target::Material`]'s).
+        file: String,
+        /// The material's name as the map spells its names.
+        name: String,
+    },
+}
+
+/// One raster of a stroke besides its first ([`Op::Stroke`]'s `also`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StrokePart {
+    /// The raster.
+    pub target: crate::files::Target,
+    /// Its width and height in samples.
+    pub size: [u32; 2],
+    /// The tiles changed, in row order.
+    pub tiles: Vec<crate::delta::TileDelta>,
 }
 
 impl Op {
@@ -500,7 +533,11 @@ impl Op {
                 out
             }
             Self::NavAdd { .. } | Self::NavRemove { .. } | Self::NavLoad { .. } => vec![Target::Navigation],
-            Self::Stroke { target, .. } => vec![target.clone()],
+            Self::Stroke { target, also, .. } => std::iter::once(target.clone())
+                .chain(also.iter().map(|p| p.target.clone()))
+                .collect(),
+            Self::TerrainRange { file, .. } => vec![Target::Terrain { file: file.clone() }],
+            Self::MaterialAdd { file, .. } => vec![Target::Material { file: file.clone() }],
             o if o.edits_partition() => vec![Target::Partition],
             _ => vec![Target::Project],
         }
@@ -599,7 +636,9 @@ impl Op {
             | Self::NavAdd { .. }
             | Self::NavRemove { .. }
             | Self::NavLoad { .. }
-            | Self::Stroke { .. } => Vec::new(),
+            | Self::Stroke { .. }
+            | Self::TerrainRange { .. }
+            | Self::MaterialAdd { .. } => Vec::new(),
         }
     }
 
@@ -758,12 +797,25 @@ impl Op {
             },
             Self::InsertPoint { after, .. } => format!("Insert an outline point after {after}"),
             Self::RemovePoint { guid } => format!("Remove outline point {guid}"),
-            Self::Stroke { target, tiles, .. } => format!(
-                "Stroke on {}: {} tile{}",
-                target.describe(),
-                tiles.len(),
-                if tiles.len() == 1 { "" } else { "s" }
-            ),
+            Self::Stroke {
+                target, tiles, also, ..
+            } => {
+                let n = tiles.len() + also.iter().map(|p| p.tiles.len()).sum::<usize>();
+                format!(
+                    "Stroke on {}{}: {n} tile{}",
+                    target.describe(),
+                    also.iter().fold(String::new(), |mut out, p| {
+                        out.push_str(" and ");
+                        out.push_str(&p.target.describe());
+                        out
+                    }),
+                    if n == 1 { "" } else { "s" }
+                )
+            }
+            Self::TerrainRange { file, from, to } => {
+                format!("Widen the height range of {file} from {from:.0} m to {to:.0} m")
+            }
+            Self::MaterialAdd { file, name } => format!("Add material {name} to {file}"),
             Self::Files { edits } => {
                 let files = self.files().len();
                 let what = edits
@@ -949,7 +1001,9 @@ impl Organisation {
             | Op::NavAdd { .. }
             | Op::NavRemove { .. }
             | Op::NavLoad { .. }
-            | Op::Stroke { .. } => {}
+            | Op::Stroke { .. }
+            | Op::TerrainRange { .. }
+            | Op::MaterialAdd { .. } => {}
             Op::Place { items } => {
                 for p in items {
                     if let Some(pl) = p.placement {

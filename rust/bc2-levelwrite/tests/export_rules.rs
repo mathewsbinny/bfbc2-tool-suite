@@ -845,17 +845,7 @@ fn each_edit_rule_has_a_broken_project_that_raises_it() {
     };
     // XVAL-EDIT-4: the partition does not parse
     expect("XVAL-EDIT-4", &edit_findings(&p0, None, Some(&base)));
-    // XVAL-EDIT-5: a paint stroke
-    let mut p = p0.clone();
-    p.push(
-        Op::Stroke {
-            target: bc2_levelwrite::files::Target::Paint { layer: "grass".into() },
-            size: [64, 64],
-            tiles: Vec::new(),
-        },
-        "Paint",
-    );
-    expect("XVAL-EDIT-5", &ok(&p, &base));
+    // XVAL-EDIT-5 is the build's since round E5-rest (a paint is written; one that cannot be is refused in words)
     // XVAL-MODE-1, -3, -4: Onslaught chosen; a layer missing its flags; the donor changed
     let mut p = p0.clone();
     let choice = |mode: &str, sha1: &str| ModeChoice {

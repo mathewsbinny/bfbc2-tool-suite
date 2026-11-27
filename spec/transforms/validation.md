@@ -83,17 +83,19 @@ the load crashes (0x49EDF4). Rests on LOAD-PART-1.
 [code: rust/bc2-levelwrite/src/rules.rs:177] [code: rust/bc2-levelwrite/src/validate.rs:117]
 [test: rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 
-### XVAL-EDIT-5: Visual paint layers are not exported yet
+### XVAL-EDIT-5: A visual paint layer cannot be written
 
 Status: **verified**
 
-Error (round OP1; since round E5 only for the visual paint); checked live in the editor and by `mapexport validate`;
-by `mapexport build` (a refusal). The project paints a visual paint layer, and the export does not write the visual
-terrain yet (round E5 writes the sculpted height field and the material map; the visual paint is E5-rest's): it
-refuses the project. Undo the paint strokes to export the rest. Rests on XLOG-DELTA-1, TERR-VT-5.
+Error (round OP1; since round E5-rest only what the paint cannot write); checked by `mapexport build` (a refusal).
+The project paints a visual layer the export cannot write into this terrain (round E5-rest): the terrain's patch
+shaders do not give each layer one kind (TEDIT-VT-2), the layer is a rule layer or not the terrain's, a painted layer
+combination has no patch shader and none of the same kinds to clone (TEDIT-SH-1), the mask atlas has no free tile
+(TEDIT-ATL-1), or the paint raster is not the height field's size. Undo those paint strokes to export the rest.
+Rests on XLOG-DELTA-1, TERR-VT-5, TEDIT-VT-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:187] [code: rust/bc2-levelwrite/src/export.rs:1142] [code: rust/bc2-levelwrite/src/validate.rs:69]
-[test: rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals]
+[code: rust/bc2-levelwrite/src/rules.rs:187] [code: rust/bc2-levelwrite/src/export.rs:815]
+[test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals]
 
 ### XVAL-EDIT-6: Only the level's own root files are exported
 
@@ -573,7 +575,7 @@ of their own level: patch shaders from a donor whose atlas has another layout dr
 terrain bundle must be the base's, entry for entry, but for the height field and material map the project's strokes
 rewrote (round E5, XVAL-TERR-2). Rests on TERR-VT-5, TERR-NAME-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:642] [code: rust/bc2-levelwrite/src/export.rs:3526]
+[code: rust/bc2-levelwrite/src/rules.rs:644] [code: rust/bc2-levelwrite/src/export.rs:3778]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 [test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
 
@@ -586,8 +588,23 @@ read back as DICE's formats: the height field a main block of the base's size, b
 tree the one its heights give, every edited sample at or over its lower envelope; the material map of the base's width
 and names, every cell one of them. Rests on TEDIT-HF-3, TEDIT-MM-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:654] [code: rust/bc2-levelwrite/src/export.rs:3568] [code: rust/bc2-levelwrite/src/terrainedit.rs:110-168]
+[code: rust/bc2-levelwrite/src/rules.rs:656] [code: rust/bc2-levelwrite/src/export.rs:3869] [code: rust/bc2-levelwrite/src/terrainedit.rs:343-400]
 [test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
+[test: rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks]
+
+### XVAL-TERR-3: A painted terrain's visual side reads back whole
+
+Status: **verified**
+
+Error (round E5-rest); checked by `mapexport check`. The visual terrain, mask atlas, colour / occlusion map and patch
+shader entries the project's paint rewrote must read back: every rewritten patch-map cell names a patch shader of the
+list, tiles inside the atlas and as many non-zero flags as its shader has tiled layers (TEDIT-VT-1); the base's patch
+shaders, road blocks and patch-map headers kept; the atlas and the colour map in the base's format, size and levels;
+every patch shader the paint cloned present in each of the level's databases. Rests on TEDIT-VT-1, TEDIT-SH-1,
+TEDIT-OCC-1.
+
+[code: rust/bc2-levelwrite/src/rules.rs:668] [code: rust/bc2-levelwrite/src/export.rs:3947] [code: rust/bc2-levelwrite/src/terrainpaint.rs:1066-1100]
+[test: rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks]
 
 ### XVAL-CONS-1: No Xbox 360 resource in a PC level
 

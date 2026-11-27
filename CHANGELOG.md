@@ -28,6 +28,23 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **The map editor paints the terrain's other layers** (round E5-rest, spec TEDIT-VT-2, TEDIT-MM-2, TEDIT-RING-1,
+  XVAL-TERR-3, TEDIT-SH-1 and TEDIT-OCC-1 implemented): the **Paint layer** brush lays one of the terrain's visual
+  layers into its patch cells and mask tiles (a patch shader the terrain lacks is cloned with its textures
+  retargeted; 7 of `Dist\win32`'s 23 terrains give each layer one kind and can be painted, the others are refused in
+  words), optionally with its **paired material** (measured on the terrain's own cells: MP_005's Asphalt -> Tarmac
+  85 %); the **Shade** brush and **Re-shade sculpted area** edit the colour / occlusion map (only the blocks under the
+  edit rewritten); **Widen range** raises the height range with the ground kept; **Add material** adds a material of
+  the level's grid to the material map; sculpts reach the **sub-terrain ring**, stitched as DICE stitches its rings;
+  the material map is drawn around the brush; the game-accurate view follows a stroke while it is made. The export
+  writes all of it (`mapexport check`: XVAL-TERR-2 / -3). Project format 12 (`terrain-range`, `material-add`, colour
+  and ring strokes, strokes over several rasters).
+
+### Changed
+- **XVAL-EDIT-5** (round E5-rest) no longer refuses every visual paint: the export writes it, and refuses only a paint
+  it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
+
 ## [0.28.0] - 2026-11-27
 
 Round OR4 retires `meshview.page()` and `PAGE` (a Python API Project OPFOR used), so this merge releases a minor

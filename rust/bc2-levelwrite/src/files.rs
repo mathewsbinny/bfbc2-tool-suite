@@ -47,11 +47,25 @@ pub enum Target {
         /// The file's name.
         file: String,
     },
-    /// A terrain paint mask (round E5's paint brush): a raster of the project's own, one byte per sample, named by
-    /// the layer it paints ([`crate::delta`]).
+    /// A terrain paint mask (round E5-rest's visual paint): a raster of the project's own, a weight 0 - 255 per
+    /// height-field sample, named by the visual layer it paints ([`crate::terrainpaint`]).
     Paint {
         /// The layer.
         layer: String,
+    },
+    /// The terrain's colour / occlusion map (round E5-rest, LIGHT-BAKE-2: `terrains/<t>/textures/<map>.res` in the
+    /// level bundle, lower case): a raster of its level-0 texels, each a 5:6:5 colour (a DXT1 map) or a grey level
+    /// (an L8 map) ([`crate::terrainpaint::colour_raster`]).
+    Colour {
+        /// The texture's file name.
+        file: String,
+    },
+    /// The sub-terrain ring around a main height field (round E5-rest, TERR-HF-12): its 12 blocks as one raster of
+    /// 256 x 256 samples over the outer square, the main block's square inside left as the ring's knots
+    /// ([`crate::terrainedit::ring_raster`]); `file` the main height field's.
+    Ring {
+        /// The main height field's file name.
+        file: String,
     },
     /// The level's navigation side file (round GR2: the AI workspace's edits, for NavKit).
     Navigation,
@@ -79,6 +93,8 @@ impl Target {
             Self::Terrain { file } => format!("the height field {file}"),
             Self::Material { file } => format!("the material map {file}"),
             Self::Paint { layer } => format!("the paint layer {layer}"),
+            Self::Colour { file } => format!("the colour / occlusion map {file}"),
+            Self::Ring { file } => format!("the sub-terrain ring of {file}"),
             Self::Navigation => "the navigation side file".into(),
             Self::Project => "the project".into(),
         }
@@ -93,6 +109,8 @@ impl Target {
             Self::Group { file } => Some(format!("group:{file}")),
             Self::Terrain { file } => Some(format!("terrain:{file}")),
             Self::Material { file } => Some(format!("material:{file}")),
+            Self::Colour { file } => Some(format!("colour:{file}")),
+            Self::Ring { file } => Some(format!("ring:{file}")),
             Self::Partition | Self::Paint { .. } | Self::Navigation | Self::Project => None,
         }
     }
@@ -276,6 +294,12 @@ pub struct LevelFiles {
     /// Each member the project added (its guid, [`crate::members::member_guid`]) and the base member whose leaf
     /// shape it takes at export (the member it copies, or the one that one copies ...).
     pub added: BTreeMap<String, Member>,
+    /// Each height field whose range the log widened (round E5-rest, [`Op::TerrainRange`]): its base's max y and its
+    /// max y now, metres.
+    pub ranges: BTreeMap<String, [f32; 2]>,
+    /// The material names the log added to each material map (round E5-rest, [`Op::MaterialAdd`]), after the
+    /// base's names, in order.
+    pub material_names: BTreeMap<String, Vec<String>>,
 }
 
 impl LevelFiles {
@@ -288,6 +312,8 @@ impl LevelFiles {
             rasters: BTreeMap::new(),
             orders: Orders::new(),
             added: BTreeMap::new(),
+            ranges: BTreeMap::new(),
+            material_names: BTreeMap::new(),
         }
     }
 
@@ -311,8 +337,42 @@ impl LevelFiles {
         donors: &Donors<'_>,
         sources: &dyn Sources,
     ) -> Result<(), ApplyError> {
-        if let Op::Stroke { target, size, tiles } = &o.op {
-            return self.stroke(o, target, *size, tiles, out, sources);
+        if let Op::Stroke {
+            target,
+            size,
+            tiles,
+            also,
+        } = &o.op
+        {
+            // every raster checked first (round E5-rest: a stroke over several rasters applies whole or not at all)
+            let before = self.rasters.clone();
+            let done = std::iter::once((target, *size, tiles.as_slice()))
+                .chain(also.iter().map(|p| (&p.target, p.size, p.tiles.as_slice())))
+                .try_for_each(|(t, size, tiles)| self.stroke(o, t, size, tiles, out, sources));
+            if done.is_err() {
+                self.rasters = before;
+            }
+            return done;
+        }
+        if let Op::TerrainRange { file, from, to } = &o.op {
+            return self.widen(o, file, *from, *to, sources);
+        }
+        if let Op::MaterialAdd { file, name } = &o.op {
+            let target = Target::Material { file: file.clone() };
+            let base = sources.raster(&target).is_some();
+            let names = self.material_names.entry(file.clone()).or_default();
+            if !base {
+                return Err(ApplyError {
+                    n: o.n,
+                    name: o.name(),
+                    error: LevelWriteError::NoFile(target.describe()),
+                });
+            }
+            if !names.iter().any(|n| n.eq_ignore_ascii_case(name)) {
+                names.push(name.clone());
+            }
+            out.operations += 1;
+            return Ok(());
         }
         let Op::Files { edits } = &o.op else {
             if let Some(w) = self.partition.as_mut() {
@@ -480,6 +540,11 @@ impl LevelFiles {
             std::collections::btree_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::btree_map::Entry::Vacant(e) => {
                 let r = match (sources.raster(target), target) {
+                    // a ring made after its main block's range was widened: in the widened scale
+                    (Some(r), Target::Ring { file }) if self.ranges.contains_key(file) => {
+                        let [from, to] = self.ranges.get(file).copied().unwrap_or([1.0, 1.0]);
+                        crate::terrainedit::rescale(&r, f64::from(from), f64::from(to))
+                    }
                     (Some(r), _) => r,
                     (None, Target::Paint { .. }) => crate::delta::Raster::new(size[0], size[1], 0),
                     (None, other) => return Err(fail(LevelWriteError::NoFile(other.describe()))),
@@ -500,6 +565,46 @@ impl LevelFiles {
         crate::delta::apply_stroke(raster, tiles, &|s| sources.tile(s), true).map_err(fail)?;
         out.operations += 1;
         out.files += tiles.len();
+        Ok(())
+    }
+
+    /// A height field's range widened ([`Op::TerrainRange`]): its raster's stored heights rescaled, its max y kept.
+    fn widen(
+        &mut self,
+        o: &Operation,
+        file: &str,
+        from: f32,
+        to: f32,
+        sources: &dyn Sources,
+    ) -> Result<(), ApplyError> {
+        let fail = |error: LevelWriteError| ApplyError {
+            n: o.n,
+            name: o.name(),
+            error,
+        };
+        let target = Target::Terrain { file: file.to_owned() };
+        if !(to > from && from > 0.0) {
+            return Err(fail(LevelWriteError::Refused(format!(
+                "a height range is only widened (from {from} m to {to} m)"
+            ))));
+        }
+        let raster = match self.rasters.get(&target) {
+            Some(r) => r.clone(),
+            None => sources
+                .raster(&target)
+                .ok_or_else(|| fail(LevelWriteError::NoFile(target.describe())))?,
+        };
+        let (from64, to64) = (f64::from(from), f64::from(to));
+        self.rasters
+            .insert(target, crate::terrainedit::rescale(&raster, from64, to64));
+        // the ring shares the main block's scale (TERR-HF-12's knots): its raster, once made, is rescaled with it
+        let ring = Target::Ring { file: file.to_owned() };
+        if let Some(r) = self.rasters.get(&ring) {
+            let r = crate::terrainedit::rescale(r, from64, to64);
+            self.rasters.insert(ring, r);
+        }
+        let base = self.ranges.get(file).map_or(from, |r| r[0]);
+        self.ranges.insert(file.to_owned(), [base, to]);
         Ok(())
     }
 
@@ -580,7 +685,7 @@ pub fn member_transform(w: &LevelWriter, instance: &str, item: usize) -> Option<
 
 /// What [`apply_files`] made: the partition (as [`crate::write::apply`] makes it) and every other file the log
 /// changed.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct AppliedFiles {
     /// The partition and the counts.
     pub partition: Applied,
@@ -590,6 +695,10 @@ pub struct AppliedFiles {
     pub orders: Orders,
     /// The members the log added and the base member whose leaf shape each takes (round SG1).
     pub added: BTreeMap<String, Member>,
+    /// The height fields whose range the log widened: base max y, new max y (round E5-rest).
+    pub ranges: BTreeMap<String, [f32; 2]>,
+    /// The material names the log added, by material map (round E5-rest).
+    pub material_names: BTreeMap<String, Vec<String>>,
 }
 
 /// The base partition and the level's other files with `ops` applied in order ([`LevelFiles::apply`]): what an
@@ -631,6 +740,8 @@ pub fn apply_files<'a>(
         files: edited,
         orders: files.orders,
         added: files.added,
+        ranges: files.ranges,
+        material_names: files.material_names,
     })
 }
 
@@ -922,6 +1033,7 @@ pub(crate) mod tests {
                     target: terrain.clone(),
                     size: [200, 200],
                     tiles: stroke(&src.terrain, &hill, &src.store).unwrap(),
+                    also: Vec::new(),
                 },
             ),
             op(
@@ -930,6 +1042,7 @@ pub(crate) mod tests {
                     target: paint.clone(),
                     size: [200, 200],
                     tiles: stroke(&Raster::new(200, 200, 0), &grass, &src.store).unwrap(),
+                    also: Vec::new(),
                 },
             ),
         ];

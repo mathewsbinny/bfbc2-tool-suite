@@ -44,11 +44,11 @@ pub enum Outcome {
     /// A brush stroke under way (round E5): the region of the raster it just changed, to redraw at once (the raster
     /// is the tool's, [`crate::sculpt::TerrainTool::stroke`]).
     TerrainPreview(bc2_levelwrite::files::Target, bc2_formats::terrain_codec::Region),
-    /// A brush stroke finished (round E5): the raster as it leaves it, committed as one operation with its History
-    /// label; whether a height was clamped to the level's range.
+    /// A brush stroke finished (round E5): the rasters as it leaves them (round E5-rest: the first the brush's, then
+    /// the ring or the paired material it reached), committed as one operation with its History label; whether a
+    /// height was clamped to the level's range.
     Stroke(
-        bc2_levelwrite::files::Target,
-        Box<bc2_levelwrite::delta::Raster>,
+        Vec<(bc2_levelwrite::files::Target, bc2_levelwrite::delta::Raster)>,
         String,
         bool,
     ),

@@ -356,10 +356,169 @@ pub fn decode_level(d: &[u8], k: usize) -> Option<Picture> {
     Some(Picture { w, h: hh, rgb })
 }
 
+/// A rectangle of texels: columns `x0 .. x1`, rows `y0 .. y1`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rect {
+    /// First column.
+    pub x0: usize,
+    /// First row.
+    pub y0: usize,
+    /// One past the last column.
+    pub x1: usize,
+    /// One past the last row.
+    pub y1: usize,
+}
+
+impl Rect {
+    /// The rectangle a level lower in the chain covers (halved outwards).
+    #[must_use]
+    pub fn half(self) -> Self {
+        Self {
+            x0: self.x0 / 2,
+            y0: self.y0 / 2,
+            x1: self.x1.div_ceil(2),
+            y1: self.y1.div_ceil(2),
+        }
+    }
+
+    /// Whether it covers no texel.
+    #[must_use]
+    pub fn is_empty(self) -> bool {
+        self.x1 <= self.x0 || self.y1 <= self.y0
+    }
+}
+
+/// A DXT1 or L8 resource with level 0's texels in `region` replaced by `pic`'s (`pic` the whole level 0) and each
+/// lower level remade over the part the region reaches (2 x 2 box filtering of the level above as it now is), every
+/// other byte kept (round E5-rest: the editor's colour / occlusion paint and re-bake, TEDIT-OCC-1). DXT1 re-encodes
+/// only the 4 x 4 blocks the region touches, from the texels as they decode with the region's replaced. `None` when
+/// the resource is not DXT1 or L8, or `pic` is not its level 0's size.
+#[must_use]
+pub fn splice(res: &[u8], pic: &Picture, region: Rect) -> Option<Vec<u8>> {
+    let h = Header::read(res)?;
+    let f = Format::from_code(h.format)?;
+    if (pic.w, pic.h) != (h.width as usize, h.height as usize) {
+        return None;
+    }
+    let mut out = res.to_vec();
+    let mut region = Rect {
+        x0: region.x0.min(pic.w),
+        y0: region.y0.min(pic.h),
+        x1: region.x1.min(pic.w),
+        y1: region.y1.min(pic.h),
+    };
+    let mut cur: Option<Picture> = None;
+    for k in 0..h.levels as usize {
+        if region.is_empty() {
+            break;
+        }
+        // this level as it decodes, with the region's texels the new ones (level 0: the picture's; below: the box
+        // filter of the level above as it now is)
+        let mut lvl = decode_level(res, k)?;
+        let made = match &cur {
+            Some(above) => above.half(),
+            None => pic.clone(),
+        };
+        for y in region.y0..region.y1 {
+            for x in region.x0..region.x1 {
+                let v = made.at(x, y);
+                if let Some(t) = lvl.rgb.get_mut(y * lvl.w + x) {
+                    *t = v;
+                }
+            }
+        }
+        let start = h.level_start(k);
+        match f {
+            Format::L8 => {
+                let stride = lvl.w.next_multiple_of(4);
+                for y in region.y0..region.y1 {
+                    for x in region.x0..region.x1 {
+                        if let Some(b) = out.get_mut(start + y * stride + x) {
+                            *b = lvl.at(x, y)[0];
+                        }
+                    }
+                }
+            }
+            Format::Dxt1 => {
+                let bw = lvl.w.div_ceil(4);
+                for by in region.y0 / 4..region.y1.div_ceil(4) {
+                    for bx in region.x0 / 4..region.x1.div_ceil(4) {
+                        let block: [[u8; 3]; 16] = std::array::from_fn(|i| lvl.at(4 * bx + i % 4, 4 * by + i / 4));
+                        let at = start + (by * bw + bx) * 8;
+                        out.get_mut(at..at + 8)?.copy_from_slice(&dxt1_block(&block));
+                    }
+                }
+            }
+        }
+        cur = Some(lvl);
+        region = region.half();
+    }
+    Some(out)
+}
+
+/// A colour as the 16-bit 5:6:5 value a raster keeps (the editor's colour / occlusion raster, round E5-rest).
+#[must_use]
+pub fn pack565(c: [u8; 3]) -> u16 {
+    to565(c.map(i32::from))
+}
+
+/// A 16-bit 5:6:5 value as a colour (each channel's bits repeated into its low bits, as DXT1 decodes them).
+#[must_use]
+pub fn unpack565(v: u16) -> [u8; 3] {
+    from565(v).map(|c| c.clamp(0, 255) as u8)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_splice_keeps_every_byte_outside_its_region() {
+        let (w, h) = (64usize, 64usize);
+        let rgb: Vec<[u8; 3]> = (0..w * h)
+            .map(|i| {
+                let (x, y) = (i % w, i / w);
+                [(x * 3) as u8, (y * 3) as u8, 90]
+            })
+            .collect();
+        let pic = Picture { w, h, rgb };
+        for f in [Format::Dxt1, Format::L8] {
+            let res = encode(&pic, f, 2, true);
+            let none = Rect {
+                x0: 0,
+                y0: 0,
+                x1: 0,
+                y1: 0,
+            };
+            assert_eq!(splice(&res, &decode_level(&res, 0).unwrap(), none).unwrap(), res);
+            let mut dark = decode_level(&res, 0).unwrap();
+            for y in 8..16 {
+                for x in 8..16 {
+                    dark.rgb[y * w + x] = [0, 0, 0];
+                }
+            }
+            let r = Rect {
+                x0: 8,
+                y0: 8,
+                x1: 16,
+                y1: 16,
+            };
+            let out = splice(&res, &dark, r).unwrap();
+            assert_eq!(out.len(), res.len());
+            let back = decode_level(&out, 0).unwrap();
+            assert_eq!(back.at(10, 10), [0, 0, 0]);
+            assert_eq!(back.at(40, 40), decode_level(&res, 0).unwrap().at(40, 40));
+            // level 0's bytes outside the region's blocks unchanged; level 1 darker under it
+            let hd = Header::read(&res).unwrap();
+            let l0 = hd.level_start(0)..hd.level_start(1);
+            let changed = out[l0.clone()].iter().zip(&res[l0]).filter(|(a, b)| a != b).count();
+            let most = if f == Format::Dxt1 { 4 * 8 } else { 64 };
+            assert!(changed > 0 && changed <= most, "{f:?}: {changed}");
+            assert!(decode_level(&out, 1).unwrap().at(5, 5)[0] < 30);
+        }
+        assert_eq!(unpack565(pack565([255, 0, 128]))[0], 255);
+    }
 
     #[test]
     fn a_gradient_round_trips_closely_in_both_formats() {

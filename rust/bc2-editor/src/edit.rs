@@ -128,6 +128,9 @@ pub struct Doc {
     pub terrain_rev: u64,
 }
 
+#[path = "terraindoc.rs"]
+mod terraindoc;
+
 /// A multi-file operation tried by [`Doc::refusal`]: the files it made from the document's at `revision`; a commit
 /// of the same operation at the same revision takes them (the files are those the apply would make: the same
 /// operation on the same files, sources and schema).
@@ -158,6 +161,33 @@ impl Sources for DocSources<'_> {
                 self.base.material_map.as_deref()?,
             ));
         }
+        // round E5-rest: the colour / occlusion map's texels, the ring's 12 blocks as one raster
+        let extra = self.base.terrain_extra.as_deref();
+        match target {
+            Target::Colour { file } => {
+                let (name, bytes) = extra?.colour.as_ref()?;
+                return (name == file)
+                    .then(|| bc2_levelwrite::terrainpaint::colour_raster(bytes))
+                    .flatten();
+            }
+            Target::Ring { file } => {
+                if self.terrain != Some(&Target::Terrain { file: file.clone() }) {
+                    return None;
+                }
+                let hf = self.base.heightfield.as_ref()?;
+                let blocks: Vec<Vec<u16>> = extra?
+                    .ring
+                    .iter()
+                    .map(|b| bc2_formats::terrain::parse(b).ok().map(|h| h.raw))
+                    .collect::<Option<_>>()?;
+                return Some(bc2_levelwrite::terrainedit::ring_raster(
+                    &hf.raw,
+                    hf.size as usize,
+                    &blocks,
+                ));
+            }
+            _ => {}
+        }
         if Some(target) != self.terrain {
             return None;
         }
@@ -184,6 +214,16 @@ pub fn blueprint_path(reference: &str) -> String {
 /// A level file's bytes as the scene loaded it (round OP1): a static group file by its name; `None` for the other
 /// targets.
 fn base_file(scene: &Scene, target: &Target) -> Option<Vec<u8>> {
+    // round E5-rest: the colour / occlusion map's bytes (its sha1 recorded when it is first painted)
+    if let Target::Colour { file } = target {
+        return scene
+            .terrain_extra
+            .as_ref()?
+            .colour
+            .as_ref()
+            .filter(|(n, _)| n == file)
+            .map(|(_, b)| b.clone());
+    }
     let Target::Group { file } = target else { return None };
     (1..)
         .map_while(|k| scene.file(k))
@@ -574,6 +614,11 @@ impl Doc {
                 tiles,
                 ..
             } => self.sync_terrain_in(Some(tiles)),
+            // round E5-rest: a stroke whose other parts sculpt it, a widened range
+            Op::Stroke { also, .. } if also.iter().any(|p| matches!(p.target, Target::Terrain { .. })) => {
+                self.sync_terrain();
+            }
+            Op::TerrainRange { .. } => self.sync_terrain(),
             op => self.apply_scene(op),
         }
     }
@@ -595,6 +640,16 @@ impl Doc {
             return;
         };
         let n = hf.size as usize;
+        // round E5-rest: a widened range (or its undo) moves every sample's height: the max y the log leaves, and
+        // the whole mesh made again
+        let want_max = match &t {
+            Target::Terrain { file } => self.files.ranges.get(file).map(|r| r[1]),
+            _ => None,
+        }
+        .or_else(|| self.base.heightfield.as_ref().map(|b| b.max[1]))
+        .unwrap_or(hf.max[1]);
+        let rescaled = (hf.max[1] - want_max).abs() > f32::EPSILON;
+        let tiles = if rescaled { None } else { tiles };
         // the samples to write, and where
         let (region, write): (Option<Region>, Box<Writer>) = match (self.files.rasters.get(&t), tiles) {
             (Some(r), Some(tiles)) => {
@@ -645,10 +700,20 @@ impl Doc {
                 _ => (None, Box::new(|_: &mut [u16], _: Region| {})),
             },
         };
+        let full = Region {
+            x0: 0,
+            z0: 0,
+            x1: n,
+            z1: n,
+        };
+        let region = if rescaled { Some(full) } else { region };
         let Some(region) = region else { return };
         let Some(mut hf) = self.scene.heightfield.take() else {
             return;
         };
+        if rescaled {
+            std::sync::Arc::make_mut(&mut hf).max[1] = want_max;
+        }
         write(&mut std::sync::Arc::make_mut(&mut hf).raw, region);
         if let Some(mut mesh) = self.scene.terrain.take() {
             terrain_vertices(&mut std::sync::Arc::make_mut(&mut mesh).0, &hf, region);
@@ -1127,15 +1192,6 @@ impl Doc {
         })
     }
 
-    /// The material map's names (round E5: the material brush's choices), index 0 first.
-    #[must_use]
-    pub fn material_names(&self) -> Vec<String> {
-        self.base
-            .material_map
-            .as_ref()
-            .map_or_else(Vec::new, |m| m.names.clone())
-    }
-
     /// A raster as the log leaves it (round OP1): a height field's stored values, a paint layer's weights; `None`
     /// before the first stroke on a paint layer, or for a height field the scene did not read.
     #[must_use]
@@ -1181,6 +1237,7 @@ impl Doc {
                 target: target.clone(),
                 size: [after.width(), after.height()],
                 tiles,
+                also: Vec::new(),
             },
             label,
         );

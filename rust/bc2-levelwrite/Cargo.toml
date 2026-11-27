@@ -31,6 +31,8 @@ zune-core.workspace = true
 bc2-scene.workspace = true
 # round NK6: the export's path-data step builds the level in process (NavKit's level driver, its apply edits)
 bc2-navbuild = { workspace = true, features = ["graphedit"] }
+# round E5-rest: the ring's stitching (TERR-HF-12) and the sky visibility of the colour / occlusion re-bake
+bc2-terragen.workspace = true
 
 # mapexport.exe's application icon (round I1: build.rs)
 [build-dependencies]

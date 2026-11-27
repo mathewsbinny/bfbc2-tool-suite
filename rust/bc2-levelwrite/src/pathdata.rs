@@ -188,10 +188,18 @@ pub fn changes(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> C
     let mut c = Changes::default();
     for o in &project.operations {
         match &o.op {
-            Op::Stroke {
-                target: crate::files::Target::Terrain { .. },
-                ..
-            } => c.terrain += 1,
+            // a sculpt (the main block, the ring) or a widened range moves the ground (round E5-rest: the ring and
+            // the range too)
+            Op::Stroke { .. } | Op::TerrainRange { .. }
+                if o.op.files().iter().any(|t| {
+                    matches!(
+                        t,
+                        crate::files::Target::Terrain { .. } | crate::files::Target::Ring { .. }
+                    )
+                }) =>
+            {
+                c.terrain += 1;
+            }
             Op::Files { edits } => {
                 c.members += edits
                     .iter()

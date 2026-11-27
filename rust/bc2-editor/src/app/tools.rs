@@ -1369,8 +1369,8 @@ impl ViewState {
             Outcome::Commit(op, label) => self.commit(gpu, palette, *op, &label),
             // round E5: the brushes
             Outcome::TerrainPreview(target, region) => self.terrain_preview(gpu, &target, region),
-            Outcome::Stroke(target, raster, label, clamped) => {
-                self.terrain_stroke(gpu, palette, &target, &raster, &label, clamped);
+            Outcome::Stroke(parts, label, clamped) => {
+                self.terrain_stroke(gpu, palette, &parts, &label, clamped);
             }
             Outcome::CommitSelect(op, label, guids) => {
                 let n = self.doc.as_ref().and_then(Doc::last_n);
