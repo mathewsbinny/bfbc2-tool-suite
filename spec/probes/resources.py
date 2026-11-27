@@ -48,6 +48,13 @@ EXPECTED: dict[str, Any] = {
     # ATREE-BLK-1 - 3
     'atree_node_table': 1926, 'atree_nodes': 1926, 'atree_b_head': 1926, 'atree_c_records': 1926,
     'atree_node_types': (1, 26, 26), 'atree_node_count': 59725,
+    # ATREE-NODE-1, ATREE-BLK-4 (round SPG2-rest5)
+    'atree_type_names': True,
+    'atree_type_counts': {1: 28254, 2: 7756, 3: 5684, 4: 2863, 5: 1074, 6: 749, 7: 27, 8: 3882, 9: 42, 10: 18, 11: 66,
+                          12: 12, 13: 280, 14: 134, 15: 4559, 16: 239, 17: 37, 18: 105, 19: 2974, 20: 18, 21: 26,
+                          22: 24, 23: 326, 24: 72, 25: 487, 26: 17},
+    'atree_nodes_in_order': 1926, 'atree_b_entries': 1926, 'atree_anim_index': 1926,
+    'atree_b_lengths': (28254, 0.0333, 182.3333),
     # WAVE-IR-1
     'ir_header': [('irf1', 1, 2, 48000, 1024, 1024, 2048, 1)], 'ir_layout': 5,
     # HAVOK-RAG-1
@@ -172,6 +179,17 @@ ATREE_NODE_POINTERS = {2: (0x20, 0x28, 0x30, 0x38), 3: (0x20, 0x28, 0x30, 0x38),
                        7: (0x20,), 13: (0x20,), 16: (0x110,), 23: (0x20, 0x28), 25: (0x20,)}
 ATREE_INDIRECT = {2: 0x38, 16: 0x110}    # the record's pointer leads to one more pointer the walker relocates
 ATREE_C_RECORD = 0x60
+# ATREE-NODE-1: the executable's names of the node types (BFBC2Game.exe build 795745, PE time stamp 0x4E55445D: the
+# function 0xF490A0 returns, for type t = 1 - 26, `mov eax, <name>` through its jump table 0xF4915C).
+ATREE_BUILD = 0x4E55445D
+ATREE_TYPE_NAMES_FN = 0xF4915C
+ATREE_TYPE_NAMES = ('AnimationNodeInfo', 'IfNodeInfo', 'SelectorNodeInfo', 'WeightFactorNodeInfo', 'AimNodeInfo',
+                    'EnumeratedSwitchNodeInfo', 'AutoEndingEnumeratedSwitchNodeInfo', 'TripleStateNodeInfo',
+                    'TimeSynchronizerNodeInfo', 'TimeSynchronizerToParentNodeInfo', 'MovementNodeInfo',
+                    'Movement4WayNodeInfo', 'TransitionNodeInfo', 'PingPongNodeInfo', 'AutoEndingLoopNodeInfo',
+                    'WeaponHandsIkNodeInfo', 'GenericHandsIkNodeInfo', 'BoneToBoneIkNodeInfo',
+                    'TimeControllerNodeInfo', 'ProceduralLeaningNodeInfo', 'LerpNodeInfo', 'TurnNodeInfo',
+                    'RandomSelectorNodeInfo', 'SelectorByPoseNodeInfo', 'XorSelectorNodeInfo', 'RagdollNodeInfo')
 
 
 class _Tree:
@@ -201,6 +219,8 @@ def anim_tree_blocks(items: list[tuple[str, bytes]], out: dict[str, Any]) -> Non
     type's places; block B starts with one pointer; block C with (record table, count) of 0x60-byte records. Every
     pointer is 0 or points into its own block or at its end. Counts and types only."""
     head = nodes = b_head = c_recs = 0
+    in_order = b_entries = anim_index = 0
+    lengths: list[float] = []
     types: Counter[int] = Counter()
     for _, d in items:
         tr = _Tree(d)
@@ -224,6 +244,18 @@ def anim_tree_blocks(items: list[tuple[str, bytes]], out: dict[str, Any]) -> Non
                 all_nodes &= own(u(at(u(no + ind), 0)), 0)
         head += ok
         nodes += all_nodes
+        # ATREE-BLK-4: the nodes lie in table order; block B is (pointer to B + 16, count, 0, 0) and one 16-byte entry
+        # per animation node (type 1, its length first), block C one record per animation node; an animation node's
+        # word +0x20 is its index among them.
+        offs = [at(u(at(table, 0) + 4 * i), 0) for i in range(n)] if all_nodes else []
+        in_order += offs == sorted(offs)
+        anim = [o for o in offs if u(o) == 1]
+        cn = u(24 + a + b) if c else 0
+        head_b = 20 + a
+        b_entries += (b == 16 + 16 * cn and len(anim) == cn and (cn == 0 or (u(head_b) == base + a + 16
+                      and u(head_b + 4) == cn and u(head_b + 8) == 0 and u(head_b + 12) == 0)))
+        anim_index += all(u(o + 0x20) == k for k, o in enumerate(anim))
+        lengths += [struct.unpack_from('<f', d, head_b + 16 + 16 * k)[0] for k in range(cn if b else 0)]
         b_head += b == 0 or own(u(20 + a), 1)
         good = c > 0
         if good:
@@ -239,7 +271,30 @@ def anim_tree_blocks(items: list[tuple[str, bytes]], out: dict[str, Any]) -> Non
                     good &= own(u(r + off), 2)
         c_recs += good
     out.update(atree_node_table=head, atree_nodes=nodes, atree_b_head=b_head, atree_c_records=c_recs,
-               atree_node_types=(min(types), max(types), len(types)), atree_node_count=sum(types.values()))
+               atree_node_types=(min(types), max(types), len(types)), atree_node_count=sum(types.values()),
+               atree_type_counts=dict(sorted(types.items())), atree_nodes_in_order=in_order,
+               atree_b_entries=b_entries, atree_anim_index=anim_index,
+               atree_b_lengths=(len(lengths), round(min(lengths), 4), round(max(lengths), 4)) if lengths else None)
+
+
+def atree_type_names(exe: Path) -> bool | None:
+    """ATREE-NODE-1: the executable's name function gives ATREE_TYPE_NAMES for types 1 - 26 (None: another build)."""
+    b = exe.read_bytes()
+    pe = struct.unpack_from('<I', b, 0x3C)[0]
+    if struct.unpack_from('<I', b, pe + 8)[0] != ATREE_BUILD:
+        return None
+
+    def off(va: int) -> int:                               # .text / .rdata: file offset = va - image base
+        return va - 0x400000
+
+    names = []
+    for t in range(26):
+        case = struct.unpack_from('<I', b, off(ATREE_TYPE_NAMES_FN + 4 * t))[0]
+        if b[off(case)] != 0xB8:                           # mov eax, imm32
+            return False
+        s = off(struct.unpack_from('<I', b, off(case) + 1)[0])
+        names.append(b[s:b.index(b'\x00', s)].decode('ascii', 'replace'))
+    return tuple(names) == ATREE_TYPE_NAMES
 
 
 def impulse_responses(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
@@ -334,6 +389,7 @@ def analyse(game: Path) -> dict[str, Any]:
     occluders(items['OccluderMesh'], out)
     soots(items['SootMesh'], out)
     anim_trees(items['AnimTreeInfo'], out)
+    out['atree_type_names'] = atree_type_names(game / 'BFBC2Game.exe')
     impulse_responses(items['ImpulseResponse'], out)
     ragdolls(items['RagdollResource'], out)
     bink_resources(items['BinkMemory'], out)

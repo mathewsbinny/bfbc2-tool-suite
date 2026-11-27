@@ -213,8 +213,8 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 65,
-   "note": "NavKit's narrow lips and door sills (navwalk.LIP_WIDTH, LIP_OBJECT_RISE, LIP_OBJECT_FLAT) on sample rows bu...",
+   "lines": 74,
+   "note": "NavKit's narrow lips and door sills (navwalk.LIP_WIDTH, LIP_OBJECT_RISE, LIP_OBJECT_FLAT, LIP_OBJECT_FLAT_A...",
    "path": "bfbc2-auto-navkit/tests/test_lips.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -237,7 +237,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 1045,
+   "lines": 1060,
    "note": "NavKit in the Rust core (rust/bc2-navbuild through bc2_native).",
    "path": "bfbc2-auto-navkit/tests/test_navbuild_native.py",
    "retiring": "Tests in Rust",
@@ -685,7 +685,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 309,
+   "lines": 323,
    "note": "the regression builds call navwalk.build (Rust since NK5); left: the run, its inputs and measures in Python",
    "path": "bfbc2-auto-navkit/tools/navregress.py",
    "retiring": "NK5",
@@ -733,7 +733,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 597,
+   "lines": 607,
    "note": "walkable, coarse and the rules are Rust (NK4); build / water_tops / outside_bounds / deep_water are thin calls of the Rust build (NK5-rest: navbuild.py's); left: score's command line",
    "path": "bfbc2-auto-navkit/tools/navwalk.py",
    "retiring": "NK5",
@@ -957,7 +957,7 @@
    "embedded_by": [],
    "folder": "bfbc2-automated-map-and-bot-test-harness",
    "kind": "library",
-   "lines": 251,
+   "lines": 253,
    "note": "saved runs and their comparison; bfbc2 harness show / compare / list answer in Rust",
    "path": "bfbc2-automated-map-and-bot-test-harness/testharness/runs.py",
    "retiring": "PR1b-2",
@@ -2245,7 +2245,7 @@
    "embedded_by": [],
    "folder": "bfbc2-model-tools",
    "kind": "test",
-   "lines": 164,
+   "lines": 165,
    "note": "Project OPFOR's WW2 pictures in the Rust core (round OR4, \"OPFOR in Rust\" stage 4: bc2_convert::pictures an...",
    "path": "bfbc2-model-tools/tests/test_pictures_native.py",
    "retiring": "Tests in Rust",
@@ -3519,7 +3519,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 818,
+   "lines": 836,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3987,7 +3987,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 883,
+   "lines": 885,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4035,7 +4035,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 143,
+   "lines": 151,
    "note": "read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier",
    "path": "spec/probes/effects_chain.py",
    "retiring": "stays",
@@ -4095,7 +4095,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 529,
+   "lines": 580,
    "note": "read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier",
    "path": "spec/probes/menus.py",
    "retiring": "stays",
@@ -4131,6 +4131,18 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
+   "lines": 99,
+   "note": "read-only probe for spec/engine/persistence.md (award codes against the value templates); checked in the game tier",
+   "path": "spec/probes/persistence.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
    "lines": 161,
    "note": "read-only probe for spec/model/registration.md and bundles.md (the stock registries); checked in the game tier",
    "path": "spec/probes/registry.py",
@@ -4143,7 +4155,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 318,
+   "lines": 370,
    "note": "read-only probe for the SPG4 resource and loose-file formats (occluder, soot, animtree, bink, game_folder); game tier",
    "path": "spec/probes/resources.py",
    "retiring": "stays",
@@ -4604,8 +4616,8 @@
  ],
  "totals": {
   "all": {
-   "files": 378,
-   "lines": 110517
+   "files": 379,
+   "lines": 110798
   },
   "by_folder": {
    "(root)": {
@@ -4632,25 +4644,25 @@
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 14803,
-    "live": 1859,
-    "partly": 4408,
+    "lines": 14851,
+    "live": 1873,
+    "partly": 4418,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5442,
+    "test": 5466,
     "twin": 2821
    },
    "bfbc2-automated-map-and-bot-test-harness": {
     "files": 15,
-    "lines": 3833,
+    "lines": 3835,
     "live": 636,
     "partly": 743,
     "ported": 40,
     "retired-pending": 0,
     "stays": 0,
     "test": 1308,
-    "twin": 1106
+    "twin": 1108
    },
    "bfbc2-bf1943-import": {
     "files": 27,
@@ -4753,13 +4765,13 @@
    },
    "bfbc2-model-tools": {
     "files": 9,
-    "lines": 2090,
+    "lines": 2091,
     "live": 0,
     "partly": 267,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 974,
+    "test": 975,
     "twin": 849
    },
    "bfbc2-navigation-studio": {
@@ -4797,13 +4809,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20381,
+    "lines": 20399,
     "live": 760,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15283,
+    "test": 15301,
     "twin": 2429
    },
    "design": {
@@ -4819,23 +4831,23 @@
    },
    "rust": {
     "files": 34,
-    "lines": 6142,
+    "lines": 6144,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5875,
+    "stays": 5877,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 19,
-    "lines": 6491,
+    "files": 20,
+    "lines": 6701,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 6491,
+    "stays": 6701,
     "test": 0,
     "twin": 0
    },
@@ -4854,11 +4866,11 @@
   "by_status": {
    "live": {
     "files": 18,
-    "lines": 5287
+    "lines": 5301
    },
    "partly": {
     "files": 20,
-    "lines": 16518
+    "lines": 16528
    },
    "ported": {
     "files": 22,
@@ -4869,16 +4881,16 @@
     "lines": 310
    },
    "stays": {
-    "files": 68,
-    "lines": 13356
+    "files": 69,
+    "lines": 13568
    },
    "test": {
     "files": 191,
-    "lines": 52486
+    "lines": 52529
    },
    "twin": {
     "files": 56,
-    "lines": 19670
+    "lines": 19672
    }
   }
  }

@@ -5003,6 +5003,64 @@ and `testharness/runs.py`'s fallback list equal navregress's `HIGHER` (19 measur
   the sector-line / tile-line corner break on sp_003_b.
 - The rulings: the four switches above.
 
+## SPG2-rest5: reverse engineering for the specification (2026-11-27, branch `spg2r5`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745), read only. REA had no deep provider on this PC (only its
+artifact-graph and .NET providers were available), so the reading was done with capstone over a scratch copy of the
+executable, as in rounds SPG2-rest3 / rest4, plus a scratch map of every class's field descriptors (the registration
+calls in the `ctr` section push each class's field table and type record: 1,378 tables). DICE's data was read through
+the suite's readers. Nothing was run in the game, and nothing was written to `game\`.
+
+| Item | Found | Rules |
+|---|---|---|
+| undergrowth settings (VEG-UG-5, 7) | the renderer reads `VisualTerrainSettings` (+0xDC): `UndergrowthDensityScale` (+0x4C) is the generator's density factor, `UndergrowthViewDistanceScale` (+0x48) the draw's, snapped down to whole cells, `UndergrowthPoplessDistanceRatio` (+0x24) the fade's start, `ViewDistanceScaleMax` / `ForceCellSideCount` / `MaxCellSideCount` the cell grid, `OverlapDensityScale` the per-cell capacity | VEG-UG-8 new |
+| `WindScale`, second flag byte | `windParams` = (clock, `UndergrowthWindSpeed`, `WindScale`, 0) set per type at the draw 0xA0EE10; byte +0x35 read only by the loader and the two record copies | VEG-UG-9 new, VEG-UG-5 updated |
+| particle evaluators (FX-PROC-5) | box, random, random XYZ, rotate vector, sphere, constant, colour interpolation, polynomial operator read; the operator's operands are c.x t + c.y t^2 + c.z t^3 + c.w, the reverse of `PolynomialData` | FX-PROC-6 new |
+| inputs, `EfVelocity` | `EvaluatorInput` is `EmittableField`, the particle record's offsets; the update passes the age always and the dispatcher uses it only for `EfNormTime`; DICE's 40 `EfVelocity` processors are `TurbulanceData` without `Pre` (so `DefaultValues`); `EmitterParameter` 1 - 4 pick the particle's `Parameters` x - w | FX-PROC-7 new (verified) |
+| processors' use of the value | the 0x80-byte particle record; spawn (position, direction x speed, size, rotation, rotation speed, animation) and update (turbulence, gravity, local force, air resistance, linear velocity, orientation, rotation, size) in 0xB2C1A0 | FX-PROC-8 new |
+| loading roots (MENU-LOAD-1) | a screen's main vtable slot 4 (+0x10) is its root name: main menu "main_root", loading screen `GameModeData.LoaderName`, HUD `HudRootName` (via the level's `LevelDescription.GameMode`); DICE: loading_mp 8, loading_sp, loading_sp01 | MENU-LOAD-2 new (verified), MENU-LOAD-1 corrected |
+| FSCommand handlers (MENU-RT-6) | slot 12 (+0x30): main menu 0x77BC10, HUD 0x7764F0, loading 0x753540 (all to the shared 0x95E680 but `startLoading`); the shared one 0x95E680. Of 133 movie FSCommands: main 28, HUD 29, shared 69, callback 4, none 4 | MENU-RT-7 new (verified) |
+| event delay (MENU-EVT-4) | nothing writes the record's +0x01 / +0x02 / +0x08 but the pool's clear: the delayed pass never runs | MENU-EVT-5 new |
+| criteria classes (PERS-AWD-5) | a met criterion is parked by `CriteriaType` (round, life, death streak) and re-armed by the reset (0x85F3E0 / 0x85F330); all-time and if-not-true never; the criterion objects' maker not found | PERS-AWD-6 new (observed; its counts probe-checked) |
+| `<Code>_00` in `Final` | DICE (Dist, 2010): MP 380 of 380 codes, SP 70 of 70 have both `_00` and `_01` among `Final` | PERS-AWD-7 new (verified) |
+| anim-tree node types (ATREE-BLK-1) | 0xF490A0 names types 1 - 26 (`AnimationNodeInfo` ... `RagdollNodeInfo`) | ATREE-NODE-1 new (verified) |
+| blocks B and C (ATREE-BLK-2, 3) | B = (B + 16, n, 0, 0) + n 16-byte entries, C n records, n = the animation nodes; node +0x20 the index; B's first float the length (1/30 - 182.3 s) | ATREE-BLK-4 new (verified), ANIM-TREE-3 updated |
+
+Probes and checks (game tier; counts, types and identifiers only, nothing of EA's kept):
+
+- `spec/probes/menus.py`: the game modes' `LoaderName`, the three root slots' bytes and the screens' vtables, each
+  FSCommand handler's answered commands against the movies' (54 checks, 6 new; 17 s).
+- `spec/probes/resources.py`: node type names from the executable, counts per type, nodes in table order, block B's
+  head and entries per animation node, the +0x20 index, the lengths (3.0 s).
+- `spec/probes/effects_chain.py` and `core/tests/test_spec_probes.py::emitters`: the `EfVelocity` processors and the
+  evaluators' `EmitterParameter`.
+- `spec/probes/persistence.py` (new, 0.2 s): award codes, `Repeat`, `CriteriaType` and the `_00` / `_01` templates in
+  DICE's start-up bundle; the grant's two name formats in the executable.
+
+Rules went from 1,506 to 1,518 (by status: verified 899, implemented 143, observed 411, inferred 65); the census's
+typeinfo records with a rule 801 -> 811.
+
+### Playtests still pending (in-game tests are paused)
+
+- `transforms/terrain_edit.md` section 5 (E5 / E7).
+- ONS-CAP-3's patch.
+- MAT-TEX-20's RenderDoc capture.
+- BOT-GS-5.
+- bot_ai.md's plan, including the kill probe.
+- After OPFOR attaches the filled stats to the scoring record (PERS-SCORE-2, an OPFOR round): a round with kills and
+  deaths whose save keeps them.
+- New: a save with an award's `<Code>_00` / `_01` (PERS-AWD-5, 7); a burst of one menu event reaching the movie once
+  per send (MENU-EVT-5); whether `-VisualTerrain.Undergrowth*` overrides change the undergrowth (VEG-UG-8, SET-CLI-1).
+
+### What is left (SPG2-rest6)
+
+- The undergrowth shaders' use of `windParams`; `UndergrowthMaxHeight`'s use.
+- The mesh and sample-texture evaluators; the colour, transparency, alpha, texture-coordinate and clip-scale
+  processors (the vertex fill); the mesh particles' update; the force vectors' set-up.
+- What each FSCommand handler case does.
+- Who makes the award criterion objects; the event 0x51.
+- The anim-tree node records' fields; block C's words beside its pointers.
+- OPFOR's fix for PERS-SCORE-2, as an OPFOR round.
 ## E7-TG3: Create Level's terrain, from a height map and from the generator (2026-11-27, branch `e7`)
 
 ROADMAP rows E6-E7 (the Create Level part) and TG3, done together. Spec: `transforms/terrain_edit.md` TEDIT-NEW-1
