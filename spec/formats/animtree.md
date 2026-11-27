@@ -22,9 +22,8 @@ Status: **verified** · Variants: PC
 | 16 | u32 | block C's size |
 | 20 | A + B + C bytes | the blocks, in order; the file ends after C |
 
-Each block's size is a multiple of 16. The blocks' contents are not decoded beyond ANIM-TREE-2's hand records and
-ANIM-TREE-3's durations (inferred: A the tree's nodes, B its parameters, C the bindings to the partition's
-animations, by place, ANIM-TREE-1).
+Each block's size is a multiple of 16. A holds the nodes, B and C one entry per animation node: its length and its
+binding (sections 2 and 3).
 
 [test: core/tests/test_spec_probes.py::resources]
 [data: spec/probes/resources.py on DICE's bundles, 2026-11-23: 1,926 distinct AnimTreeInfo entries (2,594 live), version 6 in all, 20 + A + B + C = size in 1,926, every block a multiple of 16]
@@ -92,9 +91,76 @@ to the partition's animations (ATREE-HDR-1's reading of C).
 [data: spec/probes/resources.py, round SPG2-rest4 2026-11-23: 1,926 of 1,926 trees: the table in block C, every record's pointers 0 or in block C (887 at +0x1C, 839 at +0x14 and 4 at +0x38 point at its end)]
 [exe: BFBC2Game.exe walker 0xF59A30 (record stride 0x60 at 0xF59AC6; the counts at +0x10 and +0x24; +0x28, +0x30, +0x38), called at 0xF477BE with block C - A - B - base; the loader's object 0xF3F540 (vtable 0x14AB3E0, 0x24 bytes) filled at 0xF477E6 - 0xF47801]
 
+## 3. The nodes and the animations (round SPG2-rest5)
+
+### ATREE-NODE-1: The 26 node types are the executable's NodeInfo classes
+
+Status: **verified** · Variants: PC
+
+The Animation module names a node type through one function (0xF490A0: type 1 - 26 to a string, used for its debug
+output). With DICE's counts over the 1,926 trees (nodes / trees that have one) and the record size most nodes of the
+type take (the distance to the next node; the nodes lie in the table's order in all 1,926 trees):
+
+| Type | Name | Nodes | Trees | Record | Pointers past +4 (ATREE-BLK-1) |
+|---|---|---|---|---|---|
+| 1 | AnimationNodeInfo | 28,254 | 1,926 | 0x40 | none |
+| 2 | IfNodeInfo | 7,756 | 330 | 0x50 | +0x20, +0x28, +0x30, +0x38 |
+| 3 | SelectorNodeInfo | 5,684 | 972 | 0x50 | +0x20, +0x28, +0x30, +0x38 |
+| 4 | WeightFactorNodeInfo | 2,863 | 881 | 0x50 / 0x40 | +0x24 |
+| 5 | AimNodeInfo | 1,074 | 111 | 0x40 / 0x30 | none |
+| 6 | EnumeratedSwitchNodeInfo | 749 | 267 | 0x50 | +0x20, +0x28 |
+| 7 | AutoEndingEnumeratedSwitchNodeInfo | 27 | 21 | 0x50 / 0x40 | +0x20 |
+| 8 | TripleStateNodeInfo | 3,882 | 484 | 0x30 | none |
+| 9 | TimeSynchronizerNodeInfo | 42 | 6 | 0x50 | none |
+| 10 | TimeSynchronizerToParentNodeInfo | 18 | 6 | 0x30 | none |
+| 11 | MovementNodeInfo | 66 | 6 | 0x30 | none |
+| 12 | Movement4WayNodeInfo | 12 | 6 | 0x30 | none |
+| 13 | TransitionNodeInfo | 280 | 140 | 0x50 | +0x20 |
+| 14 | PingPongNodeInfo | 134 | 134 | 0x30 | none |
+| 15 | AutoEndingLoopNodeInfo | 4,559 | 275 | 0x30 | none |
+| 16 | WeaponHandsIkNodeInfo | 239 | 239 | 0x120 / 0x170 | +0x110 |
+| 17 | GenericHandsIkNodeInfo | 37 | 37 | 0xE0 | none |
+| 18 | BoneToBoneIkNodeInfo | 105 | 105 | (the last node) | none |
+| 19 | TimeControllerNodeInfo | 2,974 | 997 | 0x30 | none |
+| 20 | ProceduralLeaningNodeInfo | 18 | 6 | 0xA0 | none |
+| 21 | LerpNodeInfo | 26 | 26 | 0x30 | none |
+| 22 | TurnNodeInfo | 24 | 6 | 0x50 | none |
+| 23 | RandomSelectorNodeInfo | 326 | 169 | 0x80 / 0x70 / 0x60 | +0x20, +0x28 |
+| 24 | SelectorByPoseNodeInfo | 72 | 6 | 0x80 | none |
+| 25 | XorSelectorNodeInfo | 487 | 248 | 0x60 | +0x20 |
+| 26 | RagdollNodeInfo | 17 | 16 | 0x20 | none |
+
+Each is the compiled form of the partition's node class of the same stem (`AnimationNodeData`, `IfNodeData`,
+`SelectorNodeData` ..., engine/animation.md); `AimNodeInfo` is `AimNode2Data`'s. A record is longer than the type's
+fixed part when it carries arrays (the selectors' and switches' children behind their pointers). Every tree has at
+least one animation node. The fields past the pointers were not read node by node.
+
+[test: core/tests/test_spec_probes.py::resources]
+[data: spec/probes/resources.py, round SPG2-rest5 2026-11-27: the 26 names from the executable's function; node counts per type as listed (59,725); the nodes in table order in 1,926 of 1,926 trees]
+[exe: BFBC2Game.exe 0xF490A0 (type - 1 against 0x19, jump table 0xF4915C, each case `mov eax, <name>`: "AnimationNodeInfo" 0x14AB7CC ... "RagdollNodeInfo" 0x14AB598)]
+
+### ATREE-BLK-4: Blocks B and C hold one entry per animation node
+
+Status: **verified** · Variants: PC
+
+Block B is (u32 pointer to B + 16, u32 n, two zero words) and n 16-byte entries; block C is (u32 pointer to its
+record table, u32 n) and n 0x60-byte records (ATREE-BLK-3); n is the tree's number of `AnimationNodeInfo` nodes, in
+all 1,926 trees (B = 16 + 16 n bytes). An animation node's word +0x20 is its index among the animation nodes (in
+table order), so it names its B entry and its C record. A B entry's first float is the animation's length in seconds
+(1/30 - 182.3 s over DICE's 28,254, never 0: the slot durations OPFOR rewrites, ANIM-TREE-3); its other three words
+are zero in 1,782 trees, and in the rest hold one more float (seen: about 1.3 at +4, or 45 / 90 at +8). A C record's
+eight bytes at +0x54 are never zero and repeat within a tree when two nodes play one animation (presumably the
+animation's key in the partition's list); its pointers are ATREE-BLK-3's.
+
+So a tool that changes a tree's animation lengths writes the B entry of the animation node whose index it is (its
++0x20), and a tree with a new animation node needs a B entry and a C record more.
+
+[test: core/tests/test_spec_probes.py::resources]
+[data: spec/probes/resources.py, round SPG2-rest5 2026-11-27: B = 16 + 16 n with its head (B + 16, n, 0, 0) and n = C's count = the animation nodes in 1,926 of 1,926; the +0x20 index in 1,926 of 1,926; 28,254 lengths, 0.0333 - 182.3333 s; C +0x54 never zero (scratch read), unique within 822 of 1,926 trees]
+
 ## Open questions
 
-- What each of the 26 node types is (ATREE-BLK-1 gives their pointer places, not their names or fields): the
-  evaluator that switches on the node type, and an enum of 26 in the Animation module's typeinfo, would name them.
-- Block B's contents beyond its first pointer, and block C's records beyond their pointers (ATREE-BLK-2, -3): which
-  words are the durations, weights and animation indices.
+- The node records' fields past type, +4 and the pointers (ATREE-NODE-1): parameters' indices, weights, blend times;
+  the run-time evaluators of each type were not read.
+- Block B's second and third floats where they are set, and block C's words beside its pointers (+0x40 - +0x50, the
+  key at +0x54): read against the partitions' animation lists.

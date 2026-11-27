@@ -111,7 +111,9 @@ OPFOR's scoped trees are the M24's resource with the rifle's own durations put b
 (ANIM-TREE-2). The offsets come from pairwise differences, not a decoded layout. Round SPG2-rest4 placed them in the
 compiled tree's layout: 0x5100 - 0x5810 lies in block B (0x4FB4 - 0x5824 in all 10 DICE trees of those sizes), the
 flat data block whose one pointer is its first word (ATREE-BLK-2), so the durations sit in plain data and their
-rewrite moves no pointer; which words of block B are durations is still matched by differences, not by the reader.
+rewrite moves no pointer. Round SPG2-rest5 decoded block B (ATREE-BLK-4): one 16-byte entry per animation node from
+B + 16, its first float the animation's length, which is why OPFOR's copy compares those words with the Granny
+animations' `Duration`; the word-by-word difference can now be replaced by the entries of the animation nodes.
 
 [inferred: pairwise differences of same-size compiled trees; DICE's first-person weapon trees are 36,388 (2), 36,836 (2), 36,468, 36,292 and 36,500 bytes]
 [data: spec/probes/resources.py's block sizes, round SPG2-rest4 2026-11-23: block A 0x4FA0 and block B 0x870 bytes in all 10 DICE trees of those five sizes, so B runs 0x4FB4 - 0x5824 in the file]

@@ -2966,8 +2966,8 @@
      "ref": "BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; round SPG2-rest3: 0x11DD76A (37) is `toupper` for code-page bytes (low half through the CRT's `toupper`, the switch maps 0x9A / 0x9C / 0x9E / 0xE0 - 0xFE, 0xFF -> 0x9F), Ghidra's switch census of 36+ targets: 0x76ECC1, 0x776569, 0x77BC8C, 0x83B9BD, 0x85D53A, 0x95A2B7, 0x95E743, 0x98B8A1, 0x9AF960, 0x1198550, 0x11B39B3, 0x11B3A29, 0x11DD7BF, 0x11FD505, 0x1205000, 0x13633AB"
     },
     {
-     "kind": "inferred",
-     "ref": "\"the input is an offset\" from the values' spacing (0x48, 0x4C, 0x50, 0x60, 0x70 ... matching floats and vectors laid out in a record)"
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the enumeration EmittableField (round SPG2-rest5) names the same values, and the update writes the particle record at those offsets (FX-PROC-8)"
     }
    ]
   },
@@ -2981,6 +2981,53 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe dispatcher 0xB268E0 (type at record +0x18 minus 1 against 0xA at 0xB268F6 - 0xB26905, table 0xB26E98; component switch at +0x14 with the default 1.0 from 0x14D94F0; the input test `cmp ecx, 0x70` at 0xB26A2E); its wrapper 0xB26F80; the record built at 0xB27CB0 - 0xB27D1E in 0xB27BF0 (the processor's DefaultValues +0x10, Pre +0x0C, EvaluatorInput +0x24 by the field descriptors 0x1C1DEC0, 0x1C1DB60, 0x1C1DE90; the evaluator's +0x14 the type, +0x10 minus 1 the component); polynomial 0xB24FD0 (coefficients +0x20, MaxClamp +0x30, MinClamp +0x34, ScaleValue +0x38; the powers and their shuffles 0xB24FFF - 0xB25047, `maxps` with MinClamp 0xB25052, `minps` with MaxClamp 0xB25058, the product with ScaleValue x v 0xB2505B); PolynomialTempData's field descriptors 0x1C1E8F8 - 0x1C1E954 (Coefficients +0x0, MaxClamp +0x10, MinClamp +0x14, ScaleValue +0x18; record 0x1BFA934, 0x20 bytes)"
+    }
+   ]
+  },
+  {
+   "id": "FX-PROC-6",
+   "title": "The other evaluators",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe box 0xB23890 (-D at 0xB238AD, three draws 0xB238BF - 0xB23942, Pivot x D 0xB2396A - 0xB23972, w 0xB23979 - 0xB2397D); random 0xB21300; random XYZ 0xB23780; rotate vector 0xB23500 (pi/2 x (RotateWithinPlane == 0) 0xB2350F - 0xB23534, the half-degree factor 0.0087266 0x15165BC, the sine and cosine polynomials 0x145A3AC - 0x145A3C4, the result 0xB23758 - 0xB23770); sphere 0xB25090 (the rejection loop 0xB250E1 - 0xB251A4 against R^2); constant 0xB23990; polynomial operator 0xB266D0 (the powers in the order t, t^2, t^3 at 0xB26732 - 0xB26757, the operation +0x20 at 0xB267A9 - 0xB267EF, the result's clamp 0xB2680E - 0xB2681E); colour interpolation inline at 0xB26DF5 - 0xB26E86; the random number 0x4E45C0 (2^-24 at 0x14112F0); the classes' field descriptors as classes.json of round SPG2-rest5 read them (BoxEvaluatorData 0x1BFAA14, SphereEvaluatorData 0x1BFAA2C, RandomEvaluatorData 0x1BFA9E4, RandomXYZEvaluatorData 0x1BFA9FC, RotateVectorData 0x1BFA99C, ConstantEvaluatorData 0x1BFAA5C, PolynomialOperatorData 0x1BFA96C, PolynomialColorInterpData 0x1BFAA74)"
+    }
+   ]
+  },
+  {
+   "id": "FX-PROC-7",
+   "title": "The evaluator's inputs: the particle's age, and one of four emitter parameters",
+   "file": "spec/engine/effects.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::emitters"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/effects_chain.py, round SPG2-rest5 2026-11-27: EfVelocity on 40 processors, all TurbulanceData without Pre; EmitterParameter over the template chains' evaluators as listed"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe EmittableField's records from 0x1BF99C0 (EvaluatorInput's type); the dispatcher's evaluator test 0xB268EC (no evaluator: DefaultValues at 0xB26E8E) and the component switch from evaluator +0x10 minus 1 (0xB2690C - 0xB26947); the update 0xB2C1A0 passes the age vector [esp+0x80"
+    }
+   ]
+  },
+  {
+   "id": "FX-PROC-8",
+   "title": "The particle record and what the processors write",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the update 0xB2C1A0: processor lookups by type byte 0xB2C1B4 (UpdateAge, 1 / Lifetime at 0xB2C1D6 - 0xB2C1E4), 0xB2C6C7 - 0xB2C771 (spawn), 0xB2D664 - 0xB2D791 (update); spawn evaluations 0xB2CE06 (position, then 0x403870), 0xB2CEF3 (speed), 0xB2CF35 (direction, 0x403970 and 0x4182E0; InheritSpeedAndDirectionFromEmitter +0x30 at 0xB2D046), 0xB2D100 (size), 0xB2D146 / 0xB2D186 (animation), 0xB2D214 (rotation), 0xB2D25C (rotation speed); the record written 0xB2D27C - 0xB2D3F5; update evaluations 0xB2DE6B (turbulence after three 0xB20A90 draws), 0xB2DEE6 (gravity), 0xB2DF34 (local force), 0xB2DF82 (air resistance, `maxps` 0xB2DFA9), 0xB2DFD8 (linear velocity), 0xB2DFFD - 0xB2E13C (orientation), 0xB2E172 (rotation), 0xB2E1BD (size), 0xB2E1FF / 0xB2E24C (size x / y)"
     }
    ]
   },
@@ -6934,7 +6981,7 @@
   },
   {
    "id": "MENU-LOAD-1",
-   "title": "A level's loading picture is a Bink video its description names; the Flash loading roots are not",
+   "title": "A level's loading picture is a Bink video its description names",
    "file": "spec/engine/menus.md",
    "status": "verified",
    "variants": "PC",
@@ -6945,7 +6992,7 @@
     },
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe 0x753660 (`push 0x142AEA0` \"main_root\", in vtable 0x142B4C8 slot 12); 0x7373A0 (\"onStartLoading\" 0x142A71C, \"onStartLoadingSP\" 0x142A708, sent through 0x929A70)"
+     "ref": "BFBC2Game.exe 0x7373A0 (\"onStartLoading\" 0x142A71C, \"onStartLoadingSP\" 0x142A708, sent through 0x929A70)"
     },
     {
      "kind": "data",
@@ -6954,6 +7001,27 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe LevelDescription's field descriptors 0x1C23758 - 0x1C23848 (Name +0xF4, Description +0xE8, LoadingScreens +0x104, LoadingMovie +0x100, LoadingMovieTopLeft / LoadingMovieDimensions +0x8 / +0x0, LoopBeginFrame +0xD4, LoopEndFrame +0xD0, AttackerTeam +0xE4, LoadingTime +0xD8, Music +0x114); 0xFDBE30 (substring test 0x50E8E0 with \"_loading\" 0x14B2710)"
+    }
+   ]
+  },
+  {
+   "id": "MENU-LOAD-2",
+   "title": "A screen's root is a virtual; the loading and HUD roots are the game mode's LoaderName and HudRootName",
+   "file": "spec/engine/menus.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, round SPG2-rest5 2026-11-27: LoaderName of the 10 DICE GameModeData (loading_mp 8, loading_sp 1, loading_sp01 1), all movie names of the corpus; the three root slots' bytes and the vtables' slot 4"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe vtables 0x142B4E8 (+0x10 0x753660 `push 0x142AEA0` \"main_root\"; set at 0x77334B with 0x142B4D4 at +0x2C and 0x142B4C8 at +0x30), 0x142B210 (+0x10 0x74EA90; set at 0x75F627), 0x142B7A0 (+0x10 0x74D860; set at 0x782E98); 0x74EA90 / 0x74D860: 0x920750, then +0x20 (GameMode), then +0x30 / +0x90 (GameModeData's LoaderName / HudRootName descriptors); 0x920750 (in a level 0x7FF060 -> +0x38 -> +0x44 -> +0x84, LevelData's LevelDescription; else \"_description\" 0x1425AC0 -> the asset's +0x18); the \"_level0\" slots 0x753690, 0x753510, 0x751B70"
     }
    ]
   },
@@ -7072,6 +7140,27 @@
    ]
   },
   {
+   "id": "MENU-RT-7",
+   "title": "Each screen answers its own FSCommands; the rest go to the UI manager's shared handler",
+   "file": "spec/engine/menus.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, round SPG2-rest5 2026-11-27: the handlers' switch maps against the name table and the movies' 133 FSCommands: main menu 28, HUD 29, shared 69; answered by none: cancelJoinServer, clearLocalDeathMessages, g, showAchivementBlade"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the callback's screen call 0xFA4B30 - 0xFA4B3E (UiManager +0x14, vtable +0x30); main menu 0x77BC10 (0x929C40, id - 7 against 0xDD, byte map 0x77D964, jumps 0x77D8B0, default 0x77D88C -> 0x95E680); HUD 0x7764F0 (id - 1 against 0xBA, 0x7772F4, 0x777234, default 0x777210 -> 0x95E680); loading 0x753540 (0x929C40, ids 0 and 0xF dropped, else 0x95E680 at 0x7535AD); shared 0x95E680 (id - 0xB against 0xD7, 0x963F24, 0x963DA4, default 0x963D97)"
+    }
+   ]
+  },
+  {
    "id": "MENU-EVT-2",
    "title": "An event is a call of the root's gameEvent, passed to the listeners",
    "file": "spec/engine/menus.md",
@@ -7135,6 +7224,19 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe drain 0x918E50 (callers 0x74364A, 0x7647ED, 0x7851BB; 0xF7A320; first pass 0x918E66 - 0x918ED4, the delayed pass 0x918ED6 - 0x918F80 with the name compare 0x42EA40, the free pass 0x918F86 - 0x918FC0); pool 0x9202D0 (`push 0x68`, the fields cleared 0x9202E5 - 0x92030F); senders 0x929A70, 0x9299B0; the value constructors 0xF7C5C0 -> 0x12F1F90, 0xF7C5D0, 0xF7C5E0 -> 0x12F1EE0 (a float at +8), 0xF7C620 (the value at 0x1BE9234), counted over the 84 call sites of 0x9299B0"
+    }
+   ]
+  },
+  {
+   "id": "MENU-EVT-5",
+   "title": "No code sets an event's delay: every queued event is delivered in the frame it is sent",
+   "file": "spec/engine/menus.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe pool 0x9202D0 (+0x01, +0x02, +0x08 cleared at 0x9202E7 - 0x9202F0); getter 0x920360 (`mov byte [eax"
     }
    ]
   },
@@ -8903,6 +9005,48 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe 0x865DE8 (0x85AED0 with the player id, the stats from 0x85F7B0 and the record object); 0x85AED0 (`push 0xBD4`, 0x8531B0, insert 0x854A40 at +0x20); 0x8531B0 (vtable 0x1433780, +0x08, +0xBD0, 0x68 lists from +0x74 at 0x853210 - 0x853227); handler 0x85F530 (0x83C170, criterion vtable +0x0C / +0x14 / +0x08 at 0x85F5EB - 0x85F604; 0x852CB0 at 0x85F671, 0x853240 at 0x85F67F; scopes 2 / 0x51 -> 0x85F3E0 at 0x85F769 - 0x85F777); grant 0x852CB0 (\"%s_00\" 0x141D918, \"%s_01\" 0x14333AC with the data's Code +0x90; 0x7D26C0 at 0x85306E and 0x8530B6; 86,400.0 at 0x141DA20; 0x50ED90(2008, 1, 1) into 0x15714C0; Repeat +0x30 through the table 0x853170, MaxRepetitions +0x3C at 0x8530F5; the dependents 0x853124 - 0x85315C); AwardData field descriptors 0x1C32170 - 0x1C322F0 (Code +0x90, Repeat +0x30, MaxRepetitions +0x3C); AwardType 0x1C31D38 - 0x1C31D80"
+    }
+   ]
+  },
+  {
+   "id": "PERS-AWD-6",
+   "title": "A criterion's CriteriaType decides when its progress is reset",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::persistence"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/persistence.py, round SPG2-rest5 2026-11-27: CriteriaType over DICE's MP_Awards (GLOBAL 315, IAR 47, IAS 6) and SP_Awards (GLOBAL 30, IAR 40), Dist/win32/async/startup-00.fbrb"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the parking after a grant 0x853240 (called at 0x85F67F; off the event map 0x853270 - 0x8532D1 with 0x8493E0; CriteriaType at criterion +0x10 through the tables 0x853360 / 0x853374: 0 -> +0x28 / +0x4C, 1 -> +0x40 / +0x64, 4 -> +0x34 / +0x58, 2 and 3 none; the append 0x85331E - 0x853355); the reset 0x85F3E0 (the parked lists by the table 0x85F504, each back into its event map by 0x85F330 (lookup 0x844CB0, insert 0x85B610), the type's list by 0x85F518, the parked nodes freed 0x85F4B0 - 0x85F4C6); its callers 0x85F777 (events 2 and 0x51, type 1), 0x86196E (type 0), 0x861A4A (type 1); the listener's vtable 0x1433780 (+0 0x8618B0, +4 0x85F530); CriteriaType's records 0x1C03364"
+    }
+   ]
+  },
+  {
+   "id": "PERS-AWD-7",
+   "title": "Every award code's two stats are Final value templates",
+   "file": "spec/engine/persistence.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::persistence"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/persistence.py, round SPG2-rest5 2026-11-27: DICE's Dist/win32/async/startup-00.fbrb (2010): MP 384 awards, 380 codes, 380 / 380 with _00 / _01 in Final; SP 73 awards, 70 codes, 70 / 70; the game copy's patched Package set (rewritten by OPFOR's install) 446 / 446 of 446 codes"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the grant's formats \"%s_00\" 0x141D918 and \"%s_01\" 0x14333AC (probe-checked)"
     }
    ]
   },
@@ -11120,6 +11264,32 @@
    ]
   },
   {
+   "id": "VEG-UG-8",
+   "title": "The render settings that scale the undergrowth",
+   "file": "spec/engine/vegetation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field descriptors of VisualTerrainSettings 0x1C19CA8 - 0x1C1A590 (UndergrowthDensityScale +0x4C 0x1C1A3F8, ViewDistanceScale +0x48 0x1C1A410, WindSpeed +0x78 0x1C1A3B0 ...); set-up 0xA24370: +0x4C into renderer +0x20 at 0xA24585 - 0xA24591, the largest Density and ViewDistance over the types 0xA245D0 - 0xA246A9, +0x54 / +0x60 at 0xA246B5 - 0xA246E1, +0x1C 0xA246E7, +0x44 0xA246ED, the side count 0xA24742 - 0xA247B8 (+0x64, odd, +0x70), +0x6C 0xA247BD, the capacity 0xA247AE - 0xA24802; per frame 0xA1E880: +0x7C into renderer +0x1C 0xA1E8EC, +0xD6 / +0xD1 flags 0xA1E8F8 - 0xA1E910, the generator job 0xA0EB10 at 0xA1E9EE; the draw 0xA1EA70: ViewDistance x +0x48 0xA1ECBE, floor by the cell size 0xA1ECD2 - 0xA1ED3F, +0x24 fade 0xA1ED4D - 0xA1EDE3 (0.99 at 0x14D96E0)"
+    }
+   ]
+  },
+  {
+   "id": "VEG-UG-9",
+   "title": "WindScale feeds the undergrowth shader's windParams; the second flag byte has no reader",
+   "file": "spec/engine/vegetation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the constant names 0xA01480 - 0xA0157C (\"windParams\" 0x144F5B4 at handle +0x28, renderer +0x98); the draw 0xA0EE10: clock +0xE4 0xA0F0AB, UndergrowthWindSpeed (settings +0x78) 0xA0F0CF, WindScale (type +0x28) 0xA0F0DD, the vector constant set 0x5BB850 at 0xA0F112; the clock 0xA1E88F - 0xA1E8B4 (10,000.0 at 0x14D9480); +0x35 only at 0xA04D08 (copy), 0xA0B9CB / 0xA0BA89 (copies), 0xA2BE63 (loader)"
+    }
+   ]
+  },
+  {
    "id": "VEG-UG-4",
    "title": "Undergrowth layouts must be in the level's databases",
    "file": "spec/engine/vegetation.md",
@@ -12547,6 +12717,44 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe walker 0xF59A30 (record stride 0x60 at 0xF59AC6; the counts at +0x10 and +0x24; +0x28, +0x30, +0x38), called at 0xF477BE with block C - A - B - base; the loader's object 0xF3F540 (vtable 0x14AB3E0, 0x24 bytes) filled at 0xF477E6 - 0xF47801"
+    }
+   ]
+  },
+  {
+   "id": "ATREE-NODE-1",
+   "title": "The 26 node types are the executable's NodeInfo classes",
+   "file": "spec/formats/animtree.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest5 2026-11-27: the 26 names from the executable's function; node counts per type as listed (59,725); the nodes in table order in 1,926 of 1,926 trees"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xF490A0 (type - 1 against 0x19, jump table 0xF4915C, each case `mov eax, <name>`: \"AnimationNodeInfo\" 0x14AB7CC ... \"RagdollNodeInfo\" 0x14AB598)"
+    }
+   ]
+  },
+  {
+   "id": "ATREE-BLK-4",
+   "title": "Blocks B and C hold one entry per animation node",
+   "file": "spec/formats/animtree.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest5 2026-11-27: B = 16 + 16 n with its head (B + 16, n, 0, 0) and n = C's count = the animation nodes in 1,926 of 1,926; the +0x20 index in 1,926 of 1,926; 28,254 lengths, 0.0333 - 182.3333 s; C +0x54 never zero (scratch read), unique within 822 of 1,926 trees"
     }
    ]
   },
