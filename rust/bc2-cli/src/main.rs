@@ -11,6 +11,8 @@
 //!                                             round DF2: the game copy's install ledger
 //! bfbc2 install plan|apply|revert|marks <plan.json> ...
 //!                                             round OR1: the game-copy installer (Project OPFOR's WW2 install)
+//! bfbc2 install mapedit plan|apply|revert|status ...
+//!                                             round OR6: the map export's install (mapedit_install.py)
 //! bfbc2 aptcheck|aptrefs|bc2loc|exeref|crashreader|hpdtool|hkpack|convert|aimanim ...
 //!                                             round O2: python <the tool's .py> ... (src/pyproc.rs)
 //! bfbc2 caches|stockmp|aptgraft|audio|dbxcatalogue|dbxparity|portparity|meshview|culltree ...
@@ -123,6 +125,9 @@ mod logs;
 mod menu;
 #[cfg(feature = "meshview")]
 mod meshview;
+// round OR6: the map export's install (`bfbc2 install mapedit`)
+#[cfg(feature = "mods")]
+mod mapedit_cli;
 #[cfg(feature = "mods")]
 mod mods_cli;
 #[cfg(feature = "nav")]
@@ -221,6 +226,7 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      leveldiff <a.dbx> <b.dbx> [options]   two .dbx files compared instance by instance (LevelDiff's)\n  \
      gameledger status|holders|original|recover <game> ...   the game copy's install ledger\n  \
      install plan|apply|revert|marks <plan.json> ...   the game-copy installer: Project OPFOR's WW2 install\n  \
+     install mapedit plan|apply|revert|status ...   the map export's install\n  \
      mods list|status|enable|disable|install|uninstall|verify|restore-original|migrate ...   OPFOR's mod manager\n  \
      terrain generate --biome <b> --size 1024|2048 --seed <n> --out <folder> ...   a new terrain from a seed\n  \
      aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \

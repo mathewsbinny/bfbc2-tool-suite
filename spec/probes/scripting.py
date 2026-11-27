@@ -19,6 +19,7 @@ import collections
 import importlib.util
 import os
 import re
+import struct
 import sys
 import time
 from pathlib import Path
@@ -50,7 +51,87 @@ EXPECTED: dict[str, Any] = {
                           'DebugMenuSubMenuEntityData': 5, 'DebugTestEntityData': 0, 'DebugTextEntityData': 9,
                           'GameSettingEntityData': 0},
     'exe_entity_data': 180, 'exe_entity_data_in_graphs': 73,
+    # SCR-EVT-3: the entity factories, the unused classes with and without one, the handlers' input events
+    'exe_factories': {'client': 100, 'server': 148}, 'exe_factory_data_classes': 123,
+    'unused_with_factory': 62, 'unused_without_factory': 45,
+    'exe_handler_events_missing': [], 'exe_console_command_handler_returns': True,
 }
+# SCR-EVT-3: the factory registries (registry object, registration function) of the server and the client
+REGISTRIES = {'server': (0x0157041C, 0x0071C790), 'client': (0x01572768, 0x008B6A60)}
+DATA_CLASS_REGISTER = 0x00500880                 # the static initialisers' `push rec; mov ecx, info; call` for data
+# the event handlers (vtable slot 6) and the input event names whose hashes they compare (SCR-EVT-3, SCR-CMD-2)
+HANDLER_EVENTS = {
+    0x0067A400: ['ChangeSetting'],                                   # ServerGameSettingEntity
+    0x0066D9B0: ['LoadMemory', 'ClearMemory', 'FireMemory'],         # ServerEventMemoryEntity
+    0x006FB890: ['Detonate'],                                        # ServerAmmoBoxEntity, ServerMedicBagEntity
+    0x006C73B0: ['Pickup'],                                          # ServerPickupEntity
+    0x00673870: ['Start', 'Stop'],                                   # ServerDisableTeamEntity
+    0x00724FC0: ['Trigger'],                                         # ServerEventSequenceTriggerEntity
+    0x00674EB0: ['Impulse'],                                         # ServerSpeedEventGateEntity
+    0x006C3F10: ['Continue', 'FakeSave'],                            # ServerContinueEntity
+    0x00714C90: ['Destroy', 'Heal', 'Hide', 'Show', 'PlayAnimation', 'StopAnimation', 'Disable'],  # static models
+    0x008DD7F0: ['PlayAnimation', 'StopAnimation'],                  # ClientStaticModelEntity
+    0x00674F90: ['BriefPlayer'],                                     # ServerTacticalObjectiveEntity
+    0x006987E0: ['StartImpulseTest'],                                # ServerProjectileImpulseTestEntity
+    0x00FFE580: ['Enable', 'Disable'],                               # every entity's base handler
+}
+CONSOLE_COMMAND_HANDLER = 0x0068EFF0             # ServerConsoleCommandEntity's slot 6: `ret 4`
+
+
+def name_hash(s: str) -> int:
+    h = 5381
+    for c in s.encode('latin-1'):
+        h = ((h * 33) ^ c) & 0xFFFFFFFF
+    return h
+
+
+def factories(img: Any) -> dict[str, set[str]]:
+    """SCR-EVT-3: {side: the data class names with a factory}. Each registration is `mov [eax], <factory vtable>; ...
+    push eax; mov ecx, <registry>; call <register>`; the factory's slot 1 is `mov eax, <data class info>; ret`, and the
+    class info's static initialiser `push <type record>; mov ecx, <class info>; call 0x500880` names it."""
+    names: dict[int, str] = {}
+    for m in re.finditer(rb'\x68(....)\xb9(....)\xe8(....)', img.b, re.S):
+        va = img.va(m.start())
+        if va is None or not img.is_code(va):
+            continue
+        if va + 15 + struct.unpack('<i', m.group(3))[0] != DATA_CLASS_REGISTER:
+            continue
+        rec, info = struct.unpack('<I', m.group(1))[0], struct.unpack('<I', m.group(2))[0]
+        o = img.off(rec)
+        nm = img.cstr(struct.unpack_from('<I', img.b, o)[0]) if o is not None else None
+        if nm:
+            names[info] = nm
+    out: dict[str, set[str]] = {}
+    for side, (reg, fn) in REGISTRIES.items():
+        got = out[side] = set()
+        out['_' + side] = set()
+        pat = b'\xb9' + struct.pack('<I', reg) + b'\xe8'
+        for m in re.finditer(re.escape(pat), img.b):
+            va = img.va(m.start())
+            if va is None or va + 10 + struct.unpack_from('<i', img.b, m.start() + 6)[0] != fn:
+                continue
+            out['_' + side].add(va)
+            win = img.b[m.start() - 40:m.start()]
+            k = win.rfind(b'\xc7\x00')
+            if k < 0:
+                continue
+            vt = struct.unpack_from('<I', win, k + 2)[0]
+            slot1 = struct.unpack_from('<I', img.b, img.off(vt + 4))[0]
+            o = img.off(slot1)
+            if o is not None and img.b[o] == 0xB8 and img.b[o + 5] == 0xC3:
+                info = struct.unpack_from('<I', img.b, o + 1)[0]
+                if info in names:
+                    got.add(names[info])
+    return out
+
+
+def handlers(img: Any) -> list[str]:
+    """SCR-EVT-3: the names whose hash is not an immediate within 0x300 bytes of the handler that compares it."""
+    missing = []
+    for va, events in HANDLER_EVENTS.items():
+        body = img.b[img.off(va):img.off(va) + 0x300]
+        missing += [f'{va:#x} {e}' for e in events if struct.pack('<I', name_hash(e)) not in body]
+    return missing
 
 
 def level_probe() -> Any:
@@ -116,6 +197,17 @@ def analyse(game: Path) -> dict[str, Any]:
             out['exe_entity_data_in_graphs'] = len(nodes & names)
             out['_exe_names'] = names
             out['_nodes'] = nodes
+            fac = factories(img)
+            out['exe_factories'] = {side: len(fac['_' + side]) for side in REGISTRIES}
+            made = fac['server'] | fac['client']
+            out['exe_factory_data_classes'] = len({n for n in made if n.endswith('EntityData')})
+            unused = names - nodes
+            out['unused_with_factory'] = len(unused & made)
+            out['unused_without_factory'] = len(unused - made)
+            out['_unused_without_factory'] = sorted(unused - made)
+            out['exe_handler_events_missing'] = handlers(img)
+            o = img.off(CONSOLE_COMMAND_HANDLER)
+            out['exe_console_command_handler_returns'] = img.b[o:o + 3] == bytes.fromhex('c20400')
     return out
 
 

@@ -28,11 +28,54 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-27
+
+Round OR7 retires Project OPFOR's Python rebuild runner (`rebuild_all.run_chains` / `run_step`, `stepstamps.Tracker.begin` / `finish` / `why`): OPFOR now needs this version's `bc2_native.rebuild_run`, so its `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0.
+
+### Added
+- **Project OPFOR's WW2 rebuild runs as a step graph** (round OR7, "OPFOR in Rust": `rebuild_all` as a step graph):
+  `bc2_install::rebuild` (feature `rebuild`) and `bc2_native.rebuild_run` / `rebuild_graph` / `rebuild_derive` run
+  OPFOR's 55 rebuild steps, each as soon as the steps it waits for are done, side by side within a memory budget
+  (each step's last measured peak, the commit of all its processes through a job object); a step whose code, inputs
+  and outputs are as recorded is skipped. Which step waits for which comes from the step records (a file one writes
+  and the other reads, edits, writes, or lists the folder of) and OPFOR's declared graph (`rebuild_graph.json`, derived
+  from a full rebuild's records, and the folders a step reads whole). The records (`stepstamps.py`'s `finish`, `why`,
+  `stale_inputs`, the hash cache) are made and judged in Rust; tracker version 4 holds each step's peak memory and
+  time. After a run, two steps the new records order that ran at once fail the run. Spec XDEP-STEP-8 - 10 new,
+  XDEP-STEP-4 implemented.
+
+### Fixed
+- **The rebuild tracker no longer records 50,000 unrelated files as a step's inputs** (round OR7, spec XDEP-STEP-10):
+  the cache budget's prune of `wake_install`'s indexes was handed all of `work\ww2`, and the hook kept the first
+  50,000 files of a folder too big to stamp as read. Each level's chain looked to read the other levels' outputs, so
+  the chains could not run side by side.
+
+## [0.29.0] - 2026-11-27
+
+Round OR6 moves the map export's install into the suite and changes `bc2_editor::export_ui::install_command` (a Rust
+public API), so this merge releases a minor version (`RELEASING.md`, "A merge that removes something"). Project
+OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs `bfbc2 install mapedit`.
+
 ### Fixed
 - **The shader translator's forward emitter refuses a bool-constant `cond_exec`** (round XD2), as the nested emitter
   does; it had run the block unconditionally. No program of the corpus has one, so no translation changed.
+- **An export install no longer rebuilds the other exports from their live stage folders** (audit AU4-DS-12): each
+  install keeps its stage's description, texts and pictures in `Package\levels\<lv>\opfor-mapedit-stage\`, and
+  every later install or revert builds that level's share of the shared patches from it (spec XINST-MAP-5); an
+  install from before keeps working from its stage folder, with a line saying so.
+- **A kill at any write step of an export's install or revert is finished by the same command** (spec XINST-MAP-6):
+  the level's record is its folder's first write and a revert's last removal (a kill between the folder and the
+  record used to leave a folder the install refused as "not an exported level").
+- **DICE's `package.mft` keeps its last blank line under an export install** (spec XINST-MAP-7): only the levels'
+  blocks change. The build's scratch (`work\mapedit\<lv>\shared`, `_revert`) is removed when a run goes through
+  (XINST-STG-5).
 
 ### Changed
+- **The map editor installs an export itself** ("OPFOR in Rust", round OR6): Install..., Install now and
+  Uninstall... run the map export's install in process (`bc2_install::mapedit`) instead of Project OPFOR's
+  `mapedit_install.py` - no Python needed. The dialog shows the `bfbc2 install mapedit` command that does the same;
+  `bc2_editor::export_ui::install_command(opfor, step, target)` and `install_step` replace the old
+  `install_command(opfor, args)`.
 - `xenos_golden_game.json` re-recorded: the 20 Xbox programs the forward emitter now translates (all skinned vertex
   shaders; 4 of BF1943's, 16 only in BFBC2's Xbox levels), each proven exact against the interpreter with both sides
   of its if / else run (round XD2).
@@ -55,6 +98,13 @@ landed on `main`.
 - Specification (round SPG2-rest5): MENU-LOAD-1 no longer says the Flash loading roots are named by no data
   (MENU-LOAD-2), and round SPG2-rest4's "slot 12 of vtable 0x142B4C8" is the main menu's third vtable; FX-PROC-4's
   inferred "the input is an offset" is the `EmittableField` enumeration.
+- Specification (round SPG4-rest): ENG-TI-1's class member table (0x1C25870) was 16 descriptors in: the table is
+  0x1C256F0, an argument of the class's registration (RTTI-REG-1); HUD-KILL-1's "the killed soldier's camera turning
+  to the killer, driven by code" is withdrawn (the kill cam is the level's spectate entities, HUD-KILL-2); OCC-TRI-1's
+  "more records than triangles" is the padding to an even count (one 192-bit part mask a triangle).
+- Specification (round SPG3-rest): round SPG3's guess that the three mouse sliders are the infantry, land and air
+  sensitivities is replaced by the code's names (INP-SET-2); SET-CLI-1's finder has 41 callers, not 40; SCR-DEV-1
+  points at SCR-DEV-2 for the document server.
 - **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
   corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
   without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7
@@ -76,6 +126,16 @@ landed on `main`.
   it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
 
 ### Added
+- **`bfbc2 install mapedit plan | apply | revert | status`** (round OR6, tool group `mods`; `rust/BENCHMARKS.md`
+  "OR6"): Project OPFOR's `mapedit_install.py` in Rust (`bc2_install::mapedit`, feature `mapedit`), on the install
+  ledger as owner `mapedit` - the same game files, level records, ledger records and printed lines as the Python on
+  scratch copies of the real shared files through plan, apply, revert, re-apply, a second export, a level replaced,
+  one out of two and all out (spec XINST-MAP-8). OPFOR's script now runs it; its Python twin is retired.
+- **`bc2_install::stages`**: `opforcore.stages`' whole-file operations (resume, the old markers' refusal,
+  `check_install`, `install`, `check_revert`, `revert`, `source`) for an installer owning shared files - what IN1's
+  installer builds on; `bc2_levelwrite::installpatch`: the overlay's texts and the awards bundle's pictures from
+  stages (`mapexport overlay | awards` and the install share it), and `LevelWrite`, the install's check and patches
+  (`bc2_install::mapedit::Patches`: the install itself does not depend on the export's crates).
 - **Map editor: Create Level writes the new level's terrain** (rounds E7 and TG3; spec `transforms/terrain_edit.md`
   TEDIT-NEW-1 - 3, XVAL-TERR-4): "From a height map" (a 16-bit PNG or RAW of 1024 / 2048 samples; the map is as many
   metres across) and **Generate** beside it (the terrain generator's biome, size, seed, border, water share, water
@@ -94,6 +154,42 @@ landed on `main`.
   wiring between the two stages is split as DICE's chain is read; every stage plays as before. Checked on every stock
   Rush and Squad Rush level between every two stages, and Port Valdez with a stage inserted exports and passes the
   stage check.
+- **Specification (round SPG4-rest): every typeinfo record named with its layout, the run-time behind SPG4's
+  data-side files and the resources' opaque insides, read from the executable and checked on DICE's data**
+  (`rust/BENCHMARKS.md` "SPG4-rest"; 1,532 -> 1,571 rules; the census's typeinfo records with a rule 816 -> 1,900):
+  - `spec/engine/typeinfo/` (four files, 31 rules RTTI-*): how each of the 1,900 records is registered (RTTI-REG-1)
+    and its 24-byte member descriptors (RTTI-MEM-1); tables of every record's parent, size, own members with their
+    run-time offsets, or an enumeration's numbers, by module (written by the new `spec/probes/typeinfo.py` from the
+    new `spec/typeinfo.json`; the quick tier's new `spec-typeinfo` keeps them current);
+  - DICE's DBX fields against the run-time members (RTTI-DBX-1, 2): 118 field names are the content pipeline's and
+    the game cannot read them - among them the static models' pathfinding switches (`ExcludeFromPathfinding`,
+    `ForbidPathfinding`, `AllowPathdataSeeds` ...: they act only through the path data) and the AI's whole sensing
+    template (`SeeingDistance`, `HearingDistance`, `ViewAngle` ...);
+  - which run-time entity class each data class's factory makes, from the constructors (RTTI-FAC-1, 173 classes);
+  - the character controller's nine states, their ids and transitions (SOLD-PHYS-2); spawning on a squad mate: the
+    checks and the 13 positions tried (SQD-PLAY-2); the kill cam is the level's spectate entities gated by
+    `Server.KillCam` and hardcore (HUD-KILL-2); the campaign save's `header` and `body` streams (CAMP-SAVE-1); the
+    sound graph nodes' factories and their enumerations' numbers (SGR-NODE-2);
+  - the occluder's triangle block is one 192-bit part mask a triangle (OCC-TRI-1), the soot's flag words pick its
+    vertex declaration and its vertices name a part slot and a box (SOOT-FLAG-1, SOOT-SLOT-1), the impulse
+    responses' partitions are block-scaled spectra (IR-PART-1);
+  - the new probe `spec/probes/runtime.py` and `resources.py`'s new counts (the game tier about 2 minutes longer).
+- **Specification (round SPG3-rest): settings, input, scripting and the asset graph, read from the executable and
+  checked on DICE's data** (`rust/BENCHMARKS.md` "SPG3-rest"; 1,524 -> 1,532 rules):
+  - `GameSettings.bin` is 11 typed lists, one per settings category, of the settings that are not user-exposed (the
+    INI holds the rest; SET-BIN-1, checked against a file the game wrote); a number in `GameSettings.ini` that does
+    not parse becomes 0, an empty value keeps the default, an unknown `DxVersion` selects no renderer (SET-PARSE-1);
+  - no `-<Object>.<Field> <value>` command-line option sets an engine setting: the settings registry's own text path
+    is never reached in the retail build (SET-CLI-2);
+  - the controls page's sliders: `Sensitivity0` - `2` are the mouse's sensitivity, yaw factor and pitch factor, and
+    the invert switches' settings (INP-SET-2);
+  - a level's game setting entity inverts every player's vertical look over the network; the console command entity
+    does nothing (SCR-CMD-2); of the 107 entity classes DICE's level graphs do not use, 45 make no entity at all and
+    62 do, with their input events (SCR-EVT-3); the debug document server (`/settings`, `/stats` ...) is never made
+    (SCR-DEV-2);
+  - the references held inside resources (mesh sets, shader databases, Flash movies, terrain and water visuals) and
+    the voice-over waves the line banks name (XDEP-RES-2); the probes `options.py`, `scripting.py` and
+    `dependencies.py` hold the new counts (the game tier about 20 seconds longer).
 - **Specification (round SPG2-rest5), read from the executable and checked on DICE's data** (`rust/BENCHMARKS.md`
   "SPG2-rest5"; 1,506 -> 1,518 rules):
   - the render settings that scale the undergrowth (`VisualTerrainSettings`: density, view distance and its fade,

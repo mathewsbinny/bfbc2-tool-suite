@@ -5,8 +5,9 @@ editor's Export window) takes a map project (`transforms/projectlog.md`), an exp
 profile, pictures) and the game copy, and writes a **stage**: the new level's four bundles (`level`, `terrain`,
 `ingame`, `loader`; a WW2 donor's `vo/en` too), `stage.json` (each file's sha1 and entry count, the registration an
 install adds, the closure and announcer copies), `report.txt` and `registration.txt`. It reads the game copy and
-never writes it. `mapexport check <stage> --game <game>` proves a stage offline; OPFOR's `mapedit_install.py`
-installs it (`transforms/install.md`). The design and the rounds that built it: EDITOR_ARCHITECTURE 3.12 (E3 to E3d).
+never writes it. `mapexport check <stage> --game <game>` proves a stage offline; `bfbc2 install mapedit` (the
+editor's Install, Project OPFOR's `mapedit_install.py`; `bc2_install::mapedit` since round OR6) installs it
+(`transforms/install.md` section 2). The design and the rounds that built it: EDITOR_ARCHITECTURE 3.12 (E3 to E3d).
 
 The data-model rules it obeys are layer 2's: registration REG-NEW-1 to REG-NEW-5 and the checksum CSUM-CHK-1 to
 CSUM-CHK-4 (`model/registration.md`), hidden partitions BNDL-DEL-4, files found by the level's name PART-NAME-3,

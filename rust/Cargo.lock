@@ -457,6 +457,7 @@ dependencies = [
  "bc2-convert",
  "bc2-formats",
  "bc2-gamefs",
+ "bc2-install",
  "bc2-levelwrite",
  "bc2-navbuild",
  "bc2-render",
@@ -536,6 +537,7 @@ dependencies = [
  "serde_json",
  "sha1_smol",
  "thiserror 2.0.21",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -545,6 +547,7 @@ dependencies = [
  "bc2-convert",
  "bc2-formats",
  "bc2-gamefs",
+ "bc2-install",
  "bc2-navbuild",
  "bc2-pyrt",
  "bc2-scene",

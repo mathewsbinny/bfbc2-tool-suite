@@ -38,6 +38,7 @@ pub mod export;
 pub mod files;
 pub mod gameplay;
 pub mod groupexport;
+pub mod installpatch;
 pub mod journal;
 pub mod members;
 pub mod modelayer;

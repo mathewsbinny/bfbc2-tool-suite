@@ -2043,6 +2043,27 @@
    ]
   },
   {
+   "id": "CAMP-SAVE-1",
+   "title": "The campaign save: a `header` and a `body` stream in `GameSettings.bin`",
+   "file": "spec/engine/campaign.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: SaveEntityData.SaveDelayTime 0 x 179, 1.5 x 2, 0.1 x 1, 1 x 1"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the Save hash `push 0x7C8A0784` at 0x67AB37; ServerSaveEntity's constructor 0x67AAD0 (`mov dword [esi+0x50"
+    }
+   ]
+  },
+  {
    "id": "DATA-FX-1",
    "title": "The emitter update processors",
    "file": "spec/engine/data_classes.md",
@@ -4249,7 +4270,7 @@
   },
   {
    "id": "HUD-KILL-1",
-   "title": "The kill cam has no data class",
+   "title": "The kill cam has no camera class of its own",
    "file": "spec/engine/hud.md",
    "status": "observed",
    "variants": "PC",
@@ -4260,7 +4281,28 @@
     },
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe one string \"KillCam\"; no typeinfo record of that name"
+     "ref": "BFBC2Game.exe no typeinfo record named KillCam; the member `ServerSettings.KillCam` (RTTI-GAME-1) and the setting `Server.KillCam` (HUD-KILL-2)"
+    }
+   ]
+  },
+  {
+   "id": "HUD-KILL-2",
+   "title": "The kill cam is the level's spectate entities, gated by `Server.KillCam` and hardcore",
+   "file": "spec/engine/hud.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: SpectateEntityData Target, Mode and UseInHardcoreMode as above (227)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe ServerSpectateEntity's test 0x67AEE0: `cmp byte [eax+0xAC"
     }
    ]
   },
@@ -4426,6 +4468,27 @@
    ]
   },
   {
+   "id": "INP-SET-2",
+   "title": "Which control writes which input setting",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe controlsSliderMoved 0x962F37 (split at \",\" 0x5175F0; `atof` IAT 0x14054EC at 0x962FDE; name compares 0x963002 - 0x9630C1; float setter 0x82F860 at 0x9630E4); controlsSliderValues 0x95A63B (\"Sensitivity%d\" 0x1440BB8, `sprintf`, getter 0x80D0C0, 6 values); controlInvertToggle 0x962D45 (\"look\" 0x1440E24, \"fly\" 0x1440E20, \"wheel\" 0x1440E18, \"accelerate\" 0x1440E0C; int setter 0x82FAB0 at 0x962E0B - 0x962EC9)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: the pushed names of the two commands' compares, in code order"
+    }
+   ]
+  },
+  {
    "id": "INP-PAD-1",
    "title": "The PC reads one pad through DirectInput; the console's XInput path is present but not connected",
    "file": "spec/engine/input.md",
@@ -4505,7 +4568,7 @@
     },
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe section table: typeinfo VA 0x1BF0000 size 0x22D18, fieldinf VA 0x1C13000 size 0x34E60; e.g. GameEntityData's record 0x1BFAF98, CapturePointEntityData's 0x1BFD8C4 with its field table 0x1C25870"
+     "ref": "BFBC2Game.exe section table: typeinfo VA 0x1BF0000 size 0x22D18, fieldinf VA 0x1C13000 size 0x34E60; e.g. GameEntityData's record 0x1BFAF98, CapturePointEntityData's 0x1BFD8C4 with its field table 0x1C256F0"
     }
    ]
   },
@@ -6576,7 +6639,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:99-103"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:60-63"
     },
     {
      "kind": "code",
@@ -10261,6 +10324,27 @@
    ]
   },
   {
+   "id": "SCR-EVT-3",
+   "title": "The 107 classes DICE's graphs do not use: which make an entity, and the events they take",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe server registry 0x0157041C filled in 0x71C7F0 (`mov ecx, 0x157041C; call 0x71C790` x 148), client registry 0x01572768 in 0x8B6AC0 (`call 0x8B6A60` x 100); factory slot 1 `mov eax, <data class info>; ret`; data class infos from the static initialisers `push <type record>; mov ecx, <info>; call 0x500880`; lookup 0x71DD00 -> 0x716BF0 (exact class: lower bound and equality, 0 when absent); handlers: static models 0x714C90 (client 0x8DD7F0), ammo box / medic bag 0x6FB890, pickups 0x6C73B0, disable team 0x673870, event memory 0x66D9B0, event sequence trigger 0x724FC0, speed event gate 0x674EB0, continue 0x6C3F10, tactical objective 0x674F90, projectile impulse test 0x6987E0, game test 0x681290, game setting 0x67A400, console command 0x68EFF0, debug text 0x698790, base 0xFFE580"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-27: 148 and 100 registrations, 123 data classes with a factory, of the 107 unused 62 with and 45 without; each named event's hash in its handler's first 0x300 bytes"
+    }
+   ]
+  },
+  {
    "id": "SCR-CMD-1",
    "title": "Entities that set a setting or run a command; the debug menu in DICE's data",
    "file": "spec/engine/scripting.md",
@@ -10282,6 +10366,27 @@
    ]
   },
   {
+   "id": "SCR-CMD-2",
+   "title": "The game setting entity inverts the look axis; the console command entity does nothing",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factories 0x6FCC80 (GameSettingEntityData, class info 0x1BFECB0 -> constructor 0x6690A0, vtable 0x141EA98) and 0x6FDE10 (ConsoleCommandEntityData, 0x1C05EFC -> 0x698680, vtable 0x14230A0); ServerGameSettingEntity handler 0x67A400 (`cmp [edi+0xC"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-27: \"ChangeSetting\" hashed into 0x67A400's bytes; 0x68EFF0 is `ret 4`"
+    }
+   ]
+  },
+  {
    "id": "SCR-DEV-1",
    "title": "No developer console in the PC client; developer options and debug pages are switched off",
    "file": "spec/engine/scripting.md",
@@ -10291,6 +10396,27 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe name table entries enableDevOpts 0xF3, debugdata 0xD2, consoleTrace 0x8C; Client field IsMenuDevOptsEnabled +0xF4 (field table 0x01C14338); \"/settings\" 0x14123A0 and \"/settings/*\" 0x1412394 registered in 0x501BF0 (handlers 0x4FFEC0, 0x4FFC60, \"Settings - %s\"); \"/stats\" 0x1411DA4, \"/types\" 0x140FDF8; \"Unknown command - This mopp data has been corrupted\" 0x148EF90 (Havok)"
+    }
+   ]
+  },
+  {
+   "id": "SCR-DEV-2",
+   "title": "The debug document server is never made",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe provider registration 0x4D06B0 (callers 0x43BFEA, 0x43C022, 0x4A9885, 0x4D09CA, 0x4F7076, 0x4FEDB9 in the settings manager's constructor 0x4FED50, vtable 0x1411CBC = {0x501BF0}); provider set getter 0x4D05D0, server set getter 0x4D0640 (globals 0x155CF3C - 0x155CF5C, referenced only there and in the destructor 0x1381130); add server 0x4D07D0 (no E8 / E9 site, no stored pointer); \"/types\" 0x140FDF8 (0x4AF5D0), \"/db\" 0x140FE10, \"/stats\" 0x1411DA4 (0x5002F0), \"/settings\" 0x14123A0 (0x501BF0); HTML head writer 0x4BADD0"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: 6 provider registrations, 0 references to the add"
     }
    ]
   },
@@ -10482,6 +10608,44 @@
    ]
   },
   {
+   "id": "SET-BIN-1",
+   "title": "GameSettings.bin holds the settings the INI does not: a typed list per category",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe category enumeration 0x01C38890 - 0x01C38998 (GstAudio 0 ... GstStatsCache 10, GstCount 11); serializer 0x80DA10 (`mov [esp+0x24"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: the enumeration (12 names, GstCount 11) and the code bytes cited"
+    },
+    {
+     "kind": "data",
+     "ref": "one GameSettings.bin the game wrote (`<Documents>\\BFBC2`, 242,795 bytes; a second in OPFOR's user folder, 159,208 bytes), walked by this layout to its last byte; structure, names and sizes only, no value read: the counts above"
+    }
+   ]
+  },
+  {
+   "id": "SET-PARSE-1",
+   "title": "What a bad value does: a number that does not parse becomes 0",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe float parse 0x4E5680 (`strtod` IAT 0x14054F0; fails when the end pointer did not move), int parse 0x4E6C90 -> scanner 0x428A40 (`isspace`, sign, digits, 64-bit overflow check) and the 32-bit range check at 0x4E6D07 - 0x4E6D2A; both strip `\"...\"` at 0x4E569F / 0x4E6CB0; 0x512320 / 0x512360 (default on failure); INI reader type switch 0x831FEA with defaults pushed at 0x832227 (0) and 0x832241 (fldz); skip on 0 characters at 0x831FE4; setters 0x82FAB0, 0x82F860; DxVersion: \"auto\" 0x142FBE8 at 0x7DCC87, 0x512360 at 0x7DCCF2, map 0x7DCCFA - 0x7DCD1A, \"Render.Renderer\" 0x142FBD8 set through 0x7DA7E0; enumeration SelectedRenderer_None 0 ... _Ps3 6 (0x01C15370 - 0x01C15400), GameRenderSettings.Renderer +0x6C"
+    }
+   ]
+  },
+  {
    "id": "SET-ENG-1",
    "title": "Engine settings are reflected objects looked up by name",
    "file": "spec/engine/settings.md",
@@ -10507,7 +10671,28 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 40 callers (the names pushed before each); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; \"-noAsync\" 0x14123AC at 0x501F86, \"-host\" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438"
+     "ref": "BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 41 callers (the names pushed before each; SET-CLI-2); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; \"-noAsync\" 0x14123AC at 0x501F86, \"-host\" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438"
+    }
+   ]
+  },
+  {
+   "id": "SET-CLI-2",
+   "title": "No command-line option sets an engine setting by name",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe finder 0x4F4CF0 (41 E8 sites, each with a `push imm32` naming a string within 16 bytes before it); 0x4FDD10 (one caller, 0x56EF29: the log line); registry text reader 0x5017C0 (`cmp cl, 0x23 / 0x3B / 0x2F` at 0x501859 - 0x50186B, the pending list +0x44, then 0x4F6EC0), adder 0x501AB0, thunks 0x501CF0 / 0x501D10 (no E8 / E9 site, no stored pointer); apply 0x4F4A00 (\".\" 0x140BA68), 0x4F3FA0; field parser 0x4EB0F0 (\"Field '%s' not found in class '%s'\" 0x14117D4, \"Parse error '%s.%s', value = '%s'\" 0x14117B0); OptionDescriptor type record 0x1BF0638 (its only reference the static initialiser at 0x13865D1); value setter thunk 0x4F4C00 -> 0x4F41E0 (callers 0x5595AE and 0x7DA82E - 0x7DA9AE, the latter from the settings.ini reader 0x7DBD60 and 0x7DE0D4); \"Network.Version\" set through 0x4F4BD0 at 0x5658E2, 0x5659C2, 0x565B29"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: 41 finder call sites, 41 with a pushed name; the reader and the adder reached only from their thunks, the thunks from nothing"
     }
    ]
   },
@@ -10563,6 +10748,27 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe typeinfo module Physics: CharacterPhysicsData, CharacterPoseData, CharacterStatePoseInfo and the nine *StateData classes; strings StandToCrouch, CrouchToProne, ProneToCrouch, ProneToStand, ProneToStandOnJump, StandToProne, CrouchToStand"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-PHYS-2",
+   "title": "The controller's nine states: their ids, how they are built, their transitions",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: the nine state classes 2 each among the States of DICE's 2 CharacterPhysicsData"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe state builder 0xB08CE0 (`push 0x1BF90D8` at 0xB08D5C), state ids at 0xAB7B70 (`xor eax, eax; ret`), 0xA9D590, 0xA9D580, 0xA9D150, 0xA9D570, 0xA9DAC0, 0xA9DAE0, 0xA9CCC0, 0xA9DAD0 (`mov eax, 1` - `8; ret`); factories 0xAB7B00, 0xAB7A90, 0xAB7A20, 0xAB7920, 0xAB79B0, 0xAB8310, 0xAB83F0, 0xABA950, 0xAB8380; context setState 0xD40B80, character setState 0xB095C0"
     }
    ]
   },
@@ -10792,6 +10998,27 @@
    ]
   },
   {
+   "id": "SGR-NODE-2",
+   "title": "Each node data class has a factory; the enumerations' numbers",
+   "file": "spec/engine/sound_graph.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe SimpleTransformNode's factory vtable 0x14B3DA8: slot 1 0xFE5CC0 `mov eax, 0x1C101E4; ret`, slot 2 0xFEDE70 allocates 0x20 bytes and stores the node vtable 0x14B3E70 (0xFEDE83)"
+    }
+   ]
+  },
+  {
    "id": "SQD-TEAM-1",
    "title": "A team is a faction with its kits and player caps",
    "file": "spec/engine/squads.md",
@@ -10839,6 +11066,27 @@
     {
      "kind": "data",
      "ref": "spec/census.json, 2026-11-23: no DBX class for the players' squads: the six Squad classes with instances (SquadAsset, SquadData, SquadTypeData, SquadEntityData, SquadGhostEntityData, JoinSquadOrderEntityData) are the AI's; SquadManagerEntityData is a typeinfo class with no instance in DICE's partitions"
+    }
+   ]
+  },
+  {
+   "id": "SQD-PLAY-2",
+   "title": "Spawning on a squad mate: the request's checks and the 13 positions",
+   "file": "spec/engine/squads.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: TeamData.MaxPlayersPerSquad 4 in 10 of 10"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe request reader 0x83A370, handler 0x83A3C0, checks 0x662F20 (squad test 0x6C9790, `cmp eax, 0x18` at 0x6C9796; anti-spam 0x673FB0 over 0x156F2D0; combat areas 0x547760), placement 0x572CC0 (13 candidates, `cmp eax, 0xD` at 0x5735E9; ground ray to -1000.0 at 0x1418B70; height limit 100.0 at 0x14D9638; fit test 0xB095B0; seat 0x68E7C0)"
     }
    ]
   },
@@ -11055,6 +11303,549 @@
     {
      "kind": "data",
      "ref": "spec/census.json, 2026-11-23: the classes above; LevelData member SubtitleAsset; CutsceneEntityData member Subtitle"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-REG-1",
+   "title": "Every record is registered by a static initialiser, five ways",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --measure, 2026-11-27 (spec/typeinfo.json): 1,900 of 1,900 records registered: data class 961, class 400, value type 289, enumeration 231, built-in 19"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe register functions 0x500880, 0x500660, 0x43C390, 0x5008E0, 0x4FE260 (templates 0x5007C0); CapturePointEntityData's initialiser 0x13ACAA0 (record 0x1BFD8C4, class info 0x1BFE0FC), ServerSoldierEntity's 0x13710A0 (record 0x1BF1D90, class info 0x1BF2390), CharacterPoseType's 0x13D1220 (0x5008E0), Vec3's 0x136F3D0 (0x43C390)"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-MEM-1",
+   "title": "A member is a 24-byte descriptor; a record lists only its own",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py, 2026-11-27: 7,087 members (564 arrays), 1,952 enumeration values; offset + size inside the record 7,087 of 7,087; own members at or past the parent's size in every class"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe `fieldinf` VA 0x1C13000: CapturePointEntityData's table 0x1C256F0 (35 descriptors), SoldierWeaponDispersion's 0x1C205A8, CharacterPoseType's 0x1C36610"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-DBX-1",
+   "title": "The run-time members are DICE's DBX fields, less the pipeline's",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --dbx against spec/census.json (DICE's partitions), 2026-11-27: 630 classes: the same 398, DBX more 230, differ 2; 118 DBX-only names"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-DBX-2",
+   "title": "The pathfinding switches and the AI's sensing template are pipeline-only",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --dbx, 2026-11-27: the fields above in the DBX classes and in no run-time member of the class or its parents; instances from spec/census.json"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a member the run-time class lacks cannot be read by the loader, which fills objects through the member tables (RTTI-MEM-1)"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-CORE-1",
+   "title": "`Core`'s records",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Core 40 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-1",
+   "title": "The 131 enumerations and their values",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources enumerations 131"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-2",
+   "title": "The 182 value types",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources value types 182"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-3",
+   "title": "The entity data classes",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources classes below EntityData 188"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-4",
+   "title": "Weapons, firing and damage",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-5",
+   "title": "AI, cover, squads and voice-over",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-6",
+   "title": "The HUD, menus and screen effects",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-7",
+   "title": "Persistence, online, settings and modes",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-8",
+   "title": "The rest of the module",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-FAC-1",
+   "title": "Which run-time class each data class makes, from the factories' constructors",
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --measure, 2026-11-27: factories server 148, client 100; resolved pairs server 110, client 75; 173 classes made"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory registries 0x157041C (register 0x71C790) and 0x1572768 (0x8B6A60); the server's create 0x711740 calls slot 4 (e.g. the factory vtable 0x1427568: slot 3 `mov eax, 0x30; ret 4`, slot 4 0x6FBDA0 allocates 0x30 and jumps to the constructor 0x586AC0), the client's create 0x8A07F0 calls slot 6 (`call [eax+0x18"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GDLL-1",
+   "title": "The server's run-time classes",
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameDll records not named Client* 163"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GDLL-2",
+   "title": "The client's run-time classes",
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameDll records named Client* 99"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-ENT-1",
+   "title": "`Entity`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Entity 74 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-AI-1",
+   "title": "`Aidll`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Aidll 24 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GAME-1",
+   "title": "`Game`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Game 12 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-SCENE-1",
+   "title": "`Scene` and `World`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Scene 5, World 3 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-PHYS-1",
+   "title": "`Physics`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Physics 85 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-ANIM-1",
+   "title": "`Animation`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Animation 124 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-AUDIO-1",
+   "title": "`Audio`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Audio 125 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-REND-1",
+   "title": "`Render`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Render 128 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-WREND-1",
+   "title": "`WorldRender`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: WorldRender 30 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-EMIT-1",
+   "title": "`Emitter` and `EmitterRender`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Emitter 76, EmitterRender 3 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-DECAL-1",
+   "title": "`Decal`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Decal 10 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-TERR-1",
+   "title": "`Terrain` and `TerrainRender`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Terrain 34, TerrainRender 8 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-OVG-1",
+   "title": "`Overgrowth` and `OvergrowthRender`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Overgrowth 2, OvergrowthRender 2 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-WEATH-1",
+   "title": "`Weather`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Weather 31 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-UI-1",
+   "title": "`UI`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: UI 45 records"
     }
    ]
   },
@@ -13972,6 +14763,31 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe typeinfo record `ImpulseResponse` (module Audio, 20 bytes) at 0x1C0E804; settings and fields `ReverbIR`, `ReverbArea`, `SoundAreaReverbs`"
+    }
+   ]
+  },
+  {
+   "id": "IR-PART-1",
+   "title": "A partition is two channel blocks: a block-scale head and 1,024 spectrum bins",
+   "file": "spec/formats/audio.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: 518 channel blocks in 5 files; head = (2^k - 1, 14 zero bytes) in 518; first bin's imaginary 0 in 518; scales 32,767 x 308, 16,383 x 85, 8,191 x 59, 4,095 x 44, 2,047 x 17, 1,023 x 5; peak above 16,383 in 210 of the 210 blocks scaled below 32,767"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory vtable 0x14B2288 (type 0xFC8CD0, load 0xFD2260): a 20-byte object (vtable 0x14B1EF0), the whole file read into a 16-aligned buffer (+0x0C) of the stream's size (+0x10); load requests 0xFCA9E0 and the reverb table 0xFDC5D6 - 0xFDC63C"
     }
    ]
   },
@@ -19506,18 +20322,26 @@
   },
   {
    "id": "OCC-TRI-1",
-   "title": "The triangle block: 24-byte records, at least one per triangle",
+   "title": "The triangle block: one 192-bit part mask per triangle, padded to an even count",
    "file": "spec/formats/occluder.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
-     "kind": "data",
-     "ref": "spec/probes/resources.py, 2026-11-23: block present 321 (+1 present and empty), absent 39; records = triangles in 253, more in 68"
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
     },
     {
-     "kind": "inferred",
-     "ref": "the meshes with a block are the destructible buildings' (their records' set bits differ triangle by triangle); those without are static (bridges, silos), whose fourth vertex word differs instead"
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: the first payload at 16 in 361 of 361; 321 blocks, records = triangles rounded up to even in 321 of 321, the padding record zero in 321 of 321 (records = triangles in 253, one more in 68); 82 blocks with set bits, 5,812 of 22,998 triangles, highest bit 106"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0x976900 (the reads 0x976A28 - 0x976A6B); instance set-up 0x96B170 (data +0x7C, the masks +0x60 - +0x74 cleared); job 0x9848A0 -> 0x9765C0: the triangle's six words tested against the instance's masks 0x976805 - 0x976846 (`test [esi+0x60"
     }
    ]
   },
@@ -20601,6 +21425,52 @@
     {
      "kind": "data",
      "ref": "spec/probes/resources.py, 2026-11-23: tail = (0, n, triangles, 60) in 40 of 40"
+    }
+   ]
+  },
+  {
+   "id": "SOOT-FLAG-1",
+   "title": "The two flag words pick the soot vertex declaration",
+   "file": "spec/formats/soot.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: (word 8, word 12, stride) = (1, 1, 12) x 22, (0, 1, 12) x 12, (1, 0, 16) x 6"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory vtable 0x147E990 (type 0xC409E0, load 0xC48670: a 0x80-byte object, constructor 0xC45850, vtable 0x147E9CC, its loader slot +0xC 0xC4EDD0); the stride into +0x40, the flags +0x44 / +0x48, the name chosen 0xC4EE44 - 0xC4EE9A (strings 0x147EAE8, 0x147EAD4, 0x147EAC4, 0x147EAB0), the declaration into +0x4C"
+    }
+   ]
+  },
+  {
+   "id": "SOOT-SLOT-1",
+   "title": "Each vertex names a box and a part slot; the trailer maps slots to parts",
+   "file": "spec/formats/soot.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-27: in 40 of 40: part indices first then padding, distinct, below 192; every vertex's slot below the used count and every used slot referenced; every vertex's box below n, every box referenced, every vertex inside its box"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0xC4EDD0: boxes into +0x60 / +0x64 (0xC4EF00 - 0xC4EF36), sub-meshes +0x50 (0x24 bytes each), the buffers through the manager's slots +0x58 / +0x5C, the two words +0x1C / +0x20, the primitive count 0xC4F1F6, the slot words into +0xC; the draw 0xC4D44C (60 constants) -> 0xC431C0 (masks +0x84 and +0x9C); the mask copy 0xC3CF40 from the mesh's part show / hide 0xB99380"
     }
    ]
   },
@@ -24032,7 +24902,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:344-368"
+     "ref": "rust/bc2-install/src/mapedit.rs:1038-1055"
     },
     {
      "kind": "code",
@@ -25409,6 +26279,30 @@
    ]
   },
   {
+   "id": "XDEP-RES-2",
+   "title": "References held inside resources",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-27: the counts above; a name is a C string of 4 - 200 characters of `[A-Za-z0-9_-. /"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG3-rest's one-off comparison, 2026-11-27: of the visual terrains' 3,182 distinct names 338 are strings of a Dx9 shader database, of the mesh sets' none (their entries are `<mesh>/<shader>`); 3,964 of the mesh sets' 4,303 other names are targets of DICE's partitions' unresolved references"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the edges' meaning from MSET-LOD-4, SHDB-NAME-1, SHDB-PB-1, SND-VO-1 and the names' folders"
+    }
+   ]
+  },
+  {
    "id": "XDEP-REG-1",
    "title": "Bundle and registry edges",
    "file": "spec/transforms/dependencies.md",
@@ -25444,19 +26338,27 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:208-279"
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:527-660"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:283-330"
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:663-736"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:105-134"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
     },
     {
-     "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:421-477"
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_record_joins_the_hooks_records_and_decides"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::record_names_are_stepstamps_keys"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_listing_digest_is_the_hooks"
     }
    ]
   },
@@ -25480,19 +26382,27 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:105-134"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:43-48"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:158-171"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:66-72"
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:45-53"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:303-311"
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:71-76"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:697-704"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_the_declared_graph_knows_every_step_and_keeps_the_order"
     },
     {
      "kind": "test",
@@ -25516,11 +26426,19 @@
    "id": "XDEP-STEP-4",
    "title": "What a step-graph runner must keep",
    "file": "spec/transforms/dependencies.md",
-   "status": "inferred",
+   "status": "implemented",
    "evidence": [
     {
      "kind": "inferred",
      "ref": "from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/graph.rs:91-181"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:320-577"
     }
    ]
   },
@@ -25540,11 +26458,11 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:176-192"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:198-219"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:605-614"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:609-619"
     },
     {
      "kind": "test",
@@ -25572,7 +26490,7 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:165-169"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:192-196"
     },
     {
      "kind": "code",
@@ -25612,15 +26530,135 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:248-260"
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:612-620"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:331-338"
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:723-736"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:92-171"
     },
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_step_editing_a_file_in_place_reruns_on_the_version_it_edited"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-8",
+   "title": "The step graph: which step waits for which",
+   "file": "spec/transforms/dependencies.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/graph.rs:91-181"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/mod.rs:187-205"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:580-620"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:357-398"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::the_graph_keeps_every_conflict_in_list_order"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::the_derived_graph_orders_a_reader_after_its_writer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_the_declared_graph_knows_every_step_and_keeps_the_order"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_the_levels_run_in_two_parts_and_the_graph_declares_their_reads"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27: rebuild_all --graph on the tracker-4 records of a seeded-empty rebuild: 55 steps, 514 edges, 62 after the reduction, the longest path 6.2 min of measured step times; no edge between two level chains; the graph derived from the main checkout's tracker-3 records ordered the three chains one after another"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-9",
+   "title": "Running the graph side by side within a memory budget",
+   "file": "spec/transforms/dependencies.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:206-228"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:320-577"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/sys.rs:1-118"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::independent_steps_run_side_by_side_within_the_budget_and_a_rerun_skips_them"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_failed_step_stops_the_run_and_keeps_no_record"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_independent_steps_run_side_by_side_and_a_failure_stops_the_run"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_writer_a_rerun_leaves_unchanged_is_still_sent_back_to"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27, OPFOR's or7 worktree, work\\ww2 seeded with the 14 declared inputs (599 files), a PC shared with other rounds: seeded-empty runs 9.8 min (3 at once, --memory-gb 7) and 10.5 min (4 at once, defaults), a --changed run of all 55 steps 7.6 min (4 at once), against 11.8 - 14 min one after another; each 7,945 of 7,945 against the oracle; --changed with nothing changed 0 of 55 steps (0.2 min); install_ports\\plans.json touched: 7 of 55 (wake_translate and the writers XDEP-STEP-7 sends back to), 1.7 min; one leaf's code touched: 1 of 55; wake_install --plan afterwards 21,149 of 21,149; game\\ 0 of 1,582 files changed"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-10",
+   "title": "A folder too big to stamp, and the cache budget's calls, are no step's inputs",
+   "file": "spec/transforms/dependencies.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:38-44"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:250-281"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:26-36"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27: OPFOR's main-checkout records of the rebuild of 2026-11-23 (tracker 3): the guadal_canal chain's record held 33,019 inputs, among them 5,051 of install_iwo_jima_s\\level, 1,106 of _qa\\object_audit, 271 of menu_install\\apply and 527 / 422 files of the iwo_jima_s / coral_sea chains' outputs, and work\\ww2\\.pruned as an output; the graph derived from them ordered the three chains one after another (write-after-read)"
     }
    ]
   },
@@ -26216,39 +27254,55 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:274-290"
+     "ref": "rust/bc2-install/src/mapedit.rs:663-700"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:356-366"
+     "ref": "rust/bc2-install/src/mapedit.rs:918-960"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/stages.rs:251-309"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_needed_shared_files"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::the_patches_come_from_each_installs_kept_copy"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
     }
    ]
   },
   {
    "id": "XINST-MAP-2",
-   "title": "The order: bundles, record, startup and menus, registration last",
+   "title": "The order: the level's record, its kept copy and bundles, its path data, the shared files",
    "file": "spec/transforms/install.md",
    "status": "verified",
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:346-378"
+     "ref": "rust/bc2-install/src/mapedit.rs:918-960"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:234-275"
+     "ref": "rust/bc2-install/src/mapedit.rs:962-999"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:579-661"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:1038-1055"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::path_data_goes_through_the_ledger_under_its_own_owner"
     }
    ]
   },
@@ -26260,19 +27314,19 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:346-354"
+     "ref": "rust/bc2-install/src/mapedit.rs:1071-1130"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:380-403"
+     "ref": "rust/bc2-install/src/mapedit.rs:1132-1146"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     },
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy"
-    },
-    {
-     "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:937-949"
     }
    ]
   },
@@ -26284,19 +27338,111 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:162-224"
+     "ref": "rust/bc2-install/src/mapedit.rs:332-358"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:360-373"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:375-389"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_text_patches_add_and_take_out"
-    },
-    {
-     "kind": "test",
-     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_any_mode_gets_its_maps_line"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
     },
     {
      "kind": "test",
      "ref": "opfor:src/tools/opforcore/tests/test_slots.py::test_mft_add_remove_any_order"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-5",
+   "title": "Each install keeps its own copy of what the shared patches are built from",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:1001-1036"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:564-577"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::the_patches_come_from_each_installs_kept_copy"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-6",
+   "title": "A kill at any write step is finished by the next run",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/stages.rs:82-93"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/stages.rs:133-146"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:490-501"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::a_kill_at_every_write_step_is_finished_by_the_next_run"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR6, real exports on scratch copies: an apply of a second export (18 write steps: the folder, its record, 4 kept files, 4 bundles, 8 ledger steps) and a revert of one level of two (17: 8 ledger steps, 9 removals), each killed before every step and run again: 35 of 35 with the files and ledger records of an uninterrupted run"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-7",
+   "title": "On DICE's package.mft only the levels' blocks change",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mapedit.rs:332-358"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's package.mft (the ledger's original): 136,251 bytes ending CRLF CRLF; through the Python's patch with no level: one CRLF fewer; bundleManifest (835 lines, LF) unchanged by its patch"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-8",
+   "title": "The files, records and lines are the Python installer's",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/mapedit_cli.rs:1-40"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR6, scratch copies of the six shared files migrated into the ledger, two fresh exports and a plain variant (rust/BENCHMARKS.md OR6): 10 of 10 steps identical, 38 to 54 game files and 5 to 6 ledger records a step"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     }
    ]
   },
@@ -32025,7 +33171,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:175-200"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
     },
     {
      "kind": "test",
@@ -32054,7 +33200,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:141-168"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:256-275"
     },
     {
      "kind": "data",

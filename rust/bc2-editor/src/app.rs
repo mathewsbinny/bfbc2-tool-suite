@@ -822,7 +822,7 @@ impl EditorApp {
     pub fn busy_work(&self) -> Option<String> {
         let mut what = Vec::new();
         if self.export.install.busy() {
-            what.push("an install or uninstall of the exported level (OPFOR's mapedit_install.py)");
+            what.push("an install or uninstall of the exported level (writing the game copy)");
         }
         if self.export.exporting() {
             what.push("an export (writing its stage)");

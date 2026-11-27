@@ -93,7 +93,9 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'OPFOR_ROOT': ('paths', 'the Project OPFOR BFBC2 checkout (default: found beside or above the suite)'),
     'OPFOR_TOOLKIT': ('paths', "the folder holding the suite as Project OPFOR sees it (OPFOR's opforcore.paths)"),
     'OPFOR_GAME': ('paths', "a game folder for levelwrite's export tests (default: OPFOR's game copy)"),
-    'OPFOR_XBOX': ('paths', "the folder searched for the user's Xbox 360 Update #3 package (bfbc2 menuart onslaught)"),
+    'OPFOR_REBUILD_TRACK': ('paths', "set for each WW2 rebuild step by the runner (bc2_install::rebuild): the folder "
+                            "its processes' hook records go to (OPFOR's stepstamps_hook)"),
+    'OPFOR_XBOX': ('paths',"the folder searched for the user's Xbox 360 Update #3 package (bfbc2 menuart onslaught)"),
     'OPFOR_ONS_DROP_TYPES': ('paths', "an experiment of the Onslaught import: instance types (comma-separated) "
                              "dropped from the level (bc2_install::onslaught)"),
     # workers
@@ -104,7 +106,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
     # build
     'BC2_SOURCE_HASH': ('build', "the sources' fingerprint build_native.py passes to cargo; the artefacts bake it in"),
     # opfor
-    'BFBC2_MAPEXPORT': ('opfor', "a mapexport.exe for Project OPFOR's mapedit_install (default: the suite's bin\\)"),
+    'BFBC2_MAPEXPORT': ('opfor', "a mapexport.exe for Project OPFOR's mapedit_install before round OR6 (since then "
+                                 "the install runs in bfbc2.exe and the variable is unused)"),
     # tests only
     'BFBC2_CLI_WORKERS': ('test', 'the command-line parity tests (O2 to O5): processes at a time'),
     'BFBC2_O2_REF': ('test', 'the reference checkout of the O2 / O4 parity tests'),

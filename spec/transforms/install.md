@@ -7,12 +7,14 @@ again. Its inverse, **revert**, must give the game copy back byte for byte. Thre
 - the **stage protocol** (`src\tools\onslaught\console_common.py`; since round DF2 on the install ledger, section 0 -
   before it:) whole-file backups `<file>.opfor-<stage>-orig`,
   the last-writer record `<file>.opfor-last` (`<stage> <sha1>`), `-applied` records; used by the console stages,
-  the WW2 install (`ww2\wake_install.py`) and the map export's install (`mapedit\mapedit_install.py`);
+  the WW2 install (`ww2\wake_install.py`; its game-copy side `bc2-install` since round OR1) and the map export's
+  install (`mapedit\mapedit_install.py`; `bc2_install::mapedit` since round OR6);
 - the **ledger** (`opforcore\ledger.py`), per-slot contributions to shared files, which replaces whole-file backups
   where adopted (OPFOR's `research\PACIFIC_BOUNDARY_AUDIT.md` 6.2);
 - the registration order of REG-NEW-4.
 
-The suite's editor never writes the game copy; it runs OPFOR's installer (EDITOR_ARCHITECTURE 3.12, E3d).
+The suite's editor writes the game copy only through the map export's install (section 2; round OR6: in process,
+before it ran OPFOR's installer: EDITOR_ARCHITECTURE 3.12, E3d).
 
 ## 0. The install ledger: one record of every install (round DF2)
 
@@ -198,54 +200,128 @@ deleted as scratch.
 
 ## 2. The map export's install
 
+The map editor's exports (`mapexport build`, a stage folder with `stage.json`) are installed by `bc2_install::mapedit`
+(round OR6, "OPFOR in Rust": `bfbc2 install mapedit plan | apply | revert | status`, the editor's Install dialog in
+process; the stage's check and the shared bundles' patches through `bc2_install::mapedit::Patches`, implemented by
+`bc2_levelwrite::installpatch::LevelWrite`). Project OPFOR's `mapedit\mapedit_install.py` runs the same command; its Python twin (OPFOR 706b909) was
+retired after the parity proof of XINST-MAP-8.
+
 ### XINST-MAP-1: Every check before the first write
 
 Status: **verified**
 
-`mapedit_install.py --apply <stage>` runs the stage's offline check (`mapexport check`, XEXP-CHK-1), builds the
-shared files' patch, and refuses before writing anything: while the game runs, when another tool wrote a shared file
-after this tool's last install (revert that tool first), or when a backup would be refused (XINST-STG-2).
+An apply runs the stage's offline check (`mapexport check`'s rules, XEXP-CHK-1, against the check game copy), refuses
+a level folder that is not an earlier install of an export (a stock level is never replaced), builds the shared
+files' patch, and refuses before writing anything: while the game runs, when another tool wrote a shared file after
+this owner's last install or changed it outside the ledger (revert that tool first), when the level's path data
+would be refused, or when a shared file the set no longer needs could not go back.
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:274-290] [code: opfor:src/tools/mapedit/mapedit_install.py:356-366]
-[test: opfor:src/tools/tests/test_mapedit_install.py::test_needed_shared_files]
+[code: rust/bc2-install/src/mapedit.rs:663-700] [code: rust/bc2-install/src/mapedit.rs:918-960] [code: rust/bc2-install/src/stages.rs:251-309]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::the_patches_come_from_each_installs_kept_copy]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out]
 
-### XINST-MAP-2: The order: bundles, record, startup and menus, registration last
+### XINST-MAP-2: The order: the level's record, its kept copy and bundles, its path data, the shared files
 
 Status: **verified**
 
-An install copies the level's bundles into `Package\levels\<lv>\` with a record of their sha256
-(`opfor-mapedit-installed.json`), then writes the shared files in their order, `package.mft` and `bundleManifest`
-last (REG-NEW-4). The shared patch is always built from this tool's backup while it wrote the file last, so every
-installed export is in one patch, and a shared file no installed export needs any more goes back from its backup.
+An install writes, in order: the level's folder `Package\levels\<lv>\` with its record first
+(`opfor-mapedit-installed.json`: `stage.json`'s fields in their order, then `stage` - the stage folder - and
+`installed`, each bundle's sha256; `json.dumps(indent=1)` with every character past `~` escaped, as OPFOR's Python
+wrote it), its kept copy (XINST-MAP-5) and its bundles (each checked against the stage's sha256 after the copy), the
+path data through the ledger as owner `mapedit-ai:<lv>`, then the shared files in one journalled commit of owner
+`mapedit` in their order - `startup-00`, `overlay-00`, `ondemand_awards-00`, `maps.ini`, then `package.mft` and
+`bundleManifest` last (REG-NEW-4) - each built from the ledger's copy from before this owner while it wrote the file
+last, so every installed export is in one patch; a shared file no installed export needs any more (the texts and
+pictures once no level has its own name) goes back as it was before this owner.
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:346-378] [code: opfor:src/tools/mapedit/mapedit_install.py:234-275]
-[test: opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy] [test: opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure]
+[code: rust/bc2-install/src/mapedit.rs:918-960] [code: rust/bc2-install/src/mapedit.rs:962-999] [code: rust/bc2-install/src/mapedit.rs:579-661]
+[code: rust/bc2-install/src/mapedit.rs:1038-1055]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::path_data_goes_through_the_ledger_under_its_own_owner]
 
 ### XINST-MAP-3: Revert gives every file back byte for byte
 
 Status: **verified**
 
-`--revert <LV>` refuses when an installed bundle changed since the install (its sha256) or another tool wrote a
-shared file after this one; it takes the registration out first, then rebuilds the patch without the level (other
-exports stay) or, for the last level out, restores each shared file from its backup **with the last-writer record it
-had before** (`.opfor-mapedit-prevlast`), and removes the level's folder last. Installing every staged export one
-after another on a scratch copy and reverting them gives every shared file back byte for byte, with its record.
+A revert refuses when an installed bundle changed since the install (its sha256), or the ledger would refuse taking
+the owner's files out; it writes the patch without the levels taken out (other exports stay) or, for the last level
+out, every shared file back as it was before this owner in one journalled commit; the levels' path data back; their
+folders removed, each record last. Installing exports one after another on a copy and reverting them gives every
+shared file back byte for byte, and the ledger as it was.
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:346-354] [code: opfor:src/tools/mapedit/mapedit_install.py:380-403]
+[code: rust/bc2-install/src/mapedit.rs:1071-1130] [code: rust/bc2-install/src/mapedit.rs:1132-1146]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back]
 [test: opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:937-949]
 
 ### XINST-MAP-4: Text patches add and take out exactly
 
 Status: **verified**
 
 The shared text files are patched by key, never by position: a level's `package.mft` blocks and `bundleManifest`
-lines out, then each installed level's at the end; `maps.ini` with this tool's marker and a section per level (one
-line per mode); taking a level out of a patched text gives the text without it.
+lines out, then each installed level's at the end (the WW2 install's rules, `bc2_install::text`); `maps.ini` with this
+installer's marker line and a section per level (`[<LV>]`, `name=<title>`, `<mode>=Levels/<LV>`); taking a level out
+of a patched text gives the text without it. A file is read and written byte for byte (UTF-8 when it is, else
+latin-1); what an install adds is ASCII (XEXP-PRE-1, REG-MFT-1, REG-BM-1).
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:162-224]
-[test: opfor:src/tools/tests/test_mapedit_install.py::test_text_patches_add_and_take_out] [test: opfor:src/tools/tests/test_mapedit_install.py::test_any_mode_gets_its_maps_line]
+[code: rust/bc2-install/src/mapedit.rs:332-358] [code: rust/bc2-install/src/mapedit.rs:360-373] [code: rust/bc2-install/src/mapedit.rs:375-389]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out]
 [test: opfor:src/tools/opforcore/tests/test_slots.py::test_mft_add_remove_any_order]
+
+### XINST-MAP-5: Each install keeps its own copy of what the shared patches are built from
+
+Status: **verified**
+
+The shared patches of every installed export are built from that export's own kept copy (`Package\levels\<lv>\
+opfor-mapedit-stage\`: `stage.json`, the description partition, the pictures, at their paths in the stage), written
+by its install, never from the editor's stage folder, which a later export rewrites (audit AU4, DS-12: an install or
+revert of another level rebuilt this one's description, texts and pictures from whatever the stage folder held
+then). An install made before round OR6 has no kept copy: its stage folder is read, with a line saying so.
+
+[code: rust/bc2-install/src/mapedit.rs:1001-1036] [code: rust/bc2-install/src/mapedit.rs:564-577]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::the_patches_come_from_each_installs_kept_copy]
+
+### XINST-MAP-6: A kill at any write step is finished by the next run
+
+Status: **verified**
+
+`BC2_INSTALL_CRASH_AT=<n>` ends `bfbc2 install mapedit` before its n-th write step (the level folder, its record, each
+kept file and bundle, each ledger step: journal, blobs, files, records; each removal of a revert), as a kill would.
+The record is the level folder's first write and a revert's last removal, so a folder left part way is always an
+export's: the same command run again rolls an interrupted ledger commit back and finishes with the files and records
+of a run never interrupted (a folder holding only the record's temporary files counts as an install's start).
+
+[code: rust/bc2-install/src/stages.rs:82-93] [code: rust/bc2-install/src/stages.rs:133-146] [code: rust/bc2-install/src/mapedit.rs:490-501]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::a_kill_at_every_write_step_is_finished_by_the_next_run]
+[data: round OR6, real exports on scratch copies: an apply of a second export (18 write steps: the folder, its record, 4 kept files, 4 bundles, 8 ledger steps) and a revert of one level of two (17: 8 ledger steps, 9 removals), each killed before every step and run again: 35 of 35 with the files and ledger records of an uninterrupted run]
+
+### XINST-MAP-7: On DICE's package.mft only the levels' blocks change
+
+Status: **verified**
+
+DICE's `package.mft` ends with a blank line (REG-MFT-1: 900 blank lines for 899 blocks). OPFOR's Python wrote the
+patched file ending in one CRLF, so an install on DICE's file changed a byte outside the levels' blocks; the file's run
+of line ends at its end is kept (a decision against DICE's data, round OR6). The WW2 install's text rules are
+unchanged (their oracle holds them).
+
+[code: rust/bc2-install/src/mapedit.rs:332-358]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out]
+[data: DICE's package.mft (the ledger's original): 136,251 bytes ending CRLF CRLF; through the Python's patch with no level: one CRLF fewer; bundleManifest (835 lines, LF) unchanged by its patch]
+
+### XINST-MAP-8: The files, records and lines are the Python installer's
+
+Status: **verified**
+
+On scratch copies of the author's six shared files (migrated into the ledger: owners import, loading, loadset,
+minimap-edges, wake), the Python installer (OPFOR 706b909) and `bfbc2 install mapedit` ran plan, apply, revert,
+re-apply, a redo, a second export beside the first, that level replaced by its named export, one level out of two,
+the named one replaced by a plain one (the texts and pictures back as before this owner) and a revert of all: every
+game file and level record identical after each step, every ledger record identical but its transaction id and time
+(the Rust writes its keys sorted), every printed line identical but the kept copy's (XINST-MAP-5), and the copy
+after each full revert the one before the first apply.
+
+[code: rust/bc2-cli/src/mapedit_cli.rs:1-40]
+[data: round OR6, scratch copies of the six shared files migrated into the ledger, two fresh exports and a plain variant (rust/BENCHMARKS.md OR6): 10 of 10 steps identical, 38 to 54 game files and 5 to 6 ledger records a step]
+[test: rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back]
 
 ## 3. The ledger
 
@@ -495,5 +571,9 @@ moved left the file refused for good, in OPFOR's Python too).
 - Since round DF2 every whole-file install is on the ledger; the game copies with old markers are migrated by
   `opforcore\migrate.py` (XINST-OPF-3). The slot contributions (XINST-LED-1) are used by OPFOR's add-ons only; moving
   the registration writes (package.mft blocks, bundleManifest lines, ini keys) onto slots is IN1's.
-- The installer moves into the suite: the WW2 install's game-copy side is `bc2-install` since round OR1 (section 4);
-  the map export's install (`mapedit_install.py`, section 2) is IN1's next step, on the same crate.
+- The installer is in the suite: the WW2 install's game-copy side is `bc2-install` since round OR1 (section 4), the
+  map export's install since round OR6 (section 2). IN1 builds the installer's other parts on `bc2_install::stages`
+  and `bc2_install::mapedit` (the doctor, the bug-report bundle, the game-folder setting, anonymised sharing).
+- Three implementations of the ledger format remain (audit AU5, ARC-3): `bc2_gamefs::ledger`, the suite's Python twin
+  `bfbc2core.gameledger` (NavKit's and stock-MP's Python, texqa) and OPFOR's `opforcore.ledger` (every OPFOR stage
+  but the WW2 install and the map export's install, which are Rust since OR1 / OR6).

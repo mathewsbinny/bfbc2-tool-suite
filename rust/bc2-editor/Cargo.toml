@@ -20,6 +20,8 @@ bc2-tools.workspace = true
 bc2-gamefs.workspace = true
 bc2-scene.workspace = true
 bc2-levelwrite.workspace = true
+# the map export's install, in process (round OR6: the Install dialog; Project OPFOR's mapedit_install.py before)
+bc2-install = { workspace = true, features = ["mapedit"] }
 # round E7 / TG3: Create Level's "Generate" (the biomes, the generator's own checks)
 bc2-terragen.workspace = true
 # the AI workspace's navigation data (round GR2): NavKit's cell sampling, the path test's A*, the side file's text;

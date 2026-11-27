@@ -22,12 +22,13 @@ type's or an enumeration's 28:
 | 4 | u16 | flags (ENG-TI-2) |
 | 6 | u16 | the instance size in bytes |
 | 8 | u32 | pointer to the module record, whose first word points to the module's name |
-| 12 | u8, u8, u16 | the alignment, the member count (a value type's fields: `Vec2` 2, `LinearTransform` 4; an enumeration's values), then 1 (0 on `Core`'s math types) |
+| 12 | u8, u8, u16 | the alignment, the member count (a class's own members, RTTI-MEM-1; a value type's fields: `Vec2` 2, `LinearTransform` 4; an enumeration's values), then 1 (0 on `Core`'s math types) |
 | 16, 20 | 2 x u32 | the size again on value types, else 0; 0 |
 | 24 | u32 | value types and enumerations only: the member table in `fieldinf` (`Vec2`'s is the section's first record, 0x1C13000) |
 
-A class record holds no member-table pointer (CapturePointEntityData's table 0x1C25870 is not referenced from its
-record; inferred: classes reach theirs through their run-time descriptor). Records follow each other: 1,215 of the
+A class record holds no member-table pointer: a data class's table is an argument of the static initialiser that
+registers it (RTTI-REG-1; CapturePointEntityData's 0x1C256F0, 35 descriptors; round SPG4-rest corrected the address
+SPG4 gave, 16 descriptors in). Records follow each other: 1,215 of the
 class records are 24 bytes from the next record, 498 of the value types and enumerations 28.
 
 The census walks the section word by word and keeps a record when its name pointer and its module's name pointer
@@ -37,7 +38,7 @@ instantiates (run-time entities, interfaces, value types and enumerations).
 
 [test: core/tests/test_spec_probes.py::census]
 [data: spec/probes/census.py --measure, 2026-11-23 (spec/census.json engine): 1,900 records; 630 of 630 DBX classes among them]
-[exe: BFBC2Game.exe section table: typeinfo VA 0x1BF0000 size 0x22D18, fieldinf VA 0x1C13000 size 0x34E60; e.g. GameEntityData's record 0x1BFAF98, CapturePointEntityData's 0x1BFD8C4 with its field table 0x1C25870]
+[exe: BFBC2Game.exe section table: typeinfo VA 0x1BF0000 size 0x22D18, fieldinf VA 0x1C13000 size 0x34E60; e.g. GameEntityData's record 0x1BFAF98, CapturePointEntityData's 0x1BFD8C4 with its field table 0x1C256F0]
 
 ### ENG-TI-2: Kinds: classes, value types, enumerations, arrays, primitives
 

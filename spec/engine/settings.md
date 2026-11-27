@@ -9,7 +9,9 @@ reference searches, the call index, disassembly of the readers and writers), DIC
 with `spec/probes/options.py` (whose `checks()` hold the counts below), Project OPFOR BFBC2's research notes
 (`research/BFBC2_DECOMP_RESEARCH.md` sections 2, 3 and 10, `DEVELOPMENT_NOTES.md` "User data separation") and the
 **key names only** of one `GameSettings.ini` and one `settings.ini` the game wrote (read only, no value read). Nothing
-was run; how the game behaves with a damaged or missing file is open.
+was run. Round SPG3-rest (2026-11-27) read the parsers, `GameSettings.bin`'s reader and writer and the registry's text
+path the same way (capstone over a scratch copy; REA's Ghidra provider timed out on the 19 MB executable), and walked
+the structure of one `GameSettings.bin` the game wrote (names and sizes only).
 
 There are three kinds of settings:
 
@@ -112,7 +114,8 @@ Status: **observed** · Variants: PC
 The reader 0x831ED0 walks the categories, and for every setting whose byte +0x28 is set (the user-exposed ones,
 SET-GS-4) asks `GetPrivateProfileStringA(<category section>, <name>, "", buffer of 4096, "/data/local/GameSettings.ini")`;
 a value found is parsed by the setting's type (+0xC): 1 a float (0x512320), 2 an int (0x512360), 3 a string. A
-missing key keeps the default. It then reads `GameSettings.bin` (0x815870), the binary settings. The writer 0x833FD0
+missing key keeps the default (a value that does not parse: SET-PARSE-1). It then reads `GameSettings.bin`
+(0x815870), the settings that are not user-exposed (SET-BIN-1). The writer 0x833FD0
 writes both files whole; it does not go through `WritePrivateProfileStringA`.
 
 The menus' `loadSettings` (0x920470, also run by the `settingsLoad` event at 0x92A8DF) calls the reader; the save
@@ -137,6 +140,67 @@ exists from its first use (inferred) and is then saved.
 
 [exe: BFBC2Game.exe getters 0x80D2E0 and 0x80D0C0 (call sites listed by the round's call index); "ToggleCrouch" pushed at 0x814722 before 0x80D2E0; "KitConfig_0" - "_7" and "CurrentKit" at 0x77898A - 0x778AFA and 0x778970 in 0x777AA0; "ServerFilterSettings" / "ServerDropDownSettings" at 0x95D5BA / 0x95D495]
 [data: the key names of one GameSettings.ini the game wrote (read only, no value read): GstAudio 10, GstGameplay 19, GstInput 19, GstPersistence 5, GstPlayerProfile 4, GstRender 2 keys; none of the 14 hidden names; the extra names above]
+
+### SET-BIN-1: GameSettings.bin holds the settings the INI does not: a typed list per category
+
+Status: **verified** · Variants: PC
+
+`GameSettings.bin` is written by the same save as the INI (0x833FD0 -> 0x815940) and read after it (0x815870), both
+through the file system's asynchronous jobs. The serializer 0x80DA10 writes, for each of the 11 categories in
+enumeration order (`GstAudio` 0 ... `GstMenuTracker` 9, `GstStatsCache` 10; `GstCount` = 11), a u32 count (a
+placeholder written first, then patched) and per setting whose `UserExposed` byte (+0x28) is clear:
+
+| Field | Type |
+|---|---|
+| type | u32: 1 float, 2 int, 3 string, 4 binary (the setting's +0xC) |
+| name length | u32, the NUL included |
+| name | bytes, NUL-terminated |
+| value (type 4) | u32 size, then the bytes |
+| value (types 1 - 3) | u32 length, the NUL included, then the value as text (a float as `%f`, e.g. `0.200000`) |
+
+So the INI holds the user-exposed settings and the `.bin` the rest: SET-GS-1's 14 hidden settings and everything the
+code adds unexposed at run time. The reader 0x832270 walks the same 11 categories and sets a binary setting through
+0x82FFA0 and any other from its text through 0x82FCF0 (the parsers of SET-PARSE-1); it runs only when the read job
+answers with a result of kind 8 whose second word is 0xD (0x834A4D - 0x834A5F), and either way the load posts its
+done message on channel 0x2B. A file the game wrote starts with 16 bytes before the list, `08 00 00 00`, `FF FF FF
+FF`, `0D 00 00 00` and the list's length, which the job layer's result checks match (inferred).
+
+That file holds: `GstInput` 3 (the hidden `Scheme1Sensitivity`, `Scheme1FlipY`, `AlternativeHeliControls`),
+`GstGameplay` 3, `GstPlayerProfile` 5, `GstPersistence` 2,302 strings, `GstBinary` 2 (`header` 50 bytes and `body`:
+the campaign save, the two names the single-player code uses, among others 0x55D250, 0x6E5900, 0x75FFA0 near
+`onStartLoadingSP`, and 0x951E00), `GstMenuTracker` 4, `GstStatsCache` 701 strings; the other categories 0. The
+campaign save's own layout is CAMP-SAVE-1.
+
+[test: core/tests/test_spec_probes.py::options]
+[exe: BFBC2Game.exe category enumeration 0x01C38890 - 0x01C38998 (GstAudio 0 ... GstStatsCache 10, GstCount 11); serializer 0x80DA10 (`mov [esp+0x24], 11` at 0x80DA2E, `cmp byte [esi+0x28], 0` at 0x80DA8F, type 4 at 0x80DAE4 -> 0x80D660, else 0x80D4B0); write 0x815940 (caller 0x83449E, job id +0xB18); read 0x815870 (caller 0x832191, job id +0xB14); reader 0x832270 (`mov [esp+0x28], 11` at 0x832292, type 4 at 0x832309 -> 0x82FFA0, else 0x82FCF0; caller 0x834A8F in the job completion 0x8345A0, checks 0x834A48 / 0x834A5B); INI writer 0x833FD0 (`cmp eax, 11` at 0x83431C); "header" 0x141841C / "body" 0x1418414 read by 0x55D250, 0x75FFA0, 0x6E5900 and the binary getter 0x80D660's other callers]
+[data: spec/probes/options.py, 2026-11-27: the enumeration (12 names, GstCount 11) and the code bytes cited]
+[data: one GameSettings.bin the game wrote (`<Documents>\BFBC2`, 242,795 bytes; a second in OPFOR's user folder, 159,208 bytes), walked by this layout to its last byte; structure, names and sizes only, no value read: the counts above]
+
+### SET-PARSE-1: What a bad value does: a number that does not parse becomes 0
+
+Status: **observed** · Variants: PC
+
+The game settings' text values (the INI's and the `.bin`'s) go through the engine's own type parsers: the float
+parser 0x4E5680 and the int parser 0x4E6C90, each first stripping one pair of surrounding `"`:
+
+- an int takes white space, an optional `+` / `-` and decimal digits, stops at the first other character
+  (`12abc` is 12) and fails when there is no digit or the value leaves 32 bits;
+- a float is `strtod`'s: it fails only when nothing at the start parses (`1.5x` is 1.5, `1e999` is infinity);
+- a string setting is taken as written.
+
+The callers 0x512360 (int) and 0x512320 (float) return their second argument when the parse fails, and the INI reader
+passes 0 (0x832227) and 0.0 (0x832241): a word where a number is expected sets the setting to 0, not to its default,
+and the next save writes the 0. An empty value (`Key=`) keeps the default, because `GetPrivateProfileStringA` then
+returns no characters and the reader skips the key (0x831FE4); a missing key also keeps the default. The setters
+(0x82FAB0 int, 0x82F860 float) store what they are given: no range is checked here, so a slider value out of range
+reaches its reader unclamped.
+
+`settings.ini`'s reader 0x7DBD60 uses the same two callers with 0 as the fallback. `DxVersion` is `auto` (the device
+is detected) or else parsed as an int: 9 -> `SelectedRenderer_Dx9` (1), 10 -> `SelectedRenderer_Dx10` (2), 11 ->
+`SelectedRenderer_Dx11` (4), anything else, a word included, -> `SelectedRenderer_None` (0), written to
+`Render.Renderer` (`GameRenderSettings` +0x6C). What the renderer does with `None` at device creation was not traced.
+
+[exe: BFBC2Game.exe float parse 0x4E5680 (`strtod` IAT 0x14054F0; fails when the end pointer did not move), int parse 0x4E6C90 -> scanner 0x428A40 (`isspace`, sign, digits, 64-bit overflow check) and the 32-bit range check at 0x4E6D07 - 0x4E6D2A; both strip `"..."` at 0x4E569F / 0x4E6CB0; 0x512320 / 0x512360 (default on failure); INI reader type switch 0x831FEA with defaults pushed at 0x832227 (0) and 0x832241 (fldz); skip on 0 characters at 0x831FE4; setters 0x82FAB0, 0x82F860; DxVersion: "auto" 0x142FBE8 at 0x7DCC87, 0x512360 at 0x7DCCF2, map 0x7DCCFA - 0x7DCD1A, "Render.Renderer" 0x142FBD8 set through 0x7DA7E0; enumeration SelectedRenderer_None 0 ... _Ps3 6 (0x01C15370 - 0x01C15400), GameRenderSettings.Renderer +0x6C]
 
 ## 2. The engine settings objects and the command line
 
@@ -170,10 +234,42 @@ word. The names the client asks for include `dataPath`, `remoteFileServer`, `sec
 `-server` and `-runMultipleGameInstances` (0x401F0C - 0x401F65) before it takes the single-instance mutex; the client
 adds `-noAsync` and `-host <name>` to its own list (0x501F86, 0x5022A8). The engine settings objects also carry an
 `IsCommandLineOption` flag in their option descriptors (the `OptionDescriptor` type: `Name`, `Category`,
-`Description`, `ValueType`, `DefaultValue`, `TargetPlatforms`, `IsCommandLineOption`, `IsFlag`); whether a generic
-`-<Object>.<Field>` option sets them was not traced.
+`Description`, `ValueType`, `DefaultValue`, `TargetPlatforms`, `IsCommandLineOption`, `IsFlag`); a generic
+`-<Object>.<Field>` option does not set them (SET-CLI-2).
 
-[exe: BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 40 callers (the names pushed before each); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; "-noAsync" 0x14123AC at 0x501F86, "-host" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438]
+[exe: BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 41 callers (the names pushed before each; SET-CLI-2); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; "-noAsync" 0x14123AC at 0x501F86, "-host" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438]
+
+### SET-CLI-2: No command-line option sets an engine setting by name
+
+Status: **verified** · Variants: PC
+
+`-<Object>.<Field> <value>` (for example `-VisualTerrain.UndergrowthDensityScale 2`) changes nothing in the retail
+client. The argument list (SET-CLI-1) is read in two places only: the finder 0x4F4CF0, whose 41 call sites each push
+a fixed option name of their own (the names of SET-CLI-1 and `extra_account_detail`, `name`), and 0x4FDD10, which
+copies it into the start-up log line. Nothing walks it for `<Object>.<Field>` words.
+
+The settings registry (the object at `*(0x155CFDC)` that SET-ENG-1's lookups use) does have a text path for
+`<Object>.<Field> <value>` pairs, but nothing reaches it:
+
+- a reader 0x5017C0 of a settings text file: one pair per line, a line starting with `#`, `;` or `/` skipped, a `#`
+  later in the line ends it, the key and the value split at the first white space;
+- an adder 0x501AB0 of one pair;
+- both keep the pairs in a pending list (registry +0x44, 0x18-byte records); each settings object registered later
+  takes the pairs whose `<Object>` is its name (0x4F4A00, case-blind), and 0x4F3FA0 sets the field through the
+  class's field parser (0x4EB0F0), which logs `Field '%s' not found in class '%s'` or `Parse error '%s.%s', value =
+  '%s'` on a bad pair.
+
+The reader and the adder are reached only through two this-adjusting thunks (0x501CF0, 0x501D10) that no call, jump
+or stored pointer names, so the retail build never reads such a file or adds such a pair; the `OptionDescriptor`
+type (`IsCommandLineOption`) is registered but no code reads one. What does set engine settings by name is the code
+itself, through the registry's value setter 0x4F4C00: `settings.ini`'s display values (`DX9DisplaySettings.*` and its
+Dx10 / Dx11 twins, `Render.Renderer`: SET-PARSE-1), `Network.Version` (`"ROMEPC795745"`) and
+`Core.DiskLayoutEmulation`. OPFOR's DLL writes the objects' fields directly (SET-ENG-1). So VEG-UG-8's render settings,
+like every other engine setting, are out of the user's reach without the DLL.
+
+[test: core/tests/test_spec_probes.py::options]
+[exe: BFBC2Game.exe finder 0x4F4CF0 (41 E8 sites, each with a `push imm32` naming a string within 16 bytes before it); 0x4FDD10 (one caller, 0x56EF29: the log line); registry text reader 0x5017C0 (`cmp cl, 0x23 / 0x3B / 0x2F` at 0x501859 - 0x50186B, the pending list +0x44, then 0x4F6EC0), adder 0x501AB0, thunks 0x501CF0 / 0x501D10 (no E8 / E9 site, no stored pointer); apply 0x4F4A00 ("." 0x140BA68), 0x4F3FA0; field parser 0x4EB0F0 ("Field '%s' not found in class '%s'" 0x14117D4, "Parse error '%s.%s', value = '%s'" 0x14117B0); OptionDescriptor type record 0x1BF0638 (its only reference the static initialiser at 0x13865D1); value setter thunk 0x4F4C00 -> 0x4F41E0 (callers 0x5595AE and 0x7DA82E - 0x7DA9AE, the latter from the settings.ini reader 0x7DBD60 and 0x7DE0D4); "Network.Version" set through 0x4F4BD0 at 0x5658E2, 0x5659C2, 0x565B29]
+[data: spec/probes/options.py, 2026-11-27: 41 finder call sites, 41 with a pushed name; the reader and the adder reached only from their thunks, the thunks from nothing]
 
 ## 3. The options screens
 
@@ -219,12 +315,11 @@ change makes the preset `custom` (SET-INI-2). The controls commands (`controlsSl
 
 ## 4. Open questions
 
-- What the game does with a damaged `GameSettings.ini` or `settings.ini` value (a word where a number is expected, an
-  unknown `DxVersion`): the parsers were not traced past the type switch. Needs a test start with a copy of the
-  files - in-game tests are paused.
-- `GameSettings.bin`'s layout (the `GstBinary` category; DICE's partition defines no binary setting).
-- Whether a generic `-<Object>.<Field> <value>` command-line option sets the engine settings objects
-  (`IsCommandLineOption`), and which ones.
-- `Sensitivity0` - `Sensitivity2` and `Scheme0Sensitivity` / `Scheme0InputType` are named in INP-SET-1 by what reads
-  them; which slider of the controls page writes which is inferred.
+- Round SPG3-rest (2026-11-27, static only) answered the bad values (SET-PARSE-1), `GameSettings.bin`'s layout
+  (SET-BIN-1), the generic `-<Object>.<Field>` option (SET-CLI-2: none) and the sliders (INP-SET-2). Left: what
+  the renderer does with `SelectedRenderer_None` (an unknown `DxVersion`); what a damaged `.bin` does (a count or a
+  length past the file's end: the stream reader's bounds were not traced); both want a test start with copies of
+  the files (in-game tests are paused).
+- `Scheme0Sensitivity` / `Scheme0InputType` are named in INP-SET-1 by what reads them; the controls page's slider
+  command writes only `Sensitivity0` - `Sensitivity5` (INP-SET-2), so what else writes them is open.
 - `GstMenuTracker` has no section name (SET-GS-2): whether its settings are saved at all (they are not user-exposed).

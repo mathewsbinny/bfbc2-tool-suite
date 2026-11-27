@@ -57,19 +57,19 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **BF1943 as a source** (bundles, Havok 4.6.1, DBX classes, Xenos) | bf1943-import, OPFOR ww2 | Pacific War (hold) | HAVOK-V461 (2), XWW2 (9), WPN-WW2, VEH-WW2, MAT-WW2, LIGHT-SKY-4 | thin | thin (a source-side file still missing, section 2) | covered: formats/bf1943 (7, an index of the rest) |
 | **Xbox 360 / Onslaught DLC data** | console-convert, console-readers, OPFOR onslaught (14 stages) | Onslaught without Napisal (hold), OPFOR in Rust 5 | transforms/console (8), TEX-X / MESH-CONV / HAVOK-X360 / GRANNY-CONV, LIGHT-PT-3 / 4 | thin | thin (Onslaught's mode rules and the DLC's content list) | covered: engine/onslaught (14); the DLC's full content list per port open |
 | **Install, export, project log** | bc2-install, levelwrite, editor | IN1 | transforms/install (20), export (12), projectlog (20), pack (9), dbx (8), ww2 (9) | covered | covered | as after SPG |
-| **Options and settings** (`settings.ini`, `GameSettings.ini` / `.bin` and their defaults, the engine settings objects, the command line, the options screens) | OPFOR's DLL (the user-data redirect, `stats_screens`'s getters) | - | engine/settings (11) | none | none | none; **SPG3: covered** (the files, sections and keys, the defaults partition, the read / write paths, the menus' getters and commands); thin on `GameSettings.bin` and on what a bad value does (open) |
-| **Input** (entry input actions, concepts, device bindings, mappings, the user's binding files, the controls screen, the pad path, tuning data) | OPFOR's DLL (`input`, `prompts`, `padaimer`), `src/tools/controller` | controller presets, rumble, PlayStation pads (OPFOR's CONTROLLER_PLAN) | engine/input (12), BOT-CTL-3, MOD-IN-1, VEH-SEAT-2 | none | thin (MOD-IN-1 only) | thin (BOT-CTL-3, MOD-IN-1); **SPG3: covered** (both enumerations, the three data layers, the user files' load / save and version gate, the controls screen, the PC pad path); the sensitivity sliders' consumers and the schemes open |
-| **Scriptability** (the authoring layers, the level event graph's classes, data entities that reach the engine, consoles, server administration) | the data (editor, levelwrite), OPFOR's menu patches and DLL hooks | a modder-facing scripting layer (none queued) | engine/scripting (9), LEVEL-EVT (model/level), MENU-*, MOD-* | none | none | none; **SPG3: covered as a survey**: the 107 entity classes DICE's graphs never use and the console / settings entities' handlers open; the dedicated server is not on this PC |
-| **Dependency graphs** (the asset graph; the WW2 rebuild's step graph) | levelwrite's closure (XEXP-CLO-1), OPFOR's `rebuild_all` / `stepstamps` | OPFOR in Rust: `rebuild_all` as a step graph | transforms/dependencies (11) | none | none | none; **SPG3: covered**: the asset graph measured over DICE's bundles (verified), the step graph from the records (observed) and a runner's constraints; resources' internal name references open |
+| **Options and settings** (`settings.ini`, `GameSettings.ini` / `.bin` and their defaults, the engine settings objects, the command line, the options screens) | OPFOR's DLL (the user-data redirect, `stats_screens`'s getters) | - | engine/settings (14) | none | none | none; **SPG3: covered** (the files, sections and keys, the defaults partition, the read / write paths, the menus' getters and commands); **SPG3-rest**: `GameSettings.bin`'s layout (SET-BIN-1), bad values (SET-PARSE-1), no `-<Object>.<Field>` option (SET-CLI-2) |
+| **Input** (entry input actions, concepts, device bindings, mappings, the user's binding files, the controls screen, the pad path, tuning data) | OPFOR's DLL (`input`, `prompts`, `padaimer`), `src/tools/controller` | controller presets, rumble, PlayStation pads (OPFOR's CONTROLLER_PLAN) | engine/input (13), BOT-CTL-3, MOD-IN-1, VEH-SEAT-2 | none | thin (MOD-IN-1 only) | thin (BOT-CTL-3, MOD-IN-1); **SPG3: covered** (both enumerations, the three data layers, the user files' load / save and version gate, the controls screen, the PC pad path); **SPG3-rest**: which slider and switch writes which setting (INP-SET-2); the schemes open |
+| **Scriptability** (the authoring layers, the level event graph's classes, data entities that reach the engine, consoles, server administration) | the data (editor, levelwrite), OPFOR's menu patches and DLL hooks | a modder-facing scripting layer (none queued) | engine/scripting (12), LEVEL-EVT (model/level), MENU-*, MOD-* | none | none | none; **SPG3: covered as a survey**; **SPG3-rest**: the factories and input events of the 107 classes DICE's graphs never use (SCR-EVT-3), the setting and console entities (SCR-CMD-2), the document server never made (SCR-DEV-2); the dedicated server is not on this PC |
+| **Dependency graphs** (the asset graph; the WW2 rebuild's step graph) | levelwrite's closure (XEXP-CLO-1), OPFOR's `rebuild_all` / `stepstamps` | OPFOR in Rust: `rebuild_all` as a step graph | transforms/dependencies (12) | none | none | none; **SPG3: covered**: the asset graph measured over DICE's bundles (verified), the step graph from the records (observed) and a runner's constraints; **SPG3-rest**: the references held inside resources and the voice-over waves by name (XDEP-RES-2) |
 | **Game folder files outside the bundles** (movies, the aerial height map, `database.dbmanifest`, `dfe`, the patcher's files, the DLLs) | none (copied) | - | formats/game_folder (6), bink (4) | none | none | none; **SPG4: covered**: every DICE file kind specified or out of scope (DirectX, `winui.dll`, `Support`), the census its gate |
-| **Remaining resource types** (OccluderMesh, SootMesh, AnimTreeInfo, ImpulseResponse, RagdollResource, the shader types) | copied; `soot_mesh` converts | - | formats/occluder (3), soot (3), animtree (2), IR-HDR-1, HAVOK-RAG-1, SHDB-TYPE-1 | none | none | none; **SPG4: covered** (header and structure, verified on every DICE entry; opaque insides listed) |
-| **The soldier** (character controller, stances, sprint, cameras, view recoil, FOV, aim assistance, spotting) | OPFOR's controller patch, kits | controller presets (OPFOR) | engine/soldier (9) | none | none | none; **SPG4: covered (data side)**; the controller's run-time open |
-| **Teams and squads** | - | - | engine/squads (3), BOT-SQD | none | none | none; **SPG4: covered (data side)**; the squad manager's code open |
-| **HUD data** (minimap, markers, nametags, screen effects, spectator, kill cam) | menu-tools, OPFOR's HUD patches | - | engine/hud (7), MENU-HUD | thin | thin | thin; **SPG4: covered (data side)** |
-| **Single-player campaign** (objectives, saves, cutscenes, triggers, waypoints) | editor (event graph) | - | engine/campaign (6) | none | none | none; **SPG4: covered (data side)**; the save file open |
+| **Remaining resource types** (OccluderMesh, SootMesh, AnimTreeInfo, ImpulseResponse, RagdollResource, the shader types) | copied; `soot_mesh` converts | - | formats/occluder (3), soot (5), animtree (2), IR-HDR-1, IR-PART-1, HAVOK-RAG-1, SHDB-TYPE-1 | none | none | none; **SPG4: covered** (header and structure, verified on every DICE entry); **SPG4-rest**: the occluder's part masks, the soot's flags and slots, the IR partitions decoded from the loaders |
+| **The soldier** (character controller, stances, sprint, cameras, view recoil, FOV, aim assistance, spotting) | OPFOR's controller patch, kits | controller presets (OPFOR) | engine/soldier (10) | none | none | none; **SPG4: covered (data side)**; **SPG4-rest**: the controller's nine states and transitions (SOLD-PHYS-2) |
+| **Teams and squads** | - | - | engine/squads (4), BOT-SQD | none | none | none; **SPG4: covered (data side)**; **SPG4-rest**: spawn on a squad mate (SQD-PLAY-2); squad size open |
+| **HUD data** (minimap, markers, nametags, screen effects, spectator, kill cam) | menu-tools, OPFOR's HUD patches | - | engine/hud (8), MENU-HUD | thin | thin | thin; **SPG4: covered (data side)**; **SPG4-rest**: the kill cam's server side (HUD-KILL-2) |
+| **Single-player campaign** (objectives, saves, cutscenes, triggers, waypoints) | editor (event graph) | - | engine/campaign (7) | none | none | none; **SPG4: covered (data side)**; **SPG4-rest**: the save's header and body framing (CAMP-SAVE-1) |
 | **Text and fonts** (fonts, text databases, atlases, subtitles) | bc2loc (loc tables) | - | engine/text (4), formats/loc (7) | thin | thin | thin; **SPG4: covered** |
-| **Sound graphs, voice-over trees, the mix** | console-convert (Waves), OPFOR wake_vo | - | engine/sound_graph (5), engine/audio | thin | thin | thin; **SPG4: covered (data side)**; node semantics open |
-| **Engine internals** (typeinfo, memory, jobs, scenes) | the census | - | engine/internals (7) | none | none | none; **SPG4: covered**: the typeinfo records decoded (1,900, 22 modules); 1,101 records no rule names yet (CENSUS.md section 5) |
+| **Sound graphs, voice-over trees, the mix** | console-convert (Waves), OPFOR wake_vo | - | engine/sound_graph (6), engine/audio | thin | thin | thin; **SPG4: covered (data side)**; **SPG4-rest**: the nodes' factories and enumerations (SGR-NODE-2); their evaluation open |
+| **Engine internals** (typeinfo, memory, jobs, scenes) | the census | - | engine/internals (7), engine/typeinfo (31) | none | none | none; **SPG4: covered**: the typeinfo records decoded (1,900, 22 modules); **SPG4-rest**: every record named with its layout (RTTI-*), DICE's pipeline-only fields (RTTI-DBX-1, 2), the factories' classes (RTTI-FAC-1) |
 | **Every DBX class** (the long tail: emitter updates, tree parameters, vehicle physics parts, gadgets, AI constants, matchmaking, edge models) | the DBX readers | - | engine/data_classes (10) | - | - | **SPG4: 630 of 630 classes named by a rule** (304 before) |
 
 **Totals** (36 systems). Before SPG: 769 rules in 46 files; covered 15, thin 13, none 8 (point lights, effects,
@@ -93,6 +93,62 @@ game folder's files, the remaining resource types, the soldier, squads, HUD data
 internals, every DBX class). The game tier gained `resources.py`'s and `census.py`'s checks (about 3 minutes more).
 
 ## 2. What is left, in the order the queued rounds need it
+
+Round SPG4-rest (2026-11-27, static only; capstone over a scratch copy of the executable, REA not used) worked SPG4's
+list (`CENSUS.md` section 5 and the items below). Found:
+- every `typeinfo` record's registration (RTTI-REG-1: data classes with their parent, creator and member table,
+  run-time classes with their parent, value types and enumerations with their tables) and member descriptor
+  (RTTI-MEM-1); the 1,900 records' layouts as tables (`engine/typeinfo/`, 31 rules), so the census's typeinfo
+  coverage went from 816 to 1,900 records; ENG-TI-1's table address corrected;
+- DICE's data against the run-time members (RTTI-DBX-1, 2): 118 pipeline-only field names, the pathfinding switches
+  and the AI's sensing template among them; the factories' run-time classes (RTTI-FAC-1);
+- the controller's nine states (SOLD-PHYS-2), spawn on a squad mate (SQD-PLAY-2), the kill cam (HUD-KILL-2;
+  HUD-KILL-1's reading withdrawn), the campaign save (CAMP-SAVE-1), the sound nodes' factories and enumerations
+  (SGR-NODE-2);
+- the occluder's per-triangle part masks (OCC-TRI-1), the soot's flags and part slots (SOOT-FLAG-1, SOOT-SLOT-1), the
+  impulse responses' block-scaled spectra (IR-PART-1). AnimTreeInfo's blocks stay as SPG2-rest5's ATREE-* left them.
+
+Rules went from 1,532 to 1,571 (39 new). Left (queued as SPG4-rest2):
+
+1. **Run-time**: the sound nodes' evaluation (SGR-NODE-2); the controller's Jump entry and InAir / Falling exits
+   (SOLD-PHYS-2); `MaxPlayersPerSquad`'s and `SquadSpawnRadius`' readers and the a != b spawn form (SQD-PLAY-2); the
+   kill cam's client camera (HUD-KILL-2); the save body's objects and its restore (CAMP-SAVE-1).
+2. **Factories**: the 22 component and 16 order factories RTTI-FAC-1 did not resolve, the client's bangers.
+3. **Resources**: the occluder's fourth vertex word's consumer; the soot's second mask and box use; the impulse
+   responses' reader on PC.
+4. **Playtests** (paused): spawn on a mate prone on a ledge, in a full vehicle, outside the combat area, twice in a
+   row (SQD-PLAY-2); a hardcore server with `Server.KillCam` on and off (HUD-KILL-2); a parachute closing into
+   falling (SOLD-PHYS-2); a save and its reload (CAMP-SAVE-1); and every playtest SPG3-rest listed below.
+
+The list below is SPG3-rest's, as it was.
+
+Round SPG3-rest (2026-11-27, static only; REA's Ghidra provider timed out on the executable, so capstone over a
+scratch copy) worked SPG3's list below (its items 1, 2 and 4; item 3, the WW2 rebuild's step items, is round OR7's).
+Found:
+- `GameSettings.bin`: 11 typed lists, one per category, of the settings that are not user-exposed (SET-BIN-1); the
+  parsers on bad values: a number that does not parse becomes 0, an empty value keeps the default, an unknown
+  `DxVersion` selects no renderer (SET-PARSE-1);
+- no `-<Object>.<Field>` option: the argument list is asked only for fixed names, and the settings registry's own
+  `<Object>.<Field> <value>` text path is never reached (SET-CLI-2);
+- the sliders: `Sensitivity0` - `2` are the mouse's sensitivity, yaw factor and pitch factor; the switches' settings
+  (INP-SET-2);
+- the game setting entity inverts every player's vertical look over the network; the console command entity does
+  nothing (SCR-CMD-2); of the 107 classes DICE's graphs do not use, 45 have no factory and make nothing, 62 do, with
+  their input events (SCR-EVT-3); the debug document server is never made (SCR-DEV-2);
+- the references inside resources: mesh sets, shader databases, Flash movies, terrain and water visuals, and the
+  voice-over waves by composition from the line banks (XDEP-RES-2).
+
+Rules went from 1,524 to 1,532 (8 new). Left:
+
+1. **Settings**: what the renderer does with `SelectedRenderer_None`; a damaged `.bin` (a count past the end); what
+   else writes `Scheme0Sensitivity`.
+2. **Scripting**: the factories SCR-EVT-3 did not follow to a handler (lights, emitters, meshes, bangers,
+   `WeaponCallback`); five unnamed event hashes; the events the classes raise; the unused classes' fields.
+3. **Asset graph**: the 70 voice-over waves no bank names; the resources' unresolved names (mostly their own).
+4. **Playtests** (paused): a level with a game setting entity sending `ChangeSetting`; a `GameSettings.ini` with a
+   word for a number (expected: 0) and an unknown `DxVersion`.
+
+The list below is SPG2-rest5's, as it was.
 
 Round SPG2-rest5 (2026-11-27, static only) worked SPG2-rest4's list below. Found:
 - the render settings that scale the undergrowth, traced from `VisualTerrainSettings` to their use (density,
@@ -180,9 +236,11 @@ questions and here:
    need a test start with copies of the files (paused).
 2. **Scripting**: the handlers of `GameSettingEntityData` and `ConsoleCommandEntityData` and the events of the 107
    entity classes DICE's graphs do not use (SCR-EVT-2, SCR-CMD-1); whether the debug document server starts.
-3. **Step graph**: the read-before-write steps are fixed (XDEP-STEP-3, round WW2-ORD1). Left: the inputs inside
-   `work\ww2` that no step writes - hand-placed files and the install plan's staging, a rebuild -> plan ->
-   rebuild cycle (XDEP-STEP-5) - and the oracle's history (XDEP-STEP-6); the stale records of renamed steps.
+3. **Step graph**: the read-before-write steps are fixed (XDEP-STEP-3, round WW2-ORD1), the inputs no step writes
+   are declared and the oracle regenerated (XDEP-STEP-5 / -6, round WW2-ORC1), and the rebuild runs as a step graph
+   (XDEP-STEP-8 - 10, round OR7). Left: the install plan's porting as a rebuild step (the rebuild -> plan ->
+   rebuild cycle, XDEP-STEP-5: proposed); the reads the hook cannot see, which are declared by hand (`READS`); the
+   stale records of renamed steps.
 4. **Asset graph**: references held inside resources (mesh sets' shader names, shader databases' texture names, the
    VO tables' waves), which the string-table listing does not see (XDEP-RES-1).
 

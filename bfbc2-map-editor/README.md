@@ -63,10 +63,16 @@ performance" in Settings > System > Display > Graphics. Its status line shows th
 
 ### mapexport
 
-`bin\mapexport.exe` is the export without the window (`rust\bc2-levelwrite\src\bin\mapexport.rs`); Project OPFOR's
-`src\tools\mapedit\mapedit_install.py` runs it to check and install a stage (`--plan`, `--apply`, `--revert <LV>`,
-`--revert-all`, `--status`, `--check-game <folder>`; OPFOR's DEVELOPMENT_NOTES, "Map editor exports"). It never
-writes the game copy.
+`bin\mapexport.exe` is the export without the window (`rust\bc2-levelwrite\src\bin\mapexport.rs`). It never writes
+the game copy. Installing a stage is `bin\bfbc2.exe install mapedit` (round OR6, `bc2_install::mapedit`; Project
+OPFOR's `src\tools\mapedit\mapedit_install.py` runs it):
+
+    bin\bfbc2.exe install mapedit plan   <stage folder> --game <game folder> [--check-game <folder>] [--work <folder>]
+    bin\bfbc2.exe install mapedit apply  <stage folder> --game <game folder> [--check-game <folder>] [--work <folder>]
+    bin\bfbc2.exe install mapedit revert <LEVEL>... | --all --game <game folder>
+    bin\bfbc2.exe install mapedit status --game <game folder>
+
+The export's own commands:
 
     bin\mapexport.exe build   <project.mapedit.json> <export.json> --game <game folder> --out <stage folder>
     bin\mapexport.exe check   <stage folder> --game <game folder>
@@ -186,9 +192,10 @@ Island's black terrain cells, the sky pass, game LODs ...) are round R5d (`ROADM
   level needs from other sets' bundles copied into its own (`closure.txt`) - then runs `mapexport check` and shows
   the report. The same from a command prompt: `bin\mapexport.exe build <project> <export.json> --game <game> --out
   <stage>` and `bin\mapexport.exe check <stage> --game <game>`.
-- **Install and Uninstall:** "Install..." runs Project OPFOR's `src\tools\mapedit\mapedit_install.py --plan` and shows
-  what an install changes; "Install now" (the game closed) runs `--apply`; "Uninstall..." runs `--revert <LV>`. The
-  editor itself never writes the game copy.
+- **Install and Uninstall:** "Install..." shows what an install changes (the install's plan: nothing written);
+  "Install now" (the game closed) installs it; "Uninstall..." takes it out again. Since round OR6 the install runs
+  in the editor (`bc2_install::mapedit`, the same as `bin\bfbc2.exe install mapedit` and Project OPFOR's
+  `mapedit_install.py`), every write through the install ledger; no Python is needed.
 
 - **The names (round EX1):** the Export window's Names section edits every name of the level - the **level id**
   (what the game loads, `Levels/<ID>`), its **folder** (`Package\levels\<id>\`: the id in lower case, as on every

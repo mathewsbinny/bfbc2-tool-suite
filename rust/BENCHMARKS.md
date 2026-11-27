@@ -5303,3 +5303,307 @@ left out) removed inland ground under 56.5 m. With DICE's water mesh in the copy
 - **Unproven until a playtest** (`terrain_edit.md` section 5, step 7): the engine loading a level whose terrain
   bundle is its own and whose base's is not registered, the renamed terrain partitions and cloned entries, a
   height-map terrain and a generated one in game, the bots on them. Nothing was installed or launched.
+
+## SPG3-rest: settings, input, scripting and the asset graph, statically (2026-11-27, branch `spg3r`)
+
+What round SPG3 left (`spec/COVERAGE.md` section 2, its items 1, 2 and 4; item 3, the WW2 rebuild's step items
+XDEP-STEP-3 / 5 / 6, is round OR7's). Static reading of `BFBC2Game.exe` (PC build 795745), read only: REA started,
+but its Ghidra provider timed out (330 s) decompiling one function of the 19 MB executable, so the reading was done
+with capstone over a scratch copy, as in rounds SPG2-rest3 to rest5. Event names were found from the hashes the
+handlers compare (`h = h * 33 ^ c` from 5381) against the executable's strings, DICE's 186 event names and their
+two-part combinations. DICE's data was read through the suite's readers; one `GameSettings.bin` the game wrote was
+walked for its structure (names and sizes, no value). Nothing was run in the game, nothing written to `game\`.
+
+| Item | Found | Rules |
+|---|---|---|
+| `GameSettings.bin` | written by the INI's save (0x833FD0 -> 0x815940 -> serializer 0x80DA10), read after the INI (0x815870, job completion 0x8345A0 -> 0x832270): 11 categories (`GstCount`), each a u32 count and per not-user-exposed setting {u32 type 1 - 4, u32 name length, name, value: binary as size + bytes, else as text}; the file the game wrote (242,795 bytes) walks to its last byte; its `GstBinary` holds the campaign save (`header`, `body`) | SET-BIN-1 new (verified) |
+| bad values | int parse: sign and digits, trailing text ignored, fails without a digit or past 32 bits; float: `strtod`; a failed parse gives 0 (the INI reader's fallback), an empty value keeps the default, no range check on store; `DxVersion` 9 / 10 / 11 -> Dx9 / Dx10 / Dx11, anything else `SelectedRenderer_None` | SET-PARSE-1 new |
+| `-<Object>.<Field>` | the argument list is read only by the finder (41 sites, each a fixed name) and the log line; the registry's `<Object>.<Field> <value>` text reader 0x5017C0 and adder 0x501AB0 are reached only through two thunks nothing names | SET-CLI-2 new (verified), SET-CLI-1 updated |
+| the sliders | `controlsSliderMoved "<value>,<slider>"`: `mouse_sensitive` / `mouse_yaw_factor` / `mouse_pitch_factor` -> `Sensitivity0` / `1` / `2`, `joy_*` -> `3` - `5`; `controlInvertToggle`: `look` -> `Scheme0FlipY` + `Scheme1FlipY`, `fly` -> `Scheme2FlipY`, `wheel`, `accelerate` | INP-SET-2 new (verified) |
+| setting / console entities | `ServerGameSettingEntity` on `ChangeSetting` sends message 0x13 (2 bits) to every connected player; the client flips `Scheme1FlipY`, `Scheme2FlipY`, `Scheme4FlipY` for `CGSInvertVerticalLookAxis`; `ServerConsoleCommandEntity`'s handler is `ret 4` | SCR-CMD-2 new (verified) |
+| the 107 unused classes | factories: server 148 registrations, client 100, exact-class lookup; 45 of the 107 have none (no entity), 62 have one; their handlers' input events named (static models, pickups, event memory, sequence trigger, speed gate, continue, tactical objective, tests) | SCR-EVT-3 new (verified) |
+| document server | six providers register through 0x4D06B0; the only server add 0x4D07D0 is named by nothing: no server, no pages, no socket | SCR-DEV-2 new (verified), SCR-DEV-1 updated |
+| references in resources | mesh sets: LOD settings partitions, `<mesh>/<guid>` instances, shader names (the unshipped material partitions); Dx9 shader databases: 37,210 texture names; terrain visuals: height fields, undergrowth mesh sets, atlases; Flash movies: image partitions; voice-over waves: 41,393 of 41,463 named `<node>[_<n>]_wave` by the line banks | XDEP-RES-2 new (verified) |
+
+Probes (game tier; counts, identifiers and code bytes only, nothing of EA's kept):
+
+- `spec/probes/options.py` (0.6 s): the finder's call sites and their pushed names, the registry's text path and the
+  document server's add reached by nothing (an E8 / E9 rel32 scan of the code sections and a stored-pointer search),
+  the `.bin` loops and checks and `DxVersion`'s map as bytes, the sliders' and switches' pushed names, the category
+  enumeration (25 checks, 9 new).
+- `spec/probes/scripting.py` (12 s): the factory registrations per side, the data classes they make, the unused
+  classes with and without one, each named event's hash in its handler, the console command handler's bytes (19
+  checks, 6 new).
+- `spec/probes/dependencies.py` (40 s, 22 s before: the 76 Dx9 shader databases are read whole): the names inside
+  the eight name-bearing resource types by resolution, the voice-over waves the banks name (15 checks, 3 new).
+
+Rules went from 1,524 to 1,532 (by status: verified 911, implemented 145, observed 412, inferred 64); the census's
+typeinfo records with a rule 811 -> 816.
+
+### Playtests still pending (in-game tests are paused)
+
+- `transforms/terrain_edit.md` section 5 (E5 / E7); ONS-CAP-3's patch; MAT-TEX-20's RenderDoc capture; BOT-GS-5;
+  bot_ai.md's plan, the kill probe; a save with kills after OPFOR's PERS-SCORE-2 fix; PERS-AWD-5 / 7; MENU-EVT-5;
+  `-VisualTerrain.Undergrowth*` (now answered statically: SET-CLI-2 says it does nothing, a start would confirm it).
+- New: a level with a game setting entity sent `ChangeSetting` (every player's look inverted, SCR-CMD-2); a
+  `GameSettings.ini` with a word for a number (expected 0) and an unknown `DxVersion` (SET-PARSE-1).
+
+### What is left (SPG3-rest2)
+
+- What the renderer does with `SelectedRenderer_None`; a damaged `.bin` (a count past the end); what else writes
+  `Scheme0Sensitivity`.
+- The factories SCR-EVT-3 did not follow to a handler (lights, emitters, meshes, bangers, `WeaponCallback`); five
+  unnamed event hashes; the events the unused classes raise; their fields.
+- The 70 voice-over waves no bank names.
+
+## SPG4-rest: every typeinfo record with its layout, the run-time behind SPG4's data side, the opaque insides (2026-11-27, branch `spg4r`)
+
+What round SPG4 left (`spec/CENSUS.md` section 5, `spec/COVERAGE.md` section 2). Static reading of `BFBC2Game.exe`
+(PC build 795745), read only, with capstone over a scratch copy (REA was not used: its Ghidra provider timed out on
+the executable in the round before). DICE's data was read through the suite's readers (DICE's files only, dated
+before 2013; counts, identifiers and code bytes only). Nothing was run in the game and nothing written to `game\`.
+Two research forks read the run-time and the resources' insides in parallel; every finding they reported was
+re-checked here by the probes before it became a rule.
+
+| Item | Found | Rules |
+|---|---|---|
+| the typeinfo records | each of the 1,900 registered once by a static initialiser `push <args>; push <record>; mov ecx, <class info>; call <register>`: 0x500880 (961 data classes: member table, creator, parent), 0x500660 (400 run-time classes: parent), 0x43C390 (289 value types), 0x5008E0 (231 enumerations), 0x4FE260 (19 built-ins); a member is a 24-byte descriptor {name, flags 0x48 for arrays, type, element type, offset or value, 0}, a class's table its own members only; every one of the 7,087 members lies inside its record and past its parent's size | RTTI-REG-1, RTTI-MEM-1 new; ENG-TI-1 corrected (the table address) |
+| the tables | every record's parent, size, own members with run-time offsets, or an enumeration's numbers (1,952 values; 20 enumerations not numbered in declaration order), by module | RTTI-CORE-1, RTTI-GSR-1 - 8, RTTI-GDLL-1, 2, and 15 module rules (RTTI-ENT-1 ... RTTI-UI-1) |
+| DICE's DBX against the run time | 630 classes: the same 398, the DBX more 230, both ways 2 (`SubtitleWaveHashPair`, `UISharedConfigAsset`'s Vietnam members); 118 pipeline-only names: `MemoryReportGroup`, the mesh build's settings, the static models' pathfinding switches, the AI's sensing template, the sound nodes' `Name` | RTTI-DBX-1, RTTI-DBX-2 new |
+| the factories | each factory's construct slot (server 4, client 6) to the constructor's last vtable, its `getType` to the class, the size slot against the record: 110 of 148 server and 75 of 100 client factories, 173 run-time classes | RTTI-FAC-1 new |
+| the controller | `CharacterPhysicsData.States` matched by class (0xB08CE0), nine states with ids 0 - 8 (Havok's numbering), each update's transitions, the outside setters (parachute, scripted moves, network) | SOLD-PHYS-2 new |
+| spawn on a squad mate | the request's checks (same team and squad, not `SquadNone`, not dying, anti-spam, combat area), the 13 offsets tried, the vehicle seat; `MaxPlayersPerSquad` / `SquadSpawnRadius` not on this path | SQD-PLAY-2 new |
+| the kill cam | `ServerSettings.KillCam` (`Server.KillCam`), the spectate entities' test: dying, hardcore unless `UseInHardcoreMode`, the switch, the target's health | HUD-KILL-2 new; HUD-KILL-1 corrected |
+| the campaign save | the `Save` event, `body` (version, 70, the entity's GUID, the persistent entries, subsystems, the player) and `header` (Julian-epoch time, level, save name, difficulty, 3) into `GameSettings.bin`'s `GstBinary` | CAMP-SAVE-1 new |
+| the sound nodes | a factory per node data class (`SimpleTransformNode`'s), the enumerations' numbers (`MathOp`, `ConditionType`, `FaderType`, `LoopType`); the evaluation not traced | SGR-NODE-2 new |
+| the occluder | the triangle block: one 192-bit part mask a triangle, padded to an even count (SPG4's "more records" were the padding); the job drops a triangle whose mask meets the instance's hidden parts | OCC-TRI-1 rewritten (verified), OCC-VTX-1 updated |
+| the soot | the flag words pick `SootPerVertex` / `_Half` / `SootPerPixel` / `_Half`; a vertex's last word is (slot, box); the trailer's 60 words map slots to parts, one constant each at draw | SOOT-FLAG-1, SOOT-SLOT-1 new; SOOT-HDR-1, VTX-1, TAIL-1 updated |
+| the impulse responses | two channel blocks a partition: a block scale 2^k - 1 and 1,024 (re, im) bins; the PC loader keeps the file as a blob, no reader found | IR-PART-1 new |
+
+Probes (counts, identifiers and code bytes only):
+
+- `spec/probes/typeinfo.py` (new; `--measure` 1.6 s): re-reads the executable into `spec/typeinfo.json` (546 KB) and
+  writes the tables of `spec/engine/typeinfo/*.md`; `--check` (the quick tier's new `spec-typeinfo`, no game) fails
+  when a table is not current or a record is in no group; the game tier compares the executable with the JSON and
+  checks 22 counts (registrations, members, factories, the DBX comparison, the layout invariants).
+- `spec/probes/runtime.py` (new, 14 s): 32 instruction / constant checks at the addresses the run-time rules cite and
+  the DICE values those code paths read (spectate entities, team data, save entities, the controller's states).
+- `spec/probes/resources.py` (4 s): 13 new counts for the occluder masks, the soot's flags and slots, the impulse
+  responses' blocks.
+
+The census: typeinfo records with a rule 816 -> 1,900 (of 1,900). Rules went from 1,532 to 1,571.
+
+### Playtests still pending (in-game tests are paused)
+
+- New: spawn on a mate prone on a ledge, in a full vehicle, outside the combat area, twice in a row (SQD-PLAY-2); a
+  hardcore server with `Server.KillCam` on and off (HUD-KILL-2); a parachute closing into falling (SOLD-PHYS-2); a
+  campaign save and its reload (CAMP-SAVE-1: the header's difficulty word, the body's version 70); a level edited to
+  flip `ExcludeFromPathfinding` without rebuilding the path data (RTTI-DBX-2: expected no change).
+- SPG3-rest's: a level with a game setting entity sending `ChangeSetting`; a `GameSettings.ini` with a word for a
+  number and an unknown `DxVersion`; and the earlier rounds' list (`transforms/terrain_edit.md` section 5, ONS-CAP-3,
+  MAT-TEX-20, BOT-GS-5, bot_ai.md's plan, PERS-SCORE-2, PERS-AWD-5 / 7, MENU-EVT-5).
+
+### What is left (SPG4-rest2)
+
+- The sound nodes' evaluation; the controller's Jump entry and InAir / Falling exits; `MaxPlayersPerSquad`'s and
+  `SquadSpawnRadius`' readers and the a != b spawn form; the kill cam's client camera; the save body's objects and
+  restore.
+- The 22 component and 16 order factories and the client's bangers RTTI-FAC-1 did not resolve.
+- The occluder's fourth vertex word's consumer; the soot's second mask; the impulse responses' reader on PC.
+## OR6: OPFOR in Rust - the map export's install side (2026-11-27, branch `or6`, with Project OPFOR's `or6`)
+
+Version 0.29.0 (OPFOR's `SUITE_REQUIRES` 0.29.0 to below 0.30.0).
+
+### Inventory
+
+| OPFOR / suite code | Lines | What it did | OR6 |
+|---|---|---|---|
+| `src\tools\mapedit\mapedit_install.py` | 457 -> 97 | plan / apply / revert / status of a map export: the stage's check, the shared patches (startup, overlay, awards, maps.ini, package.mft, bundleManifest), the level folder and record, the path data, the ledger writes through `console_common` / `opforcore.stages` | `bc2_install::mapedit` (feature `mapedit`, 1,160 lines with its docs; `stages.rs` 401); the script passes its options to `bfbc2 install mapedit` |
+| `console_common`'s `check_install` / `install` / `check_revert` / `revert` / `installed` / `source_bundle` as the export install called them (`opforcore.stages.Stages`) | - | the ledger's whole-file stage operations | `bc2_install::stages` (on `bc2_gamefs::ledger`'s `install_keep` / `uninstall` / `uninstall_files`) - what IN1 builds on |
+| `mapexport overlay / awards`' reading of the stages | ~60 | the texts and pictures from stage folders | `bc2_levelwrite::installpatch`, shared by `mapexport` and the install |
+| the editor's `run_logged` (python + the script, its output through a log file: AU4-DS-13) | ~30 | the Install dialog | `export_ui::install_step`: the install in process on a worker |
+
+**The crates.** The install's check and patches are `bc2_levelwrite`'s, behind a trait (`bc2_install::mapedit::Patches`,
+implemented by `bc2_levelwrite::installpatch::LevelWrite`): with `bc2-levelwrite` as a dependency of `bc2-install`,
+the Python module's source fingerprint (`bfbc2core.native.crates`, which follows optional dependencies too) took in
+the export's crates, so every editor round would have made the module stale - the quick tier's "Rust core required"
+entry caught it (its copy of the checkout leaves out `tests\`, which `bc2-levelwrite` includes recorded projects
+from). The module's crates are as before.
+
+AU1-G-N8 (installing an export needs OPFOR's Python): fixed - the editor's Install, Install now and Uninstall run
+`bc2_install::mapedit` in process; `bfbc2 install mapedit` is the command line.
+
+### Decided against the Python (spec XINST-MAP-5, -6, -7)
+
+- **Each install keeps its own copy of its stage** (audit AU4-DS-12, XINST-MAP-5): the Python rebuilt every other
+  installed export's description, texts and pictures from the stage folder its record named - the editor's live
+  `work\mapedit\<lv>\stage`, which the next export of that project rewrites - so installing or reverting one level
+  could change another's name or picture in the game. The install keeps `stage.json`, the description and the
+  pictures in `Package\levels\<lv>\opfor-mapedit-stage\` and builds from them; an install from before OR6 falls back
+  to its stage folder with a line saying so.
+- **The record first, the record last** (XINST-MAP-6): the Python wrote the level's record after its bundles, so a
+  kill between the folder and the record left a folder every later install refused ("not an exported level") and
+  no revert could take out. The record is the folder's first write and a revert's last removal; a folder holding
+  only the record's temporary files counts as an install's start.
+- **DICE's package.mft keeps its last blank line** (XINST-MAP-7): DICE's file ends `\r\n\r\n` (REG-MFT-1); the
+  Python's patch wrote one `\r\n`, a byte outside the levels' blocks. The WW2 install's text rules (`bc2_install::text`)
+  are unchanged: the WW2 oracle holds them.
+- The build's scratch (`work\mapedit\<lv>\shared`, `_revert`) is removed when a run goes through (XINST-STG-5; the
+  Python left it).
+- Kept as the Python had them: the record's form (`stage.json`'s fields, then `stage`, then `installed`;
+  `json.dumps(indent=1)`, ASCII), the maps.ini marker line (it names `mapedit_install.py`: installs made by either are
+  found), every printed line and refusal (the check's failure still reads "mapexport check failed").
+
+### Proof
+
+- **Parity** (`scratchpad\or6\parity.py`): the six shared files an export install writes, copied from OPFOR's
+  `game\` with their old markers and migrated into the ledger by OPFOR's `migrate.py` (owners import, loading,
+  loadset, minimap-edges, wake: the state an install meets on the author's copy). Two exports built fresh by
+  `examples/e3d_matrix.rs` (Atacama's Rush as Conquest with its own name, pictures and a French text; Arica Harbor as
+  a Vietnam Squad Deathmatch with its own name) and the Arica stage without a name of its own. The Python
+  (`mapedit_install.py` of OPFOR 706b909, with this branch's `mapexport.exe`) and `bfbc2 install mapedit` each ran:
+  plan, apply A, revert A, apply A, apply A again (a redo), apply plain N (a second export), apply named N (the level
+  replaced), revert A (one out of two), apply plain N (no level with a name left: overlay and awards back as before
+  the owner), revert all. **10 of 10 steps identical**: every game file (38 to 54) and level record, every ledger
+  record but its transaction id and time (the Rust writes keys sorted; the values the same), every printed line
+  (78 to 85 a step) but the Rust's one line on the kept copy, exit codes; the kept copies (2 to 8 files) the Rust's
+  alone. After each full revert the copy is the migrated base, files and records.
+- **Kills** (`scratchpad\or6\kill.py`, `BC2_INSTALL_CRASH_AT=<n>`, exit 9, then the same command again): from the state with export A installed, an apply of export N beside it - 18 write steps (the level folder, its record, 4 kept files, 4 bundles, the ledger commit's journal, 6 files and record) - and from the state with both, a revert of A - 17 steps (8 ledger steps, 9 removals, the record last): **35 of 35 kills finished identically** (files and ledger records those of an uninterrupted run; the ledger steps resumed by "an interrupted install was rolled back"). A long scratch path stopped the first parallel attempt: the bundle unpack refuses paths of 260 characters or more as FbrbTool (.NET) did - a real game folder is far shorter.
+  On synthetic stages (`rust/bc2-levelwrite/tests/install_mapedit.rs`) every write step of an apply, an apply beside it and a
+  revert (29 kills) is finished with the files and records of an uninterrupted run.
+- **Tests**: `rust/bc2-levelwrite/tests/install_mapedit.rs` (5 tests: the text patches, an install beside another and every
+  revert back byte for byte, the kept copy, the path data's owner, a kill at every step); OPFOR's
+  `test_mapedit_install.py` (the wrapper's command lines, its refusals through the binary, a real export installed and
+  reverted when the newest stage passes the check).
+- **`game\`** (1,582 files) hashed before the round's first run and after its last: identical (`scratchpad\or6\game_before.json` / `game_after.json`).
+- No WW2 rebuild: nothing the WW2 rebuild or install runs changed (`bc2_install::run`, `text`, `marks`, `levelbuild`
+  and `bc2_gamefs` untouched; `bc2_install::stages` is new and used by the export install alone).
+
+### Timing
+
+Debug builds of `bfbc2.exe` / `mapexport.exe` (the twin runs this branch's `mapexport.exe`), one run each on a loaded PC: plan 35.5 s (Python) / 31.4 s (Rust), apply of the first export 33.5 / 35.3 s, of a second 45.1 / 42.8 s, revert of one of two 2.0 / 3.0 s, of the last 0.8 / 1.1 s. The stage's check (`mapexport check`'s rules, about 30 s, Rust in both) is most of an apply; the rest is the shared bundles' unpack and pack (Rust in both). The port is for the editor (no Python) and the fixes, not speed.
+
+### What is left
+
+- **AU5-ARC-3** (three implementations of the ledger format: `bc2_gamefs::ledger`, `bfbc2core.gameledger`,
+  `opforcore.ledger`): none was replaced here. The export install stopped using OPFOR's Python ledger; the WW2
+  install's `run.rs` keeps its own copies of the stage operations `bc2_install::stages` now has (moving it is a WW2
+  rebuild slot's work); `bfbc2core.gameledger` serves NavKit's and stock-MP's Python and texqa; `opforcore.ledger`
+  every other OPFOR stage.
+- **IN1**: the doctor, the bug-report bundle, the game-folder setting (the editor still installs into
+  `<opfor>\game`, building in `<opfor>\work\mapedit`), anonymised sharing, per-level slots for the shared patch
+  (MM1-rest: one export disabled while the others stay). `bc2_install::mapedit::Installer` takes the game copy and the
+  work folder as arguments, so a game-folder setting needs no change there.
+- In game: an installed export has not been played (in-game tests paused).
+
+## OR7: OPFOR in Rust - `rebuild_all` as a step graph (2026-11-27, branch `or7`, with Project OPFOR's `or7`)
+
+The last item of the "OPFOR in Rust" row. OPFOR's WW2 rebuild (55 steps) no longer runs as a fixed list. It runs as a
+step graph, in the suite: `bc2_install::rebuild` (new feature `rebuild`) and `bc2_native.rebuild_run` /
+`rebuild_graph` / `rebuild_derive`.
+
+| Project OPFOR (Python, until OR7) | here |
+|---|---|
+| `rebuild_all.run` / `run_changed` / `run_chains` / `run_step`, `JOBS`, `MIN_FREE`, `peak_memory`, `free_memory` | `rebuild::run::run` |
+| `stepstamps.Tracker.begin` / `finish` / `why` / `stale_inputs`, `Hashes`, `scan`, `listing` | `rebuild::tracker` |
+| (none: the fixed list) | `rebuild::graph`, `rebuild::derive` / `describe` |
+
+OPFOR keeps the step list, the folders each step writes (`OUTPUTS`), the inputs no step writes (`EXTERNAL_INPUTS`,
+still checked: exit 2) and the hook. It hands the runner a plan as JSON: each step's command line, log, scanned
+folders and declared earlier steps, plus the interpreter and the environment. `stepstamps.py` keeps only the record
+names and reads records.
+
+**The graph** (spec XDEP-STEP-8). Step j waits for an earlier step i when:
+- their records conflict: read-after-write, write-after-write, write-after-read, a listing above a write, or a probe
+  of a write;
+- OPFOR's declared graph says so: `rebuild_graph.json`, derived from a full rebuild's records by
+  `rebuild_all --graph --write`, plus `READS`. `READS` covers the folders a step reads whole: `material_grid`'s
+  `build_roots`, and `wake_install.our_files` in `wake_translate`, `emitter_atlas` and `fidelity_checks`, which a
+  native call is handed inside a JSON string the hook cannot see. Each level's parts declare their own reads;
+- either step is unknown to both: the list order.
+
+Listings of `work\ww2` and the folders above it are no edge. The clone pass lists both, and counting them chained
+every later step to it.
+
+After a run, two steps that the new records order but that ran at once fail the run. Edges the declared graph does
+not imply are reported.
+
+**Running** (XDEP-STEP-9):
+- a step starts when its earlier steps are done, at most `--jobs` (4) at once, the longest remaining path first;
+- the steps' estimates must fit in a memory budget together. A step's estimate is its last measured peak (the commit
+  of all its processes, through a job object; tracker 4 records it). The budget defaults to 70% of physical memory,
+  capped at the memory free at the start less 1 GB;
+- free physical memory must cover the step's estimate plus 1 GB;
+- two steps whose scanned folders overlap never run at once.
+
+With `--changed`, a step decides when it becomes ready, against the files as its earlier steps left them. The
+send-backs of XDEP-STEP-7 are found before the run starts.
+
+**XDEP-STEP-3 resolved for the graph; XDEP-STEP-10.** The main checkout's records (tracker 3) ordered the three level
+chains one after another (write-after-read): Guadalcanal's chain "read" 527 of Iwo Jima's and 422 of Coral Sea's
+files. These were not reads:
+- `wake_install` saves its pickled indexes at the top of `work\ww2` and prunes them through the cache budget,
+  handing it all of `work\ww2`;
+- the hook stamped the first 50,000 files of that walk as read before it gave up and listed the folder. The chain's
+  record held 33,019 inputs, among them 5,051 of `install_iwo_jima_s`, 1,106 of `_qa` and 271 of `menu_install`.
+
+Now the budget's functions are not wrapped and an oversized folder keeps none of its stamps. The v4 records give no
+edge between the chains, and they ran side by side.
+
+**Found and fixed on the way.**
+- The first `--changed` after a code change stopped at `wake_translate`: "its inputs from the clone pass were rewritten
+  by a later step, which the pass before the run did not foresee". The pass had expected the clone pass to run. Once
+  the steps before it reran and gave the same files, the clone pass was skipped, so `wake_translate` would have edited
+  `wake_sky`'s databases. The pass now sends back to every writer whose recorded version the disk no longer holds,
+  whether or not it expects that writer to run. New OPFOR test:
+  `test_a_writer_a_rerun_leaves_unchanged_is_still_sent_back_to`.
+- With the budget at 70% of physical memory, a run while other rounds were building took the PC to 15.2 GB in use. The
+  default is now capped by the memory free at the start.
+- `qa_checks`' step line lost `import time` in the rewrite; ruff caught it before a run.
+- Two OPFOR tests (`test_qa_checks`, `test_ww2_fidelity_gate`) faked `subprocess.Popen`. The fidelity one ran the real
+  `fidelity_checks.py` on the worktree's `work\ww2` once the fake no longer applied. Both now stand in for the runner
+  (`rebuild_all.drive`).
+
+**Proof.** All runs in OPFOR's `or7` worktree with its own `work\ww2`, seeded with the 14 declared inputs (599 files).
+`game\` was read only, through a junction. The PC was shared with other rounds throughout: 4.4 - 9 GB in use by
+others.
+
+| Run | Steps | Steps' time | At once | Peaks together | In use (PC) | Oracle (7,945) |
+|---|---|---|---|---|---|---|
+| sequential before OR7 (WW2-ORC1, OR4, OR5) | 55 | 11.8 - 14 min | 1 (+2 chains) | - | - | 7,945 |
+| seeded-empty, graph from main's tracker-3 records (chains in a row), `--jobs 3 --memory-gb 7` | 55 | 9.8 min | 3 | 6,510 MB | 8,154 -> 13,109 MB | 7,945 identical |
+| `--changed` after the module was rebuilt (all code changed), budget 70% | 55 | 7.6 min | 4 | 10,721 MB | 8,975 -> 15,185 MB | 7,945 identical |
+| seeded-empty again, final graph, defaults (budget capped by free memory) | 55 | 10.5 min | 4 | 5,718 MB | 9,046 -> 13,799 MB | 7,945 identical |
+| `--changed --dry`, then `--changed`, nothing changed | 0 | 0.2 min | - | - | - | 7,945 identical |
+| `install_ports\plans.json` touched (a byte added) | 7: `wake_translate` and the writers of the versions it and `grime` edit (XDEP-STEP-7) | 1.7 min | 3 | 4,735 MB | - | 7,945 identical |
+| one leaf's code touched (`minimap_icons.py`, then put back) | 1 | 0.2 min | 1 | 77 MB | - | 7,945 identical |
+
+- Step peaks (commit of all processes): a level chain 4,396 - 4,490 MB, `material_grid` 3,758 - 3,929 MB, the clone
+  pass 1.8 GB, `bf1943_fx` 3.1 GB.
+- The declared graph: 55 steps, 514 edges (62 after the reduction). The longest path is 6.2 min with the measured
+  times; one after another, the same times add up to 15.1 min, since they were measured side by side on a busy PC.
+- How far a run gets toward the 6.2 min depends on the memory free at its start. On this shared PC the budget let at
+  most one level chain beside the small steps in run 2; the 7.6 min run had 4 GB more room.
+- Install plan (`wake_install.py --plan`, 3 min 42 s): install oracle 21,149 of 21,149.
+- `game\` sha256 before the first run and after the plan: 0 of 1,582 files changed.
+
+**Tests.**
+- bc2-install's rebuild module, 8 tests, on records built by hand and `cmd.exe` steps run for real: the conflicts and
+  their kinds, the record keys and listing digests against `stepstamps`, a record from hook records and its
+  decisions, side by side within a budget, a rerun that skips everything, a touched output, a failure, a derived
+  graph.
+- OPFOR: `test_rebuild_changed` (11, one new), `test_rebuild_tracker` (two rewritten for the graph),
+  `test_ww2_build`'s declared-graph check, and the fidelity gate's place in the graph.
+
+**Unproven until a playtest** (in-game tests paused): nothing is installed by this round, and the outputs are
+byte-identical to the oracle.
+
+**What is left.**
+- The declared graph is only as good as the records and `READS`. A step that starts reading another step's folder
+  through a native call's JSON string must be declared, or a run can start it too early. The check after the run
+  only sees what the hook records.
+- The plan's porting as a rebuild step (XDEP-STEP-5) is still proposed, not done.
+- The graph's measured times were taken side by side on a busy PC. Re-derive them on an idle PC
+  (`rebuild_all.py --graph --write` after a full rebuild).
+
+Checks on the final tree (main bceb84f4 and 6d95c313 merged): cargo fmt; `cargo clippy --all-targets -D warnings` on bc2-install (feature `rebuild`) and bc2-py, and bc2-cli's 19 tool groups alone and together, clean; bc2-install's tests 41 passed (the rebuild module's 8 among them); the quick tier 134 of 137 on the first merge - the three failures were the new `OPFOR_REBUILD_TRACK` (now registered) and the spec / native-census checks reading OPFOR's main checkout, which does not have OR7's OPFOR side yet (against OPFOR's `or7`: `trace.py --check` ok, 1,574 rules, XDEP-STEP-8 - 10 unused on main; `native_census.py --check` 378 exports, 0 without a caller); OPFOR's `run_tests.py quick` 372 passed, 15 skipped; ruff and mypy clean on OPFOR's `ww2` and `tests`.
