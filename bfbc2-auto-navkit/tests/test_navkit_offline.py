@@ -860,5 +860,16 @@ def main(argv):
     return 1 if failed else 0
 
 
+def isolated(argv):
+    """main without the caller's OPFOR finders: OPFOR_ROOT (bfbc2core.paths.OPFOR_ENV) cleared for this run, so the
+    stand-in folders and the 'no OPFOR folder' cases do not depend on the environment the test is started from
+    (round OR14: run_tests' navkit-offline failed under a set OPFOR_ROOT)."""
+    saved = {k: os.environ.pop(k) for k in ('OPFOR_ROOT',) if k in os.environ}
+    try:
+        return main(argv)
+    finally:
+        os.environ.update(saved)
+
+
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    sys.exit(isolated(sys.argv))
