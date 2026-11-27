@@ -276,19 +276,55 @@ and `IfNotTrue` (3) have no lists, so once met they stay off for good. The reset
 parked criterion of that type back into its event's map (0x85F330) and empties the parked list:
 
 - type 0 (in a round): at the listener's round start / end (0x861960, from 0x861EFE and 0x8632B4);
-- type 1 (in a life): after the events 2 and 0x51 (the handler's fourth argument, the number its event maps are
-  indexed by; 2 is `StatEvent_DeathAs_X_By_Y` if the numbering is `StatEvent`'s, presumably the player's death), and
-  at 0x861A4A;
+- type 1 (in a life): after the events 2 and 0x51, and at 0x861A4A. The handler's event number is `StatEvent`'s
+  (round SPG2-rest6): the kill handler 0x86DC90 sends 0 (`KillOf_X_As_Y`), 1, 2 (`DeathAs_X_By_Y`), 3, 0xB - 0xE
+  through 0x8584D0, each the `StatEvent` value of its kill or death, and 0x51 is `StatEvent_Suicide` (the enum's
+  0x51st value of 105). The kill handler sends 0x51 in one branch only: when the two players' +0xA8 are equal
+  (0x86DECC -> 0x86E262; the same player or the same team, not settled), for the killer when the kill record's byte
+  +0x2A is set. So a life's criteria reset on the player's death event and on that event;
 - type 4 (in a death streak): never; no call passes 4.
 
 So DICE's award criteria (MP_Awards: 315 all-time, 47 per round, 6 per life; SP_Awards: 30 all-time, 40 per round)
 need two resets the game makes offline as online; an `IAD_InADeathStreak` criterion would never reset, and DICE has
-none. The criterion objects themselves (their vtables +0x08 met, +0x0C add, +0x14 write progress) were not found by
-class: they are made per listener, not by the award tree's loader.
+none. The criterion objects and their maker are PERS-AWD-8.
 
 [test: core/tests/test_spec_probes.py::persistence]
 [data: spec/probes/persistence.py, round SPG2-rest5 2026-11-27: CriteriaType over DICE's MP_Awards (GLOBAL 315, IAR 47, IAS 6) and SP_Awards (GLOBAL 30, IAR 40), Dist/win32/async/startup-00.fbrb]
 [exe: BFBC2Game.exe the parking after a grant 0x853240 (called at 0x85F67F; off the event map 0x853270 - 0x8532D1 with 0x8493E0; CriteriaType at criterion +0x10 through the tables 0x853360 / 0x853374: 0 -> +0x28 / +0x4C, 1 -> +0x40 / +0x64, 4 -> +0x34 / +0x58, 2 and 3 none; the append 0x85331E - 0x853355); the reset 0x85F3E0 (the parked lists by the table 0x85F504, each back into its event map by 0x85F330 (lookup 0x844CB0, insert 0x85B610), the type's list by 0x85F518, the parked nodes freed 0x85F4B0 - 0x85F4C6); its callers 0x85F777 (events 2 and 0x51, type 1), 0x86196E (type 0), 0x861A4A (type 1); the listener's vtable 0x1433780 (+0 0x8618B0, +4 0x85F530); CriteriaType's records 0x1C03364]
+[exe: BFBC2Game.exe round SPG2-rest6: StatEvent's field descriptors (its record 0x1C03348, the table 0x1C312E8: 105 values, 2 `StatEvent_DeathAs_X_By_Y`, 0x51 `StatEvent_Suicide`); the kill handler 0x86DC90's calls of 0x8584D0 with the pushes 0x86DF3E (0), 0x86DF6E (0xB), 0x86DFA5 (2), 0x86DFD9 (0xD), 0x86E07C (1), 0x86E0D5 (0xC), 0x86E135 (3), 0x86E18E (0xE), 0x86E2D2 (0x51; the branch 0x86DECC - 0x86DEDC, the flag 0x86E2AF)]
+
+### PERS-AWD-8: The award listener makes one criterion object per award criterion, its class by CriteriaType
+
+Status: **verified** · Variants: PC
+
+When the award listener (PERS-AWD-5) is set up (0x866DC0, from 0x86BEB0 and 0x90BC30), it makes a 0x50-byte state
+per award (0x863DB0), which copies the award's record and, for each of its criteria, calls the criterion factory
+0x8430E0 with the criterion's three words (+0x04, +0x08, +0x0C), its `CriteriaType` (+0x10), its target value
+(+0x14, a float) and the award state as the owner. Each criterion is then armed (0x861B90 -> 0x8618D0): unless it is
+already met, it goes into the event map of every event its +0x04 object lists (0x85F330; the default list 0x157146C
+when +0x04 is empty) and into its type's list. 0x861B90 also makes criteria without an owner (the factory's last
+argument 0), and 0x8617B0 / 0x8489A0 call the factory too.
+
+The factory allocates 0x24 bytes and switches on the type: +0x04 / +0x08 / +0x0C the three words, +0x10 the type,
++0x14 the target, +0x18 the progress (0.0), +0x1C the owner, +0x20 a name (empty). The classes:
+
+| CriteriaType | With an owner | Without |
+|---|---|---|
+| `GLOBAL_AllTimeTotal` (2) | vtable 0x1433058 (built in the factory) | 0x1433250 (0x83BE20) |
+| `IAR_InARound` (0) | 0x1433274 (0x83BE90) | 0x1433298 (0x83BF00) |
+| `IfNotTrue` (3) | 0x1433304 (0x83C060), either way | |
+| `IAS_InASpawn` (1), `IAD_InADeathStreak` (4) | 0x14332BC (0x83BF70) | 0x14332E0 (0x83BFF0) |
+
+Their slots: +0x08 met is progress (slot +0x04) >= the target (0x83B8C0) for a criterion with an owner and always
+false (0x83BE70) without one; +0x0C add is progress += the amount (0x83B8F0, all); +0x10 reset is nothing for an
+all-time criterion (0x83B910) and progress = 0 for the others (0x83BEE0 / 0x83C0E0, through slot +0x20); +0x14 write
+progress writes an all-time criterion's progress into the stats object under its name when the name is not empty
+(0x83B920) and nothing for the others (0x83B7D0 / 0x83C0B0). So only all-time progress reaches the career save; a
+round's or a life's progress lives in the listener and starts again at 0.
+
+[test: core/tests/test_spec_probes.py::persistence]
+[data: spec/probes/persistence.py, round SPG2-rest6 2026-11-27: the factory's type tests and the seven constructors' vtable stores read from the executable; the ownerless met slot's bytes]
+[exe: BFBC2Game.exe factory 0x8430E0 (`cmp esi, 2` 0x8430E5, `test esi, esi` 0x843163, `cmp esi, 3` 0x8431BD, 0x24 bytes from 0x420DB0; the stores 0x843142, 0x83BE59, 0x83BECF, 0x83BF39, 0x83C09F, 0x83BFAF, 0x83C029); its callers 0x863E2A (in 0x863DB0, per award, from 0x866E78), 0x861BBA, 0x8617D0, 0x8489C6; the arming 0x8618D0 (slot +0x18 with the stats 0x8618E6, slot +0x08 0x8618EF, the events of +0x04 or 0x157146C into 0x85F330 0x861903 - 0x86192F, the type's list 0x861940 - 0x861956); the slots 0x83B8C0, 0x83BE70, 0x83B8F0, 0x83B910, 0x83BEE0, 0x83C0E0, 0x83B920, 0x83B7D0, 0x83C0B0]
 
 ### PERS-AWD-7: Every award code's two stats are Final value templates
 
@@ -415,8 +451,11 @@ game yet.
 - **The rank table's sources** (PERS-UNLK-1): which stats the award and vehicle scores sum.
 - **BFBC2's award evaluator**: loaded and wired at every level start, driven by the stat events (PERS-AWD-4), one
   listener per player writing `<Code>_00` / `_01` into a stats object (PERS-AWD-5), whose names DICE's `Final`
-  templates hold (PERS-AWD-7); resets by `CriteriaType` (PERS-AWD-6). Open: the criterion objects' classes (vtables
-  +0x08 / +0x0C / +0x14: who makes them), the event 0x51, and a save with an award (playtest).
+  templates hold (PERS-AWD-7); resets by `CriteriaType` (PERS-AWD-6), the event 0x51 `StatEvent_Suicide`; the
+  criterion objects made per award by the listener's set-up, their class by `CriteriaType`, only all-time progress
+  written (PERS-AWD-8, round SPG2-rest6). Open: whether the players' +0xA8 the kill handler compares before sending
+  0x51 is the player or the team (a playtest: a suicide and a team kill), what the criteria's three words (+0x04 /
+  +0x08 / +0x0C) hold, what 0x8617B0 / 0x8489A0's criteria are for, and a save with an award (playtest).
 - **The career save's kills** (PERS-SCORE-2): the scoring record's stats pointer is never set offline; OPFOR's module
   should attach the filled stats with 0x866240. Then a playtest: the kill probe and a save with kills and deaths.
 - **Bots' deaths scored or not**: settled statically by round AIS-rest (PERS-SCORE-1 holds with the patch, BOT-SCO-3);

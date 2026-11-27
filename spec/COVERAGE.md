@@ -94,6 +94,44 @@ internals, every DBX class). The game tier gained `resources.py`'s and `census.p
 
 ## 2. What is left, in the order the queued rounds need it
 
+Round SPG2-rest6 (2026-11-27, static only; capstone over a scratch copy of the executable, D3DCompiler's disassembler
+over DICE's Dx11 programs in memory) worked SPG2-rest5's list (below). Found:
+- the undergrowth sway: every DICE `windParams` vertex program moves x and z by sin(((x + y + z) x 1000 + w.x) x w.y)
+  x max(y, 0) x w.z, so `WindScale` is metres of sway per metre of height (VEG-UG-10, verified: 25 of 25 distinct
+  Dx11 programs); `UndergrowthMaxHeight` is the height a cell's bounding box reaches above its highest instance, for
+  the frustum test and the fade's distance, never read by the generator (VEG-UG-11);
+- the mesh evaluator (an entry of `DistributionData`) and the sample-texture one (a texel of the row baked in
+  `GradientData`, DICE's 15 all 512 wide: FX-PROC-6); the quad vertex fill 0xB292E0 / 0xB280C0 with the
+  transparency's 0.8 m near fade, the alpha levels, the texture frame, the size and the clip-scale lookup (FX-PROC-9;
+  0xB27BF0 has no caller); the force vectors (FX-PROC-10: positive `Gravity` pulls down, air resistance never
+  reverses); 0xB328C0 is the lifetime step every emitter runs, the mesh spawn 0xB328D0 (FX-PROC-11); FX-PROC-8's size
+  corrected (the update's sizes are the bounds');
+- each FSCommand case's action: a message to the server, a job for the client's dispatcher, a level load, or a UI
+  manager field (MENU-RT-8); the criterion objects are made by the award listener's set-up through the factory
+  0x8430E0, seven classes by `CriteriaType` (PERS-AWD-8, verified), and event 0x51 is `StatEvent_Suicide`
+  (PERS-AWD-6);
+- the anim-tree node header (ATREE-NODE-2), the animation node's fields (ATREE-NODE-3) and each type's fields with u16
+  child indices (ATREE-NODE-4, verified on 1,926 trees); block B's cycle distance and angle (ATREE-BLK-5); block C
+  is the animation node's five property curves, mode words beside each pointer and its interval count (ATREE-BLK-6).
+
+Rules went from 1,587 to 1,599 (12 new). Left (queued as SPG2-rest7):
+
+1. **Undergrowth**: the Dx9 programs' sway read (counted only); the engine's default `UndergrowthWindSpeed` and
+   `UndergrowthMaxHeight` (a settings dump).
+2. **Effects**: the particle shaders (the quad from the corner index, the frame lookup, the alpha levels, the clip
+   scale); other emittable types through the mesh spawn; the turbulence draws' axes; the caller's per-draw byte and
+   vector; who sets the emitter parameters.
+3. **Menus**: the server message ids' names and the dispatcher's job numbers (MENU-RT-8).
+4. **Persistence**: the factory's two other callers 0x8617B0 / 0x8489A0; whether the 0x51 test's +0xA8 is the player
+   or the team.
+5. **Anim trees**: the array elements of types 2, 3, 6, 7, 13 and 23, the Selector's group order, the If node's
+   expression record, which block C curves are the hands', legs' and `WeaponIkAnimation`, the header's pairs.
+6. **Playtests** (paused): as before, plus a suicide and a team kill with the award log (PERS-AWD-6), a `WindScale` 0
+   type standing still and a mesh taller than `UndergrowthMaxHeight` culled early (VEG-UG-10, 11), `LocalForce`'s
+   sign on a DICE effect (FX-PROC-10).
+
+The list below is SPG4-rest's, as it was.
+
 Round SPG4-rest (2026-11-27, static only; capstone over a scratch copy of the executable, REA not used) worked SPG4's
 list (`CENSUS.md` section 5 and the items below). Found:
 - every `typeinfo` record's registration (RTTI-REG-1: data classes with their parent, creator and member table,

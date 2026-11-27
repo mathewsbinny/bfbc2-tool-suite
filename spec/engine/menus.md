@@ -368,6 +368,109 @@ case for it, which DICE's handlers do not have.
 [data: spec/probes/menus.py, round SPG2-rest5 2026-11-27: the handlers' switch maps against the name table and the movies' 133 FSCommands: main menu 28, HUD 29, shared 69; answered by none: cancelJoinServer, clearLocalDeathMessages, g, showAchivementBlade]
 [exe: BFBC2Game.exe the callback's screen call 0xFA4B30 - 0xFA4B3E (UiManager +0x14, vtable +0x30); main menu 0x77BC10 (0x929C40, id - 7 against 0xDD, byte map 0x77D964, jumps 0x77D8B0, default 0x77D88C -> 0x95E680); HUD 0x7764F0 (id - 1 against 0xBA, 0x7772F4, 0x777234, default 0x777210 -> 0x95E680); loading 0x753540 (0x929C40, ids 0 and 0xF dropped, else 0x95E680 at 0x7535AD); shared 0x95E680 (id - 0xB against 0xD7, 0x963F24, 0x963DA4, default 0x963D97)]
 
+### MENU-RT-8: What each FSCommand case does
+
+Status: **observed** · Variants: PC
+
+Round SPG2-rest6 read the 125 cases MENU-RT-7 maps (static reading: a case's first branch and its callees two deep).
+The argument arrives as one string; a case that needs several splits it at commas (0x5175F0 with 0x140EB9C) and
+converts parts with the C runtime's `atoi` / `atof` (the imports 0x14054FC / 0x14054EC). The words below:
+
+- **client**: the object 0x7FF060 returns (one static instance at 0x15713D8); its +0x58 is the network connection the
+  connect code makes (0x656403 - 0x65644B: 0x1900 bytes, 0x5585A0), its +0x18 a dispatcher (vtable +0x18 / +0x20 /
+  +0x24);
+- **msg N**: a client message (0x10 - 0x40 bytes from 0x420DB0) whose vtable +0x08 returns the id N, appended to the
+  connection's queue +0x1E0 (0xC0A390) for the server;
+- **post**: an object handed to the dispatcher (client +0x18, vtable +0x24) with the number 0x25 and the delay 0.0:
+  a server-browser job (0x1B0 bytes, vtable 0x141C048, its kind 0 - 4 at +0x28), a presence (account) request
+  (0x128 bytes, 0x5963D0), a friends request (0xE90 bytes, 0x5E8300);
+- **event E**: `_root.gameEvent(E)` sent at once (0x929A70) or queued (0x9299B0; MENU-EVT-2, 4);
+- **load**: a level-load request (0x75DF60, from the arguments) handed to the UI manager (0x956E10 -> 0x954CA0) and
+  started (0x75EAB0);
+- **UI +x**: a field of the UI manager (the object at 0x19A4CA8).
+
+HUD 0x7764F0 (the HUD screen in `esi`):
+
+| Command | Case | Action |
+|---|---|---|
+| `selectSpawnPoint` | 0x776613 | int -> 0x76DDA0: HUD +0x271F4 = the point, +0x271F8 = -1; looks up the `ClientSpectateEntity`, `ClientCapturePointEntity` and `ClientSoldierSpawnEntity` entities for the spawn camera |
+| `selectSquadSpawn` | 0x776639 | int -> 0x772710: HUD +0x271F8 = the squad mate, +0x271F4 = -1; the spectate camera on him |
+| `doSpawn` | 0x77665F | 0x764020: the kit's configuration and the spawn choice into msgs 0x23 and 0x19 |
+| `selectKit` | 0x7766CB | int -> 0x740A80: HUD +0x271F0 = the kit, after checking the local player |
+| `enableGameInput` | 0x7766F1 | int -> 0x7489B0 -> 0x748970 (the input actions 0x42 - 0x4C) |
+| `doExitLevel` | 0x77671C | the UI state (0x8FEE20 with 1, 1); 0x75EDD0 (a load request, 0x5ECF60 / 0x956E10); the dispatcher's vtable +0x18 with (0x1B, 0x35, 0) |
+| `doRestartLevel`, `doLastSavePoint` | 0x77674F, 0x776763 | 0x75EE80 / 0x75EF20: a load request each |
+| `addEvent`, `removeEvent` | 0x7767A9, 0x776824 | numbers (`atof`) -> 0x771EC0 (append to a HUD list); 0x763700 (take off) |
+| `activateMission` | 0x7769B5 | int -> 0x74DCD0: HUD +0xBF0 = the mission; the UI's ids 0x58 and 0x57 looked up (0x919120, UI +0x82C64) |
+| `enableMinimap`, `zoomMinimap` | 0x776A06, 0x776570 | int -> HUD byte +0x27B31; two ints -> 0x92BCF0 (the minimap's zoom, event `minimapZoomDone`) |
+| `selectWeapon`, `selectGadget` | 0x776A2F, 0x776AB4 | two ints (slot, item) -> 0x7644C0 / 0x764540: the kit configuration's slot |
+| `clearKitConfiguration` | 0x776B36 | 0x749710: both configuration lists emptied |
+| `suicide` | 0x776B77 | 0x7329C0: client +0x58 -> 0x537560 (its +0x14's vtable +0x80 with 0xD) |
+| `enterMenu` | 0x776BA3 | int -> 0x73F9C0: the in-game menu (UI byte +0xC3F2A cleared) |
+| `setVignette` | 0x776BE6 | int, float -> 0x9347B0 |
+| `dequeueHudStates` | 0x776C8E | HUD byte +0x272BC = 1 |
+| `skipCutscene` | 0x776CBA | 0x73FCD0: the dispatcher's vtable +0x20 with (0x12, 0x1B, 0, 0.0) |
+| `selectFlynnCrateWeapon`, `leavingFlynnCrateScreen` | 0x776CF2, 0x776D72 | two ints -> msg 0x24; msg 0x25 |
+| `switchTeam`, `SQDMSwitchTeam` | 0x776D9E, 0x776DB9 | msg 0x1E (`SQDMSwitchTeam` takes the team from its argument) |
+| `joinSquad`, `leaveSquad`, `kickPlayer` | 0x776E4B, 0x776F01, 0x776F19 | msg 0x1D; client +0x58 -> 0x537810 (msg 0x1A); 0x900630 (msg 0x1B) |
+| `setSquadFilter` | 0x7770CC | int -> 0x900700 (msg 0x22) |
+
+Main menu 0x77BC10 (the main menu screen in `edi`):
+
+| Command | Case | Action |
+|---|---|---|
+| `startSingleplayer` | 0x77BC93 | event `onStartLoadingSP`; load (the level from the arguments, a number by `atoi`) |
+| `hostMultiplayer` | 0x77BEC3 | event `onStartLoading`; load of `Levels/` + the first argument; the request's local flag set when the id is 0xA (one case serves both ids) |
+| `continueSP`, `newSP` | 0x77C135, 0x77C149 | 0x75FFA0 (the save's `body`, event `onStartLoadingSP`, load); int -> 0x7600F0 (event `onStartLoadingSP`, the `Client.Level` setting, load) |
+| `skipMovie`, `startBackgroundMovie` | 0x77BFCF, 0x77D625 | the `SplashMoviesPlayed` option, the next splash movie or event `attractionEnd` (0x743A30); 0x753740 (the menu music) |
+| `startPressed`, `legalDone` | 0x77C0BC, 0x77C0A2 | 0x743970 (input, the dispatcher's vtable +0x18 with (0x1B, 0x34), UI byte +0xC3FA1 = 0); UI byte +0x82CCC = 1 |
+| `quitgame` | 0x77C11E | the global 0x155CFEC = 1 |
+| `setCreditsRow` | 0x77C040 | int -> screen +0x1AC; the UI's ids 0x98 and 0x99 looked up (0x919120) |
+| `requestLBList`, `requestFLList` | 0x77C16F, 0x77C20E | two ints -> 0x928E50 / 0x928F80: a leaderboard / friends-list stats query (UI +0x2F2C / +0x2F30) |
+| `requestFriendStats`, `requestDetailedFriendStats` | 0x77C2AD, 0x77C330 | the name stored; 0x92CFF0 (a stats query for one player) |
+| `requestDogTags` | 0x77D584 | two ints -> 0x7580A0 (a dog-tag query, event `DogTagsRequest`) |
+| `startFindServer`, `cancelFindServer` | 0x77C4AA, 0x77CC24 | the server-browser filter (`any`, `levels/any` by default; 0x5F7EF0, 0x6E8650); post a job of kind 2 (0x775B00) |
+| `startQuickMatch`, `postGetServers` | 0x77CD51, 0x77CF1D | post a job (0x6012F0, kind 0); the arguments parsed into the browser (0x5F7EF0) |
+| `redeemCode`, `redeemCodeNam` | 0x77D2F0, 0x77D261 | screen byte +0x1D4C = 0 / 1; post a 0x48-byte code request (0x757A00) |
+| `requestInputString`, `setInputInfo` | 0x77D37E, 0x77D4A8 | the on-screen keyboard's text request (0x908BA0); its info strings (0xF96F90) |
+| `configTosFormatting`, `loadEulaFonts`, `unloadEulaFonts` | 0x77D639, 0x77D800, 0x77D818 | the terms text's styles (0x932260); the fonts per language loaded (0x92CC50) / released (0x90BA80) |
+| `transitionTo` | 0x77D661 | 0x932E70: the screen's transition (event `doMenuTransition`) |
+| `changeGameMod` | 0x77D866 | int -> 0x75FCB0 -> 0x920C00: UI +0xC8C90 = the game mod, a presence request (+0x2C = 2) posted, UI byte +0xC8BAA = 1 (GAME-MODE-6) |
+
+Shared 0x95E680 (the UI manager in `ebp`):
+
+| Command | Case | Action |
+|---|---|---|
+| `transitionTo` | 0x962C30 | event `doMenuTransition` (the main menu's own case answers it first) |
+| `quickUpdateServerList`, `startServerListMatch`, `lookupServer`, `lookupCurrentServer` | 0x95EF2D, 0x95EC9C, 0x95EDFD, 0x95EED2 | post a job of kind 1 / 3 (UI byte +0xC898C = 1; the password `SERVER_PASSWORD_UNDEFINED` unless given) / 4 / 4 (UI +0xC8BA0 = the job) |
+| `addFavoriteGame`, `removeFavoriteGame` | 0x960CFB, 0x960DC2 | post a job of kind 4 (UI +0xC8BA4, byte +0xC8BA8 = 1); post a 0x120-byte request (0x5ED860) |
+| `joinWithServerPassword`, `leaveQueue`, `joinSession` | 0x95F17D, 0x95F2D2, 0x962BA4 | the server banner (0x9235E0, event `serverBannerIsReady`) and a 0xA0-byte join (0x551480); post 0x59EA50; the session list (UI +0xC5E90, 0x24-byte entries) searched by the argument, then post 0x928980 |
+| `sortServerList`, `svSetKey`, `svSetValue` | 0x962828, 0x962A02, 0x9627E1 | two ints -> 0x95DCE0; the browser's filter key; its value (0x9208F0) |
+| `serverDropDownSettings`, `serverFilterSettings` | 0x963B7E, 0x963C42 | the profile options `ServerDropDownSettings` / `ServerFilterSettings` set (0x82FCF0), the profile saved (0x9205A0, `PROF_SAVE`) |
+| `presenceRequestOnline`, `presenceAcceptTos`, `presencePrepareCreateAccount`, `presenceRestartLogin` | 0x95F300, 0x95F3A3, 0x95F8FC, 0x95FE64 | post a presence request (0x59A5C0, then UI byte +0xC8BAA = 1; 0x91F8F0; 0x91F830; 0x91F7F0) |
+| `presenceCreateAccount`, `presenceLoginAccount` | 0x95F3EA, 0x95F734 | the fields (ints and strings) into a presence request (0x9286F0 for the login) |
+| `presenceSelectCountry`, `presenceEntitleGame`, `presenceCancelLogin` | 0x95FCF4, 0x95FE06, 0x95FE92 | post a presence request (0x928840 with the country, a default for `undefined`; 0x928880 with 0xC); UI +0xC8C90, the `AutoLogin` option cleared, the profile saved, post 0x91F810 |
+| `createPersona`, `disablePersona`, `loginPersona` | 0x95FBD3, 0x95FC31, 0x95F98E | post a presence request with 0xA / 0xB (0x9287C0 / 0x928800); the persona and clan tag (`UNDEFINED_CLANTAG` by default) into 0x59EDD0, profile options (0x82FCF0) |
+| `spawnCreatePersona`, `spawnLoginPersona`, `spawnDisablePersona` | 0x95F92A, 0x95F95C, 0x95FC92 | queued event `presenceCreatePersona` / `presenceLoginPersona` / `spawnDisablePersona` |
+| `searchFriend`, `removeFriendFromList`, `pcrequestFriend`, `pcAcceptFriendsRequest`, `pcDeclineFriendsRequest` | 0x95EBF2, 0x95E86E, 0x96020E, 0x96039A, 0x96047F | post a friends request (0x937D20, 0x937D70, 0x7D6BF0, 0x937C50 with 0xD, 0x937C90); the `pc` ones only with client +0x54 set |
+| `pcGetMessages`, `messages`, `checkPendingFriendRequest` | 0x9601B4, 0x962B50, 0x963CF5 | post a 0x30-byte message request (0x5B7180); post 0x937BD0; queued event `friendsRequestReceived` when one is pending |
+| `inGameJoinSquadAccept`, `exitGameFromEOR`, `enterInGame` | 0x960580, 0x960618, 0x960C47 | UI +0xC3EFC (the UI state), 0x9120F0, 0x784EE0; the same, then load and the dispatcher's vtable +0x18 with (0x1B, 0x35); the `autoLookForSquad` option read, load |
+| `setKeyboardUI`, `setMouseUI`, `enableAnalog` | 0x9606B2, 0x9606DB, 0x9609AF | int -> the input object at 0x1570E90 (0x7B8CF0 / 0x7B8D10); UI byte +0xC3F00, events `leftAnalog`, `rightAnalog` |
+| `createTextBox`, `setTextBoxFocus`, `executeTextBox`, `clearTextBox` | 0x960704 (one case) | 0x93EBA0, which switches on the id again |
+| `setSetting`, `resetSettings`, `applySettings`, `saveSettings`, `setRecomendedSettings`, `loadGfx` | 0x9607C5, 0x9608AF, 0x9608F0, 0x960973, 0x960934, 0x961084 | the `GstGraphics` settings: one set (0x929D30), all reset (0x920430), applied (0x920450), UI byte +0xC38D1 = 1, the recommended ones (0x7C4A80, 0x7BBE90, 0x7DD1F0), each option's value into the movie (`Shadows`, `Effects` ...) |
+| `changeResolution`, `screenshot` | 0x960F0D, 0x96094B | int -> the display object at 0x1572A60's modes, compared with 1024 x 720; 0x8FED70 |
+| `controlInvertToggle`, `controlsSliderMoved`, `resetInputSettings`, `resetActionMap`, `confirmKeySwitch`, `cancelKeySwitch`, `requestEditInput` | 0x962D45, 0x962F37, 0x9631BC, 0x963360, 0x9633DA, 0x9633F1, 0x963408 | the input profile options (`Scheme0FlipY` / `Scheme1FlipY`, `Sensitivity0` / `Sensitivity1` ..., reset to 0.5), the action map's reset, a key binding's confirm (0x5B1810) / cancel (0x5B1920) / edit |
+| `pauseGame`, `unpauseGame` | 0x960987, 0x96099B | UI byte +0xC3F2A = 1 / 0 |
+| `numDialogs`, `setCurrentWeaponName`, `clearBeforeUI`, `memCardResponse` | 0x962B08, 0x960EED, 0x963A93, 0x9609DA | int -> UI +0xC4008; the string into UI +0xC3D44; `YES` -> UI byte +0x82AE4 = 1; int -> 0xF7B9D0 |
+
+So the menus drive the game four ways: client messages to the server (spawn, kit, team, squad), objects posted to
+the client's dispatcher (the server browser, presence, friends), level-load requests, and the UI manager's own fields
+(pause, settings, state). An offline menu keeps DICE's movies and these cases; a command that posts an online job
+(presence, friends, the browser) waits for an answer nothing offline gives.
+
+[data: scratch reading of 2026-11-27 (round SPG2-rest6): the 125 answered FSCommands' cases from the three switch tables, each case's calls followed two deep; the message ids from each message's vtable +0x08 (`mov al, id`); the entity types from the type registrations (`push` the type's record, `mov ecx` its run-time record, `call 0x500660`)]
+[exe: BFBC2Game.exe the client 0x7FF060 (0x15713D8); the connection stored at 0x65644B (client +0x58); a message's post 0x537980 (0x420DB0; 0x63CB30: vtable 0x141CF88, +0x08 0x63CB50 `mov al, 0x1E`; 0xC0A390 on +0x1E0); a post 0x95EF3F - 0x95EF4D (client +0x18, vtable +0x24, 0x25); the cases at the addresses in the tables]
+
 ## Events and extern getters
 
 ### MENU-EVT-2: An event is a call of the root's gameEvent, passed to the listeners
@@ -639,7 +742,9 @@ cache `work\import\onslaught_mode.png` is compared by its pixels: Pillow's and t
 - The 9 extern names missing from the name table (MENU-AS-7): dead code, mock paths, or answered by another route;
   of the 6 FSCommands, 4 are the callback's own (MENU-RT-6) and `clearLocalDeathMessages` and `g` reach no handler
   (MENU-RT-7).
-- What each handler case does (MENU-RT-7 maps names to handlers, not their effects).
+- MENU-RT-8 reads each case's first branch two calls deep: the message ids have no names (no type records), the
+  dispatcher's numbers (0x25, 0x1B / 0x34, 0x1B / 0x35, 0x12 / 0x1B) are not decoded, and the online jobs' answers
+  were not followed.
 - MENU-EVT-5 is a static negative: a write through a pointer the scans did not see would make the delay live; a
   playtest log of a burst of one delayed event would settle it.
 - The handlers at 08, 09, 31 - 33, 35 - 37, 5E and 77 (MENU-RT-2) and the operands of Try (0x8F) and CallFrame
