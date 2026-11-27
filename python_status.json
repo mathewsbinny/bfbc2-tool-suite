@@ -2332,10 +2332,10 @@
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
    "lines": 1634,
-   "note": "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; left: path glue, level_meshes (DBX reading)",
+   "note": "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; the needs and merge commands are also a library (OR10: bc2_convert::shadercmd, from bfbc2 shaderdb, for OPFOR's console port stage 7, which no longer runs this script); left: path glue, level_meshes (DBX reading)",
    "path": "bfbc2-shader-tools/shaderdb.py",
    "retiring": "OPFOR in Rust stage 3",
-   "rust": "bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
+   "rust": "bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate, shadercmd; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
    "status": "partly"
   },
   {
@@ -3519,7 +3519,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 846,
+   "lines": 861,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3987,7 +3987,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 890,
+   "lines": 891,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4035,7 +4035,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 151,
+   "lines": 194,
    "note": "read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier",
    "path": "spec/probes/effects_chain.py",
    "retiring": "stays",
@@ -4131,7 +4131,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 99,
+   "lines": 154,
    "note": "read-only probe for spec/engine/persistence.md (award codes against the value templates); checked in the game tier",
    "path": "spec/probes/persistence.py",
    "retiring": "stays",
@@ -4155,7 +4155,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 427,
+   "lines": 507,
    "note": "read-only probe for the SPG4 resource and loose-file formats (occluder, soot, animtree, bink, game_folder); game tier",
    "path": "spec/probes/resources.py",
    "retiring": "stays",
@@ -4191,7 +4191,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 564,
+   "lines": 634,
    "note": "read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier",
    "path": "spec/probes/terrain.py",
    "retiring": "stays",
@@ -4251,7 +4251,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 374,
+   "lines": 434,
    "note": "the specification's traceability check",
    "path": "spec/trace.py",
    "retiring": "proposed: Tests in Rust",
@@ -4491,7 +4491,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 349,
+   "lines": 357,
    "note": "The repository's own rules, checked before anything is pushed (no game data needed): - no game file types a...",
    "path": "tests/test_repo.py",
    "retiring": "Tests in Rust",
@@ -4641,7 +4641,7 @@
  "totals": {
   "all": {
    "files": 381,
-   "lines": 111813
+   "lines": 112145
   },
   "by_folder": {
    "(root)": {
@@ -4833,13 +4833,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20414,
+    "lines": 20429,
     "live": 764,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15311,
+    "test": 15326,
     "twin": 2430
    },
    "design": {
@@ -4855,35 +4855,35 @@
    },
    "rust": {
     "files": 34,
-    "lines": 6150,
+    "lines": 6151,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5883,
+    "stays": 5884,
     "test": 267,
     "twin": 0
    },
    "spec": {
     "files": 22,
-    "lines": 7635,
+    "lines": 7943,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7635,
+    "stays": 7943,
     "test": 0,
     "twin": 0
    },
    "tests": {
     "files": 29,
-    "lines": 7622,
+    "lines": 7630,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7622,
+    "test": 7630,
     "twin": 0
    }
   },
@@ -4906,11 +4906,11 @@
    },
    "stays": {
     "files": 71,
-    "lines": 14508
+    "lines": 14817
    },
    "test": {
     "files": 191,
-    "lines": 52679
+    "lines": 52702
    },
    "twin": {
     "files": 56,

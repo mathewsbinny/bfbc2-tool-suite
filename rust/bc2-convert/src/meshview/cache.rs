@@ -37,9 +37,7 @@ fn walk(top: &str, visit: &mut dyn FnMut(&str, &[String]) -> bool) {
         let path = join(top, &[&name]);
         let is_dir = std::fs::metadata(&path).is_ok_and(|m| m.is_dir());
         if is_dir {
-            // os.walk does not descend into symbolic links (followlinks=False)
-            let link = e.file_type().is_ok_and(|t| t.is_symlink());
-            dirs.push((name, link));
+            dirs.push(name);
         } else {
             files.push(name);
         }
@@ -48,13 +46,14 @@ fn walk(top: &str, visit: &mut dyn FnMut(&str, &[String]) -> bool) {
     if !visit(top, &files) {
         return;
     }
-    for (d, link) in dirs {
-        if !link {
-            walk(&join(top, &[&d]), visit);
-        }
+    // os.walk does not descend into symbolic links (followlinks=False) but does into junctions (os.path.islink is
+    // false for them), which is how a round's checkout or a test's game copy shares folders; the walk follows every
+    // folder link (a directory symbolic link needs administrator rights, and none is made here). Before round OR10
+    // it followed none: a junctioned level's bundles were missing from the index
+    for d in dirs {
+        walk(&join(top, &[&d]), visit);
     }
 }
-
 /// `meshview._bundles(root)`: (level-relative folder, bundle path) of the stock bundles, Package before Dist.
 #[must_use]
 pub fn bundles(root: &str) -> Vec<(String, String)> {

@@ -28,6 +28,34 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-27
+
+Round OR10 retires Project OPFOR's Python of the console Onslaught port's stages 5 - 7: OPFOR now needs this
+version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`, so its `SUITE_REQUIRES` moves to
+0.33.0 - 0.34.0. Round SPLIT1, merged before it unreleased, is in this version too.
+
+### Added
+
+- **The console port's stages 5 - 7 in Rust** (round OR10, `rust/BENCHMARKS.md` "OR10"; spec XCONS-ONS-5 - 7):
+  `bc2_install::onslaught::vehicles` (vehicle spawns whose vehicle is console-only dropped, with the vehicle's own
+  partitions), `soldiers` (the console's soldier classes and player kits as OPFOR blueprints on the PC soldiers) and
+  `shaders` (the level's shader databases merged to cover every mesh it draws), through `bc2_native.onsport_*`;
+  Project OPFOR's `console_vehicles.py`, `console_soldiers.py` and `console_shaders.py` keep their command lines, the
+  install ledger's parts and the scratch clean-up. On the user's four console levels, stages 5 - 7 chained, every
+  work and game file is the retired Python's byte for byte.
+- **`bc2_convert::shadercmd`**: `shaderdb.py`'s `needs` and `merge` (with `load`, `level_meshes`, `read_need`,
+  `check`, `verify_merge` and the report) as a library, moved from `bfbc2.exe shaderdb` (which keeps its command line
+  over it, the same output), so OPFOR's stage 7 merges in process instead of running `shaderdb.py`.
+
+### Fixed
+
+- **OPFOR's console port stage 6 ran again**: `console_soldiers.py` read its class map from `console_onslaught.py`'s
+  text, which round OR5 moved into Rust; since then the stage stopped at once (`ValueError: substring not found`). The
+  stage now takes `bc2_install::onslaught::SOLDIERS`, stage 1's own map (XCONS-ONS-6).
+- **The mesh index follows junctions** as `meshview._bundles` (Python's `os.walk`) does: a game copy whose level
+  folders are junctions (a round's checkout, a test's stand-in) had those levels' bundles missing from the index
+  `bfbc2.exe meshview`, the map editor and OPFOR's tools share.
+
 ### Changed
 
 - **The specification's rule index is split, one shard per spec file** (round SPLIT1, `rust/BENCHMARKS.md`

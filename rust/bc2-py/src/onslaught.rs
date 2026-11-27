@@ -10,11 +10,13 @@
 //! Round `OR9`: the console port's stages 2 - 4 (`onsport_linux`, `onsport_mode`, `onsport_loadset`): each returns
 //! `(writes, printed, fail, after)` - the game copy's writes in order (as above), the lines printed before the ledger's
 //! commit, the refusal to raise after printing them (or `None`), the lines printed after the commit.
+//!
+//! Round `OR10`: stages 5 - 7 (`onsport_vehicles`, `onsport_soldiers`, `onsport_shaders`), the same shape.
 
 use std::collections::BTreeMap;
 
 use bc2_install::onslaught::port::StageOut;
-use bc2_install::onslaught::{self, Ctx, Entry, OnsError, Source, linux, loadset, mode};
+use bc2_install::onslaught::{self, Ctx, Entry, OnsError, Source, linux, loadset, mode, shaders, soldiers, vehicles};
 use pyo3::exceptions::{PyOSError, PySystemExit, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
@@ -160,5 +162,80 @@ pub fn onsport_loadset<'py>(
         write,
     };
     let out = py.detach(|| loadset::build(&a)).map_err(err)?;
+    stage_out(py, out)
+}
+
+/// `console_vehicles.build(lv)` (and `apply`'s pack) from the ledger's source bundle (stage 5).
+#[pyfunction]
+pub fn onsport_vehicles<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    lv: &str,
+    src_bundle: &str,
+    write: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = vehicles::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        lv: lv.to_lowercase(),
+        src_bundle: src_bundle.to_owned(),
+        write,
+    };
+    let out = py.detach(|| vehicles::build(&a)).map_err(err)?;
+    stage_out(py, out)
+}
+
+/// `console_soldiers.build(lv)` (and `apply`'s pack) from the ledger's source bundle (stage 6); `keep_pc`, `only`,
+/// `order_end`, `keep_guids`: the experiments' environment variables as OPFOR's script reads them.
+#[pyfunction]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the stage's arguments and its four experiments"
+)]
+#[pyo3(signature = (root, game, lv, src_bundle, write, keep_pc=Vec::new(), only=String::new(), order_end=false, keep_guids=false))]
+pub fn onsport_soldiers<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    lv: &str,
+    src_bundle: &str,
+    write: bool,
+    keep_pc: Vec<String>,
+    only: String,
+    order_end: bool,
+    keep_guids: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = soldiers::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        lv: lv.to_lowercase(),
+        src_bundle: src_bundle.to_owned(),
+        write,
+        keep_pc,
+        only,
+        order_end,
+        keep_guids,
+    };
+    let out = py.detach(|| soldiers::build(&a)).map_err(err)?;
+    stage_out(py, out)
+}
+
+/// `console_shaders.plan(lv)` / `apply`'s build (stage 7).
+#[pyfunction]
+pub fn onsport_shaders<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    lv: &str,
+    write: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = shaders::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        lv: lv.to_lowercase(),
+        write,
+    };
+    let out = py.detach(|| shaders::build(&a)).map_err(err)?;
     stage_out(py, out)
 }

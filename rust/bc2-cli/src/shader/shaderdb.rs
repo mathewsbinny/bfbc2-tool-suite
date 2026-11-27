@@ -10,15 +10,12 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use bc2_formats::dbx;
-use bc2_formats::fbrb;
 use bc2_formats::shaderdb::query;
 use bc2_formats::shaderdb::{self, ShaderDb};
 
 use super::argp::{self, Kind, Nargs, Opt, Parsed, Parser, Pos, Ty};
 use super::merge;
 use crate::pyfmt::{docstring, float_g, str_repr, thousands};
-use crate::pyos;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, os_error, suite_root};
 
 const SOURCE: &str = include_str!("../../../../bfbc2-shader-tools/shaderdb.py");
@@ -220,22 +217,18 @@ fn sub_parser(cmd: &str) -> Option<Parser> {
 // latin-1 names as Python's `str` holds them, hex, and the database's views: the library's merge module's (one copy)
 pub use bc2_formats::shaderdb::merge::{coverage, entry_programs, hex, latin, to_latin};
 
-/// Python's `str.lower()` where this port knows it: latin-1 by Python's rules, and characters past U+00FF whose
-/// lower case is themselves; None otherwise (the caller hands the line to the Python).
-pub fn py_lower(s: &str) -> Option<String> {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        if let Ok(b) = u8::try_from(u32::from(c)) {
-            out.push(char::from(query::lower_byte(b)));
-        } else {
-            let mut l = c.to_lowercase();
-            if l.next() != Some(c) || l.next().is_some() || c.is_uppercase() {
-                return None;
-            }
-            out.push(c);
-        }
+use bc2_convert::shadercmd::{self as cmd, CmdError};
+pub use bc2_convert::shadercmd::{Loaded, MeshUse, py_lower};
+
+/// The library's error as the port's (round OR10 moved `load`, `level_meshes`, `read_need`, `check` and the merge to
+/// `bc2_convert::shadercmd`): its `ShaderDbError`, `FileNotFoundError` and `OSError`, or the Python's own failure.
+pub fn cv(e: CmdError) -> Fail {
+    match e {
+        CmdError::Shader(m) => shader_error(m),
+        CmdError::NotFound { text, path } => not_found(text, &path),
+        CmdError::Os { path, err } => os_error(&path, &err),
+        CmdError::Python => Fail::Python,
     }
-    Some(out)
 }
 
 fn lower_or_py(s: &str) -> PyResult<String> {
@@ -264,187 +257,43 @@ pub fn find_opfor(given: Option<&str>) -> PyResult<String> {
     let suite = suite_root();
     bc2_gamefs::game::find_opfor(given, true, bc2_gamefs::game::Beside::Only(&suite))
         .map(|p| p.to_string_lossy().into_owned())
-        .map_err(|_| {
-            shader_error(
-                "Project OPFOR BFBC2 not found (no game copy): put the suite next to the project-opfor-bfbc2 folder, \
-                 set OPFOR_ROOT, or give --opfor",
-            )
-        })
+        .map_err(|_| shader_error(NO_OPFOR))
 }
+
+/// `find_opfor`'s refusal.
+const NO_OPFOR: &str = "Project OPFOR BFBC2 not found (no game copy): put the suite next to the project-opfor-bfbc2 \
+                        folder, set OPFOR_ROOT, or give --opfor";
 
 /// `level_bundles(root)`: {level folder (lower case): its `level-00.fbrb`}, Package over Dist, sorted by name.
 pub fn level_bundles(root: &str) -> PyResult<BTreeMap<String, String>> {
-    let mut out = BTreeMap::new();
-    for top in [
-        pyos::join(root, &["game", "Dist", "win32", "levels"])?,
-        pyos::join(root, &["game", "Package", "levels"])?,
-    ] {
-        if !pyos::isdir(&top) {
-            continue;
-        }
-        for lv in pyos::listdir(&top)? {
-            let p = pyos::join(&top, &[&lv, "level-00.fbrb"])?;
-            if pyos::isfile(&p) {
-                out.insert(lower_or_py(&lv)?, p);
-            }
-        }
-    }
-    Ok(out)
+    cmd::level_bundles(root).map_err(cv)
 }
 
 /// `bundle_databases(path)`: [(entry name, FbrbTool type)] of a bundle's shader databases.
 pub fn bundle_databases(path: &str) -> PyResult<Vec<(String, String)>> {
-    let h = fbrb::entries_path(path).map_err(|_| Fail::Python)?;
-    Ok(h.entries
-        .into_iter()
-        .filter(|e| e.type_name.ends_with("ShaderDatabase") && !e.is_deleted())
-        .map(|e| (e.name, e.type_name))
-        .collect())
+    cmd::bundle_databases(path).map_err(cv)
 }
 
-/// `dx_from_name(path)`: `dx9` / `dx10` / `dx11` in the file name (any case).
-pub fn dx_from_name(path: &str) -> Option<u32> {
-    shaderdb::open::dx_in_name(&pyos::basename(path).ok()?)
-}
-
-/// `pick_database(path, dx, entry)` (`bc2_formats::shaderdb::open::pick_database`; a name past latin-1: the Python).
-fn pick_database(path: &str, dx: u32, entry: Option<&str>) -> PyResult<String> {
-    let dbs = bundle_databases(path)?;
-    let folder = pyos::basename(&pyos::dirname(path)?)?;
-    match shaderdb::open::pick_database(path, &dbs, dx, entry, &folder) {
-        Some(Ok(name)) => Ok(name),
-        Some(Err(msg)) => Err(shader_error(msg)),
-        None => Err(Fail::Python),
-    }
-}
-
-/// A database's file read and its kind decided, as `load` gives it: parse it with [`Loaded::db`].
-pub struct Loaded {
-    pub data: Vec<u8>,
-    pub label: String,
-    /// `db.dx` after `load` (the kind asked for or named, else the layout it parsed as)
-    pub dx: u32,
-    /// the layout it parses as (9 or 10)
-    pub parse_dx: u32,
-    pub big: bool,
-}
-
-impl Loaded {
-    /// The database (it parsed once already: `load` checked it).
-    pub fn db(&self) -> PyResult<ShaderDb<'_>> {
-        shaderdb::parse(&self.data, self.parse_dx, self.big).map_err(|_| Fail::Python)
-    }
-
-    /// `db.platform`
-    pub fn platform(&self) -> String {
-        if self.big {
-            "Xbox 360".into()
-        } else {
-            format!("Dx{}", self.dx)
-        }
-    }
-}
-
-/// `ShaderDb.parse(data, dx, where)`: (the layout it parsed as, big-endian) or its `ShaderDbError`
-/// (`bc2_formats::shaderdb::open::open`).
-pub fn parse_kind(data: &[u8], dx: Option<u32>, place: &str) -> PyResult<(u32, bool)> {
-    shaderdb::open::open(data, dx, None, place)
-        .map(|o| (o.dx, o.big_endian))
-        .map_err(shader_error)
-}
-
-/// `resolve(spec, dx, opfor)`: (bytes, label, dx).
-fn resolve(spec: &str, dx: Option<u32>, opfor: Option<&str>) -> PyResult<(Vec<u8>, String, Option<u32>)> {
-    let mut bundle: Option<String> = None;
-    let mut entry: Option<String> = None;
-    if spec.len() >= 6 && spec.get(..6).is_some_and(|p| p.eq_ignore_ascii_case("level:")) {
-        let rest = &spec[6..];
-        let (name, e) = rest.split_once(':').unwrap_or((rest, ""));
-        entry = Some(e.to_owned());
-        let bundles = level_bundles(&find_opfor(opfor)?)?;
-        match bundles.get(&lower_or_py(name)?) {
-            Some(b) => bundle = Some(b.clone()),
-            None => {
-                return Err(shader_error(format!(
-                    "unknown level {name}: the game copy has no levels\\{name}\\level-00.fbrb"
-                )));
-            }
-        }
-    } else {
-        if spec.contains('\n') || spec.contains('\r') {
-            return Err(Fail::Python);
-        }
-        // re.match(r'(.+?\.fbrb)(?::(.*))?$', spec, re.I): the first '.fbrb' (after one character at least) that is
-        // the end or followed by ':'
-        let low = spec.to_ascii_lowercase();
-        let mut m: Option<(String, Option<String>)> = None;
-        let mut from = 1;
-        while let Some(k) = low.get(from..).and_then(|s| s.find(".fbrb")) {
-            let end = from + k + 5;
-            if end == spec.len() {
-                m = Some((spec.to_owned(), None));
-                break;
-            }
-            if spec.as_bytes()[end] == b':' {
-                m = Some((spec[..end].to_owned(), Some(spec[end + 1..].to_owned())));
-                break;
-            }
-            from = from + k + 1;
-        }
-        if let Some((b, e)) = m.filter(|_| !pyos::isfile(spec)) {
-            bundle = Some(b);
-            entry = e;
-        } else if low.ends_with(".fbrb") {
-            bundle = Some(spec.to_owned());
-        }
-    }
-    let Some(bundle) = bundle else {
-        if !pyos::isfile(spec) {
-            return Err(not_found("No such file", spec));
-        }
-        let named = dx_from_name(spec);
-        if let (Some(d), Some(n)) = (dx, named)
-            && d != n
-        {
-            return Err(shader_error(format!(
-                "{spec} is a Dx{n} database by its name, not Dx{d}"
-            )));
-        }
-        let data = std::fs::read(spec).map_err(|e| os_error(spec, &e))?;
-        return Ok((data, spec.to_owned(), dx.or(named)));
-    };
-    if !pyos::isfile(&bundle) {
-        return Err(not_found("No such file", &bundle));
-    }
-    let entry = entry.filter(|e| !e.is_empty());
-    let dx = dx.or_else(|| dx_from_name(entry.as_deref().unwrap_or(""))).unwrap_or(9);
-    let name = pick_database(&bundle, dx, entry.as_deref())?;
-    let data = bc2_gamefs::bundles::read_path(&bundle, &[name.to_ascii_lowercase()])
-        .map_err(|_| Fail::Python)?
-        .pop()
-        .ok_or(Fail::Python)?;
-    crate::budget::after_bundle_read();
-    Ok((data, format!("{bundle}:{name}"), Some(dx)))
+/// What the library's `load` asks: `find_opfor(opfor)` and the caches' budget after a bundle read.
+pub fn with_env<T>(opfor: Option<&str>, f: impl FnOnce(&cmd::Env<'_>) -> PyResult<T>) -> PyResult<T> {
+    let root = || find_opfor(opfor).map_err(|_| CmdError::Shader(NO_OPFOR.into()));
+    let read = crate::budget::after_bundle_read;
+    f(&cmd::Env {
+        opfor: &root,
+        on_bundle_read: &read,
+    })
 }
 
 /// `load(spec, dx, opfor)`.
 pub fn load(spec: &str, dx: Option<u32>, opfor: Option<&str>) -> PyResult<Loaded> {
-    let (data, label, dx) = resolve(spec, dx, opfor)?;
-    let (parse_dx, big) = parse_kind(&data, dx.map(|d| if d == 11 { 10 } else { d }), &label)?;
-    Ok(Loaded {
-        data,
-        label,
-        dx: dx.unwrap_or(parse_dx),
-        parse_dx,
-        big,
-    })
+    with_env(opfor, |env| cmd::load(spec, dx, env).map_err(cv))
 }
 
 // ------------------------------------------------------------------------------------------- the database's views
 
 /// `ShaderDb.program_refs(i)` (a short record: the reference's `struct.error`, handed off).
 pub fn program_refs(db: &ShaderDb<'_>, i: usize) -> PyResult<[usize; 4]> {
-    shaderdb::merge::program_refs(db, i).map_err(|_| Fail::Python)
+    cmd::program_refs(db, i).map_err(cv)
 }
 
 /// `ShaderDb.mesh_names()`
@@ -454,25 +303,7 @@ fn mesh_names(db: &ShaderDb<'_>) -> HashSet<Vec<u8>> {
 
 /// `ShaderDb.check()`: None where the reference raises (handed off).
 pub fn check(db: &ShaderDb<'_>) -> PyResult<Vec<String>> {
-    let input = query::CheckInput {
-        big_endian: db.big_endian,
-        numbers_big_endian: db.big_endian,
-        params: db.params.len(),
-        vs: db.vs.len(),
-        ps: db.ps.len(),
-        programs: db.programs.clone(),
-        keys: db.keys.clone(),
-        layouts: db.layouts.clone(),
-        entries: db.entries.iter().map(|n| (&*n.name, n.guid)).collect(),
-        fragments: db.fragments.iter().map(|n| n.guid).collect(),
-        parts: db.parts.iter().map(|n| n.guid).collect(),
-        groups: db
-            .groups
-            .iter()
-            .map(|(g, idx)| (*g, idx.iter().map(|&i| u32::from(i)).collect()))
-            .collect(),
-    };
-    query::check(&input).ok_or(Fail::Python)
+    cmd::check(db).map_err(cv)
 }
 
 /// `split_name(name, meshes)`.
@@ -518,199 +349,21 @@ fn entry_textures<'d>(db: &'d ShaderDb<'_>) -> PyResult<Vec<Vec<query::TextureRe
 
 // ------------------------------------------------------------------------------------------- level_meshes
 
-/// `MeshUse`: {lower-case path: (shown name, [partitions using it])}, in insertion order.
-#[derive(Default)]
-pub struct MeshUse {
-    pub keys: Vec<String>,
-    pub map: HashMap<String, (String, Vec<String>)>,
-}
-
-impl MeshUse {
-    fn add(&mut self, path: &str, shown: &str, place: &str) -> PyResult<()> {
-        let k = lower_or_py(path)?;
-        if !self.map.contains_key(&k) {
-            self.keys.push(k.clone());
-            self.map.insert(k.clone(), (shown.to_owned(), Vec::new()));
-        }
-        let e = self.map.get_mut(&k).ok_or(Fail::Python)?;
-        if !e.1.iter().any(|w| w == place) {
-            e.1.push(place.to_owned());
-        }
-        Ok(())
-    }
-
-    pub fn sorted(&self) -> Vec<&String> {
-        let mut k: Vec<&String> = self.keys.iter().collect();
-        k.sort();
-        k
-    }
-}
-
-const MESH_TYPES: &[&str] = &[
-    "Render.SkinnedMeshAsset",
-    "Render.RigidMeshAsset",
-    "Render.CompositeMeshAsset",
-    "Render.TreeMeshAsset",
-];
-const NOT_MESH_FIELDS: &[&str] = &["lodsettings", "shadersets", "shader", "emitter", "asset"];
-
-/// `level_meshes(folder)`: (found, unresolved).
-#[allow(clippy::too_many_lines, reason = "the reference's function, step by step")]
+/// `level_meshes(folder)`: (found, unresolved) (`bc2_convert::shadercmd::level_meshes`).
 pub fn level_meshes(folder: &str) -> PyResult<(MeshUse, MeshUse)> {
-    if !pyos::isdir(folder) {
-        return Err(not_found("No such folder", folder));
-    }
-    let mut files: Vec<String> = Vec::new();
-    for (dir, _, fs) in pyos::walk(folder)? {
-        for f in &fs {
-            if f.to_lowercase().ends_with(".dbx") {
-                files.push(pyos::join2(&dir, f)?);
-            }
-        }
-    }
-    if files.is_empty() {
-        return Err(shader_error(format!(
-            "{folder} has no .dbx files: give an unpacked level bundle folder (FbrbTool unpack)"
-        )));
-    }
-    files.sort();
-    let mut parts: HashMap<String, (Option<String>, String)> = HashMap::new();
-    let mut part_keys: Vec<String> = Vec::new();
-    let mut refs: Vec<(String, String)> = Vec::new();
-    for path in &files {
-        let rel_full = pyos::relpath(path, folder)?.replace('\\', "/");
-        let rel = rel_full[..rel_full.len() - 4].to_owned();
-        let data = std::fs::read(path).map_err(|_| Fail::Python)?;
-        if data.is_empty() {
-            continue; // a *deleted* entry
-        }
-        if !(data.len() > 24 && data.starts_with(&dbx::MAGIC[..])) {
-            return Err(shader_error(format!(
-                "{path}: cannot read (ValueError: not a binary .dbx file)"
-            )));
-        }
-        let tree = dbx::parse_tree(&data).map_err(|_| Fail::Python)?;
-        let part = tree.roots().next().ok_or(Fail::Python)?;
-        if !part.is_container() {
-            return Err(Fail::Python); // instances of no list: the reference raises TypeError
-        }
-        let insts: Vec<dbx::Node<'_, '_>> = part.children().filter(|e| e.tag() == "instance").collect();
-        let kind = insts.first().and_then(|i| i.attr("type")).map(str::to_owned);
-        let mut name = rel.clone();
-        if let Some(k) = kind.as_deref()
-            && MESH_TYPES.contains(&k)
-        {
-            let first = insts[0];
-            let mut got: Option<String> = None;
-            if first.is_container() {
-                for c in first.children() {
-                    if c.attr("name") == Some("Name") {
-                        got = Some(c.value().map_err(|_| Fail::Python)?);
-                        break;
-                    }
-                }
-            }
-            if let Some(g) = got.filter(|g| !g.is_empty()) {
-                name = g;
-            }
-        }
-        let key = lower_or_py(&rel)?;
-        if !parts.contains_key(&key) {
-            part_keys.push(key.clone());
-        }
-        parts.insert(key, (kind, name));
-        for inst in insts {
-            let mut stack: Vec<(dbx::Node<'_, '_>, Option<String>)> = vec![(inst, None)];
-            while let Some((el, field)) = stack.pop() {
-                if !el.is_container() {
-                    continue;
-                }
-                for ch in el.children() {
-                    let fname: Option<String> = if ch.tag() == "item" {
-                        field.clone()
-                    } else {
-                        ch.attr("name").map(str::to_owned)
-                    };
-                    if let (Some(r), Some(f)) = (ch.attr("ref"), fname.as_deref())
-                        && !r.is_empty()
-                        && r != "null"
-                        && !f.is_empty()
-                        && r.contains('/')
-                    {
-                        if !f.is_ascii() {
-                            return Err(Fail::Python); // re.I's case folding beyond ASCII
-                        }
-                        let fl = f.to_ascii_lowercase();
-                        if fl.contains("mesh") && !NOT_MESH_FIELDS.contains(&fl.as_str()) {
-                            let target = r.rsplit_once('/').map_or(r, |(t, _)| t);
-                            if !lower_or_py(target)?.starts_with("systems/mesh/") {
-                                refs.push((target.to_owned(), rel.clone()));
-                            }
-                        }
-                    }
-                    if ch.is_container() && ch.children().next().is_some() {
-                        stack.push((ch, fname));
-                    }
-                }
-            }
-        }
-    }
-    let mut found = MeshUse::default();
-    let mut unresolved = MeshUse::default();
-    let mut sorted_parts: Vec<&String> = part_keys.iter().collect();
-    sorted_parts.sort();
-    for rel in sorted_parts {
-        let (kind, name) = &parts[rel];
-        if kind.as_deref().is_some_and(|k| MESH_TYPES.contains(&k)) {
-            found.add(rel, name, name)?;
-        }
-    }
-    for (target, place) in &refs {
-        let low = lower_or_py(target)?;
-        if let Some((kind, name)) = parts.get(&low) {
-            if kind.as_deref().is_some_and(|k| MESH_TYPES.contains(&k)) {
-                found.add(&low, name, place)?;
-            }
-        } else if low.rsplit('/').next().unwrap_or("").contains("mesh") {
-            found.add(&low, target, place)?;
-        } else {
-            unresolved.add(&low, target, place)?;
-        }
-    }
-    Ok((found, unresolved))
+    cmd::level_meshes(folder).map_err(cv)
 }
 
 /// `read_need(spec)`: the needed names (lower case).
 pub fn read_need(spec: &str) -> PyResult<Vec<String>> {
-    if pyos::isdir(spec) {
-        let (found, _) = level_meshes(spec)?;
-        return Ok(found.sorted().into_iter().cloned().collect());
-    }
-    if !pyos::isfile(spec) {
-        return Err(not_found("No such file or folder", spec));
-    }
-    let data = std::fs::read(spec).map_err(|e| os_error(spec, &e))?;
-    let text = String::from_utf8_lossy(&data);
-    let mut out = Vec::new();
-    // universal newlines: \r\n, \r and \n end a line
-    for line in text.split_inclusive(['\n', '\r']) {
-        let line = line.split('#').next().unwrap_or("");
-        let line = bc2_pyrt::py::strip(line).trim_matches('/');
-        if !line.is_empty() {
-            out.push(lower_or_py(line)?);
-        }
-    }
-    if out.is_empty() {
-        return Err(shader_error(format!("{spec} names nothing (one mesh path per line)")));
-    }
-    Ok(out)
+    cmd::read_need(spec).map_err(cv)
 }
 
 // ------------------------------------------------------------------------------------------- the commands
 
 fn cmd_info(py: &mut Py, res: &str, dx: Option<u32>, opfor: Option<&str>) -> PyResult<i32> {
     let l = load(res, dx, opfor)?;
-    let db = l.db()?;
+    let db = l.db().map_err(cv)?;
     py.print(&format!(
         "{}: {} shader database, {} bytes, version {}, flag {}",
         l.label,
@@ -781,7 +434,7 @@ fn cmd_list(
     opfor: Option<&str>,
 ) -> PyResult<i32> {
     let l = load(res, dx, opfor)?;
-    let db = l.db()?;
+    let db = l.db().map_err(cv)?;
     let flt = filter_bytes(filter)?;
     let hit = |name: &[u8]| flt.as_deref().is_some_and(|f| contains(&query::lower(name), f));
     if parts {
@@ -861,7 +514,7 @@ fn cmd_textures(
     opfor: Option<&str>,
 ) -> PyResult<i32> {
     let l = load(res, dx, opfor)?;
-    let db = l.db()?;
+    let db = l.db().map_err(cv)?;
     let flt = filter_bytes(filter)?;
     let tex = entry_textures(&db)?;
     // tex is {name: ...}: a name listed twice shows its last entry's textures
@@ -946,7 +599,7 @@ fn used_by(where_: &[String]) -> String {
 
 fn cmd_cover(py: &mut Py, res: &str, level: &str, all: bool, dx: Option<u32>, opfor: Option<&str>) -> PyResult<i32> {
     let l = load(res, dx, opfor)?;
-    let db = l.db()?;
+    let db = l.db().map_err(cv)?;
     let (meshes, unresolved) = level_meshes(level)?;
     let count = coverage(&db, &meshes.keys);
     let by: HashMap<&String, u32> = meshes.keys.iter().zip(count).collect();
@@ -1018,7 +671,7 @@ fn cmd_roundtrip(py: &mut Py, res: &[String], levels: bool, dx: Option<u32>, opf
     let mut bad = 0;
     for (spec, d) in specs {
         let l = load(&spec, d, opfor)?;
-        let db = l.db()?;
+        let db = l.db().map_err(cv)?;
         let same = shaderdb::write(&db) == l.data;
         let problems = check(&db)?;
         bad += i32::from(!same || !problems.is_empty());
@@ -1046,7 +699,7 @@ fn cmd_find(py: &mut Py, need: &str, base: Option<&str>, dx: Option<u32>, opfor:
     let dx = dx.unwrap_or(9);
     if let Some(base) = base {
         let l = load(base, Some(dx), opfor)?;
-        let db = l.db()?;
+        let db = l.db().map_err(cv)?;
         let cover = coverage(&db, &need);
         let skip: HashSet<&String> = need
             .iter()
@@ -1078,7 +731,7 @@ fn cmd_find(py: &mut Py, need: &str, base: Option<&str>, dx: Option<u32>, opfor:
                 continue;
             }
             let l = load(&format!("{path}:{name}"), Some(dx), opfor)?;
-            let db = l.db()?;
+            let db = l.db().map_err(cv)?;
             let cover = coverage(&db, &keys);
             for (m, n) in keys.iter().zip(cover) {
                 if n > 0 {

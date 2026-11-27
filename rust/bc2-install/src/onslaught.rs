@@ -41,6 +41,9 @@ pub mod linux;
 pub mod loadset;
 pub mod mode;
 pub mod port;
+pub mod shaders;
+pub mod soldiers;
+pub mod vehicles;
 
 /// What went wrong: a tool's failure (its command line and output) or a file.
 #[derive(Debug, thiserror::Error)]
@@ -358,7 +361,7 @@ fn refs_of(xml: &str) -> R<HashSet<String>> {
 }
 
 /// `r.rsplit('/', 1)[0]`.
-fn partition_of(r: &str) -> &str {
+pub(crate) fn partition_of(r: &str) -> &str {
     r.rsplit_once('/').map_or(r, |(a, _)| a)
 }
 
@@ -379,7 +382,7 @@ fn instances(xml: &str) -> R<(Vec<Inst>, String)> {
 }
 
 /// The files beside `f` (a .dbx) whose names start with its stem and end `.res` (`glob(f[:-4] + '*.res')`).
-fn res_files(f: &str) -> Vec<String> {
+pub(crate) fn res_files(f: &str) -> Vec<String> {
     let stem = stem4(f);
     let (dir, base) = match stem.rfind(['\\', '/']) {
         Some(i) => (&stem[..i], stem[i + 1..].to_lowercase()),
