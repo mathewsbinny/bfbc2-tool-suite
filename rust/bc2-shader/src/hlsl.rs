@@ -1046,14 +1046,16 @@ impl<'a> Emitter<'a> {
 
     /// Forward-only CFG emitter for shaders with overlapping forward jumps (e.g. if/else blocks).
     /// Emits `int _cf = 0;` with `if (_cf <= k)` guards so any forward jump `k -> t` (`t > k`)
-    /// is mathematically exact without loops.
+    /// is mathematically exact without loops (spec XSH-CF-1). The blocks it takes are the nested emitter's:
+    /// a `cond_exec` on a bool constant is refused as there (`control flow cond_exec is not supported`), not run
+    /// unconditionally.
     fn cfs_forward(&mut self, lst: &[Cf]) -> Result<()> {
         let sh = self.sh;
         self.w("int _cf = 0;");
         for (i, cf) in lst.iter().enumerate() {
             let op = cf.op();
             match op {
-                "exec" | "exec_end" | "cond_exec" | "cond_exec_end" | "cond_exec_pred" | "cond_exec_pred_end" => {
+                "exec" | "exec_end" | "cond_exec_pred" | "cond_exec_pred_end" => {
                     let (is_end, condition) = match cf.kind {
                         CfKind::Exec { is_end, condition, .. } => (is_end, condition.unwrap_or(0) != 0),
                         _ => (false, false),

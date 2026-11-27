@@ -4487,230 +4487,230 @@
 "[\"xdiff\", [\"--help\"], \" 100 \"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"+64\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one\r\n                     --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default\r\n                     BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]]\r\n                [--n N] [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one\r\n                     --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default\r\n                     BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"-5\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"0\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"10\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py\r\n       [-h]\r\n       [--db DB]\r\n       [--ps [PS ...]]\r\n       [--n N]\r\n       [--seed SEED]\r\n       [--limit LIMIT]\r\n       [--bisect]\r\n       [-o O]\r\n       [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help\r\n    show this\r\n    help\r\n    message and\r\n    exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect\r\n    find the\r\n    first\r\n    differing\r\n    instruction\r\n    (one --ps)\r\n  -o O\r\n  --workers WORKERS\r\n    shaders at\r\n    a time\r\n    (default BF\r\n    BC2_XDIFF_W\r\n    ORKERS,\r\n    else up to\r\n    4)\r\n"
+"out": "usage: xdiff.py\r\n       [-h]\r\n       [--db DB]\r\n       [--ps [PS ...]]\r\n       [--vs [VS ...]]\r\n       [--n N]\r\n       [--seed SEED]\r\n       [--limit LIMIT]\r\n       [--bisect]\r\n       [-o O]\r\n       [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help\r\n    show this\r\n    help\r\n    message and\r\n    exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]\r\n    vertex\r\n    shaders (no\r\n    numbers:\r\n    every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect\r\n    find the\r\n    first\r\n    differing\r\n    instruction\r\n    (one --ps)\r\n  -o O\r\n  --workers WORKERS\r\n    shaders at\r\n    a time\r\n    (default BF\r\n    BC2_XDIFF_W\r\n    ORKERS,\r\n    else up to\r\n    4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"100\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"120\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"160\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"1_00\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"24\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h]\r\n                [--db DB]\r\n                [--ps [PS ...]]\r\n                [--n N]\r\n                [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect]\r\n                [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help\r\n    show this help\r\n    message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect\r\n    find the first\r\n    differing\r\n    instruction (one\r\n    --ps)\r\n  -o O\r\n  --workers WORKERS\r\n    shaders at a time\r\n    (default BFBC2_XDI\r\n    FF_WORKERS, else\r\n    up to 4)\r\n"
+"out": "usage: xdiff.py [-h]\r\n                [--db DB]\r\n                [--ps [PS ...]]\r\n                [--vs [VS ...]]\r\n                [--n N]\r\n                [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect]\r\n                [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help\r\n    show this help\r\n    message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]\r\n    vertex shaders (no\r\n    numbers: every\r\n    one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect\r\n    find the first\r\n    differing\r\n    instruction (one\r\n    --ps)\r\n  -o O\r\n  --workers WORKERS\r\n    shaders at a time\r\n    (default BFBC2_XDI\r\n    FF_WORKERS, else\r\n    up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"250\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"33\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--n N]\r\n                [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect]\r\n                [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help\r\n           show this help\r\n           message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect\r\n           find the first\r\n           differing\r\n           instruction (one\r\n           --ps)\r\n  -o O\r\n  --workers WORKERS\r\n           shaders at a time\r\n           (default\r\n           BFBC2_XDIFF_WORKERS,\r\n           else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--vs [VS ...]]\r\n                [--n N]\r\n                [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect]\r\n                [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help\r\n           show this help\r\n           message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]\r\n           vertex shaders (no\r\n           numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect\r\n           find the first\r\n           differing\r\n           instruction (one\r\n           --ps)\r\n  -o O\r\n  --workers WORKERS\r\n           shaders at a time\r\n           (default\r\n           BFBC2_XDIFF_WORKERS,\r\n           else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"40\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--n N] [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help      show this help\r\n                  message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect        find the first\r\n                  differing\r\n                  instruction (one\r\n                  --ps)\r\n  -o O\r\n  --workers WORKERS\r\n                  shaders at a time\r\n                  (default\r\n                  BFBC2_XDIFF_WORKERS,\r\n                  else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--vs [VS ...]]\r\n                [--n N] [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help      show this help\r\n                  message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]   vertex shaders (no\r\n                  numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect        find the first\r\n                  differing\r\n                  instruction (one\r\n                  --ps)\r\n  -o O\r\n  --workers WORKERS\r\n                  shaders at a time\r\n                  (default\r\n                  BFBC2_XDIFF_WORKERS,\r\n                  else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"47\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message\r\n                     and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing\r\n                     instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time\r\n                     (default\r\n                     BFBC2_XDIFF_WORKERS,\r\n                     else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message\r\n                     and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no\r\n                     numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing\r\n                     instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time\r\n                     (default\r\n                     BFBC2_XDIFF_WORKERS,\r\n                     else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"55\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]]\r\n                [--n N] [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing\r\n                     instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default\r\n                     BFBC2_XDIFF_WORKERS, else up to\r\n                     4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]]\r\n                [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers:\r\n                     every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing\r\n                     instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default\r\n                     BFBC2_XDIFF_WORKERS, else up to\r\n                     4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"62\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction\r\n                     (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default\r\n                     BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]]\r\n                [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction\r\n                     (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default\r\n                     BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"70\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS,\r\n                     else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]]\r\n                [--n N] [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS,\r\n                     else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"79\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"80\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"81\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to\r\n                     4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to\r\n                     4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"90\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)\r\n"
 },
 "[\"xdiff\", [\"--help\"], \"abc\"]": {
 "err": "",
 "exit": 0,
-"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --vs [VS ...]      vertex shaders (no numbers: every one)\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
 },
 "[\"xdiff\", [\"--n\"], \" 100 \"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"+64\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]]\r\n                [--n N] [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"-5\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"0\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"10\"]": {
-"err": "usage: xdiff.py\r\n       [-h]\r\n       [--db DB]\r\n       [--ps [PS ...]]\r\n       [--n N]\r\n       [--seed SEED]\r\n       [--limit LIMIT]\r\n       [--bisect]\r\n       [-o O]\r\n       [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py\r\n       [-h]\r\n       [--db DB]\r\n       [--ps [PS ...]]\r\n       [--vs [VS ...]]\r\n       [--n N]\r\n       [--seed SEED]\r\n       [--limit LIMIT]\r\n       [--bisect]\r\n       [-o O]\r\n       [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"100\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"120\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"160\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"1_00\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"24\"]": {
-"err": "usage: xdiff.py [-h]\r\n                [--db DB]\r\n                [--ps [PS ...]]\r\n                [--n N]\r\n                [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect]\r\n                [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h]\r\n                [--db DB]\r\n                [--ps [PS ...]]\r\n                [--vs [VS ...]]\r\n                [--n N]\r\n                [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect]\r\n                [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"250\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"33\"]": {
-"err": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--n N]\r\n                [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect]\r\n                [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--vs [VS ...]]\r\n                [--n N]\r\n                [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect]\r\n                [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"40\"]": {
-"err": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--n N] [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--vs [VS ...]]\r\n                [--n N] [--seed SEED]\r\n                [--limit LIMIT]\r\n                [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"47\"]": {
-"err": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB]\r\n                [--ps [PS ...]]\r\n                [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"55\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]]\r\n                [--n N] [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]]\r\n                [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"62\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]]\r\n                [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"70\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]]\r\n                [--n N] [--seed SEED] [--limit LIMIT] [--bisect]\r\n                [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"79\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"80\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"81\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"90\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT]\r\n                [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 },
 "[\"xdiff\", [\"--n\"], \"abc\"]": {
-"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N]\r\n                [--seed SEED] [--limit LIMIT] [--bisect] [-o O]\r\n                [--workers WORKERS]\r\nxdiff.py: error: argument --n: expected one argument\r\n",
 "exit": 2,
 "out": ""
 }

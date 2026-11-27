@@ -354,8 +354,8 @@ pub static SPECS: &[Spec] = &[
     Spec {
         key: "xdiff",
         prog: "xdiff.py",
-        usage: "xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]",
-        opt_parts: &["[-h]", "[--db DB]", "[--ps [PS ...]]", "[--n N]", "[--seed SEED]", "[--limit LIMIT]", "[--bisect]", "[-o O]", "[--workers WORKERS]"],
+        usage: "xdiff.py [-h] [--db DB] [--ps [PS ...]] [--vs [VS ...]] [--n N] [--seed SEED] [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]",
+        opt_parts: &["[-h]", "[--db DB]", "[--ps [PS ...]]", "[--vs [VS ...]]", "[--n N]", "[--seed SEED]", "[--limit LIMIT]", "[--bisect]", "[-o O]", "[--workers WORKERS]"],
         pos_parts: &[],
         description: None,
         sections: &[
@@ -365,6 +365,7 @@ pub static SPECS: &[Spec] = &[
                 Item { invocation: "-h, --help", help: Help::Chunks(&["show", " ", "this", " ", "help", " ", "message", " ", "and", " ", "exit"]), subs: &[] },
                 Item { invocation: "--db DB", help: Help::Missing, subs: &[] },
                 Item { invocation: "--ps [PS ...]", help: Help::Missing, subs: &[] },
+                Item { invocation: "--vs [VS ...]", help: Help::Chunks(&["vertex", " ", "shaders", " ", "(no", " ", "numbers:", " ", "every", " ", "one)"]), subs: &[] },
                 Item { invocation: "--n N", help: Help::Missing, subs: &[] },
                 Item { invocation: "--seed SEED", help: Help::Missing, subs: &[] },
                 Item { invocation: "--limit LIMIT", help: Help::Missing, subs: &[] },

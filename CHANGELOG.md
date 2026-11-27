@@ -28,7 +28,16 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Fixed
+- **The shader translator's forward emitter refuses a bool-constant `cond_exec`** (round XD2), as the nested emitter
+  does; it had run the block unconditionally. No program of the corpus has one, so no translation changed.
+
 ### Changed
+- `xenos_golden_game.json` re-recorded: the 20 Xbox programs the forward emitter now translates (all skinned vertex
+  shaders; 4 of BF1943's, 16 only in BFBC2's Xbox levels), each proven exact against the interpreter with both sides
+  of its if / else run (round XD2).
+- `bfbc2 xdiff --db <name>` with a name other than `wake` no longer stops with `KeyError`: the name is looked up as a
+  BF1943 level or resource (or `bfbc2:<level>`).
 - Specification (round SPG2-rest5): MENU-LOAD-1 no longer says the Flash loading roots are named by no data
   (MENU-LOAD-2), and round SPG2-rest4's "slot 12 of vtable 0x142B4C8" is the main menu's third vtable; FX-PROC-4's
   inferred "the input is an offset" is the `EmittableField` enumeration.
@@ -91,6 +100,14 @@ landed on `main`.
   the material map is drawn around the brush; the game-accurate view follows a stroke while it is made. The export
   writes all of it (`mapexport check`: XVAL-TERR-2 / -3). Project format 12 (`terrain-range`, `material-add`, colour
   and ring strokes, strokes over several rasters).
+- **The shader translator's differential test covers vertex shaders and every Xbox database** (round XD2):
+  `xdiff.py --vs [N ...]` runs vertex shaders through `xenos_exec.py` (now a vertex-shader interpreter too: vfetch,
+  oPos and o0-o15 exports) and draws each output of the translation (oPos and every interpolator) as a pixel of its own;
+  `--db` takes any BF1943 level (`iwo_jima_s`), a database's resource name, or `bfbc2:<level>` (a BFBC2 Xbox level's
+  database from Project OPFOR's unpacked Xbox copy). Results now list each jump's lanes (taken / not taken) and the CFs
+  no lane reached; lanes that read `c[k + a0]` outside the array of `c[k]` are left out of the comparison (counted as
+  `out_of_range`). `bfbc2 xdiff` takes the new option.
+- Spec XSH-CF-1: the forward emitter for overlapping forward jumps, with its evidence.
 
 ## [0.28.0] - 2026-11-27
 

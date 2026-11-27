@@ -6,12 +6,19 @@ Quick (no game data):
 - xenos_hlsl's xcubefetch (a fetch's (s, t, face) back to a direction) compiled and run in shaderview: the direction
   it gives lands on the face and texel the cube op's coordinates name (a cube map whose texels hold their own face and
   position, point sampled);
-- probe(): the recording line goes inside the predicate block of the instruction it follows.
+- probe(): the recording line goes inside the predicate block of the instruction it follows;
+- the forward emitter (spec XSH-CF-1) on a hand-built if / else whose two forward jumps overlap, a pixel and a vertex
+  shader: the translation (its _cf guards) drawn against the interpreter exact, both branches run, and a translation
+  with a jump's target moved by one block caught (the comparison sees a wrong jump).
 With --game (Battlefield 1943's Wake database from the BF1943 tool suite's source): the shaders that exposed each
 translator fix run through the whole differential test and must be exact - ps317 (the Chi-Ha's track: the shadow
 map's point taps at the edge), ps36 (a depth-buffer tap outside the texture), ps120 / ps202 (two cube fetches),
 ps476 (a texture in fetch constant 16); and (round E3l) the run served on worker threads (shaderview -serve) gives
 the same printed lines, results.json and files as one shaderview process per shader, one at a time.
+Also with --game (round XD2): the 20 programs of the Xbox shader databases the forward emitter translates (all
+vertex shaders, skinned: 4 of BF1943's Guadalcanal and Iwo Jima databases, 16 only in BFBC2's Xbox levels, read from
+OPFOR's unpacked Xbox copy), each found by its program key, exact on every output with each jump taken by some
+vertices and every CF reached.
 With --game-all: the same comparison on every Wake pixel shader (815), all exact.
 
   python test_xdiff.py [--game] [--game-all]
@@ -152,6 +159,100 @@ def probe_placement():
           'probe: recorded inside the predicate block, after the instruction\'s last statement')
 
 
+# hand-built microcode (Xenos ALU / fetch words; xenos.py's decoders): p0 = r0.w > 0 (scalar setp_gt, the vector half
+# a nop), r1 = r0 + r0, r1 = r0 * r0, an export of max(r, r), a vfetch of TEXCOORD0 into r0 (FMT_32_32_32_32_FLOAT)
+SETP = (29 << 26, 0, (2 << 24) | (7 << 29))
+ADD = (1 | (0xf << 16) | (50 << 26), 0, 7 << 29)
+MUL = (1 | (0xf << 16) | (50 << 26), 0, (1 << 24) | (7 << 29))
+VFETCH = (1 << 19, 0x688 | (38 << 16), 0)
+
+
+def export(target: int, reg: int) -> tuple[int, int, int]:
+    return ((1 << 15) | target | (0xf << 16) | (50 << 26), 0, (2 << 24) | (7 << 29) | (reg << 16) | (reg << 8))
+
+
+def forward_program(pixel: bool) -> bytes:
+    """if (r0.w > 0) r1 = r0 * r0; else r1 = r0 + r0 - laid out with two overlapping forward jumps around plain
+    (unpredicated) execs, so the jumps alone decide which block runs:
+      0 exec (p0 = r0.w > 0)   1 (p0) jmp 4   2 exec (r1 = r0 + r0)   3 jmp 5   4 exec (r1 = r0 * r0)   5 exec_end
+    A pixel shader exports oC0 = r1 (r0 its TEXCOORD0); a vertex shader fetches r0 (TEXCOORD0) first and exports
+    oPos = r1 and o0 = r0."""
+    be = lambda *v: struct.pack(f'>{len(v)}I', *v)                                  # noqa: E731
+    first = [SETP] if pixel else [VFETCH, SETP]
+    last = [export(0, 1)] if pixel else [export(62, 1), export(0, 0)]
+    ins = first + [ADD, MUL] + last
+    n0 = len(first)
+    cfs = [(0, 1, 0, n0, 0 if pixel else 1), (1, 4, 2, 1), (0, 1, n0, 1, 0), (1, 5, 1, 0), (0, 1, n0 + 1, 1, 0),
+           (0, 2, n0 + 2, len(last), 0)]
+    slots = (len(cfs) + 1) // 2
+    enc = []
+    for c in cfs:
+        if c[0] == 0:                       # exec: opcode, first instruction, count, sequence (1: a fetch)
+            _, op, at, cnt, seq = c
+            enc.append(((slots + at) | (cnt << 12) | (seq << 16), op << 12))
+        else:                               # cond_jmp: target, kind (1 unconditional, 2 predicated), condition
+            _, target, kind, cond = c
+            enc.append((target | ((kind == 1) << 13) | ((kind == 2) << 14), (11 << 12) | (cond << 10)))
+    code: list[int] = []
+    for a, b in zip(enc[0::2], enc[1::2]):
+        code += [a[0], (a[1] & 0xffff) | ((b[0] & 0xffff) << 16), (b[0] >> 16) | (b[1] << 16)]
+    for i in ins:
+        code += i
+    interp = 0xf050                         # TEXCOORD0 (usage 5) in r0 / o0, mask 0xf
+    if pixel:
+        hdr = [0, 4 * len(code), 0x0f0f, 0, 0, 1 << 5, 0, 1, interp]
+    else:
+        fetch = slots | (5 << 12)           # the vfetch's slot, TEXCOORD0
+        export_slot = slots + len(ins) - 1 | (1 << 12)
+        hdr = [0, 4 * len(code), 0x0f0f, 0, 0, 1 << 5, 1, 1, 1, 0x290, fetch, interp, export_slot]
+    vsize = 0x24 + 4 * len(hdr)
+    return be(0x102a1100 | (0 if pixel else 1), vsize, 4 * len(code), 0, 0, 0, 0x24, 0, 0) + be(*hdr) + be(*code)
+
+
+def forward_jumps():
+    import xdiff
+    rng = np.random.default_rng(7)
+    n = 256
+    with tempfile.TemporaryDirectory(prefix='xdiff forward ') as work:
+        for pixel in (True, False):
+            what = 'pixel' if pixel else 'vertex'
+            code = forward_program(pixel)
+            sh = xenos_parse(code, pixel)
+            r0 = rng.uniform(-1, 1, (n, 4)).astype(F)
+            ref = XE.run(sh, {0: r0}, {}, {}, n)
+            want = np.where(r0[:, 3:] > 0, r0 * r0, r0 + r0)
+            got_ref = ref.outputs[0] if pixel else ref.position
+            check(got_ref is not None and np.allclose(got_ref, want) and (pixel or np.array_equal(ref.outputs[0], r0)),
+                  f'forward jumps ({what} shader): the interpreter runs the if / else ({int((r0[:, 3] > 0).sum())} '
+                  f'of {n} lanes through the else block)')
+            res = xdiff.run_shader(code, 0, 1, n, work, None, pixel)
+            kind = 'ps' if pixel else 'vs'
+            hlsl = open(os.path.join(work, f'{kind}0', f'{kind}.hlsl')).read()
+            jumps = res.get('jumps', {})
+            check('int _cf = 0;' in hlsl and res['status'] == 'exact' and jumps.get('1', [0, 0])[0] > 0
+                  and jumps['1'][1] > 0 and jumps.get('3', [0])[0] > 0 and res.get('unreached') == [],
+                  f'forward jumps ({what} shader): the forward emitter\'s translation exact against the interpreter, '
+                  f'both branches run ({res["status"]}, jumps {jumps})')
+            # the comparison sees a wrong jump: 1 -> 5 instead of 1 -> 4 skips the else block
+            bad = hlsl.replace('_cf = 4;', '_cf = 5;')
+            cs = xdiff.case(sh, np.random.default_rng(1 * 100003 + (0 if pixel else xdiff.VS_SEED)), n)
+            ref = XE.run(sh, cs['inputs'], cs['consts'], cs['textures'], n,
+                         pos=np.stack([np.arange(n) % xdiff.W, np.arange(n) // xdiff.W], 1).astype(F),
+                         front=np.ones(n, bool))
+            if pixel:
+                wrong = xdiff.compare(ref, xdiff.run_hlsl(sh, cs, n, work, bad)[0])
+            else:
+                wrong = xdiff.compare_vs(ref, xdiff.run_hlsl_vs(sh, cs, n, work, bad), xdiff.vs_slots(sh))
+            check(bad != hlsl and wrong['status'] == 'differs',
+                  f'forward jumps ({what} shader): a jump to the wrong block is caught ({wrong["status"]}, '
+                  f'{wrong.get("bad")} of {wrong.get("pixels")} outputs)')
+
+
+def xenos_parse(code: bytes, pixel: bool):
+    import xenos
+    return xenos.parse_shader(code, pixel)
+
+
 def hlsl_job_paths():
     import subprocess
 
@@ -245,6 +346,56 @@ def _game(xdiff, out):
     check('float4 dynamicMaskAtlasParams;' in hlsl, 'ps745 (a terrain strip): its block\'s engine-named constants '
           'translated as $Globals variables')
     served_alike(xdiff, out, list(ids), '--workers', '3')
+    forward_programs(xdiff)
+
+
+# The 20 programs the forward emitter translates on the Xbox databases (test_xenos_native.py --game; round XD2): the
+# database (xdiff --db), the vertex shader, the program key (test_xenos_native.program_key: SHA-1 of the code and the
+# pixel flag, 16 hex digits). One shape, a skinned shader's if / else on a bone's row (XSH-CF-1)
+FORWARD = [
+    ('guadal_canal', 285, '3c509a0b5dc63fce'), ('guadal_canal', 469, '60ae25cd6a8fe9d9'),
+    ('iwo_jima_s', 255, 'fafc8e54df968d09'), ('iwo_jima_s', 520, 'e85687aa2d5b4293'),
+    ('bfbc2:mp_001', 44, '8ec95f1d3c613978'), ('bfbc2:mp_001', 106, '6afecf03cda33452'),
+    ('bfbc2:mp_001', 213, 'e5c022424c33d1da'), ('bfbc2:mp_001', 245, 'adb7e1df15c5ccc9'),
+    ('bfbc2:mp_001', 276, '30f66d70fbbe4e3c'), ('bfbc2:mp_001', 299, '808cb7917c66fe5f'),
+    ('bfbc2:mp_001', 358, '736a4132be1d623b'), ('bfbc2:mp_001', 712, 'aaf25668930f8790'),
+    ('bfbc2:mp_002', 8, '899af7bb6cb886a2'), ('bfbc2:mp_002', 754, '53d496baff113026'),
+    ('bfbc2:mp_003', 14, 'a62d958bb6189b33'), ('bfbc2:mp_003', 153, 'f9d0df9fa78d67e5'),
+    ('bfbc2:mp_004', 305, 'e1feefde2f2c2b25'), ('bfbc2:mp_004', 824, '1f8f7c9c634b6377'),
+    ('bfbc2:mp_008', 344, '5b51fd573ccc9b27'), ('bfbc2:mp_008', 421, 'cf8c4fca5714f766'),
+]
+
+
+def forward_programs(xdiff):
+    """The 20: each database's vertex shaders through xdiff (512 vertices), found by key; exact on every output, the
+    if / else's first jump taken by some vertices and not by others, every CF reached."""
+    import hashlib
+    import json
+    good = 0
+    for db in dict.fromkeys(d for d, _, _ in FORWARD):
+        want = [(v, k) for d, v, k in FORWARD if d == db]
+        w = xdiff.load_db(db)
+        keys = [hashlib.sha1(bytes(w.vs[v].code) + b'\0').hexdigest()[:16] for v, _ in want]
+        check(keys == [k for _, k in want], f'{db}: vertex shaders {[v for v, _ in want]} are the recorded programs')
+        out = tempfile.mkdtemp(prefix='xdiff_test_forward_')
+        try:
+            xdiff.main(['--db', db, '--vs', *[str(v) for v, _ in want], '--n', '512', '-o', out])
+            r = json.load(open(os.path.join(out, 'results.json')))
+            hlsl = {v: open(os.path.join(out, f'vs{v}', 'vs.hlsl')).read() for v, _ in want
+                    if os.path.isfile(os.path.join(out, f'vs{v}', 'vs.hlsl'))}
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
+        for v, _ in want:
+            res = r.get(f'vs{v}', {})
+            j = res.get('jumps', {})
+            # every jump taken by some vertices, the first one (the if) also not taken by some
+            ok = (res.get('status') == 'exact' and 'int _cf = 0;' in hlsl.get(v, '') and res.get('unreached') == []
+                  and bool(j) and all(t > 0 for t, _ in j.values()) and next(iter(j.values()))[1] > 0)
+            good += ok
+            if not ok:
+                print(f'       {db} vs{v}: {res}')
+    check(good == len(FORWARD), f'the forward emitter\'s {len(FORWARD)} programs exact against the interpreter, both '
+          f'sides of their if / else run ({good} of {len(FORWARD)})')
 
 
 def tree(root):
@@ -311,6 +462,7 @@ if __name__ == '__main__':
     compare_nonfinite()
     hlsl_job_paths()
     probe_placement()
+    forward_jumps()
     engine_named_constants()
     cubefetch_in_shaderview()
     if '--game' in sys.argv:

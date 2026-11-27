@@ -28541,6 +28541,43 @@
    ]
   },
   {
+   "id": "XSH-CF-1",
+   "title": "Overlapping forward jumps: a guard on every block",
+   "file": "spec/transforms/shaders.md",
+   "status": "verified",
+   "variants": "BF1943, Xbox 360",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:1013-1115"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:1135-1139"
+    },
+    {
+     "kind": "data",
+     "ref": "20 of 8,320 distinct Xbox programs take the forward emitter (all vertex shaders, one if / else shape); their 20 translations exact against xenos_exec on 512 vertices, both sides of each if / else run"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xdiff.py::forward_jumps"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xdiff.py::forward_programs"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-shader/tests/forward_jumps.rs::overlapping_forward_jumps_take_the_forward_emitter"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-shader/tests/forward_jumps.rs::what_the_forward_emitter_does_not_take_fails_as_before"
+    }
+   ]
+  },
+  {
    "id": "XSH-BIND-1",
    "title": "Binding tables are generated from the compiled code",
    "file": "spec/transforms/shaders.md",

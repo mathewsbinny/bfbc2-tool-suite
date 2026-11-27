@@ -243,7 +243,12 @@ mip selection remain limited by the existing sampler/point-load policy.
 ```
 python xdiff.py [--ps N ...] [--n 1024] [--seed 1] [-o <folder>]      every BF1943 Wake pixel shader by default
 python xdiff.py --ps N --bisect                                       the first instruction where the two sides differ
+python xdiff.py --vs [N ...] [--db <db>]                              vertex shaders (no numbers: every one)
 ```
+
+`--db`: `wake` (the default), any BF1943 level folder (`iwo_jima_s`, `guadal_canal` ...: its
+`levels/<level>/shaders/single.res`), a database's resource name, or `bfbc2:<level>` (a BFBC2 Xbox level's database
+from Project OPFOR's unpacked Xbox copy, `work\xbox\dist\xenon\levels\<level>\level-00.fbrb`).
 
 Every BF1943 pixel shader runs twice on the same random inputs (engine and material constants by name, interpolants,
 the screen position, point-sampled ramp textures with clamped addressing): its original microcode in `xenos_exec.py`,
@@ -253,10 +258,22 @@ drawn by shaderview (WARP) on one-pixel triangles. Outputs and discarded pixels 
 register after each instruction on both sides (the HLSL inside the instruction's predicate block) and reports the
 first that differs on the pixels that ran it.
 
+A vertex shader (round XD2) runs on random vertex elements (half the vertices in [-1, 1], half in [0, 20) so bone
+indices vary): the interpreter runs its vfetches (each element's value before the destination swizzle; the vertex
+format is the input layout's layer) and records oPos and o0-o15; the translation is wrapped (its `main` renamed and
+called by a wrapper that passes one output on, `nointerpolation`) and each output of each vertex drawn as a pixel of
+its own. Every result lists each jump's lanes (taken, not taken) and the CFs no lane reached; lanes that read
+`c[k + a0]` outside the constant-table array of `c[k]` (a bone index past the bones) are left out of the comparison
+and counted (`out_of_range`): what such a read gives is the register file's layout on either side.
+
 Result on Battlefield 1943's Wake database (2026-11-10): 815 of 815 pixel shaders exact (from 424 before the point
-taps were clamped and cube fetches given their own direction). What it does not cover: the decoder (both sides
-read the instructions through xenos.py - Xenia trace replay is the check for that), vertex shaders (not yet), texture
-formats, gamma and sampler states (texqa, renderqa), and the values the engine feeds in.
+taps were clamped and cube fetches given their own direction). Wake's vertex shaders (2026-11-27, 256 vertices): 728
+of 735 exact; vs251 and vs710 differ by rounding on values near 1e4 (relative 1e-6: catastrophic cancellation on the
+wide inputs), vs53 / vs288 / vs344 / vs622 / vs715 fetch a vertex texture from fetch constant 22, which no sampler of
+their constant table names (the interpreter has no texture for it). The 20 programs the forward emitter translates
+(spec XSH-CF-1) are exact (test_xdiff.py --game). What it does not cover: the decoder (both sides read the
+instructions through xenos.py - Xenia trace replay is the check for that), texture and vertex formats, gamma and
+sampler states (texqa, renderqa), and the values the engine feeds in.
 
 Project OPFOR's `wake_translate.py` puts them together for Wake Island.
 
