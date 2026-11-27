@@ -201,6 +201,30 @@ object (SET-ENG-1).
 [exe: BFBC2Game.exe 0x7C3E70 (caller 0x596CD2 in 0x596BA0; "Sensitivity0" - "5", "InvertScrollWheel" between 0x7C3F00 and 0x7C4A80; getter 0x80D0C0 at 0x7C401C ... 0x7C485A); setters 0x7CC820 / 0x7CC840; 0x8301D0 (caller 0x955C73) reads Vibration, Scheme*, AimAssist, Crouch]
 [doc: opfor:CONTROLLER_PLAN.md:83-89]
 
+### INP-SET-2: Which control writes which input setting
+
+Status: **verified** · Variants: PC
+
+The controls page's slider command `controlsSliderMoved` (0xCC) takes `"<value>,<slider>"`: the value through
+`atof`, the slider by its name, stored as a float with no clamp (SET-PARSE-1) and saved at once (SET-UI-2):
+
+| Slider | Setting |
+|---|---|
+| `mouse_sensitive` | `Sensitivity0` (the mouse's overall sensitivity) |
+| `mouse_yaw_factor` | `Sensitivity1` (the mouse's yaw factor) |
+| `mouse_pitch_factor` | `Sensitivity2` (the mouse's pitch factor) |
+| `joy_sensitive`, `joy_yaw_factor`, `joy_pitch_factor` | `Sensitivity3`, `Sensitivity4`, `Sensitivity5` |
+| any other name | `SensitivityUnknown` (a setting the code then creates and saves) |
+
+So the three mouse sliders are one sensitivity and two axis factors, not one per vehicle class as round SPG3 inferred.
+`controlsSliderValues` (0x13D) answers the six values in index order (`Sensitivity%d`, 0 - 5). The switch command
+`controlInvertToggle` (0xCD) takes `"<switch>,<true|false>"`: `look` sets `Scheme0FlipY` and `Scheme1FlipY`, `fly`
+`Scheme2FlipY`, `wheel` `InvertScrollWheel`, `accelerate` `InputAcceleration` (1 for `true`, else 0).
+
+[test: core/tests/test_spec_probes.py::options]
+[exe: BFBC2Game.exe controlsSliderMoved 0x962F37 (split at "," 0x5175F0; `atof` IAT 0x14054EC at 0x962FDE; name compares 0x963002 - 0x9630C1; float setter 0x82F860 at 0x9630E4); controlsSliderValues 0x95A63B ("Sensitivity%d" 0x1440BB8, `sprintf`, getter 0x80D0C0, 6 values); controlInvertToggle 0x962D45 ("look" 0x1440E24, "fly" 0x1440E20, "wheel" 0x1440E18, "accelerate" 0x1440E0C; int setter 0x82FAB0 at 0x962E0B - 0x962EC9)]
+[data: spec/probes/options.py, 2026-11-27: the pushed names of the two commands' compares, in code order]
+
 ## 4. Devices
 
 ### INP-PAD-1: The PC reads one pad through DirectInput; the console's XInput path is present but not connected
@@ -263,8 +287,8 @@ skips the whole chain and writes the entry input state (BOT-CTL-4).
 
 ## 6. Open questions
 
-- Which of `Sensitivity0` - `Sensitivity2` is the infantry, land and air mouse slider (inferred from the controls
-  page's three mouse sliders; the reads in 0x7C3E70 were not followed to their consumers).
+- Answered by round SPG3-rest: `Sensitivity0` - `Sensitivity2` are the mouse's sensitivity and its yaw and pitch
+  factors (INP-SET-2). How 0x7C3E70 combines them into the turn rate was not followed.
 - `Scheme0InputType` ... `Scheme4InputType`: the values a scheme takes and what `setActiveInputScheme` (which no DICE
   movie calls) switches.
 - The one editable action in no layout (INP-CFG-1), and which concepts have no PC binding at all.
