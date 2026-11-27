@@ -1853,7 +1853,7 @@ browser's **Meshes** mode, then retired the page. The picture command line stays
 | Several meshes side by side (`stack_models`) | **Added in GR3**: Shift+click in Place Objects or Meshes adds to the comparison (laid out by `stack_models`, identical offsets); Remove, Clear comparison | - |
 | The level of detail (`--lod`) | **Added in GR3**: the LOD list of the mesh's levels | - |
 | `--png` (side / top / front, size): a picture | Yes: the Side, Top and Front presets are `render`'s framing and drawing, pixel for pixel; Save picture writes `work\tools_out\meshview\<names>_<view>.png` (1200 px, the command line's grey) | The command line stays (the user's plan) |
-| The page itself (a file holding the models and textures, three.js from a CDN) | Not carried over: the preview draws in the editor, nothing to share or to fetch | `meshview.page()` stays, deprecated, while Project OPFOR's WW2 tools (`attachments.py`, `scopes.py`) write their preview pages with it (`RETIRED.md`) |
+| The page itself (a file holding the models and textures, three.js from a CDN) | Not carried over: the preview draws in the editor, nothing to share or to fetch | `meshview.page()` retired in round OR4: Project OPFOR's WW2 tools (`attachments.py`, `scopes.py`) write their preview pages with `bc2_convert::meshview::page` (`RETIRED.md`) |
 
 Beyond the page (the round's brief): **destruction states** (a blueprint's health states pick its mesh parts, as the
 simplified view does: Intact, each stage, Destroyed, Every part); **textures per channel** (each part's shader entry

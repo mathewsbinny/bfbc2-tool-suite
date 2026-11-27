@@ -28,6 +28,31 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-27
+
+Round OR4 retires `meshview.page()` and `PAGE` (a Python API Project OPFOR used), so this merge releases a minor
+version (`RELEASING.md`, "A merge that removes something"). Project OPFOR's `SUITE_REQUIRES` moves to 0.27.0 - 0.28.0.
+
+### Added
+- **Project OPFOR's WW2 material grid and pictures in Rust** ("OPFOR in Rust" stage 4, round OR4), each as the
+  retired Python made it:
+  - `bc2_install::levelbuild::materialgrid` (`bc2_native.ww2build_grid_roots / _names / _redirect / _merge`): the
+    merged grid of a WW2 level - its builds' roots, the names its data reaches, BF1943's redirected references, each
+    pair's relation (DICE's, BF1943's, a stand-in), the partition under the clone's name and its read-back check;
+  - `bc2_install::levelbuild::textures` (`ww2build_res_types`, `ww2build_stage_textures`): `wake_install`'s
+    `res_type` and `stage_textures`;
+  - `bc2_convert::physmat` (`bc2_native.physmat_*`): a part's material in the dbx field and the part byte together,
+    new materials in the three lists, a model group member's face materials;
+  - `bc2_convert::pictures` (`bc2_native.pictures_*`): the loadout pictures' renderer (NumPy's float64 order, its
+    `dgemv` written out: XWW2-PIC-1), Pillow's `resize` for 8-bit pictures (XWW2-PIC-2), the loading and map pictures
+    and their checks (XWW2-PIC-3), the weapon icons' silhouettes and fit, the minimap plane's paint;
+  - `bc2_convert::meshview::page` (`bc2_native.meshview_page`): the preview page, its textures PNG files of the same
+    pixels (XWW2-PIC-4).
+- Tests: `pictures-native` and `physmat-native` (quick), `bc2-install/tests/materialgrid.rs`.
+
+### Removed
+- `bfbc2-mesh-viewer/meshview.py`'s `page()`, `PAGE` and `_png()` (Project OPFOR calls `bc2_native.meshview_page`).
+
 ## [0.26.0] - 2026-11-23
 
 Round OR2 retires the suite's `terrain._Walk` and `ROAD_VERTEX` (a Python API Project OPFOR used) and the
