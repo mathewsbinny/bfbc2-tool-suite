@@ -41,7 +41,8 @@ N = native.require('the WW2 pictures test', 'pictures_resize')
 FAILS: list[str] = []
 
 
-def check(ok: bool, what: str) -> None:
+def check(ok: object, what: str) -> None:
+    ok = bool(ok)
     print(f'{"ok  " if ok else "FAIL"} {what}')
     if not ok:
         FAILS.append(what)
