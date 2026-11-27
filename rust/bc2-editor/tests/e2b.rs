@@ -208,13 +208,9 @@ fn e2b_through_the_interface() {
         path_test.why,
         Some("The level has no navigation data read (show the navmesh first)")
     );
-    // round E5: the terrain's brushes work but for the visual paint layer
+    // round E5-rest: every terrain brush works; the vegetation's are greyed
     for (w, brushes, why) in [
-        (
-            Workspace::Terrain,
-            1usize,
-            "The visual paint layers come in round E5-rest",
-        ),
+        (Workspace::Terrain, 0usize, ""),
         (Workspace::Vegetation, 2, "Coming in the"),
     ] {
         app.run_action(&gpu, &ctx, Action::SetWorkspace(w));
