@@ -74,9 +74,6 @@ def main() -> int:
     print(f'soldier: {seen} parts with texture coordinates, all from the half2 at 40 (not the half4 at 16), '
           f'{inside} spanning the texture')
     laid = meshview._layout([('garand', parts)])
-    html = meshview.page(laid, 'test')
-    if html.count('"tris"') != len(parts):
-        fails.append('the page does not embed every part')
     img = meshview.render(laid, 400)
     lit = int((np.abs(img.astype(int) - 40).sum(2) > 30).sum())
     if lit < 2000:

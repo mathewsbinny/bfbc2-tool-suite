@@ -186,12 +186,14 @@ const XVAL: &[Row] = &[
     (
         "XVAL-EDIT-5",
         Error,
-        "Visual paint layers are not exported yet",
-        "The project paints a visual paint layer, and the export does not write the visual terrain yet (round \
-         E5 writes the sculpted height field and the material map; the visual paint is E5-rest's): it refuses the \
-         project. Undo the paint strokes to export the rest.",
-        &["XLOG-DELTA-1", "TERR-VT-5"],
-        &[Edit, Build],
+        "A visual paint layer cannot be written",
+        "The project paints a visual layer the export cannot write into this terrain (round E5-rest): the \
+         terrain's patch shaders do not give each layer one kind (TEDIT-VT-2), the layer is a rule layer or not \
+         the terrain's, a painted layer combination has no patch shader and none of the same kinds to clone \
+         (TEDIT-SH-1), the mask atlas has no free tile (TEDIT-ATL-1), or the paint raster is not the height \
+         field's size. Undo those paint strokes to export the rest.",
+        &["XLOG-DELTA-1", "TERR-VT-5", "TEDIT-VT-2"],
+        &[Build],
         "OP1",
     ),
     (
@@ -661,6 +663,19 @@ const XVAL: &[Row] = &[
         &["TEDIT-HF-3", "TEDIT-MM-1"],
         &[Stage],
         "E5",
+    ),
+    (
+        "XVAL-TERR-3",
+        Error,
+        "A painted terrain's visual side reads back whole",
+        "The visual terrain, mask atlas, colour / occlusion map and patch shader entries the project's paint \
+         rewrote (round E5-rest) must read back: every rewritten patch-map cell names a patch shader of the list, \
+         tiles inside the atlas and as many non-zero flags as its shader has tiled layers (TEDIT-VT-1); the base's \
+         patch shaders, road blocks and patch-map headers kept; the atlas and the colour map in the base's format, \
+         size and levels; every patch shader the paint cloned present in each of the level's databases.",
+        &["TEDIT-VT-1", "TEDIT-SH-1", "TEDIT-OCC-1"],
+        &[Stage],
+        "E5-rest",
     ),
     // ---- console data
     (

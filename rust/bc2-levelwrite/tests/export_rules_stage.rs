@@ -257,6 +257,7 @@ fn v1_build_refusals() {
             target: bc2_levelwrite::files::Target::Paint { layer: "grass".into() },
             size: [64, 64],
             tiles: Vec::new(),
+            also: Vec::new(),
         },
         "Paint",
     );

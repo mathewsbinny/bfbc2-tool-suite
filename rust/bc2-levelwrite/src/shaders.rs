@@ -270,7 +270,7 @@ pub fn game_levels(game: &Game) -> Vec<String> {
 
 /// A level's own database of the given file name (`dx11_single.res`), as the game reads it (its `Package` copy
 /// before its `Dist` one).
-fn level_database(game: &Game, lv: &str, file: &str) -> crate::export::Result<Option<Vec<u8>>> {
+pub(crate) fn level_database(game: &Game, lv: &str, file: &str) -> crate::export::Result<Option<Vec<u8>>> {
     let bundles: Vec<PathBuf> = game.level_bundles(lv, "level");
     let live = game.live(&bundles)?;
     let want = format!("levels/{lv}/shaders/{file}");

@@ -46,6 +46,9 @@ landed on `main`.
   -0.07, `ground` -0.004) are named exceptions in `spec/transforms/navkit.md`. **Path data NavKit builds changes**;
   navregress's reference `regression` re-recorded (the old one kept as `regression_before_2026-11-27_nksdd.json`).
 
+- **XVAL-EDIT-5** (round E5-rest) no longer refuses every visual paint: the export writes it, and refuses only a paint
+  it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
+
 ### Added
 - **NavKit: four walkability and placement switches, measured for the user's ruling** (round NKS-deep D,
   `rust/BENCHMARKS.md` "NKS-deep D"): `navregress.RECT_ON_DICE_LEVELS` (the rectangle in place of DICE's extent on
@@ -57,6 +60,42 @@ landed on `main`.
 - **Spec: the autoseed step and the map builder's derived limits** (round NKS-deep D): KYG-SEED-3 (autoseeds are
   terrain, within the slope limit and open to the sky for 100 m; every sector is probed), KYG-PAR-4 (HoleMax is
   -StepMax; the step and slope limits as ratios).
+- **The map editor paints the terrain's other layers** (round E5-rest, spec TEDIT-VT-2, TEDIT-MM-2, TEDIT-RING-1,
+  XVAL-TERR-3, TEDIT-SH-1 and TEDIT-OCC-1 implemented): the **Paint layer** brush lays one of the terrain's visual
+  layers into its patch cells and mask tiles (a patch shader the terrain lacks is cloned with its textures
+  retargeted; 7 of `Dist\win32`'s 23 terrains give each layer one kind and can be painted, the others are refused in
+  words), optionally with its **paired material** (measured on the terrain's own cells: MP_005's Asphalt -> Tarmac
+  85 %); the **Shade** brush and **Re-shade sculpted area** edit the colour / occlusion map (only the blocks under the
+  edit rewritten); **Widen range** raises the height range with the ground kept; **Add material** adds a material of
+  the level's grid to the material map; sculpts reach the **sub-terrain ring**, stitched as DICE stitches its rings;
+  the material map is drawn around the brush; the game-accurate view follows a stroke while it is made. The export
+  writes all of it (`mapexport check`: XVAL-TERR-2 / -3). Project format 12 (`terrain-range`, `material-add`, colour
+  and ring strokes, strokes over several rasters).
+
+## [0.28.0] - 2026-11-27
+
+Round OR4 retires `meshview.page()` and `PAGE` (a Python API Project OPFOR used), so this merge releases a minor
+version (`RELEASING.md`, "A merge that removes something"; OR5 merged first with 0.27.0). Project OPFOR's `SUITE_REQUIRES` moves to 0.28.0 - 0.29.0.
+
+### Added
+- **Project OPFOR's WW2 material grid and pictures in Rust** ("OPFOR in Rust" stage 4, round OR4), each as the
+  retired Python made it:
+  - `bc2_install::levelbuild::materialgrid` (`bc2_native.ww2build_grid_roots / _names / _redirect / _merge`): the
+    merged grid of a WW2 level - its builds' roots, the names its data reaches, BF1943's redirected references, each
+    pair's relation (DICE's, BF1943's, a stand-in), the partition under the clone's name and its read-back check;
+  - `bc2_install::levelbuild::textures` (`ww2build_res_types`, `ww2build_stage_textures`): `wake_install`'s
+    `res_type` and `stage_textures`;
+  - `bc2_convert::physmat` (`bc2_native.physmat_*`): a part's material in the dbx field and the part byte together,
+    new materials in the three lists, a model group member's face materials;
+  - `bc2_convert::pictures` (`bc2_native.pictures_*`): the loadout pictures' renderer (NumPy's float64 order, its
+    `dgemv` written out: XWW2-PIC-1), Pillow's `resize` for 8-bit pictures (XWW2-PIC-2), the loading and map pictures
+    and their checks (XWW2-PIC-3), the weapon icons' silhouettes and fit, the minimap plane's paint;
+  - `bc2_convert::meshview::page` (`bc2_native.meshview_page`): the preview page, its textures PNG files of the same
+    pixels (XWW2-PIC-4).
+- Tests: `pictures-native` and `physmat-native` (quick), `bc2-install/tests/materialgrid.rs`.
+
+### Removed
+- `bfbc2-mesh-viewer/meshview.py`'s `page()`, `PAGE` and `_png()` (Project OPFOR calls `bc2_native.meshview_page`).
 
 ## [0.27.0] - 2026-11-27
 

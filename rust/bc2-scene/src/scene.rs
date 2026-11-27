@@ -281,6 +281,21 @@ impl LoadOptions {
     }
 }
 
+/// The terrain's resources besides its height field and material map (round E5-rest), as the level's files hold
+/// them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TerrainExtra {
+    /// `<T>.Visual.res` (the patch shaders and patch maps).
+    pub visual: Option<Vec<u8>>,
+    /// `<T>.MaskTileAtlas.res`.
+    pub atlas: Option<Vec<u8>>,
+    /// The sub-terrain ring's blocks, `<T>.Heightfield-001.res` on, in order (empty without a ring).
+    pub ring: Vec<Vec<u8>>,
+    /// The colour / occlusion map: its resource name (lower case, `terrains/mp_005/textures/mp05_ambientocclusion.res`)
+    /// and bytes.
+    pub colour: Option<(String, Vec<u8>)>,
+}
+
 /// A loaded level.
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
@@ -303,6 +318,10 @@ pub struct Scene {
     /// The terrain's physics material map (round E5: `<T>-MaterialMap.res` beside the height field, when it is
     /// there and reads); shared by the scene's clones.
     pub material_map: Option<Arc<bc2_formats::terrain_codec::MaterialMap>>,
+    /// The terrain's other resources the editor paints (round E5-rest: the visual terrain, its mask atlas, the ring
+    /// blocks beside the height field, the colour / occlusion map from the level's own folder), when they were
+    /// there; shared by the scene's clones.
+    pub terrain_extra: Option<Arc<TerrainExtra>>,
     /// What could not be read, as `Level.notes`.
     pub notes: Vec<String>,
     /// The partitions as read: shared by the scene's clones (never edited).
@@ -334,6 +353,7 @@ impl Scene {
             terrain: self.terrain.clone(),
             water: self.water.clone(),
             material_map: self.material_map.clone(),
+            terrain_extra: self.terrain_extra.clone(),
             notes: self.notes.clone(),
             files: Arc::clone(&self.files),
             changed,
@@ -1040,6 +1060,10 @@ pub fn load(options: &LoadOptions) -> Result<Scene> {
                     Err(e) => scene.notes.push(format!("material map {}: {e}", p.display())),
                 }
             }
+            // round E5-rest: the visual terrain, atlas and ring beside it, the colour / occlusion map in a base
+            if let Some(p) = options.heightfield.as_deref() {
+                scene.terrain_extra = terrain_extra(p, &options.bases).map(Arc::new);
+            }
         }
         Some(Err(note)) => scene.notes.push(note),
         None => {}
@@ -1050,6 +1074,85 @@ pub fn load(options: &LoadOptions) -> Result<Scene> {
         None => {}
     }
     Ok(scene)
+}
+
+/// The terrain's other resources beside a main height field (`MP_005.Heightfield-000.res`: `MP_005.Visual.res`,
+/// `MP_005.MaskTileAtlas.res`, `MP_005.Heightfield-001.res` ...) and its colour / occlusion map in the first of
+/// `bases` that holds `Terrains/<T>/Textures/<name with occ>.res` (`mp05_AmbientOcclusion`, `MP008_Occlusion`,
+/// `sp05_snowocc`); `None` when none of them is there.
+#[must_use]
+pub fn terrain_extra(heightfield: &Path, bases: &[PathBuf]) -> Option<TerrainExtra> {
+    let name = heightfield.file_name()?.to_string_lossy().to_ascii_lowercase();
+    let stem = name.strip_suffix(".heightfield-000.res")?.to_owned();
+    let dir = heightfield.parent()?;
+    let files: Vec<PathBuf> = std::fs::read_dir(dir).ok()?.flatten().map(|e| e.path()).collect();
+    let find = |want: &str| {
+        files
+            .iter()
+            .find(|p| {
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(want))
+            })
+            .and_then(|p| std::fs::read(p).ok())
+    };
+    let mut x = TerrainExtra {
+        visual: find(&format!("{stem}.visual.res")),
+        atlas: find(&format!("{stem}.masktileatlas.res")),
+        ring: (1..)
+            .map_while(|k| find(&format!("{stem}.heightfield-{k:03}.res")))
+            .collect(),
+        colour: None,
+    };
+    let folder = dir.file_name()?.to_string_lossy().into_owned();
+    for b in bases {
+        let Ok(rd) = std::fs::read_dir(b) else { continue };
+        let Some(terrains) = rd.flatten().map(|e| e.path()).find(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case("terrains"))
+        }) else {
+            continue;
+        };
+        let Some(t) = std::fs::read_dir(&terrains).ok().and_then(|rd| {
+            rd.flatten().map(|e| e.path()).find(|p| {
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(&folder))
+            })
+        }) else {
+            continue;
+        };
+        let Some(tex) = std::fs::read_dir(&t).ok().and_then(|rd| {
+            rd.flatten().map(|e| e.path()).find(|p| {
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case("textures"))
+            })
+        }) else {
+            continue;
+        };
+        let mut cands: Vec<PathBuf> = std::fs::read_dir(&tex)
+            .ok()?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.extension().is_some_and(|e| e.eq_ignore_ascii_case("res"))
+                    && p.file_name()
+                        .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().contains("occ"))
+            })
+            .collect();
+        cands.sort();
+        if let Some(c) = cands.first()
+            && let Ok(bytes) = std::fs::read(c)
+        {
+            let file = c
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().to_ascii_lowercase());
+            x.colour = Some((
+                format!("terrains/{}/textures/{file}", folder.to_ascii_lowercase()),
+                bytes,
+            ));
+            break;
+        }
+    }
+    (x.visual.is_some() || x.atlas.is_some() || !x.ring.is_empty() || x.colour.is_some()).then_some(x)
 }
 
 /// The material map beside a main height field (`MP_005.Heightfield-000.res` -> `MP_005-MaterialMap.res` in the same

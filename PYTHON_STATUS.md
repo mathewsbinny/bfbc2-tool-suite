@@ -25,21 +25,21 @@ rounds NK4 and NK5.
 | Status | Files | Lines |
 |---|---:|---:|
 | live | 18 | 5,287 |
-| partly | 21 | 16,904 |
+| partly | 20 | 16,518 |
 | twin | 56 | 19,670 |
-| ported | 21 | 2,584 |
+| ported | 22 | 2,890 |
 | retired-pending | 3 | 310 |
-| stays | 68 | 13,354 |
-| test | 189 | 52,191 |
-| **all** | **376** | **110,300** |
+| stays | 68 | 13,356 |
+| test | 191 | 52,486 |
+| **all** | **378** | **110,517** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,434 | 56 |  |  |  |  |  | 1,378 |
+| `(root)` | 2 | 1,440 | 56 |  |  |  |  |  | 1,384 |
 | `bfbc2-anim-tools` | 8 | 2,717 |  | 1,027 |  | 106 |  |  | 1,584 |
 | `bfbc2-auto-navkit` | 56 | 14,803 | 1,859 | 4,408 | 2,821 | 273 |  |  | 5,442 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
-| `bfbc2-bf1943-import` | 26 | 10,508 | 546 | 1,540 | 3,273 | 56 |  |  | 5,093 |
+| `bfbc2-bf1943-import` | 27 | 10,636 | 546 | 1,540 | 3,273 | 56 |  |  | 5,221 |
 | `bfbc2-console-convert` | 24 | 6,498 |  | 1,817 | 1,209 | 36 |  |  | 3,436 |
 | `bfbc2-console-readers` | 5 | 1,449 |  |  | 835 |  |  |  | 614 |
 | `bfbc2-culltree` | 4 | 1,898 |  |  | 1,051 |  |  |  | 847 |
@@ -47,14 +47,14 @@ rounds NK4 and NK5.
 | `bfbc2-fbrb-tool` | 1 | 18 |  |  |  |  | 18 |  |  |
 | `bfbc2-map-editor` | 20 | 2,141 |  |  | 1,282 |  |  | 859 |  |
 | `bfbc2-menu-tools` | 12 | 6,659 |  | 2,941 | 1,466 |  |  |  | 2,252 |
-| `bfbc2-mesh-viewer` | 4 | 697 |  | 386 |  |  |  | 78 | 233 |
-| `bfbc2-model-tools` | 8 | 1,926 |  | 267 | 849 |  |  |  | 810 |
+| `bfbc2-mesh-viewer` | 4 | 614 |  |  |  | 306 |  | 78 | 230 |
+| `bfbc2-model-tools` | 9 | 2,090 |  | 267 | 849 |  |  |  | 974 |
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 18 | 11,171 | 1,430 | 3,775 | 984 | 126 |  |  | 4,856 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
 | `core` | 76 | 20,381 | 760 |  | 2,429 | 1,909 |  |  | 15,283 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 34 | 6,140 |  |  |  |  |  | 5,873 | 267 |
+| `rust` | 34 | 6,142 |  |  |  |  |  | 5,875 | 267 |
 | `spec` | 19 | 6,491 |  |  |  |  |  | 6,491 |  |
 | `tests` | 29 | 7,622 |  |  |  |  |  |  | 7,622 |
 
@@ -62,12 +62,12 @@ Lines by status in the folder table.
 
 ## `(root)`
 
-2 files, 1,434 lines.
+2 files, 1,440 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 56 | library | live |  | every Python tool and test; OPFOR 2 | the last Python | the one sys.path bootstrap |
-| `run_tests.py` | 1378 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1384 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
@@ -171,7 +171,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-bf1943-import`
 
-26 files, 10,508 lines.
+27 files, 10,636 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -200,6 +200,7 @@ Lines by status in the folder table.
 | `bfbc2-bf1943-import/tests/test_havokport_native.py` | 630 | test | test |  | run_tests.py | Tests in Rust | Round F2b (rust/BENCHMARKS.md, "F2b"): mopp.py and havokport.py in the Rust core against their Python (the... |
 | `bfbc2-bf1943-import/tests/test_meshport.py` | 153 | test | test |  | run_tests.py | Tests in Rust | meshport.py on Battlefield 1943's models (game tier; skipped without the Rising Sun workspace or the game c... |
 | `bfbc2-bf1943-import/tests/test_parity_reports.py` | 82 | test | test |  | run_tests.py | Tests in Rust | The parity tools' reports on the user's files (game tier; skipped without the Rising Sun workspace, the gam... |
+| `bfbc2-bf1943-import/tests/test_physmat_native.py` | 128 | test | test |  | run_tests.py | Tests in Rust | Project OPFOR's physics-material edits in the Rust core (round OR4, "OPFOR in Rust" stage 4: bc2_convert::p... |
 | `bfbc2-bf1943-import/tests/test_ports_native.py` | 607 | test | test |  | run_tests.py | Tests in Rust | Round E3g (rust/BENCHMARKS.md, "E3g"): the BF1943 model / physics / effect ports' faster paths. |
 
 ## `bfbc2-console-convert`
@@ -320,18 +321,18 @@ Lines by status in the folder table.
 
 ## `bfbc2-mesh-viewer`
 
-4 files, 697 lines.
+4 files, 614 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-mesh-viewer/meshview.py` | 386 | tool entry point | partly | bc2_convert::meshview; bfbc2 meshview; the editor's preview; embedded | 25 suite modules (shaderdb, bf1943import, texqa ...); tests 31; OPFOR 47 | PR1b-2 | PR1b-2-rest: Index / load_mesh / mesh_surfaces / stack_models / render on the Rust port through bc2_native (MeshViewIndex, meshview_render), the pickle cache retired (meshview_index.bin); left in Python: the NumPy arrays and dicts, _bundles (OPFOR's step tracker sees its walk), the partition cache of read(), page() (OPFOR's WW2 preview pages) |
+| `bfbc2-mesh-viewer/meshview.py` | 306 | tool entry point | ported | bc2_convert::meshview; bfbc2 meshview; the editor's preview; embedded | 25 suite modules (shaderdb, bf1943import, texqa ...); tests 31; OPFOR 47 | PR1b-2 | PR1b-2-rest: Index / load_mesh / mesh_surfaces / stack_models / render on the Rust port through bc2_native (MeshViewIndex, meshview_render), the pickle cache retired (meshview_index.bin); page() retired in OR4 (bc2_convert::meshview::page, OPFOR's preview pages); left in Python: the NumPy arrays and dicts, _bundles (OPFOR's step tracker sees its walk), the partition cache of read() |
 | `bfbc2-mesh-viewer/tests/record_preview_parity.py` | 78 | test helper or golden recorder | stays |  | by hand (gr3.rs reads its output) | PR1b-2 | recorded meshview's answers for the editor's asset preview (GR3); the recording is the retired Python's (since PR1b-2-rest meshview.py is the Rust port: running it again records the port) |
-| `bfbc2-mesh-viewer/tests/test_meshview.py` | 81 | test | test |  | run_tests.py | Tests in Rust | meshview.py on the game's files (game tier; skipped without them): - the M1 Garand's first-person mesh read... |
+| `bfbc2-mesh-viewer/tests/test_meshview.py` | 78 | test | test |  | run_tests.py | Tests in Rust | meshview.py on the game's files (game tier; skipped without them): - the M1 Garand's first-person mesh read... |
 | `bfbc2-mesh-viewer/tests/test_meshview_index.py` | 152 | test | test |  | run_tests.py | Tests in Rust | meshview.py's game-copy index without the game (quick tier): the bundles it indexes (stock levels and async... |
 
 ## `bfbc2-model-tools`
 
-8 files, 1,926 lines.
+9 files, 2,090 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -342,6 +343,7 @@ Lines by status in the folder table.
 | `bfbc2-model-tools/tests/test_decimate.py` | 234 | test | test |  | run_tests.py | Tests in Rust | decimate.py (unit tier): a UV sphere (its texture seam split into two wedges per point, as a game mesh has... |
 | `bfbc2-model-tools/tests/test_model_f2a_native.py` | 298 | test | test |  | run_tests.py | Tests in Rust | Round F2a: the model tools in the Rust core against their Python reference - texwrite.py (texture: the leve... |
 | `bfbc2-model-tools/tests/test_models.py` | 123 | test | test |  | run_tests.py | Tests in Rust | skinmesh.py, shapes.py and the skinned mesh sets (console converter's meshset.py) on the game's files (game... |
+| `bfbc2-model-tools/tests/test_pictures_native.py` | 164 | test | test |  | run_tests.py | Tests in Rust | Project OPFOR's WW2 pictures in the Rust core (round OR4, "OPFOR in Rust" stage 4: bc2_convert::pictures an... |
 | `bfbc2-model-tools/tests/test_texwrite.py` | 155 | test | test |  | run_tests.py | Tests in Rust | texwrite.py (unit tier; the game tier part skipped without the game): - layout: a 512 x 512 colour texture... |
 
 ## `bfbc2-navigation-studio`
@@ -489,7 +491,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-34 files, 6,140 lines.
+34 files, 6,142 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -524,7 +526,7 @@ Lines by status in the folder table.
 | `rust/parity_nk3_detail.py` | 512 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py) |
 | `rust/parity_nk4_walk.py` | 181 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk5_build.py` | 109 | benchmark or parity script | stays |  | by hand | stays | round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory) |
-| `rust/python_status.py` | 881 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 883 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 

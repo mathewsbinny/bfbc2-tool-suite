@@ -18,10 +18,9 @@ the parts' rest positions (skinned meshes: the pose they were modelled in). Noth
 # Round PR1b-2-rest (audit AU5 ARC-4): the index, load_mesh, mesh_surfaces, stack_models and render are the Rust
 # port's (bc2_native: MeshViewIndex, meshview_stack, meshview_render; rust/bc2-convert/src/meshview), this module the
 # NumPy arrays and dicts its callers take. The index's cache is work\tools_out\meshview_index.bin (bc2_gamefs'
-# format; the pickle meshview_index.pkl retired). page() stays Python: Project OPFOR BFBC2's WW2 previews write it.
-import base64
+# format; the pickle meshview_index.pkl retired). page() went in round OR4: Project OPFOR BFBC2's WW2 previews write
+# their pages with the Rust's (bc2_native.meshview_page, rust/bc2-convert/src/meshview/page.rs).
 import collections
-import io
 import os
 import re
 import sys
@@ -258,13 +257,6 @@ def load_mesh(ix, name, lod=0):
 
 # ------------------------------------------------------------------------------------------------ output
 
-def _png(img):
-    from PIL import Image
-    buf = io.BytesIO()
-    Image.fromarray(img).save(buf, 'PNG')
-    return buf.getvalue()
-
-
 def _f32(a: Any) -> bytes:
     return np.ascontiguousarray(a, dtype='<f4').tobytes()
 
@@ -310,84 +302,6 @@ def render(laid, size=1200, view='side'):
             for _, parts, off in laid]
     w, h, rgb = _native().meshview_render(jobs, int(size), view)
     return np.frombuffer(rgb, np.uint8).reshape(h, w, 3).copy()
-
-
-PAGE = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>%(title)s</title>
-<style>
-:root { --bg: #1d1f22; --panel: #2a2d31; --text: #e6e6e6; --muted: #9aa0a6; }
-html, body { margin: 0; height: 100%%; background: var(--bg); color: var(--text); font: 13px system-ui, sans-serif; }
-#panel { position: absolute; top: 8px; left: 8px; max-height: calc(100%% - 16px); overflow: auto; background: var(--panel);
-         padding: 8px 10px; border-radius: 6px; max-width: 420px; }
-#panel h2 { font-size: 13px; margin: 8px 0 4px; } #panel label { display: block; white-space: nowrap; }
-#panel small { color: var(--muted); } canvas { display: block; }
-</style>
-<script type="importmap">{"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
-</head><body><div id="panel"><b>%(title)s</b><br><small>drag: orbit - right drag: pan - wheel: zoom</small>
-<label><input type="checkbox" id="wire"> wireframe</label><div id="parts"></div></div>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-const MODELS = %(models)s;
-const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(devicePixelRatio); renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
-const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1d1f22);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.2));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(2, 3, 2); scene.add(sun);
-const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.001, 1000);
-const controls = new OrbitControls(camera, renderer.domElement);
-const box = new THREE.Box3(), mats = [], list = document.getElementById('parts');
-for (const m of MODELS) {
-  const h = document.createElement('h2'); h.textContent = m.name; list.appendChild(h);
-  for (const p of m.parts) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(b64(p.pos)), 3));
-    if (p.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(b64(p.uv)), 2));
-    g.setIndex(new THREE.BufferAttribute(new Uint32Array(b64(p.idx)), 1));
-    g.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ color: p.tex ? 0xffffff : 0xaaaaaa, roughness: 0.7, side: THREE.DoubleSide });
-    if (p.tex) { const t = new THREE.TextureLoader().load('data:image/png;base64,' + p.tex); t.flipY = false;
-                 t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; mat.map = t; }
-    mats.push(mat);
-    const mesh = new THREE.Mesh(g, mat); mesh.position.set(...m.offset); scene.add(mesh); box.expandByObject(mesh);
-    const l = document.createElement('label'), c = document.createElement('input');
-    c.type = 'checkbox'; c.checked = true; c.onchange = () => { mesh.visible = c.checked; };
-    l.append(c, ' ' + p.name + ' '); const s = document.createElement('small');
-    s.textContent = `${p.tris} tris` + (p.texname ? ' - ' + p.texname.split('/').pop() : ''); l.append(s); list.appendChild(l);
-  }
-}
-const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length();
-camera.position.set(c.x, c.y + r * 0.2, c.z + r * 1.1); controls.target.copy(c); controls.update();
-document.getElementById('wire').onchange = e => mats.forEach(m => { m.wireframe = e.target.checked; });
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); });
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
-</script></body></html>
-"""
-
-
-def page(laid, title):
-    """The laid-out models as a page for a browser (three.js). Deprecated (round GR3): the command line no longer
-    writes it - the map editor's asset preview replaced it - and it stays only because Project OPFOR BFBC2's WW2 tools
-    (attachments.py, scopes.py) still write their preview pages with it; its output is unchanged."""
-    import json
-    models = []
-    for name, parts, off in laid:
-        ps = []
-        for p in parts:
-            ps.append({'name': p['name'], 'tris': len(p['indices']), 'texname': p['texture'],
-                       'pos': base64.b64encode(p['positions'].astype('<f4').tobytes()).decode(),
-                       'uv': base64.b64encode(p['uvs'].astype('<f4').tobytes()).decode() if p['uvs'] is not None else None,
-                       'idx': base64.b64encode(p['indices'].astype('<u4').tobytes()).decode(),
-                       'tex': base64.b64encode(_png(p['image'])).decode() if p['image'] is not None else None})
-        models.append({'name': name.split('/')[-1], 'offset': [float(v) for v in off], 'parts': ps})
-    import html
-    # the title goes into the markup, the models into a script block: neither may close what holds it
-    return PAGE % {'title': html.escape(title), 'models': json.dumps(models).replace('</', '<\\/')}
 
 
 # ------------------------------------------------------------------------------------------------ command line

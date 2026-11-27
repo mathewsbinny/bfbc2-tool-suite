@@ -222,8 +222,10 @@ pub enum Brush {
     Ramp,
     /// Paint the physics material (round E5: the material map's cells).
     Material,
-    /// Paint a texture layer.
+    /// Paint a visual layer (round E5-rest: the patch map's cells and the mask atlas's tiles).
     Paint,
+    /// Shade the colour / occlusion map (round E5-rest: darken, or lighten with a negative strength's sign).
+    Shade,
     /// Scatter vegetation.
     Scatter,
     /// Erase vegetation.
@@ -232,7 +234,7 @@ pub enum Brush {
 
 impl Brush {
     /// Every brush: the terrain's, then the vegetation's.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Raise,
         Self::Lower,
         Self::Smooth,
@@ -241,6 +243,7 @@ impl Brush {
         Self::Ramp,
         Self::Material,
         Self::Paint,
+        Self::Shade,
         Self::Scatter,
         Self::Erase,
     ];
@@ -254,12 +257,10 @@ impl Brush {
         }
     }
 
-    /// Why it cannot be used yet, or `None` (round E5: the sculpt and material brushes work; the visual paint
-    /// layers and the vegetation's come later).
+    /// Why it cannot be used yet, or `None` (round E5-rest: every terrain brush works; the vegetation's come later).
     #[must_use]
     pub fn coming(self) -> Option<&'static str> {
         match self {
-            Self::Paint => Some("The visual paint layers come in round E5-rest"),
             Self::Scatter | Self::Erase => Some("Coming in the vegetation round"),
             _ => None,
         }
@@ -277,6 +278,7 @@ impl Brush {
             Self::Ramp => "Ramp",
             Self::Material => "Material",
             Self::Paint => "Paint layer",
+            Self::Shade => "Shade",
             Self::Scatter => "Scatter",
             Self::Erase => "Erase",
         }
@@ -1014,6 +1016,7 @@ pub fn registry() -> Vec<Entry> {
                 Brush::Ramp => "Ramp terrain",
                 Brush::Material => "Paint terrain material",
                 Brush::Paint => "Paint terrain layer",
+                Brush::Shade => "Shade terrain colour",
                 Brush::Scatter => "Scatter vegetation",
                 Brush::Erase => "Erase vegetation",
             },
@@ -1028,7 +1031,10 @@ pub fn registry() -> Vec<Entry> {
                 Brush::Material => {
                     "Paints the physics material (footsteps, impacts, dust) into the terrain's material map"
                 }
-                Brush::Paint => "Paints a texture layer under the terrain-patch rules (round E5-rest)",
+                Brush::Paint => {
+                    "Paints one of the terrain's visual layers into its patch cells and mask tiles (with its paired                      material when chosen)"
+                }
+                Brush::Shade => "Darkens (or lightens) the terrain's colour / occlusion map under the brush",
                 Brush::Scatter => "Scatters vegetation that passes the safe-to-place rules (a later round)",
                 Brush::Erase => "Erases scattered vegetation (a later round)",
             },

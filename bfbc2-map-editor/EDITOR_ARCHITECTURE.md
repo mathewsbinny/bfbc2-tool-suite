@@ -1676,9 +1676,38 @@ byte for byte but the intended changes, every check line passing; install and re
   `mapexport check` holds the rest of the bundle byte for byte (XVAL-TERR-1) and reads the two back (XVAL-TERR-2).
   The path-data step counts a sculpt as a collision change; the stage sampler writes the staged height field over the
   base's terrain unpack before sampling (TEDIT-NAV-1).
-- **Left (E5-rest)**: the occlusion / colour paint layer and its re-shade, the visual paint layers, widening the height
-  range, new material names, strokes over the sub-terrain ring, and the in-game playtest (`spec/transforms/terrain_edit.md`
-  section 5).
+- **Left (E5-rest, below)**: the occlusion / colour paint layer and its re-shade, the visual paint layers, widening the
+  height range, new material names, strokes over the sub-terrain ring, and the in-game playtest
+  (`spec/transforms/terrain_edit.md` section 5).
+
+#### Round E5-rest: the terrain's other layers (2026-11-27)
+
+- **The layers as rasters and operations** (project format 12): `Target::Paint { layer }` (a visual layer's weights
+  over the height field's samples), `Target::Colour { file }` (the colour / occlusion map's level-0 texels as 5:6:5
+  colours or grey levels), `Target::Ring { file }` (the 12 ring blocks as one 256 x 256 raster); a `stroke` may change
+  several rasters as one operation (`also`: a sculpt reaching the ring, a paint with its paired material);
+  `terrain-range` (the height range widened, every stored height rescaled) and `material-add` (a name of the level's
+  grid added to the map). `LevelFiles` keeps the widened ranges and added names beside its rasters.
+- **The writers** (`bc2_levelwrite::terrainpaint`, `terrainedit`): `LayerModel` (a terrain's paint layers from its
+  patch shaders' names, TEDIT-VT-2), `paint` (cells, mask tiles, cloned patch shaders: TEDIT-VT-1, TEDIT-ATL-1 / -2,
+  TEDIT-SH-1), `pairing` (TEDIT-MM-2), `write_colour` / `reshade` (TEDIT-OCC-1, through `itexture::splice` and
+  `bc2_terragen::visual::sky_visibility_over`), `write_heights_in` / `rescale` (TEDIT-HF-2), `write_materials_named`,
+  `write_ring` (TEDIT-RING-1). The export's `terrain_writes` makes every terrain resource from the log; the cloned
+  patch shaders go into each staged database after the shaders step, the colour map into the level's own bundle;
+  `mapexport check` reads them back (XVAL-TERR-2, XVAL-TERR-3). A paint it cannot write is refused in words
+  (XVAL-EDIT-5).
+- **The document** (`bc2_editor::edit`'s child module `terraindoc`): `colour_target`, `ring_target`, `layer_model`,
+  `paint_layers`, `terrain_range` / `widen_range`, `material_names` / `materials_to_add` / `add_material`, `pairing`,
+  `stroke_parts`, `reshade` - the API a second tool (round RD1's roads) paints the same layers through. The scene
+  loads the extra resources (`bc2_scene::scene::TerrainExtra`: the visual terrain, atlas and ring beside the height
+  field, the colour map from the level's folder) and follows a widened range and its undo.
+- **The brushes** (`bc2_editor::sculpt`): Paint layer (`paint_layer_dab`; its paired material painted by the same
+  stroke), Shade (`shade_dab`, `Brush::Shade`), sculpt dabs reaching the ring (`ring_ground`, `reaches_ring`); a
+  finished stroke is `Outcome::Stroke(parts, ..)`; the material map is drawn around the brush while materials are
+  painted (`material_overlay`); the game-accurate view takes the heights of a stroke under way every 150 ms. The
+  toolbar has the layer, "Paired material", "Lighten", "Re-shade sculpted area", "Widen range" and "Add material".
+- **Left**: the per-shader tiled-layer model for the 16 terrains whose layers are not one kind each, growing the atlas,
+  the formats of SP_04's and SP_006's colour maps, and the in-game playtest.
 
 ## 4. Stage 2: new maps from imported or randomized terrain
 
@@ -1853,7 +1882,7 @@ browser's **Meshes** mode, then retired the page. The picture command line stays
 | Several meshes side by side (`stack_models`) | **Added in GR3**: Shift+click in Place Objects or Meshes adds to the comparison (laid out by `stack_models`, identical offsets); Remove, Clear comparison | - |
 | The level of detail (`--lod`) | **Added in GR3**: the LOD list of the mesh's levels | - |
 | `--png` (side / top / front, size): a picture | Yes: the Side, Top and Front presets are `render`'s framing and drawing, pixel for pixel; Save picture writes `work\tools_out\meshview\<names>_<view>.png` (1200 px, the command line's grey) | The command line stays (the user's plan) |
-| The page itself (a file holding the models and textures, three.js from a CDN) | Not carried over: the preview draws in the editor, nothing to share or to fetch | `meshview.page()` stays, deprecated, while Project OPFOR's WW2 tools (`attachments.py`, `scopes.py`) write their preview pages with it (`RETIRED.md`) |
+| The page itself (a file holding the models and textures, three.js from a CDN) | Not carried over: the preview draws in the editor, nothing to share or to fetch | `meshview.page()` retired in round OR4: Project OPFOR's WW2 tools (`attachments.py`, `scopes.py`) write their preview pages with `bc2_convert::meshview::page` (`RETIRED.md`) |
 
 Beyond the page (the round's brief): **destruction states** (a blueprint's health states pick its mesh parts, as the
 simplified view does: Intact, each stage, Destroyed, Every part); **textures per channel** (each part's shader entry

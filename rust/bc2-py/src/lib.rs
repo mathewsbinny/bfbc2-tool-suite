@@ -98,6 +98,8 @@ mod navwalk;
 mod onslaught;
 mod pathdata;
 mod pefile;
+mod physmat;
+mod pictures;
 mod scene;
 mod shaderdb_handle;
 mod shaderdb_levels;
@@ -479,6 +481,21 @@ mod bc2_native {
         ww2build_patch_refs, ww2build_port_missing, ww2build_primary_type, ww2build_remap_targets, ww2build_root_files,
         ww2build_sky_patch, ww2build_stage_reset, ww2build_stock_bundles, ww2build_stock_index, ww2build_terrain_files,
         ww2build_undergrowth_files, ww2build_undergrowth_scales, ww2build_write_stage, ww2build_ww2_common,
+    };
+
+    // round OR4: OPFOR's material grid and pictures (physmat, the texture glue, the pictures)
+    #[pymodule_export]
+    use super::physmat::{physmat_group_faces, physmat_havok_lists, physmat_list_hashes, physmat_set_parts};
+    #[pymodule_export]
+    use super::pictures::{
+        meshview_page, pictures_box_colours, pictures_down, pictures_fit, pictures_level_check, pictures_level_picture,
+        pictures_loading_check, pictures_loading_picture, pictures_paint, pictures_resize, pictures_silhouette,
+        pictures_weapon_framed, pictures_weapon_render,
+    };
+    #[pymodule_export]
+    use super::ww2build::{
+        ww2build_grid_merge, ww2build_grid_names, ww2build_grid_redirect, ww2build_grid_roots, ww2build_res_types,
+        ww2build_stage_textures,
     };
 
     #[pymodule_export]

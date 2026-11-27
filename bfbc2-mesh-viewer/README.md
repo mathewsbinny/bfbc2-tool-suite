@@ -28,17 +28,17 @@ console converter's FORMAT.md. Needs Python 3.12+, `numpy`, `Pillow` and the sui
 
 Since round PR1b-2-rest the index, `load_mesh`, `mesh_surfaces`, `stack_models` and `render` are the Rust port's
 (`rust\bc2-convert\src\meshview`, through `bc2_native`: `MeshViewIndex`, `meshview_stack`, `meshview_render`); the
-module keeps the NumPy arrays and dicts its callers take, the stock bundles' list (`_bundles`), `read()`'s partition
-cache and `page()`. The index's old pickle (`meshview_index.pkl`) is no longer read; the caches' budget clears a
+module keeps the NumPy arrays and dicts its callers take, the stock bundles' list (`_bundles`) and `read()`'s partition
+cache. The index's old pickle (`meshview_index.pkl`) is no longer read; the caches' budget clears a
 leftover one.
 
 `bin\bfbc2.exe meshview ...` (the suite's `bin\`, round O3) takes the same arguments: it answers `find` and the help
 from the index in Rust (building it when the cache is not current) and hands the drawing to the Python (the
 suite's README, "bfbc2.exe").
 
-`meshview.page()` (the page for a browser) is deprecated: the command line no longer writes it, and it stays only for
-Project OPFOR BFBC2's WW2 tools (`attachments.py`, `scopes.py`), which still write their preview pages with it
-(`RETIRED.md`).
+`meshview.page()` (the page for a browser) is retired (round OR4): Project OPFOR BFBC2's WW2 tools (`attachments.py`,
+`scopes.py`) write their preview pages with the Rust's `bc2_native.meshview_page` (`bc2_convert::meshview::page`: the
+same page, its textures PNG files of the same pixels; spec XWW2-PIC-4).
 
 `tests\record_preview_parity.py` recorded this tool's answers on real meshes (digests only) for the editor's parity
 tests (`rust\bc2-editor\tests\gr3.rs`) while the tool was Python; the recording is the retired Python's (run again, it

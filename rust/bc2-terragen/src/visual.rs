@@ -164,18 +164,41 @@ pub const OCCLUSION_M: f64 = 2048.0;
 /// horizon over 2 - 64 texels, `cos^2` of its elevation, averaged.
 #[must_use]
 pub fn sky_visibility(t: &Terrain, w: usize) -> Vec<f64> {
+    sky_visibility_over(&|x, z| world_height(t, x, z), w, None)
+}
+
+/// The farthest a texel's horizon search reaches, in texels ([`sky_visibility`]'s largest radius).
+pub const HORIZON_TEXELS: usize = 64;
+
+/// [`sky_visibility`] of any ground (`height(x, z)` in metres at world x, z; round E5-rest's adapter for the
+/// editor's height field) over the texels of `area` (columns, rows: `[x0, z0, x1, z1)` of the `w` x `w` grid; the
+/// whole grid when `None`), row by row. Only the heights within [`HORIZON_TEXELS`] of the area are read, so a re-bake
+/// of an edited region costs that region.
+#[must_use]
+pub fn sky_visibility_over(height: &(dyn Fn(f64, f64) -> f64 + Sync), w: usize, area: Option<[usize; 4]>) -> Vec<f64> {
+    let [ax0, az0, ax1, az1] = area.map_or([0, 0, w, w], |a| a.map(|v| v.min(w)));
+    // the heights read: the area and the horizon around it
+    let (hx0, hz0) = (ax0.saturating_sub(HORIZON_TEXELS), az0.saturating_sub(HORIZON_TEXELS));
+    let (hx1, hz1) = ((ax1 + HORIZON_TEXELS).min(w), (az1 + HORIZON_TEXELS).min(w));
+    let hw = hx1.saturating_sub(hx0);
     let step = OCCLUSION_M / w as f64;
-    let h: Vec<f64> = (0..w * w)
+    let h: Vec<f64> = (0..hw * hz1.saturating_sub(hz0))
         .into_par_iter()
         .map(|k| {
-            let (i, j) = (k % w, k / w);
-            world_height(
-                t,
+            let (i, j) = (hx0 + k % hw, hz0 + k / hw);
+            height(
                 (i as f64 + 0.5) * step - OCCLUSION_M / 2.0,
                 (j as f64 + 0.5) * step - OCCLUSION_M / 2.0,
             )
         })
         .collect();
+    let at = |i: usize, j: usize| {
+        let (di, dj) = (i.checked_sub(hx0)?, j.checked_sub(hz0)?);
+        if di >= hw {
+            return None;
+        }
+        h.get(dj * hw + di).copied()
+    };
     let radii = [2.0f64, 4.0, 8.0, 16.0, 32.0, 64.0];
     let dirs: Vec<(f64, f64)> = (0..16)
         .map(|a| {
@@ -183,11 +206,13 @@ pub fn sky_visibility(t: &Terrain, w: usize) -> Vec<f64> {
             (th.cos(), th.sin())
         })
         .collect();
-    (0..w * w)
+    let aw = ax1.saturating_sub(ax0);
+    (0..aw * az1.saturating_sub(az0))
         .into_par_iter()
         .map(|k| {
-            let (i, j) = ((k % w) as f64, (k / w) as f64);
-            let h0 = h.get(k).copied().unwrap_or(0.0);
+            let (ii, jj) = (ax0 + k % aw, az0 + k / aw);
+            let (i, j) = (ii as f64, jj as f64);
+            let h0 = at(ii, jj).unwrap_or(0.0);
             let mut vis = 0.0;
             for &(dx, dz) in &dirs {
                 let mut hor = 0.0f64;
@@ -197,7 +222,7 @@ pub fn sky_visibility(t: &Terrain, w: usize) -> Vec<f64> {
                         continue;
                     }
                     let d = (dx * r).hypot(dz * r) * step;
-                    let other = h.get(z as usize * w + x as usize).copied().unwrap_or(h0);
+                    let other = at(x as usize, z as usize).unwrap_or(h0);
                     hor = hor.max(((other - h0) / d).atan());
                 }
                 vis += hor.cos().powi(2);
