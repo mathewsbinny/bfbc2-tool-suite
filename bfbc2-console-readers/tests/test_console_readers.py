@@ -1,9 +1,13 @@
 r"""The console readers on images built here:
 
-- xisolib.py and `bfbc2 xiso` (round RT3 retired xiso.py's command line): XDVDFS discs with the partition at offset 0 and at the XGD3 offset; a directory tree (binary
-  tree entries, a nested folder, an empty folder); list and extract, with a filter; no volume found;
-- stfs.py: STFS packages of both kinds (read-only: one hash table per level; others: two), with a
-  consecutive file, a fragmented file (hash-entry chain), a folder; info, list and extract, with a filter.
+- the Rust core's XDVDFS reader (bc2_native.xiso_find_partition) and `bfbc2 xiso` (round RT3 retired xiso.py's
+  command line): discs with the partition at offset 0 and at the XGD3 offset; a directory tree (binary tree entries,
+  a nested folder, an empty folder); list and extract, with a filter; no volume found;
+- the Rust core's STFS reader (bc2_native.stfs_open / StfsReader) and `bfbc2 stfs`: packages of both kinds
+  (read-only: one hash table per level; others: two), with a consecutive file, a fragmented file (hash-entry chain), a
+  folder; info, list and extract, with a filter; `bfbc2 stfs`'s printed lines and exit codes are also held against
+  stfs.py's own, recorded in console_readers_answers.json (record_console_readers_answers.py) - stfs.py and xisolib.py
+  are not imported here, so the test runs once they are deleted.
 
 With --game, also the user's own Xbox 360 files when they are on this PC (else skipped): the disc image
 (the XGD2 game partition, default.xex) and the three Update packages: Onslaught path data from Update #2
@@ -12,10 +16,10 @@ them - an independent check of the block mapping in large packages (level-1 hash
 
   python test_console_readers.py [--game] [--xbox <folder>]
 """
-import contextlib
 import hashlib
-import io
+import json
 import os
+import random
 import shutil
 import struct
 import subprocess
@@ -31,12 +35,88 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('xiso', 'stfs')
-import stfs  # noqa: E402
-import xisolib as xiso  # noqa: E402
+suite_paths.use('core')
+from bfbc2core import native  # noqa: E402
 
 XBOX_DEFAULT = r'C:\Games\Battlefield Bad Company 2 Limited Edition (XBOX 360)'
 SECTOR = 2048
+MAGIC = b'MICROSOFT*XBOX*MEDIA'                     # the XDVDFS volume descriptor's magic (sector 32 of the partition)
+PARTITIONS = (0x0, 0xFD90000, 0x2080000, 0x18300000)  # plain / xiso, XGD2, XGD3, XGD1
+BLOCK = 0x1000                                      # an STFS block
+ANSWERS = os.path.join(HERE, 'console_readers_answers.json')
+OUT = '<out>'                                       # an extract's output folder in the recorded printed lines
+
+
+def noise(n: int, seed: int | None) -> bytes:
+    """n bytes: random (seed None) or from a seed (the recorded answers' inputs)."""
+    return os.urandom(n) if seed is None else random.Random(seed).randbytes(n)
+
+
+def answers() -> dict[str, Any]:
+    """The answers stfs.py and xisolib.py gave, recorded by record_console_readers_answers.py."""
+    with open(ANSWERS, encoding='utf-8') as f:
+        return dict(json.load(f))
+
+
+# ------------------------------------------------------------------------------------------------ the Rust core
+
+def core() -> Any:
+    """bc2_native with the console readers (a module older than round F0 / RT3 lacks them: NativeMissing)."""
+    for attr in ('stfs_open', 'stfs_refusal', 'xiso_find_partition', 'xiso_walk', 'xiso_find_partition_bytes',
+                 'xiso_walk_bytes'):
+        nat = native.require('the console readers', attr)
+    return nat
+
+
+PKG_FIELDS = ('magic', 'name', 'header_size', 'separation', 'ft_blocks', 'ft_start', 'base', 'allocated',
+              'top_level', 'shift', 'entries')
+
+
+class Package:
+    """An STFS package as the Rust core reads it (bc2_native.stfs_open): the values stfs.Package kept (PKG_FIELDS)
+    and read(entry) through its StfsReader. A package the core refuses raises ValueError naming why
+    (bc2_native.stfs_refusal)."""
+    magic: bytes
+    name: str
+    shift: int
+
+    def __init__(self, path: str) -> None:
+        nat = core()
+        got = nat.stfs_open(path)
+        if got is None:
+            raise ValueError(f'the Rust core refuses the package ({nat.stfs_refusal(path)}): {path}')
+        self.values = tuple(got[:len(PKG_FIELDS)])
+        for k, v in zip(PKG_FIELDS, self.values, strict=True):
+            setattr(self, k, v)
+        self.entries: list[dict[str, Any]] = list(got[len(PKG_FIELDS) - 1])
+        self.reader = got[len(PKG_FIELDS)]
+
+    def read_or_none(self, e: dict[str, Any], count: int | None = None) -> bytes | None:
+        """An entry's bytes (count: in place of its own block count), or None where the core does not read it."""
+        got = self.reader.read(e['start'], e['count'] if count is None else count, e['consecutive'], e['size'])
+        return None if got is None else bytes(got)
+
+    def read(self, e: dict[str, Any]) -> bytes:
+        got = self.read_or_none(e)
+        if got is None:
+            raise ValueError(f'the Rust core does not read the entry {e["path"]}')
+        return got
+
+
+def find_partition(path: str) -> int:
+    """The game partition's offset in the image at path (bc2_native.xiso_find_partition); ValueError without one."""
+    base = core().xiso_find_partition(path)
+    if base is None:
+        raise ValueError('no XDVDFS volume found')
+    return int(base)
+
+
+def walk(path: str, base: int, sector: int, size: int) -> list[tuple[str, int, int]]:
+    """Every file under a directory of the image at path, as (path, sector, size) (bc2_native.xiso_walk)."""
+    got = core().xiso_walk(path, base, sector, size, '')
+    if got is None:
+        raise ValueError('the Rust core does not walk the directory')
+    return [(str(p), int(s), int(z)) for p, s, z in got[0]]
 
 
 class Checks:
@@ -82,9 +162,11 @@ def dir_table(entries):
     return bytes(out)
 
 
-def build_xiso(path, base):
-    """Root: default.xex, Levels/MP_005/level-00.fbrb, Levels/readme.txt, Empty/ (size 0)."""
-    data = {'default.xex': os.urandom(3000), 'Levels/MP_005/level-00.fbrb': os.urandom(5000), 'Levels/readme.txt': b'hello'}
+def build_xiso(path, base, seed=None):
+    """Root: default.xex, Levels/MP_005/level-00.fbrb, Levels/readme.txt, Empty/ (size 0). seed: the files' bytes
+    from it (the recorded answers' discs), else random."""
+    data = {'default.xex': noise(3000, seed), 'Levels/MP_005/level-00.fbrb': noise(5000, None if seed is None else seed + 1),
+            'Levels/readme.txt': b'hello'}
     sectors = {'default.xex': 40, 'Levels/MP_005/level-00.fbrb': 42, 'Levels/readme.txt': 46}
     mp = dir_table([('level-00.fbrb', 42, 5000, 0x80)])
     levels = dir_table([('MP_005', 35, len(mp), 0x10), ('readme.txt', 46, 5, 0x80)])
@@ -93,7 +175,7 @@ def build_xiso(path, base):
         def at(sector, blob):
             f.seek(base + sector * SECTOR)
             f.write(blob)
-        at(32, xiso.MAGIC + struct.pack('<II', 33, len(root)))
+        at(32, MAGIC + struct.pack('<II', 33, len(root)))
         at(33, root)
         at(34, levels)
         at(35, mp)
@@ -106,19 +188,19 @@ def build_xiso(path, base):
 
 def xiso_cli(*args, timeout=None):
     """`bfbc2 xiso <args>` (round RT3 retired xiso.py's command line: bfbc2.exe answers it alone)."""
-    suite_paths.use('core')
-    from bfbc2core import native
     return subprocess.run(native.cli_command('xiso') + list(args), capture_output=True, text=True, timeout=timeout)
 
 
 # ------------------------------------------------------------------------------------------------ STFS
 
-def build_stfs(path, read_only, live=None):
+def build_stfs(path, read_only, live=None, seed=None):
     """Data blocks: 0 file table; 1-2 Content/a.bin (consecutive); 5 -> 3 -> 4 Content/b.bin (fragmented);
     6 top.txt. live (two-table packages): None - both copies of the level-0 table the same; 'separation' - the
     second copy live by separation bit 0x02; 'level1' - more than 0xAA blocks allocated, the second copy live by
-    status bit 0x40 of its entry in the level-1 table. The other copy then holds a stale chain (5 -> 4 -> 3)."""
-    files = {'Content/a.bin': os.urandom(6000), 'Content/b.bin': os.urandom(9000), 'top.txt': b'top level'}
+    status bit 0x40 of its entry in the level-1 table. The other copy then holds a stale chain (5 -> 4 -> 3).
+    seed: the files' bytes from it (the recorded answers' packages), else random."""
+    files = {'Content/a.bin': noise(6000, seed), 'Content/b.bin': noise(9000, None if seed is None else seed + 1),
+             'top.txt': b'top level'}
     h = bytearray(0x1000)
     h[0:4] = b'LIVE'
     header_size = 0x971A
@@ -172,10 +254,23 @@ def build_stfs(path, read_only, live=None):
 
 
 def stfs_cli(*args):
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        code = stfs.main(['stfs.py', *args])
-    return code, buf.getvalue()
+    """`bfbc2 stfs <args>`: (exit code, printed lines)."""
+    r = subprocess.run(native.cli_command('stfs') + list(args), capture_output=True, text=True)
+    return r.returncode, r.stdout
+
+
+def stfs_cli_cases(path, out):
+    """The command lines whose exit code and printed lines are recorded for a built package (stfs.py's answers):
+    name -> (arguments, the output folder named in them or None)."""
+    return {'info': (['info', path], None), 'list': (['list', path], None),
+            'list with a filter': (['list', path, 'content/'], None),
+            'extract': (['extract', path, out], out), 'extract with a filter': (['extract', path, out + '_f', 'B.BIN'], out + '_f'),
+            'extract without an output folder': (['extract', path], None)}
+
+
+def printed(text, out):
+    """Printed lines with the output folder written as OUT (the recorded answers name no folder of this PC)."""
+    return text.replace(out, OUT) if out else text
 
 
 # ------------------------------------------------------------------------------------------------ APT
@@ -283,11 +378,11 @@ def sha(path):
 def game_checks(c, xbox):
     iso = os.path.join(xbox, 'Battlefield Bad Company 2 Limited Edition (XBOX 360).iso')
     if os.path.isfile(iso):
+        base = find_partition(iso)
         with open(iso, 'rb') as fh:
-            base = xiso.find_partition(fh)
             fh.seek(base + 32 * SECTOR + 20)
             root_sec, root_size = struct.unpack('<II', fh.read(8))
-            files = list(xiso.walk(fh, base, root_sec, root_size))
+        files = walk(iso, base, root_sec, root_size)
         c.check(base == 0xFD90000, 'disc image: the XGD2 game partition at 0xFD90000')
         names = {p.lower() for p, _, _ in files}
         c.check(len(files) == 693 and 'default.xex' in names, 'disc image: all 693 files listed, default.xex among them',
@@ -301,7 +396,7 @@ def game_checks(c, xbox):
     pkgs = {}
     for f in sorted(os.listdir(folder)):
         try:
-            p = stfs.Package(os.path.join(folder, f))
+            p = Package(os.path.join(folder, f))
         except Exception as ex:
             c.check(False, f'package {f} opens', str(ex))
             continue
@@ -355,8 +450,7 @@ def main(argv):
         for base, label in ((0, 'plain image'), (0x2080000, 'XGD3 offset')):
             iso = os.path.join(work, f'disc_{base:x}.iso')
             data = build_xiso(iso, base)
-            with open(iso, 'rb') as f:
-                c.check(xiso.find_partition(f) == base, f'xiso: partition found ({label})')
+            c.check(find_partition(iso) == base, f'xiso: partition found ({label})')
             r = xiso_cli('list', iso)
             listed = {l.split(None, 1)[1]: int(l.split(None, 1)[0]) for l in r.stdout.splitlines()[1:] if l.strip()}
             c.check(listed == {k: len(v) for k, v in data.items()}, f'xiso: list - every file with its size, nested and empty folders ({label})',
@@ -384,17 +478,22 @@ def main(argv):
         except subprocess.TimeoutExpired:
             c.check(False, what)
 
+        recorded = answers()['stfs_cli']
         for read_only in (True, False):
             label = 'read-only package' if read_only else 'package with two hash tables'
             path = os.path.join(work, f'pkg_{int(read_only)}')
             files = build_stfs(path, read_only)
-            p = stfs.Package(path)
+            p = Package(path)
             c.check(p.magic == b'LIVE' and p.name == 'Test Package' and p.shift == (0 if read_only else 1), f'stfs: header ({label})')
             paths = {e['path']: e for e in p.entries}
             c.check(set(paths) == {'Content', 'Content/a.bin', 'Content/b.bin', 'top.txt'} and paths['Content']['dir'],
                     f'stfs: file table with folder paths ({label})', str(sorted(paths)))
             c.check(all(p.read(paths[k]) == v for k, v in files.items()), f'stfs: consecutive and fragmented files read exactly ({label})')
-            p.f.close()
+            for case, (args, out) in stfs_cli_cases(path, os.path.join(work, f'cli_{int(read_only)}')).items():
+                code, text = stfs_cli(*args)
+                want = recorded[f'{label}: {case}']
+                c.check([code, printed(text, out)] == want, f'stfs: {case} - exit code and printed lines as stfs.py\'s '
+                        f'(recorded; {label})', f'{[code, printed(text, out)]} / {want}')
             code, out = stfs_cli('list', path, 'content/')
             c.check(code == 0 and 'Content/a.bin' in out and 'top.txt' not in out and 'Content\n' not in out, f'stfs: list with a filter ({label})')
             dest = os.path.join(work, f's_{int(read_only)}')
@@ -405,16 +504,12 @@ def main(argv):
         for live, label in (('separation', 'separation bit 0x02'), ('level1', 'status bit 0x40 in the level-1 table')):
             path = os.path.join(work, f'pkg_{live}')
             files = build_stfs(path, False, live)
-            p = stfs.Package(path)
+            p = Package(path)
             paths = {e['path']: e for e in p.entries}
             c.check(p.read(paths['Content/b.bin']) == files['Content/b.bin'],
                     f'stfs: a fragmented file read through the live copy of its hash table ({label})')
-            p.f.close()
-        try:
-            code, out = stfs_cli('extract', path)
-            c.check(code == 1 and 'Usage' in out, 'stfs: extract without an output folder prints the usage')
-        except IndexError:
-            c.check(False, 'stfs: extract without an output folder prints the usage (it was an IndexError)')
+        code, out = stfs_cli('extract', path)
+        c.check(code == 1 and 'Usage' in out, 'stfs: extract without an output folder prints the usage (it was an IndexError)')
 
         apt_checks(c, work)
 

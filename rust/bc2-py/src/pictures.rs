@@ -12,7 +12,7 @@
     reason = "the Python's shapes; chunks of a fixed size indexed inside their size"
 )]
 
-use bc2_convert::pictures::{FPic, Pic, icons, loading, resample, weapon};
+use bc2_convert::pictures::{FPic, Pic, icons, loading, polygon, resample, side, weapon};
 use pyo3::exceptions::{PyIndexError, PySystemExit, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -309,4 +309,134 @@ pub fn meshview_page(
         .collect();
     py.detach(|| page(&ms, title))
         .ok_or_else(|| PyValueError::new_err("a picture whose pixels are not its shape"))
+}
+
+/// One mesh part for the side silhouette: (name, positions `<f4` bytes of x, y, z rows, triangles `<u4` bytes of
+/// rows of 3) - `meshview.load_mesh`'s `name`, `positions.tobytes()`, `indices.astype('<u4').tobytes()`.
+type SidePart = (String, Vec<u8>, Vec<u8>);
+
+/// The parts' positions and triangles as rows.
+fn side_rows(parts: &[SidePart]) -> PyResult<Vec<(Vec<[f32; 3]>, Vec<[u32; 3]>)>> {
+    parts
+        .iter()
+        .map(|(name, pos, idx)| {
+            if pos.len() % 12 != 0 || idx.len() % 12 != 0 {
+                return Err(PyValueError::new_err(format!(
+                    "{name}: positions / triangles are not rows of 3 four-byte values"
+                )));
+            }
+            let p = pos
+                .chunks_exact(12)
+                .map(|c| {
+                    std::array::from_fn(|k| f32::from_le_bytes([c[4 * k], c[4 * k + 1], c[4 * k + 2], c[4 * k + 3]]))
+                })
+                .collect();
+            let t = idx
+                .chunks_exact(12)
+                .map(|c| {
+                    std::array::from_fn(|k| u32::from_le_bytes([c[4 * k], c[4 * k + 1], c[4 * k + 2], c[4 * k + 3]]))
+                })
+                .collect();
+            Ok((p, t))
+        })
+        .collect()
+}
+
+fn side_parts<'a>(parts: &'a [SidePart], rows: &'a [(Vec<[f32; 3]>, Vec<[u32; 3]>)]) -> Vec<side::MeshPart<'a>> {
+    parts
+        .iter()
+        .zip(rows)
+        .map(|((name, _, _), (p, t))| side::MeshPart {
+            name,
+            positions: p,
+            tris: t,
+        })
+        .collect()
+}
+
+/// `type95_icon.silhouette(ix, (w, h), ss, mesh, skip, detail)` of the mesh's parts (see [`SidePart`]): the RGBA
+/// `(h, w, 4)` bytes. `skip` / `detail`: part name endings.
+///
+/// # Errors
+/// `ValueError`: see `bc2_convert::pictures::side::silhouette`.
+#[pyfunction]
+#[pyo3(signature = (parts, w, h, ss=8, skip=vec![], detail=vec![]))]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts list arguments as owned Vecs"
+)]
+pub fn pictures_side_silhouette(
+    py: Python<'_>,
+    parts: Vec<SidePart>,
+    w: usize,
+    h: usize,
+    ss: usize,
+    skip: Vec<String>,
+    detail: Vec<String>,
+) -> PyResult<Bound<'_, PyBytes>> {
+    let rows = side_rows(&parts)?;
+    let ps = side_parts(&parts, &rows);
+    let sk: Vec<&str> = skip.iter().map(String::as_str).collect();
+    let de: Vec<&str> = detail.iter().map(String::as_str).collect();
+    let out = py
+        .detach(|| side::silhouette(&ps, w, h, ss, &sk, &de))
+        .map_err(PyValueError::new_err)?;
+    Ok(PyBytes::new(py, &out.px))
+}
+
+/// What NumPy's order of equal far-to-near keys could change in `pictures_side_silhouette`'s picture: (faces with a
+/// tied key, supersampled shade pixels a tie decides, output pixels that could differ).
+///
+/// # Errors
+/// `ValueError`: as `pictures_side_silhouette`.
+#[pyfunction]
+#[pyo3(signature = (parts, w, h, ss=8, skip=vec![], detail=vec![]))]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts list arguments as owned Vecs"
+)]
+pub fn pictures_side_ties(
+    py: Python<'_>,
+    parts: Vec<SidePart>,
+    w: usize,
+    h: usize,
+    ss: usize,
+    skip: Vec<String>,
+    detail: Vec<String>,
+) -> PyResult<(usize, usize, usize)> {
+    let rows = side_rows(&parts)?;
+    let ps = side_parts(&parts, &rows);
+    let sk: Vec<&str> = skip.iter().map(String::as_str).collect();
+    let de: Vec<&str> = detail.iter().map(String::as_str).collect();
+    let t = py
+        .detach(|| side::ties(&ps, w, h, ss, &sk, &de))
+        .map_err(PyValueError::new_err)?;
+    Ok((t.tied_faces, t.shade_pixels, t.out_pixels))
+}
+
+/// Pillow's `ImageDraw.Draw(img).polygon(xy, fill=ink)` for each `(xy, ink)` in turn on a `w x h` 8-bit picture's
+/// bytes: the picture's new bytes.
+///
+/// # Errors
+/// `ValueError`: the bytes are not `w x h`; `TypeError`: a polygon of fewer than 2 vertices (Pillow's).
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts list arguments as owned Vecs"
+)]
+pub fn pictures_polygon<'py>(
+    py: Python<'py>,
+    px: &[u8],
+    w: usize,
+    h: usize,
+    polys: Vec<(Vec<(f64, f64)>, u8)>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let mut img = pic(px, w, h, 1)?.px;
+    py.detach(|| {
+        polys
+            .iter()
+            .try_for_each(|(xy, ink)| polygon::draw(&mut img, w, h, xy, *ink))
+    })
+    .map_err(pyo3::exceptions::PyTypeError::new_err)?;
+    Ok(PyBytes::new(py, &img))
 }

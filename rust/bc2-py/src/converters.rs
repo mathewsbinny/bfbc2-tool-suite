@@ -358,7 +358,8 @@ pub fn texwrite_levels<'py>(
     Ok(Some(out))
 }
 
-/// Levels being encoded (`dxt1` / `dxt5` of each): the covariances for `numpy.linalg.eigh`, then the blocks.
+/// Levels being encoded (`dxt1` / `dxt5` of each): `encode` (the axes solved here, round OR14), or the covariances,
+/// the axes and `finish` with given axes (the parity checks against `numpy.linalg.eigh`).
 #[pyclass(module = "bc2_native")]
 pub struct TexWriteJob {
     levels: Vec<texwrite::Prepared>,
@@ -398,6 +399,25 @@ impl TexWriteJob {
             }
         }
         PyByteArray::new(py, &out)
+    }
+
+    /// Every block's principal axis, level after level (`numpy.linalg.eigh(cov)[1][:, -1]` to the bit, round
+    /// OR14): float64 bytes, 3 per block.
+    fn axes<'py>(&self, py: Python<'py>) -> Bound<'py, PyByteArray> {
+        let all: Vec<[f64; 3]> = py.detach(|| self.levels.iter().flat_map(texwrite::Prepared::axes).collect());
+        let mut out = Vec::with_capacity(all.len() * 24);
+        for a in all {
+            for v in a {
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        PyByteArray::new(py, &out)
+    }
+
+    /// Each level's blocks, encoded with their own axes (`texwrite.dxt1` / `dxt5` whole, no NumPy).
+    fn encode<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyList>> {
+        let data: Vec<Vec<u8>> = py.detach(|| self.levels.iter().map(texwrite::Prepared::encode).collect());
+        PyList::new(py, data.iter().map(|d| PyBytes::new(py, d))).ok()
     }
 
     /// Each level's blocks from the axes (float64 bytes, 3 per block, in the covariances' order); `None` for axes
@@ -455,6 +475,30 @@ pub fn texwrite_alpha<'py>(
         texwrite::alpha1(d, w, h)
     };
     got.map(|v| i64_array(py, h, w, &v)).transpose()
+}
+
+/// `numpy.linalg.eigh(cov)[1][:, :, -1]` of symmetric 3 x 3 matrices (float64 bytes, 9 per matrix, row-major; the
+/// lower triangle read) as `bc2_convert::eigh3` computes it (round OR14): float64 bytes, 3 per matrix, on all
+/// cores; `None` for a length not a multiple of 72.
+#[pyfunction]
+pub fn texwrite_principal_axes<'py>(py: Python<'py>, covs: &Bound<'py, PyBytes>) -> Option<Bound<'py, PyBytes>> {
+    use rayon::prelude::*;
+    let raw = covs.as_bytes();
+    if !raw.len().is_multiple_of(72) {
+        return None;
+    }
+    let out: Vec<u8> = py.detach(|| {
+        raw.par_chunks_exact(72)
+            .flat_map_iter(|c| {
+                let m: [f64; 9] =
+                    std::array::from_fn(|k| f64::from_le_bytes(c[8 * k..8 * k + 8].try_into().unwrap_or_default()));
+                bc2_convert::eigh3::principal_axis(&m)
+                    .into_iter()
+                    .flat_map(f64::to_le_bytes)
+            })
+            .collect()
+    });
+    Some(PyBytes::new(py, &out))
 }
 
 /// `texwrite.l8_down(level)` of an `h` x `w` uint8 level, or `None`.

@@ -278,50 +278,12 @@ pub fn cover(src: &Rgb, w: usize, h: usize) -> Rgb {
 
 // ------------------------------------------------------------------------------------------------ encoding
 
-/// The eigenvector of a symmetric 3 x 3 matrix's largest eigenvalue (cyclic Jacobi; the last of equal ones, as
-/// `numpy.linalg.eigh` orders them), what [`texwrite::Prepared::finish`] takes as a block's axis.
+/// The eigenvector of a symmetric 3 x 3 matrix's largest eigenvalue (the last of equal ones, as
+/// `numpy.linalg.eigh` orders them), what [`texwrite::Prepared::finish`] takes as a block's axis: since round OR14
+/// `numpy.linalg.eigh`'s own to the bit ([`bc2_convert::eigh3::principal_axis`]; a cyclic Jacobi before).
 #[must_use]
 pub fn principal_axis(m: &[f64; 9]) -> [f64; 3] {
-    let mut a = [[m[0], m[1], m[2]], [m[3], m[4], m[5]], [m[6], m[7], m[8]]];
-    let mut v = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
-    for _ in 0..50 {
-        let off = a[0][1].abs() + a[0][2].abs() + a[1][2].abs();
-        if off < 1e-12 {
-            break;
-        }
-        for (p, q) in [(0, 1), (0, 2), (1, 2)] {
-            if a[p][q].abs() < 1e-300 {
-                continue;
-            }
-            let theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
-            let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
-            let t = if theta == 0.0 { 1.0 } else { t };
-            let c = 1.0 / (t * t + 1.0).sqrt();
-            let s = t * c;
-            for k in 0..3 {
-                let (akp, akq) = (a[k][p], a[k][q]);
-                a[k][p] = c * akp - s * akq;
-                a[k][q] = s * akp + c * akq;
-            }
-            for k in 0..3 {
-                let (apk, aqk) = (a[p][k], a[q][k]);
-                a[p][k] = c * apk - s * aqk;
-                a[q][k] = s * apk + c * aqk;
-            }
-            for row in &mut v {
-                let (vp, vq) = (row[p], row[q]);
-                row[p] = c * vp - s * vq;
-                row[q] = s * vp + c * vq;
-            }
-        }
-    }
-    let mut best = 0;
-    for k in 1..3 {
-        if a[k][k] >= a[best][best] {
-            best = k;
-        }
-    }
-    [v[0][best], v[1][best], v[2][best]]
+    bc2_convert::eigh3::principal_axis(m)
 }
 
 /// One level encoded (`texwrite.dxt1` / `dxt5`): 3 or 4 channels for DXT1 (format 0), 4 for DXT5 (format 2).
@@ -339,8 +301,7 @@ pub fn encode_level(img: &texwrite::Image, fmt: u32) -> Result<Vec<u8>, String> 
         }
     };
     let p = texwrite::Prepared::new(img, enc).ok_or("the picture's channels do not suit the format")?;
-    let axes: Vec<[f64; 3]> = p.covariances().iter().map(principal_axis).collect();
-    Ok(p.finish(&axes))
+    Ok(p.encode())
 }
 
 /// A picture (3 or 4 channels) as a PC `ITexture` of `info`'s format, size and level count (the levels below the

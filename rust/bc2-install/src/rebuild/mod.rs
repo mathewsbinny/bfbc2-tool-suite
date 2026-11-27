@@ -89,6 +89,15 @@ pub struct Plan {
     pub jobs: usize,
     /// The memory the running steps' estimates may add up to, MiB (None: 70% of physical memory).
     pub budget_mb: Option<f64>,
+    /// Whether a step waits for free physical memory (its estimate and [`run::RESERVE_MB`]) besides the budget
+    /// (default true). A test plan of tiny steps turns it off (round OR14: OPFOR's `test_rebuild_tracker` failed
+    /// on a busy PC, the two side-by-side steps run one at a time); a real rebuild never does.
+    #[serde(default = "default_true")]
+    pub free_gate: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_jobs() -> usize {

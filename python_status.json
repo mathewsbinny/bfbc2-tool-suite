@@ -285,7 +285,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 809,
+   "lines": 818,
    "note": "navkit.py's orchestration without the game: a stand-in Project OPFOR BFBC2 folder built in a temp folder (a...",
    "path": "bfbc2-auto-navkit/tests/test_navkit_offline.py",
    "retiring": "Tests in Rust",
@@ -1598,33 +1598,45 @@
    "folder": "bfbc2-console-readers",
    "kind": "tool entry point",
    "lines": 500,
-   "note": "the command line is Rust; Movie is the menu tools' library (OPFOR reaches it only through aptgraft since OR5)",
+   "note": "the command line is Rust; Movie is the menu tools' library (aptgraft's and aptcheck's; OPFOR reaches none of it since OR14)",
    "path": "bfbc2-console-readers/apt/apt.py",
    "retiring": "PR1c (with aptgraft)",
    "rust": "bc2_menu apt; bfbc2 apt",
    "status": "twin"
   },
   {
-   "callers": "tests 4",
+   "callers": "record_console_readers_answers, test_cli_errors; bfbc2 stfs (refusals)",
    "embedded_by": [
     "rust/bc2-cli/src/readers/stfs.rs"
    ],
    "folder": "bfbc2-console-readers",
    "kind": "tool entry point",
    "lines": 213,
-   "note": "OPFOR's console_onslaught / onslaught_art moved to bc2_formats::stfs (OR5); only the tests and replays import it",
+   "note": "OPFOR's console_onslaught / onslaught_art moved to bc2_formats::stfs (OR5); since OR14 test_console_readers(_native) run on its recorded answers (console_readers_answers.json) and import it no more: it can be deleted (left: bfbc2 stfs embeds its docstring and hands refusals to it, test_cli_errors runs it)",
    "path": "bfbc2-console-readers/stfs/stfs.py",
    "retiring": "proposed: PR1c (delete)",
    "rust": "bc2_formats stfs; bfbc2 stfs",
    "status": "twin"
   },
   {
+   "callers": "by hand (while stfs.py / xisolib.py exist)",
+   "embedded_by": [],
+   "folder": "bfbc2-console-readers",
+   "kind": "test helper or golden recorder",
+   "lines": 223,
+   "note": "records stfs.py's and xisolib.py's answers for test_console_readers(_native); goes with the twins",
+   "path": "bfbc2-console-readers/tests/record_console_readers_answers.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
    "callers": "run_tests.py",
    "embedded_by": [],
    "folder": "bfbc2-console-readers",
    "kind": "test",
-   "lines": 386,
-   "note": "The console readers on images built here: - xisolib.py and `bfbc2 xiso` (round RT3 retired xiso.py's comman...",
+   "lines": 459,
+   "note": "The console readers on images built here: - the Rust core's XDVDFS reader (bc2_native.xiso_find_partition)...",
    "path": "bfbc2-console-readers/tests/test_console_readers.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -1635,22 +1647,22 @@
    "embedded_by": [],
    "folder": "bfbc2-console-readers",
    "kind": "test",
-   "lines": 228,
-   "note": "Round F0: the console containers in the Rust core - STFS packages (stfs.Package: bc2_native.stfs_open / Stf...",
+   "lines": 288,
+   "note": "Round F0: the console containers in the Rust core - STFS packages (bc2_native.stfs_open / StfsReader / stfs...",
    "path": "bfbc2-console-readers/tests/test_console_readers_native.py",
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
   },
   {
-   "callers": "tests 2",
+   "callers": "record_console_readers_answers",
    "embedded_by": [],
    "folder": "bfbc2-console-readers",
    "kind": "library",
    "lines": 122,
-   "note": "command line retired (RT3); find_partition_reference / walk_reference kept; only tests import it",
+   "note": "command line retired (RT3); since OR14 test_console_readers(_native) run on its recorded answers (console_readers_answers.json) and import it no more: it can be deleted",
    "path": "bfbc2-console-readers/xiso/xisolib.py",
-   "retiring": "proposed: PR1b-2 (delete)",
+   "retiring": "proposed: PR1c (delete)",
    "rust": "bc2_formats xiso; bfbc2 xiso",
    "status": "twin"
   },
@@ -1983,18 +1995,18 @@
    "status": "twin"
   },
   {
-   "callers": "tests 4; OPFOR 11",
+   "callers": "tests 4; rust/parity_menu_movies, parity_pacific_menu",
    "embedded_by": [
     "rust/bc2-cli/src/graft/aptgraft.rs"
    ],
    "folder": "bfbc2-menu-tools",
    "kind": "tool entry point",
    "lines": 2941,
-   "note": "the movie model, the grafts and the command line are Rust (O3, E4c); left: the Python API OPFOR's WW2 menu tools edit movies with (Movie, Ref, Str, add_label_alias, add_icon_frame, crosshair_table)",
+   "note": "a test reference only since OR14: OPFOR's WW2 and Onslaught menu tools edit movies through bc2_native (AptMovie, pacific_main_nav / main_root, apt_dump_text)",
    "path": "bfbc2-menu-tools/aptgraft.py",
-   "retiring": "PR1c (OPFOR's WW2 menus first)",
-   "rust": "bc2_menu aptmodel (E4c); bfbc2 aptgraft",
-   "status": "partly"
+   "retiring": "PR1c (delete)",
+   "rust": "bc2_menu graft / pacific (O3, E4c, OR14); bfbc2 aptgraft",
+   "status": "twin"
   },
   {
    "callers": "tests 3; rust/bench_apt",
@@ -2009,17 +2021,17 @@
    "status": "twin"
   },
   {
-   "callers": "menucommon; tests 6; OPFOR 4",
+   "callers": "menucommon; tests 6; rust/parity_pacific_menu",
    "embedded_by": [
     "rust/bc2-cli/src/menu/bc2loc.rs"
    ],
    "folder": "bfbc2-menu-tools",
    "kind": "tool entry point",
    "lines": 387,
-   "note": "khash_reference and LocFile's edits kept (Python state OPFOR's WW2 menu tools edit)",
+   "note": "a test reference only since OR14: OPFOR's WW2 tools read and write texts through bc2_native.LocFile",
    "path": "bfbc2-menu-tools/bc2loc.py",
-   "retiring": "PR1c (OPFOR's WW2 menus first)",
-   "rust": "bc2_menu loc; bfbc2 bc2loc",
+   "retiring": "PR1c (delete)",
+   "rust": "bc2_menu loc (OR14); bfbc2 bc2loc",
    "status": "twin"
   },
   {
@@ -2269,8 +2281,8 @@
    "embedded_by": [],
    "folder": "bfbc2-model-tools",
    "kind": "library",
-   "lines": 349,
-   "note": "DXT encoding in Rust; resource / header packing and NumPy eigh still Python; references kept",
+   "lines": 351,
+   "note": "DXT encoding in Rust, its principal axes too since OR14 (bc2_convert::eigh3); references kept",
    "path": "bfbc2-model-tools/texwrite.py",
    "retiring": "PR1b-2",
    "rust": "bc2_convert texwrite",
@@ -3903,6 +3915,18 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
+   "lines": 617,
+   "note": "round OR14's OPFOR movie tools on bc2_native.AptMovie (bc2_menu::graft) against aptgraft.py: written files, printed lines, damaged inputs, random cases",
+   "path": "rust/parity_menu_movies.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
    "lines": 102,
    "note": "round OR5's picture operations (bc2_menu::pil / modeart) against Pillow, numpy and OPFOR's retired onslaught_art",
    "path": "rust/parity_menuart.py",
@@ -3983,11 +4007,47 @@
    "status": "stays"
   },
   {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
+   "lines": 462,
+   "note": "round OR14's Pacific War menu edits (bc2_menu::pacific) and texts (bc2_menu::loc) against menu_install.py's Python on aptgraft.py and bc2loc.py: movies, damaged movies, the whole menu step, every language file",
+   "path": "rust/parity_pacific_menu.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
+   "lines": 350,
+   "note": "round OR14's side silhouettes (bc2_convert::pictures::side, Pillow's polygon fill) against OPFOR's type95_icon.silhouette and Pillow: random polygons, synthetic and game meshes",
+   "path": "rust/parity_silhouette.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
+   "lines": 233,
+   "note": "round OR14's texwrite principal axes (bc2_convert::eigh3) against numpy.linalg.eigh, bit for bit, and the encoded blocks",
+   "path": "rust/parity_texwrite_axes.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
    "callers": "by hand; tests/test_repo.py",
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 891,
+   "lines": 909,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4640,8 +4700,8 @@
  ],
  "totals": {
   "all": {
-   "files": 381,
-   "lines": 112145
+   "files": 386,
+   "lines": 114192
   },
   "by_folder": {
    "(root)": {
@@ -4668,13 +4728,13 @@
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 14851,
+    "lines": 14860,
     "live": 1873,
     "partly": 4418,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5466,
+    "test": 5475,
     "twin": 2821
    },
    "bfbc2-automated-map-and-bot-test-harness": {
@@ -4711,14 +4771,14 @@
     "twin": 1209
    },
    "bfbc2-console-readers": {
-    "files": 5,
-    "lines": 1449,
+    "files": 6,
+    "lines": 1805,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 614,
+    "test": 970,
     "twin": 835
    },
    "bfbc2-culltree": {
@@ -4769,12 +4829,12 @@
     "files": 12,
     "lines": 6659,
     "live": 0,
-    "partly": 2941,
+    "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
     "test": 2252,
-    "twin": 1466
+    "twin": 4407
    },
    "bfbc2-mesh-viewer": {
     "files": 4,
@@ -4789,14 +4849,14 @@
    },
    "bfbc2-model-tools": {
     "files": 9,
-    "lines": 2091,
+    "lines": 2093,
     "live": 0,
     "partly": 267,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
     "test": 975,
-    "twin": 849
+    "twin": 851
    },
    "bfbc2-navigation-studio": {
     "files": 2,
@@ -4854,13 +4914,13 @@
     "twin": 0
    },
    "rust": {
-    "files": 34,
-    "lines": 6151,
+    "files": 38,
+    "lines": 7831,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5884,
+    "stays": 7564,
     "test": 267,
     "twin": 0
    },
@@ -4893,8 +4953,8 @@
     "lines": 5085
    },
    "partly": {
-    "files": 20,
-    "lines": 16528
+    "files": 19,
+    "lines": 13587
    },
    "ported": {
     "files": 23,
@@ -4905,16 +4965,16 @@
     "lines": 310
    },
    "stays": {
-    "files": 71,
-    "lines": 14817
+    "files": 75,
+    "lines": 16497
    },
    "test": {
-    "files": 191,
-    "lines": 52702
+    "files": 192,
+    "lines": 53067
    },
    "twin": {
-    "files": 56,
-    "lines": 19673
+    "files": 57,
+    "lines": 22616
    }
   }
  }

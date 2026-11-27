@@ -799,6 +799,48 @@
    "status": "verified",
    "title": "The ONSLAUGHT mode picture is new data appended, its pixels Pillow's",
    "variants": "PC, Xbox 360 (the source)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/pacific.rs:1-60"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/parity_pacific_menu.py"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_pacific_menu.py - the menu step's movies at the step's and 40 random label / logo sizes, damaged movies and the dumps identical to menu_install.py's Python on aptgraft.py; menu_install.build old against new: every file and printed line identical"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-9",
+   "status": "verified",
+   "title": "The Pacific War mode is main_nav's third mode, built on Vietnam's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/loc.rs:30-150"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/parity_pacific_menu.py"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_pacific_menu.py - every language of the game copy: names.py's texts set, written and read back, every lookup, damaged files and random keys and texts identical to bc2loc.py's"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-10",
+   "status": "verified",
+   "title": "The localization file keeps DICE's texts where they were and appends new ones",
+   "variants": "PC"
   }
  ]
 }

@@ -14,5 +14,7 @@ pub mod aptpatch;
 pub mod common;
 pub mod error;
 pub mod graft;
+pub mod loc;
 pub mod modeart;
+pub mod pacific;
 pub mod pil;
