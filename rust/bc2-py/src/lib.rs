@@ -100,6 +100,7 @@ mod pathdata;
 mod pefile;
 mod physmat;
 mod pictures;
+mod rebuild;
 mod scene;
 mod shaderdb_handle;
 mod shaderdb_levels;
@@ -463,6 +464,9 @@ mod bc2_native {
     use super::onslaught::{onslaught_build, onslaught_install_plan};
     #[pymodule_export]
     use super::testrun::{testrun_ini_get, testrun_ini_restore, testrun_ini_set, testrun_ini_unset, testrun_watch};
+    // round OR7: OPFOR's WW2 rebuild as a step graph (rebuild_all's runner, stepstamps' decisions: bc2_install::rebuild)
+    #[pymodule_export]
+    use super::rebuild::{rebuild_derive, rebuild_graph, rebuild_run};
     // round OR2: OPFOR's WW2 level build (wake_install.build's parts, bc2_install::levelbuild)
     #[pymodule_export]
     use super::shaderdb_merge::ShaderMerger;

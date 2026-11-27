@@ -180,9 +180,11 @@ questions and here:
    need a test start with copies of the files (paused).
 2. **Scripting**: the handlers of `GameSettingEntityData` and `ConsoleCommandEntityData` and the events of the 107
    entity classes DICE's graphs do not use (SCR-EVT-2, SCR-CMD-1); whether the debug document server starts.
-3. **Step graph**: the read-before-write steps are fixed (XDEP-STEP-3, round WW2-ORD1). Left: the inputs inside
-   `work\ww2` that no step writes - hand-placed files and the install plan's staging, a rebuild -> plan ->
-   rebuild cycle (XDEP-STEP-5) - and the oracle's history (XDEP-STEP-6); the stale records of renamed steps.
+3. **Step graph**: the read-before-write steps are fixed (XDEP-STEP-3, round WW2-ORD1), the inputs no step writes
+   are declared and the oracle regenerated (XDEP-STEP-5 / -6, round WW2-ORC1), and the rebuild runs as a step graph
+   (XDEP-STEP-8 - 10, round OR7). Left: the install plan's porting as a rebuild step (the rebuild -> plan ->
+   rebuild cycle, XDEP-STEP-5: proposed); the reads the hook cannot see, which are declared by hand (`READS`); the
+   stale records of renamed steps.
 4. **Asset graph**: references held inside resources (mesh sets' shader names, shader databases' texture names, the
    VO tables' waves), which the string-table listing does not see (XDEP-RES-1).
 

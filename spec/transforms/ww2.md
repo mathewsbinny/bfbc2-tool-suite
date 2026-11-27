@@ -103,9 +103,11 @@ Status: **verified** · Variants: BF1943
 full run before their clone pass, the weapon builds, soldiers, kits, weathering, pictures then names, the UI,
 translation, the remaining builds the install takes, the emitter atlases, the fidelity gate last); every install
 root has a producer; `--from` starts at exactly the named step; the first failing step stops the run before the
-hashes and the checks. It writes under `work\ww2` only and installs nothing.
+hashes and the checks. It writes under `work\ww2` only and installs nothing. Since round OR7 the order is the
+declared order of a step graph: steps that touch none of each other's files run side by side, and every pair that
+does keeps this order (XDEP-STEP-8, XDEP-STEP-9); the first failing step stops the run from starting more.
 
-[code: opfor:src/tools/ww2/rebuild_all.py:175-200]
+[code: opfor:src/tools/ww2/rebuild_all.py:128-156]
 [test: opfor:src/tools/tests/test_ww2_build.py::test_rebuild_step_order] [test: opfor:src/tools/tests/test_ww2_build.py::test_every_install_root_has_a_producer]
 [test: opfor:src/tools/tests/test_ww2_build.py::test_from_selects_exactly] [test: opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_failed_fidelity_gate_stops_rebuild_before_hashes_and_qa]
 
@@ -118,7 +120,7 @@ the suite is accepted as "the same outputs" only when a full rebuild gives every
 the rebuild on the suite's Rust core gave 10,852 of 10,852 outputs identical to the oracle, also on the suite's round
 RT1 branch.
 
-[code: opfor:src/tools/ww2/rebuild_all.py:141-168]
+[code: opfor:src/tools/ww2/rebuild_all.py:256-275]
 [data: rebuild_all on 2026-11-19 (main and the suite's RT1 branch): 10,852 of 10,852 outputs' sha1 identical to the recorded oracle]
 [doc: opfor:research/WW2_PORT_PLAN.md:442-447] [doc: opfor:DEVELOPMENT_NOTES.md:1477-1481]
 

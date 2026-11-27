@@ -6576,7 +6576,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:99-103"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:60-63"
     },
     {
      "kind": "code",
@@ -25444,19 +25444,27 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:208-279"
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:527-660"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:283-330"
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:663-736"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:105-134"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
     },
     {
-     "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:421-477"
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_record_joins_the_hooks_records_and_decides"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::record_names_are_stepstamps_keys"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_listing_digest_is_the_hooks"
     }
    ]
   },
@@ -25480,19 +25488,27 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:105-134"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:43-48"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:158-171"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:66-72"
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:45-53"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:303-311"
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:71-76"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:697-704"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_the_declared_graph_knows_every_step_and_keeps_the_order"
     },
     {
      "kind": "test",
@@ -25516,11 +25532,19 @@
    "id": "XDEP-STEP-4",
    "title": "What a step-graph runner must keep",
    "file": "spec/transforms/dependencies.md",
-   "status": "inferred",
+   "status": "implemented",
    "evidence": [
     {
      "kind": "inferred",
      "ref": "from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/graph.rs:91-181"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:320-577"
     }
    ]
   },
@@ -25540,11 +25564,11 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:176-192"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:198-219"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:605-614"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:609-619"
     },
     {
      "kind": "test",
@@ -25572,7 +25596,7 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:165-169"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:192-196"
     },
     {
      "kind": "code",
@@ -25612,15 +25636,123 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:248-260"
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:612-620"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:331-338"
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:723-736"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:92-171"
     },
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_step_editing_a_file_in_place_reruns_on_the_version_it_edited"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-8",
+   "title": "The step graph: which step waits for which",
+   "file": "spec/transforms/dependencies.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/graph.rs:91-181"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/mod.rs:187-205"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:580-620"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:357-398"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::the_graph_keeps_every_conflict_in_list_order"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::the_derived_graph_orders_a_reader_after_its_writer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_the_declared_graph_knows_every_step_and_keeps_the_order"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_the_levels_run_in_two_parts_and_the_graph_declares_their_reads"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-9",
+   "title": "Running the graph side by side within a memory budget",
+   "file": "spec/transforms/dependencies.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:206-228"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:320-577"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/sys.rs:1-118"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::independent_steps_run_side_by_side_within_the_budget_and_a_rerun_skips_them"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_failed_step_stops_the_run_and_keeps_no_record"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_independent_steps_run_side_by_side_and_a_failure_stops_the_run"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-10",
+   "title": "A folder too big to stamp, and the cache budget's calls, are no step's inputs",
+   "file": "spec/transforms/dependencies.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:38-44"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:250-281"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:26-36"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27: OPFOR's main-checkout records of the rebuild of 2026-11-23 (tracker 3): the guadal_canal chain's record held 33,019 inputs, among them 5,051 of install_iwo_jima_s\\level, 1,106 of _qa\\object_audit, 271 of menu_install\\apply and 527 / 422 files of the iwo_jima_s / coral_sea chains' outputs, and work\\ww2\\.pruned as an output; the graph derived from them ordered the three chains one after another (write-after-read)"
     }
    ]
   },
@@ -31885,7 +32017,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:175-200"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
     },
     {
      "kind": "test",
@@ -31914,7 +32046,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:141-168"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:256-275"
     },
     {
      "kind": "data",

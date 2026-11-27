@@ -1,6 +1,9 @@
 {
  "opfor": [
   "Granny",
+  "caches_clear",
+  "caches_prune",
+  "caches_prune_total",
   "dbxedit_run",
   "fbrb_cache_clear",
   "fbrb_cache_config",
@@ -28,6 +31,9 @@
   "pictures_silhouette",
   "pictures_weapon_framed",
   "pictures_weapon_render",
+  "rebuild_derive",
+  "rebuild_graph",
+  "rebuild_run",
   "testrun_ini_get",
   "testrun_ini_restore",
   "testrun_ini_set",

@@ -28,6 +28,24 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **Project OPFOR's WW2 rebuild runs as a step graph** (round OR7, "OPFOR in Rust": `rebuild_all` as a step graph):
+  `bc2_install::rebuild` (feature `rebuild`) and `bc2_native.rebuild_run` / `rebuild_graph` / `rebuild_derive` run
+  OPFOR's 55 rebuild steps, each as soon as the steps it waits for are done, side by side within a memory budget
+  (each step's last measured peak, the commit of all its processes through a job object); a step whose code, inputs
+  and outputs are as recorded is skipped. Which step waits for which comes from the step records (a file one writes
+  and the other reads, edits, writes, or lists the folder of) and OPFOR's declared graph (`rebuild_graph.json`, derived
+  from a full rebuild's records, and the folders a step reads whole). The records (`stepstamps.py`'s `finish`, `why`,
+  `stale_inputs`, the hash cache) are made and judged in Rust; tracker version 4 holds each step's peak memory and
+  time. After a run, two steps the new records order that ran at once fail the run. Spec XDEP-STEP-8 - 10 new,
+  XDEP-STEP-4 implemented.
+
+### Fixed
+- **The rebuild tracker no longer records 50,000 unrelated files as a step's inputs** (round OR7, spec XDEP-STEP-10):
+  the cache budget's prune of `wake_install`'s indexes was handed all of `work\ww2`, and the hook kept the first
+  50,000 files of a folder too big to stamp as read. Each level's chain looked to read the other levels' outputs, so
+  the chains could not run side by side.
+
 ### Changed
 - **The map editor's navigation edit tools and placing are view tools** (round E4-rest2, PR1b-0's leftovers): the AI
   workspace's nine edit tools are the views' tool while chosen (`Tool::Nav`; choosing Select, Move, Rotate or another

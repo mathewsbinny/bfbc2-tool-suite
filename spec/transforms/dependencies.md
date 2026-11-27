@@ -137,11 +137,16 @@ command line under `src/tools/ww2`. Each step that succeeds leaves a record (`wo
 step when its record is missing or its code, an input, a listing, a probe or an output differs, and sends the run back
 to an earlier skipped step whose output a later step rewrote (`run_changed`, `Tracker.why`, `Tracker.stale_inputs`).
 What a program other than Python reads beyond its arguments is not recorded (the scans of `step_roots` cover what it
-writes).
+writes). Since round OR7 the records are made and judged in the suite (`bc2_install::rebuild::tracker`: `finish`,
+`why`, `stale_inputs` and the hash cache, in the same format; `stepstamps.py` keeps the record names and reads
+records). Tracker version 4 adds each step's measured peak memory (`peak_mb`: the commit of all its processes) and
+time (`seconds`).
 
-[code: opfor:src/tools/ww2/stepstamps.py:1-38] [code: opfor:src/tools/ww2/stepstamps.py:208-279]
-[code: opfor:src/tools/ww2/stepstamps.py:283-330] [code: opfor:src/tools/ww2/rebuild_all.py:105-134]
-[code: opfor:src/tools/ww2/rebuild_all.py:421-477]
+[code: opfor:src/tools/ww2/stepstamps.py:1-38] [code: rust/bc2-install/src/rebuild/tracker.rs:527-660]
+[code: rust/bc2-install/src/rebuild/tracker.rs:663-736] [code: opfor:src/tools/ww2/rebuild_all.py:128-156]
+[test: rust/bc2-install/src/rebuild/tests.rs::a_record_joins_the_hooks_records_and_decides]
+[test: rust/bc2-install/src/rebuild/tests.rs::record_names_are_stepstamps_keys]
+[test: rust/bc2-install/src/rebuild/tests.rs::a_listing_digest_is_the_hooks]
 
 ### XDEP-STEP-2: The measured graph
 
@@ -183,8 +188,20 @@ an empty folder exposed:
 - A listed folder that the step itself, or a later step, fills at any depth looked changed.
 - `qa_checks` failed when there was no install report.
 
-[code: opfor:src/tools/ww2/rebuild_all.py:105-134] [code: opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:43-48]
-[code: opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:66-72] [code: opfor:src/tools/ww2/stepstamps.py:303-311]
+Round OR7 closed the property for the step graph (XDEP-STEP-8). The full checkout's records showed each level's
+chain reading another level's outputs: Guadalcanal's chain "read" 527 of Iwo Jima's and 422 of Coral Sea's files,
+and the chains ran side by side. These were not reads. The cache budget's prune of `wake_install`'s indexes is
+handed all of `work\ww2`, and the hook stamped the first 50,000 files of that walk as read (XDEP-STEP-10). With the
+hook fixed, the records hold no read of a later step's output. Two kinds of reads are invisible to the records and
+are declared instead (`rebuild_all.READS`): a folder's mere existence (`material_grid`'s `build_roots`) and the reads
+of a native call handed its folders inside a JSON string (`wake_install.our_files` in `wake_translate`,
+`emitter_atlas` and `fidelity_checks`). Each of these readers waits for every step that writes an OURS root, as the
+list order had it; a test holds `OURS_TOPS` equal to `wake_install.OURS`.
+
+[code: opfor:src/tools/ww2/rebuild_all.py:128-156] [code: opfor:src/tools/ww2/rebuild_all.py:158-171]
+[code: opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:45-53]
+[code: opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:71-76] [code: rust/bc2-install/src/rebuild/tracker.rs:697-704]
+[test: opfor:src/tools/tests/test_ww2_build.py::test_the_declared_graph_knows_every_step_and_keeps_the_order]
 [test: opfor:src/tools/tests/test_ww2_build.py::test_ours_readers_after_every_ours_producer]
 [test: opfor:src/tools/tests/test_rebuild_tracker.py::test_a_run_from_an_empty_work_settles]
 [test: opfor:src/tools/tests/test_rebuild_tracker.py::test_the_install_indexes_are_not_tracked]
@@ -192,23 +209,28 @@ an empty folder exposed:
 
 ### XDEP-STEP-4: What a step-graph runner must keep
 
-Status: **inferred**
+Status: **implemented**
 
 A runner that schedules the rebuild from its records instead of the fixed list must keep:
 
 1. **Read-after-write**: a step after every step whose recorded output it reads (XDEP-STEP-2);
 2. **Write-after-write**: steps writing one file in their list order (the Wake level's five writers, the weapon
-   textures before `grime.py --apply`), and readers of that file after the writer whose version they read;
+   textures before `grime.py --apply`), and readers of that file after the writer whose version they read and
+   before the next writer (**write-after-read**: `grime.py --apply` reads three textures `wake_translate` rewrites
+   later);
 3. **No read-before-write**: none is left since round WW2-ORD1 (XDEP-STEP-3); a new one is resolved, not inherited;
-4. **The declared folders** (`OUTPUTS`) as a fallback for steps whose records miss non-Python reads, and the
-   memory gate of the level chains (`JOBS`, `MIN_FREE`: a level build peaks at about 3 GB);
+4. **The declared folders** (`OUTPUTS`, and `READS` since round OR7) as a fallback for steps whose records miss
+   reads, and a memory budget for the steps side by side (a level chain peaks at about 4.4 GB, `material_grid` at
+   3.7 GB);
 5. **External inputs** (the game copy, BF1943, the suite's code, and the inputs inside `work\ww2` that no step writes,
    XDEP-STEP-5) as roots whose hashes rerun their readers, as `--changed` does now;
-6. **A first run with no records** in the declared order, since edges come only from records.
+6. **A first run with no records** in the declared order, since edges come only from records - or a declared graph
+   (XDEP-STEP-8).
 
-With these the 19 independent steps and the level chains can run side by side; the 14-step chain bounds the time.
+Round OR7's runner keeps all six (XDEP-STEP-8, XDEP-STEP-9).
 
 [inferred: from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE]
+[code: rust/bc2-install/src/rebuild/graph.rs:91-181] [code: rust/bc2-install/src/rebuild/run.rs:320-577]
 
 ### XDEP-STEP-5: Inputs inside work\ww2 that no step writes
 
@@ -245,7 +267,7 @@ steps write (`wake_translate`, `emitter_atlas` and the level builds read them).
 
 [data: OPFOR's 55 step records of the rebuild of 2026-11-22 / 23 joined with every step's outputs: inputs under work\ww2 that no step writes, by folder (install_ports, install_ports_<lv>, install_<lv>\level\objects\vegetation, the caches); a rebuild from a work\ww2 seeded with fonts\, weapon_icons\confirmed, install_ports\, install_ports_<lv>\ and install_<lv>\level\objects\vegetation only (599 files, round WW2-ORD1, 2026-11-23) ran all 55 steps in one pass]
 [data: round WW2-ORC1, 2026-11-23: a rebuild from a work\ww2 seeded with the 14 declared inputs (599 files): 55 steps in 19.0 min, 7,945 files, --changed --dry afterwards 0 of 55; the same 7,945 digests as OPFOR's main checkout after its relics were moved]
-[code: opfor:src/tools/ww2/rebuild_all.py:176-192] [code: opfor:src/tools/ww2/rebuild_all.py:605-614]
+[code: opfor:src/tools/ww2/rebuild_all.py:198-219] [code: opfor:src/tools/ww2/rebuild_all.py:609-619]
 [test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_external_inputs_cover_the_hand_placed_files_and_the_plan_staging]
 [test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_a_run_stops_on_a_missing_external_input_unless_told]
 
@@ -294,7 +316,7 @@ an install before PR1b-1c holds. The plan left `game\` unchanged (sha256 of 1,58
 
 [data: round WW2-ORD1, 2026-11-23: compare_oracle on the seeded-empty rebuild's hashes, 7,921 of 10,852 identical, differ 28, missing 2,903, extra 0; each missing or differing file joined to the step records of OPFOR's rebuild of 2026-11-22 / 23 (no writer for the relics, the 18 textures and the pickles); the 18 textures' headers (format 10, flags 2 vs 0, smallest mips) against DICE's format-10 textures of the game copy's level bundles; the pickles unpickled and compared]
 [data: round WW2-ORC1, 2026-11-23: the 18 textures' BF1943 sources (format 3, flags 0), the old files (flags 2, smallest levels 16 / 4 / 1 or 8 / 2 / 1) and today's conversions (flags 0, 16 / 8 / 4 or 8 / 4 / 4); archive_relics against the seeded-empty rebuild's 7,945 digests moved 2,903 files (2,798 wake\shaders_hlsl, 78 wake\textures_bf1943, 13 guadal_canal and 14 iwo_jima_s textures_bf1943), 12 emptied folders removed; main's rebuild_all --changed afterwards (30 of 55 steps) and a full rebuild each 7,945 of 7,945 against the seeded-empty rebuild, --changed --dry 0 of 55, a --changed run 0 steps and the same hashes; wake_install.py --plan: 21,117 of 21,197 against the old install oracle (differ 32, missing 48), the 48 missing names searched in every staged file of their level (none), the staged level bundles against the game copy's installed ones entry by entry, Sky_Beach_Generic_RGBA16f equal to mp_common's entry; game\ sha256 before and after the plan: 0 of 1,582 changed]
-[code: opfor:src/tools/ww2/rebuild_all.py:165-169] [code: opfor:src/tools/ww2/wake_shaders.py:734-783]
+[code: opfor:src/tools/ww2/rebuild_all.py:192-196] [code: opfor:src/tools/ww2/wake_shaders.py:734-783]
 [code: opfor:src/tools/ww2/archive_relics.py:37-58]
 [test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_hashes_leave_out_the_caches_inside_outputs]
 [test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_relics_are_the_files_a_seeded_rebuild_does_not_make]
@@ -326,8 +348,104 @@ expecting it, so it never settled. Nothing read the file (`wake_install` takes `
 no longer written.
 
 [data: round WW2-ORC1, 2026-11-23: OPFOR's step records of the Wake shader databases - wake_shaders, the clone pass, wake_translate and wake_sky record them as outputs and none as an input, fidelity_checks reads wake_sky's / wake_translate's versions; a second --changed on main sent back to the clone pass ("its inputs from wake_shaders.py --clone were rewritten by a later step - back to 8") and left 9 files differing from the seeded-empty rebuild, which a full rebuild restored (7,945 of 7,945)]
-[code: opfor:src/tools/ww2/stepstamps.py:248-260] [code: opfor:src/tools/ww2/stepstamps.py:331-338]
+Since round OR7 the send-backs are found before anything starts: a pass over the list order marks what would run,
+and each step that would run while its input (or edited file) on disk is not the version its earlier, skipped writer
+recorded sends the run back to that writer, to a fixed point. A step that the pass did not foresee this way stops the
+run rather than read the wrong version.
+
+[code: rust/bc2-install/src/rebuild/tracker.rs:612-620] [code: rust/bc2-install/src/rebuild/tracker.rs:723-736]
+[code: rust/bc2-install/src/rebuild/run.rs:92-171]
 [test: opfor:src/tools/tests/test_rebuild_changed.py::test_a_step_editing_a_file_in_place_reruns_on_the_version_it_edited]
+[test: opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer]
+
+### XDEP-STEP-8: The step graph: which step waits for which
+
+Status: **implemented**
+
+Since round OR7 the rebuild runs as a graph over the declared order (`STEPS`). Step j waits for an earlier step i
+when:
+- **both have records** and they conflict: i writes a file j reads, edits or writes (read-after-write,
+  write-after-write); j writes a file i reads (write-after-read: i must read the version before j's); one lists a
+  folder above a file the other writes; or one tests a path the other writes;
+- **the declared graph** says so (`rebuild_graph.json`, below);
+- **one of them has no record** and j has no declared entry, or i is known to neither: the list order.
+
+Not a conflict: listing `work\ww2` itself or a folder above it. Which top-level folders exist is the declared order's
+business, since a step's first output folder is made once, from an empty `work\ww2`. The clone pass lists both, so
+counting them would chain every later step to it.
+
+The declared graph (`src\tools\ww2\rebuild_graph.json`, `rebuild_all --graph --write`) is derived from a full
+rebuild's records. It holds each step's direct earlier steps (the transitive reduction of the records' edges), its
+peak memory and its time. On top of it, `rebuild_all.READS` declares the steps that read whole folders, and each such
+reader waits for every earlier step that writes one (XDEP-STEP-3). A run from an empty `work\ww2`, with no records,
+follows the declared graph. A step the declared graph does not know (a new step) keeps the list order with every
+other step until a full rebuild has recorded it.
+
+The records at hand add their edges to the declared ones. After a run, the runner checks the new records two ways:
+- a pair of steps that the records now order but that ran at once fails the run, since its outputs are not to be
+  trusted;
+- a pair that the records order but the declared graph does not imply is reported, with the command that
+  re-derives the graph.
+
+[code: rust/bc2-install/src/rebuild/graph.rs:91-181] [code: rust/bc2-install/src/rebuild/mod.rs:187-205]
+[code: rust/bc2-install/src/rebuild/run.rs:580-620] [code: opfor:src/tools/ww2/rebuild_all.py:357-398]
+[test: rust/bc2-install/src/rebuild/tests.rs::the_graph_keeps_every_conflict_in_list_order]
+[test: rust/bc2-install/src/rebuild/tests.rs::the_derived_graph_orders_a_reader_after_its_writer]
+[test: opfor:src/tools/tests/test_ww2_build.py::test_the_declared_graph_knows_every_step_and_keeps_the_order]
+[test: opfor:src/tools/tests/test_rebuild_tracker.py::test_the_levels_run_in_two_parts_and_the_graph_declares_their_reads]
+[data: round OR7, 2026-11-27: rebuild_all --graph on the tracker-4 records of a seeded-empty rebuild: 55 steps, 514 edges, 62 after the reduction, the longest path 6.2 min of measured step times; no edge between two level chains; the graph derived from the main checkout's tracker-3 records ordered the three chains one after another]
+
+### XDEP-STEP-9: Running the graph side by side within a memory budget
+
+Status: **implemented**
+
+A step starts when every step it waits for is done (`bc2_install::rebuild::run`). Several steps may run at once, up
+to these limits:
+- `--jobs` steps at once (default 4);
+- a memory budget (`--memory-gb`, default 70% of physical memory). The steps' estimates must fit in it together: a
+  step's estimate is its last measured peak, the commit of all its processes through a job object;
+- free physical memory of at least the step's estimate.
+
+A step that does not fit reserves its room, so smaller steps cannot starve it. Ready steps start in order of their
+longest remaining path. Two steps whose scanned folders overlap never run at once: a scan around one would take the
+other's writes for its own. The run stops starting steps at the first that fails; the running ones finish, and the
+failed step has no record.
+
+With `--changed`, a step decides when it becomes ready, against the files as the steps it waits for left them. This is
+the decision the list order gave (XDEP-STEP-1). A skipped step's recorded outputs stand for it, so the steps after a
+rerun that gave the same files are skipped too. The send-backs of XDEP-STEP-7 are found before the run starts.
+
+[code: rust/bc2-install/src/rebuild/run.rs:206-228] [code: rust/bc2-install/src/rebuild/run.rs:320-577] [code: rust/bc2-install/src/rebuild/sys.rs:1-118]
+[test: rust/bc2-install/src/rebuild/tests.rs::independent_steps_run_side_by_side_within_the_budget_and_a_rerun_skips_them]
+[test: rust/bc2-install/src/rebuild/tests.rs::a_failed_step_stops_the_run_and_keeps_no_record]
+[test: opfor:src/tools/tests/test_rebuild_tracker.py::test_independent_steps_run_side_by_side_and_a_failure_stops_the_run]
+[test: opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer]
+[test: opfor:src/tools/tests/test_rebuild_changed.py::test_a_writer_a_rerun_leaves_unchanged_is_still_sent_back_to]
+[data: round OR7, 2026-11-27, OPFOR's or7 worktree, work\ww2 seeded with the 14 declared inputs (599 files), a PC shared with other rounds: seeded-empty runs 9.8 min (3 at once, --memory-gb 7) and 10.5 min (4 at once, defaults), a --changed run of all 55 steps 7.6 min (4 at once), against 11.8 - 14 min one after another; each 7,945 of 7,945 against the oracle; --changed with nothing changed 0 of 55 steps (0.2 min); install_ports\plans.json touched: 7 of 55 (wake_translate and the writers XDEP-STEP-7 sends back to), 1.7 min; one leaf's code touched: 1 of 55; wake_install --plan afterwards 21,149 of 21,149; game\ 0 of 1,582 files changed]
+
+### XDEP-STEP-10: A folder too big to stamp, and the cache budget's calls, are no step's inputs
+
+Status: **implemented**
+
+The hook stamps every file under a folder a native call is handed, before and after the call: a file that changed
+is the step's output, one that did not is its input. A folder over 50,000 files is listed instead. Until round OR7
+the walk kept the files it had stamped before it gave up, so the first 50,000 files of `work\ww2` in walk order -
+install staging, `_qa`, the menu staging, other levels' outputs - became a step's inputs whenever all of `work\ww2`
+was handed to the Rust core. The cache budget's prune does that: `wake_install` keeps its pickled indexes at the top
+of `work\ww2`, and saving one prunes that folder (`bfbc2core.caches.maybe_prune('ww2install', work\ww2)`), from
+every level build. The prune also left its marker `.pruned` as an output.
+
+Since tracker version 4:
+- a folder too big to stamp is listed and none of its files is kept;
+- the budget's functions (`caches_prune`, `caches_prune_total`, `caches_clear`) and the runner's own are not wrapped;
+- the budget's markers at the top of `work\ww2` (`.pruned`, `.prune.lock`) are caches to the scans, as the indexes
+  are.
+
+The same records gave a step graph in which no level's chain waits for another's.
+
+[code: opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:38-44] [code: opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:250-281]
+[code: rust/bc2-install/src/rebuild/tracker.rs:26-36]
+[data: round OR7, 2026-11-27: OPFOR's main-checkout records of the rebuild of 2026-11-23 (tracker 3): the guadal_canal chain's record held 33,019 inputs, among them 5,051 of install_iwo_jima_s\level, 1,106 of _qa\object_audit, 271 of menu_install\apply and 527 / 422 files of the iwo_jima_s / coral_sea chains' outputs, and work\ww2\.pruned as an output; the graph derived from them ordered the three chains one after another (write-after-read)]
 
 ## Open questions
 
