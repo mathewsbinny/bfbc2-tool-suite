@@ -357,7 +357,7 @@ fn create_from_a_height_map() {
     heightmap::write_png16(&small, 300, &|_, _| 9).unwrap();
     let folder = root.join("projects");
     let mut app = app_on(&root, None);
-    let Some(mut h) = headless([1280, 800]) else {
+    let Some(mut h) = headless([1280, 1500]) else {
         let _ = std::fs::remove_dir_all(&root);
         return;
     };
