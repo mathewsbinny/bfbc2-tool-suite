@@ -35,7 +35,7 @@ use bc2_editor::levels::{self, ContentSet};
 use bc2_editor::theme::ThemeId;
 use bc2_formats::dbx::{self, DbxFile, Element};
 use bc2_formats::fbrb;
-use bc2_levelwrite::{BaseKind, MapProject};
+use bc2_levelwrite::{BaseKind, MapProject, Profile};
 
 fn temp(name: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("bc2_editor_g4_{name}_{}", std::process::id()));
@@ -357,7 +357,7 @@ fn create_from_a_height_map() {
     heightmap::write_png16(&small, 300, &|_, _| 9).unwrap();
     let folder = root.join("projects");
     let mut app = app_on(&root, None);
-    let Some(mut h) = headless([1280, 800]) else {
+    let Some(mut h) = headless([1280, 1500]) else {
         let _ = std::fs::remove_dir_all(&root);
         return;
     };
@@ -395,12 +395,30 @@ fn create_from_a_height_map() {
     click(&mut h, &mut app, "Set:WW2 / Pacific War");
     assert_eq!(app.heightmap.settings.content_set, ContentSet::Ww2);
     assert_eq!(app.heightmap.why_not(&folder_s), None);
+    // round E7: the project is made on a base level read from the game copy; the stand-in has none, so Create
+    // refuses in words and writes nothing
     click(&mut h, &mut app, "Create project");
-    assert_eq!(app.error(), None);
-    assert_eq!(app.start_page(), StartPage::ImportProject);
+    assert!(
+        app.error().is_some_and(|e| e.contains("mp_005") || e.contains("game")),
+        "{:?}",
+        app.error()
+    );
     let path = folder.join("Atoll.mapedit.json");
+    assert!(!path.exists());
+    // what Create saves, with a base partition given (the game tier's terrain_tools test makes one from a real base)
+    let path = heightmap::save(&heightmap::Request {
+        name: "Atoll",
+        folder: &folder,
+        heightmap: &good,
+        source: heightmap::Source::Png,
+        colour_map: None,
+        settings: app.heightmap.settings.clone(),
+        base_bytes: b"stand-in partition",
+    })
+    .unwrap();
     let p = MapProject::load(&path).unwrap();
-    assert!(p.is_import());
+    assert!(!p.is_import() && p.new_terrain().is_some());
+    assert_eq!(p.base.level, "mp_005");
     let t = p.terrain_import.as_ref().unwrap();
     assert_eq!(t.content_set, "WW2");
     assert_eq!((t.samples, t.sample_range), (1025, [0, 40_960]));
@@ -411,10 +429,41 @@ fn create_from_a_height_map() {
         std::fs::read(folder.join(&t.heightmap.file)).unwrap(),
         std::fs::read(&good).unwrap()
     );
-    assert_eq!(app.import_project(), Some(&p));
-    // opened again: its page, not a level
-    click(&mut h, &mut app, "Back to the start");
-    assert_eq!(app.start_page(), StartPage::Home);
+    assert_eq!(t.biome.as_deref(), Some("arid"));
+    // "Generate": the generator's settings checked in the form, saved the same way
+    click(&mut h, &mut app, "Source:Generate");
+    assert!(app.heightmap.generate);
+    app.heightmap.pads = "10, 20; 0, 0, 40".into();
+    app.heightmap.name = "Dunes".into();
+    assert_eq!(app.heightmap.why_not(&folder_s), None);
+    assert_eq!(
+        app.heightmap.gen_settings.pads,
+        vec![[10.0, 20.0, 24.0], [0.0, 0.0, 40.0]]
+    );
+    app.heightmap.pads = "5000, 0".into();
+    assert!(app.heightmap.why_not(&folder_s).unwrap().contains("outside"));
+    app.heightmap.pads = "1".into();
+    assert!(app.heightmap.why_not(&folder_s).unwrap().contains("Pad"));
+    app.heightmap.pads.clear();
+    click(&mut h, &mut app, "Biome:snow");
+    assert_eq!(app.heightmap.gen_settings.biome, bc2_terragen::Biome::Snow);
+    let gpath = heightmap::save_generated(&heightmap::GenerateRequest {
+        name: "Dunes",
+        folder: &folder,
+        settings: app.heightmap.settings.clone(),
+        generate: app.heightmap.gen_settings.clone(),
+        base_bytes: b"stand-in partition",
+    })
+    .unwrap();
+    let g = MapProject::load(&gpath).unwrap();
+    let gs = g.new_terrain().unwrap().generate.as_ref().unwrap();
+    assert_eq!((gs.biome.as_str(), gs.size, gs.seed, gs.ring), ("snow", 1024, 7, true));
+    // a G4 project made without a base: its page, not a level
+    let old = MapProject::new_import("Old", Profile::Ww2, t.clone());
+    let path = folder.join("Old.mapedit.json");
+    old.save(&path).unwrap();
+    click(&mut h, &mut app, "Source:From a height map");
+    app.go(StartPage::Home);
     app.open_project(&path);
     h.settle(&mut app, 2);
     assert_eq!(app.start_page(), StartPage::ImportProject);

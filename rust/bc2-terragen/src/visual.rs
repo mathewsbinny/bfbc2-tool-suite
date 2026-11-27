@@ -545,11 +545,6 @@ pub fn build(t: &Terrain, name: &str, donor: &Donor<'_>) -> Result<Visual, Strin
         out.terrain
             .push(res(format!("{base}.MaskTileAtlas.res"), "ITexture", a.to_vec()));
     }
-    let donor_water = donor
-        .water
-        .map(VisualWaterFile::decode)
-        .transpose()
-        .map_err(|e| e.to_string())?;
     if let (Some(y), Some(w)) = (t.height.water_y, donor.water) {
         out.terrain.push(res(
             format!("{base}.Water.res"),
@@ -565,26 +560,62 @@ pub fn build(t: &Terrain, name: &str, donor: &Donor<'_>) -> Result<Visual, Strin
         out.notes.push(note);
         textures.push((occ_name.clone(), new));
     }
-    let donor_vt = VisualTerrain::decode(donor.visual).map_err(|e| e.to_string())?;
     for &(dx, data) in &donor.databases {
-        let layout = if dx == 11 { 10 } else { dx };
-        let db = open::open(data, Some(layout), Some(false), "the donor database")?;
-        let entries = donor_entries(&db.db, &donor_vt, donor_water.as_ref(), from);
-        let c = sterrain::clone_terrain(data, data, dx, &entries, from, name, &textures)?;
-        out.notes.push(format!(
-            "Dx{dx}: {} entries cloned ({} programs), {} missing, textures {:?}",
-            c.added.len(),
-            c.added.iter().map(|a| a.2).sum::<usize>(),
-            c.missing.len(),
-            c.retextured
-        ));
+        let (bytes, note) = clone_database(dx, data, donor, name, &textures)?;
+        out.notes.push(note);
         let kind = match dx {
             9 => "Dx9ShaderDatabase",
             10 => "Dx10ShaderDatabase",
             _ => "Dx11ShaderDatabase",
         };
         out.level
-            .push(res(format!("Levels/{name}/shaders/Dx{dx}_Single.res"), kind, c.bytes));
+            .push(res(format!("Levels/{name}/shaders/Dx{dx}_Single.res"), kind, bytes));
     }
     Ok(out)
+}
+
+/// The colour / occlusion map's renaming [`build`] applies to the cloned entries: (the donor's map, the new
+/// terrain's), when the donor's patch shaders sample one.
+#[must_use]
+pub fn occlusion_rename(donor: &Donor<'_>, name: &str) -> Vec<(String, String)> {
+    donor
+        .occlusion
+        .as_ref()
+        .map(|(occ, _)| (occ.clone(), format!("Terrains/{name}/Textures/{name}_AmbientOcclusion")))
+        .into_iter()
+        .collect()
+}
+
+/// One shader database (`data`, Dx `dx`) with the donor terrain's entries cloned under `name` (TGEN-VIS-4): the
+/// database a level stages (round TG3: the export's own, after its merges), and a line for the report. The donor's
+/// entries are found in `data` itself.
+///
+/// # Errors
+/// The database does not open, or a clone is refused.
+pub fn clone_database(
+    dx: u32,
+    data: &[u8],
+    donor: &Donor<'_>,
+    name: &str,
+    textures: &[(String, String)],
+) -> Result<(Vec<u8>, String), String> {
+    let from = donor.terrain.as_str();
+    let donor_vt = VisualTerrain::decode(donor.visual).map_err(|e| e.to_string())?;
+    let donor_water = donor
+        .water
+        .map(VisualWaterFile::decode)
+        .transpose()
+        .map_err(|e| e.to_string())?;
+    let layout = if dx == 11 { 10 } else { dx };
+    let db = open::open(data, Some(layout), Some(false), "the donor database")?;
+    let entries = donor_entries(&db.db, &donor_vt, donor_water.as_ref(), from);
+    let c = sterrain::clone_terrain(data, data, dx, &entries, from, name, textures)?;
+    let note = format!(
+        "Dx{dx}: {} entries cloned ({} programs), {} missing, textures {:?}",
+        c.added.len(),
+        c.added.iter().map(|a| a.2).sum::<usize>(),
+        c.missing.len(),
+        c.retextured
+    );
+    Ok((c.bytes, note))
 }

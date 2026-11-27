@@ -5236,3 +5236,70 @@ outcomes); `xenos_golden.json` unchanged. `test_xenos_native.py --game` then pas
   `argfmt_golden.json`, `abbrev_golden.json`, `cli_o5_shader_golden.json` re-recorded: only xdiff's lines changed).
 
 Spec: XSH-CF-1 (verified).
+## E7-TG3: Create Level's terrain, from a height map and from the generator (2026-11-27, branch `e7`)
+
+ROADMAP rows E6-E7 (the Create Level part) and TG3, done together. Spec: `transforms/terrain_edit.md` TEDIT-NEW-1
+(verified), TEDIT-NEW-2 (implemented), TEDIT-NEW-3 (verified); `transforms/validation.md` XVAL-TERR-4 (new);
+`terrain_gen.md` TGEN-REQ-5 implemented. Project format 13.
+
+**What it does.** Create Level's form ("From a height map", and "Generate" beside it with `bfbc2 terrain
+generate`'s settings) makes a project on a **base level** (a multiplayer map with its own terrain: its mode layer,
+objects, weather and its terrain's look, TGEN-BIOME-4) that opens like any project. The export
+(`bc2_levelwrite::newterrain`) makes the terrain from the project's record, names it after the level
+(`Terrains/<LV>/<LV>`: the level's `TerrainEntityData` reference, the base's terrain partitions `<T>.dbx` and
+`<T>-MaterialMap.dbx` copied and renamed, the patch / undergrowth / cache / water entries cloned into each staged
+database after the export's merges, the colour / occlusion map), stages it in the level's own terrain bundle with the
+base bundle's other entries but none of the base terrain's, and registers that bundle without the base's terrain
+bundles (TGEN-REQ-5). `mapexport check` reads it back (XVAL-TERR-4); the path-data step samples the stage.
+
+**On DICE's data** (`rust/bc2-levelwrite/tests/new_terrain.rs`, game tier, release):
+
+| Test | Result |
+|---|---|
+| `dice_heights_through_the_import`: every DICE main block of Dist's and Package's levels (bundles before 2013) as a height map with its own range, imported | 30 of 30 give DICE's stored samples, bounds and min / max tree (the envelope is built under the heights; the depth map is 255); MP_005 also through a 2,049 PNG file; 2.2 s |
+| `new_level_exports_and_checks`, MP_005 as Conquest, generated (arid 1,024, seed 7, ring, a pad) | built in 26 - 29 s (the terrain and visual side 3.3 s); 19 terrain entries, 99 entries cloned into each database, 2 terrain partitions renamed; `export::check` (27 s) passes every rule; the terrain block names only the level's own bundle |
+| the same with MP_005's own heights as a PNG (2,048) | built in 37 s; every rule passes; the staged main block has DICE's heights and bounds |
+| the base's Conquest layer with no new terrain | every rule passes (the reference) |
+
+The first check failed XVAL-REF-3 twice, and both were the export's: the base terrain's partition names
+`Terrains/MP_005/MP_005-MaterialMap` (a partition MP_005's level bundle ships, not only its terrain resource), so the
+export now copies every partition named after the terrain; and DICE's own terrain partition names editor partitions
+that never ship (TEDIT-SRC-1: road splines, decal materials), which XVAL-REF-2 now lists as the base's own for the
+renamed copy.
+
+**Path data** (`new_level_path_data`, MP_005 prepared for NavKit, `bin\bfbc2.exe` built from the branch):
+
+| Level | Built (sample + build) | Sectors / route nodes | Connectivity | Walkable 8 m cells in the playable box | Coverage | XVAL-PLACE-5 |
+|---|---|---|---|---|---|---|
+| generated (arid 1,024) | 48 - 82 s | 27 / 7,593 | 0.883 | 2,421 | 0.860 | 32 points off (the base's layer, laid out for a 2,048 m map, on 1,024 m of ground) |
+| MP_005's heights imported | 57 - 65 s | 25 / 7,818 | 0.944 | 2,799 | 0.899 | 13 off |
+| MP_005 itself sampled on the stage (DICE's terrain and name) | - | 25 / 7,854 | 0.944 | 2,799 | 0.899 | 13 off (the layer's, on the stage sampler) |
+
+Connectivity: the share of route nodes on the main network; coverage: walkable cells (dry, under 40 degrees) a
+main-network node reaches (15 m / 4 m, as XVAL-PLACE-5); the build checks: XVAL-AI-1 and the file parsed and written
+back byte for byte.
+
+**The canary (TGEN-OUT-5)** first found a bug: the stage sampler wrote only the staged main height field into its
+tree, so a new terrain's water mesh (under the new name) was never seen and the build walked the sea floor (28 sectors
+and 8,320 nodes against DICE's terrain's 25 and 7,854); `navkit sample --stage` now writes the staged water mesh too.
+Then 7,818 against 7,854 nodes: the import's water is one quad over the square (TGEN-WATER-1) and DICE's MP_005 water
+covers only the sea (1,902 vertices at 58.0 / 58.31 m), so the build's water rule (ground more than 1.5 m under water
+left out) removed inland ground under 56.5 m. With DICE's water mesh in the copy's stage, the copy's path data
+**equals** DICE's terrain's: 25 of 25 sectors, every node position, edge count and mesh.
+
+| Run (release, this PC) | Time |
+|---|---|
+| `cargo test --release -p bc2-levelwrite --test levelwrite new_terrain:: -- --ignored` | 2 s + 178 s + 302 s |
+
+### Left
+
+- The editor's views show the base's terrain for a Create Level project until it is exported (the export's stage has
+  the new one); the game-accurate view's `read_generated` could show it.
+- The base's objects and gameplay stay where the base had them (TG5 / A3 place them on the new ground); sculpt and
+  paint on a new terrain are refused until TG4.
+- A height map's water is one quad (TGEN-WATER-1); shores and partial water bodies are not written.
+- Bases: DICE's multiplayer maps with a terrain of their own; WW2 (Package-only, BF1943 terrains) not tried.
+- E6 (vegetation) stays queued.
+- **Unproven until a playtest** (`terrain_edit.md` section 5, step 7): the engine loading a level whose terrain
+  bundle is its own and whose base's is not registered, the renamed terrain partitions and cloned entries, a
+  height-map terrain and a generated one in game, the bots on them. Nothing was installed or launched.

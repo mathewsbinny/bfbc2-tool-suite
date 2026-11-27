@@ -44,7 +44,9 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 /// - 12: round E5-rest, the terrain's other layers: strokes on the colour / occlusion map (`colour`) and the
 ///   sub-terrain ring (`ring`), a stroke over several rasters (`also`), a widened height range (`terrain-range`) and
 ///   a material name added (`material-add`); a version-11 file loads as it is.
-pub const VERSION: u32 = 12;
+/// - 13: round E7 / TG3, Create Level: a new level's terrain from a height map or the generator, on a base level
+///   (`terrain_import` with `base.level` set, its `generate` settings); a version-12 file loads as it is.
+pub const VERSION: u32 = 13;
 
 /// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
 /// `min_reader` is made from ([`MapProject::reader_needed`]).
@@ -88,6 +90,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 10 -> 11: material-map strokes were added (round E5); a version-10 log has none
         // 11 -> 12: the colour, ring and multi-raster strokes, terrain-range and material-add (round E5-rest); a
         //   version-11 log has none
+        // 12 -> 13: a new level's terrain on a base level (round E7 / TG3); a version-12 project has none
         if at == 5
             && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
         {
@@ -267,8 +270,10 @@ pub enum HeightFormat {
     },
 }
 
-/// A new level from a height map (round G4, "Create level - from a height map"): the import's settings and the files
-/// it keeps. The terrain itself is generated in a later round (E7); until then the project records this only.
+/// A new level's terrain (round G4's "Create level - from a height map"; round E7 / TG3 writes it): from a height map
+/// (the import's settings and the files it keeps) or from the terrain generator ([`GenerateSpec`]), on the project's
+/// base level, whose terrain the new one replaces in the export ([`crate::newterrain`]). A G4 project without a base
+/// records the settings only ([`MapProject::is_import`]).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TerrainImport {
     /// The content set the level is made for (`BFBC1`, `BFBC2`, `Vietnam`, `WW2`).
@@ -290,6 +295,49 @@ pub struct TerrainImport {
     /// The optional colour map, copied beside the project.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub colour_map: Option<KeptFile>,
+    /// Round TG3: the terrain is the generator's (`bfbc2 terrain generate`'s settings), not the height map's (whose
+    /// fields are then empty).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generate: Option<GenerateSpec>,
+    /// Round E7: the biome whose material names a height map's material map is painted with (TGEN-MAT-1 /
+    /// TGEN-MAT-2: `bc2_terragen::Biome`'s; `None`: arid's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biome: Option<String>,
+    /// Round E7: a height map's sub-terrain ring (TGEN-RING-1: its border continued outwards, stitched as DICE's).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ring: bool,
+}
+
+/// The terrain generator's settings a Create Level project records (round TG3; `bc2_terragen::Settings`): enough to
+/// generate the same terrain again (TGEN-GEN-1).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GenerateSpec {
+    /// The biome (`arid`, `jungle`, `snow`, `temperate`, `vietnam`).
+    pub biome: String,
+    /// Samples a side: 1,024 or 2,048.
+    pub size: u32,
+    /// The seed.
+    pub seed: u64,
+    /// The border's median minus the centre's in metres (`None`: the biome's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_m: Option<f64>,
+    /// The share of ground under water (`None`: the biome's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub water_share: Option<f64>,
+    /// Objective pads: x, z, radius in world metres.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pads: Vec<[f64; 3]>,
+    /// The escarpment's strength 0 - 1 (`None`: the biome's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rough: Option<f64>,
+    /// Erosion droplets per 1,000 samples (`None`: 125).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub erosion: Option<u32>,
+    /// The sub-terrain ring.
+    pub ring: bool,
+    /// The water's height in metres (`None`: the base level's, TGEN-VIS-2: its rule layers shade by height).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub water_level_m: Option<f64>,
 }
 
 /// Why a project file did not load.
@@ -583,10 +631,32 @@ impl MapProject {
         p
     }
 
-    /// Whether this is a height-map import waiting for terrain generation (no base level to open).
+    /// Whether this is a G4 height-map import with no base level (it cannot be opened or exported: round E7's form
+    /// makes projects on a base).
     #[must_use]
     pub fn is_import(&self) -> bool {
         self.terrain_import.is_some() && self.base.level.is_empty()
+    }
+
+    /// A new level's terrain on a base level (round E7 / TG3): the base's partition (its sha1) is edited as any
+    /// project's, the terrain written new by the export.
+    #[must_use]
+    pub fn new_level(name: &str, level: &str, base_bytes: &[u8], profile: Profile, import: TerrainImport) -> Self {
+        let mut p = Self::new(
+            name,
+            level,
+            &format!("Levels/{}", level.to_ascii_uppercase()),
+            base_bytes,
+            profile,
+        );
+        p.terrain_import = Some(import);
+        p
+    }
+
+    /// The new terrain this project's export writes (round E7 / TG3), when it has one and a base to build on.
+    #[must_use]
+    pub fn new_terrain(&self) -> Option<&TerrainImport> {
+        self.terrain_import.as_ref().filter(|_| !self.base.level.is_empty())
     }
 
     /// The project file's name: the map's name with only letters, digits, `-`, `_` and spaces kept.
@@ -836,6 +906,8 @@ impl MapProject {
             kind(&o.op).max(parts(o))
         };
         let ops = self.operations.iter().chain(&self.redo).map(of).max().unwrap_or(1);
+        // round E7 / TG3: a new terrain on a base must not open in an editor that would edit the base's
+        let ops = if self.new_terrain().is_some() { ops.max(13) } else { ops };
         if self.base.files.is_empty() { ops } else { ops.max(6) }
     }
 
@@ -1307,6 +1379,9 @@ mod tests {
             height_range_m: [-20.0, 300.0],
             water_level_m: 0.0,
             colour_map: None,
+            generate: None,
+            biome: None,
+            ring: false,
         };
         let q = MapProject::new_import("Atoll", Profile::Ww2, import.clone());
         assert!(q.is_import() && q.base.level.is_empty() && q.operations.is_empty());

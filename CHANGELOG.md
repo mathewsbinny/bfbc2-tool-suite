@@ -38,6 +38,10 @@ landed on `main`.
   of its if / else run (round XD2).
 - `bfbc2 xdiff --db <name>` with a name other than `wake` no longer stops with `KeyError`: the name is looked up as a
   BF1943 level or resource (or `bfbc2:<level>`).
+- **Map project format 13**: a Create Level project records its base level and, for Generate, the generator's
+  settings (`terrain_import.generate`); older editors refuse it. A G4 height-map project without a base shows its
+  page and asks to be made again.
+- **Create Level's map size must be 1024 or 2048 m**, the height map's samples a side (TGEN-REQ-2: 1 m samples).
 - **The map editor's navigation edit tools and placing are view tools** (round E4-rest2, PR1b-0's leftovers): the AI
   workspace's nine edit tools are the views' tool while chosen (`Tool::Nav`; choosing Select, Move, Rotate or another
   tool turns them off, and the gizmo is not shown while one is chosen); placing from the content browser, a tile or
@@ -72,6 +76,18 @@ landed on `main`.
   it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
 
 ### Added
+- **Map editor: Create Level writes the new level's terrain** (rounds E7 and TG3; spec `transforms/terrain_edit.md`
+  TEDIT-NEW-1 - 3, XVAL-TERR-4): "From a height map" (a 16-bit PNG or RAW of 1024 / 2048 samples; the map is as many
+  metres across) and **Generate** beside it (the terrain generator's biome, size, seed, border, water share, water
+  level, rough relief, objective pads and ring, `bfbc2 terrain generate`'s settings) make a project on a **base
+  level** (a multiplayer map: its mode layer, objects, weather and its terrain's look) that opens like any project.
+  Its export writes the new terrain under the level's own name (`Terrains/<LV>/<LV>`: height field, ring, material
+  map, water, visual terrain, colour / occlusion map, the base's patch shaders cloned into its databases, its terrain
+  partitions) in the level's **own terrain bundle**, registered without the base's (TGEN-REQ-5), and its path data is
+  sampled on the new ground. `mapexport check` reads it back (XVAL-TERR-4). DICE's 30 main height fields written out
+  as height maps import as DICE's samples, bounds and min / max tree. Nothing is loaded in game yet.
+- `bc2_levelwrite::newterrain` (the height-map import and the new terrain's entries), `pathdata::bot_measures`
+  (connectivity and coverage of path data on a playable area), `bc2_terragen::visual::clone_database`.
 - **The map editor inserts a Rush stage between two** (round E4-rest2, spec GAME-RUSH-12): the Gameplay panel's
   **Insert after** on a stage, then a click on the ground, puts a copy of the next stage there, played between the
   two (`bc2_levelwrite::rushstage::insert_stage`; one undo step, the `connect` operation of project format 10). The
