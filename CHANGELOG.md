@@ -28,6 +28,28 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+
+- **The console Onslaught port's stages 8 - 10 in Rust** (round OR11, "OPFOR in Rust", `rust/BENCHMARKS.md` "OR11"):
+  `bc2_install::onslaught::markv` (Valparaiso's Mark V patrol boat: its console physics, meshes, mesh set and
+  textures converted, its nine materials cloned from PC donors into the level's shader databases, its spawn back),
+  `onslaught::input` (PC input for the console seats: the PC version's seat, else DICE's role rule; the Mark V entered
+  from 5 m) and `onslaught::deps` (every partition the level references but does not load copied in from the stock PC
+  level bundles), through `bc2_native.onsport_markv`, `onsport_input` (with `onsport_seat_edits` /
+  `onsport_role_inputs` for the shader audit) and `onsport_deps`. OPFOR's `console_markv.py`, `console_input.py` and
+  `console_deps.py` keep their command lines and the install ledger; their work files are the retired Python's byte
+  for byte on the four console levels (spec XCONS-ONS-8 - 10).
+- `bc2_convert::havok::convert` / `classes_of` (a console Havok resource as the PC's, the executable's hkClass rows as
+  the converter's classes), `bc2_convert::meshconv::pair_by_kind` public, `bc2_formats::shaderdb::merge::ArenaStore`
+  (a merge store that owns its arena).
+
+### Fixed
+
+- The console port's stages 8 and 10 no longer take data from the WW2 levels Project OPFOR installed (their folders'
+  `opfor-<name>-installed.json`): the Mark V's missing textures and the referenced partitions come from the stock PC
+  bundles only, and a redo of either stage builds on the bundle the install ledger hands it, not on the game copy
+  holding its own earlier output (spec XCONS-ONS-8, -10).
+
 ### Changed
 
 - **The specification's rule index is split, one shard per spec file** (round SPLIT1, `rust/BENCHMARKS.md`

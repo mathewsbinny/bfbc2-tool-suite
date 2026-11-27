@@ -213,6 +213,76 @@ order. Not ported: `mp2_only`, a diagnostic nothing called; a level without a fo
 [test: rust/bc2-install/src/onslaught/loadset.rs::manifest_blocks]
 [data: round OR9, 2026-11-27: the user's four levels, also with the manifest from before a loadset run (146 mp2_common targets) and damaged inputs, every work and game file of the Rust stage identical to the Python's]
 
+### XCONS-ONS-8: The Mark V stage gives the retired Python's work files; its base and its texture check
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 8 (`console_markv.py`'s build, `bc2_install::onslaught::markv` since round OR11) gives the retired Python's
+work files byte for byte: the boat's console physics (`bc2_convert::havok::convert` on the executable's hkClass
+layouts), each mesh LOD with each part in its donor material's PC vertex layout (the console's fifth two-half element
+left out), the mesh set with the PC LOD sizes, the textures the level lacks (the user's PC bundles first, else the
+console's converted), the boat's partitions, its nine materials' entries cloned from PC donors into the level's Dx9 /
+Dx10 / Dx11 databases, its spawn grafted back from the level before stage 5, and the packed bundle. Decided against
+the Python, where it was an accident of the code and not DICE data:
+
+- **The base** is the bundle the install ledger hands the stage (the level before this stage's own install), for the
+  shader databases and the "level has it" texture check alike. The Python read the game copy's bundle, which on a
+  redo already holds the boat's entries and textures.
+- **The texture check** takes each material's texture names with that material's own renames, as its cloned entry
+  names them. The Python applied each material's renames to every name collected so far, so a later material's
+  rename could hide an earlier material's texture (Main's `Humvee/HumveeWreck` was never checked). On the user's
+  level both name sets find the same textures.
+- **The PC bundles searched** for missing textures are the stock ones: a folder Project OPFOR installed a level into
+  (its install record `opfor-<name>-installed.json`: the WW2 levels, `ww2_common`) is not BFBC2 data, as the suite's
+  stock mesh index already rules (XCONS-ONS-10).
+- **The ledger's check comes before the build**, as the Python's own comment said ("refused before the build,
+  nothing written") but its code did not: it built first, so a bundle changed outside the ledger stopped in the
+  build's reader (a damaged bundle's `ValueError`) instead of in the ledger's refusal. Either way nothing is written
+  to `game\` and the work folder is dropped.
+
+[code: rust/bc2-install/src/onslaught/markv.rs:489-520] [code: rust/bc2-install/src/onslaught/markv.rs:640-680] [code: rust/bc2-install/src/onslaught/files.rs:44-56] [code: opfor:src/tools/onslaught/console_markv.py:37-48]
+[test: rust/bc2-install/src/onslaught/markv.rs::restore_spawn_grafts_and_copies_the_fields_that_named_it] [test: rust/bc2-install/src/onslaught/markv.rs::console_layouts_find_the_record_after_its_guid]
+[data: round OR11, 2026-11-27: the user's ONS_MP_002 (Valparaiso), stages 8 - 10 chained, every work and game file of the Rust stages identical to the Python's (rust/BENCHMARKS.md "OR11")]
+
+### XCONS-ONS-9: The input stage gives the retired Python's work files
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 9 (`console_input.py`'s build, `bc2_install::onslaught::input` since round OR11) gives the retired Python's
+work files byte for byte: every seat whose `InputActionMaps` names the console's input set takes the PC set of the
+same kind (`InputActionMaps` null, the PC `InputConceptDefinition` and `InputMapping`); a console vehicle's seats take
+the input of their PC version's seat with the same `EntryOrderNumber`, the Mark V (no PC version) DICE's role rule
+(the driver the vehicle set, a seat on a branch with a weapon the vehicle concepts with the T-90 gunner's mapping
+from mp_common, any other the soldier set); a seat without input is the AI's and keeps its entry radius; the Mark V's
+player seats are entered from 5 m, as the PC patrol boat's; the console input partitions leave the bundle unless
+something still names them. DbxEdit's XML pass over the unpack is not checked for its return code, as in the Python
+(a partition it cannot read has no XML and is left as it is). Nothing was decided against the Python.
+
+[code: rust/bc2-install/src/onslaught/input.rs:121-175] [code: rust/bc2-install/src/onslaught/input.rs:236-292] [code: opfor:src/tools/onslaught/console_input.py:54-79]
+[test: rust/bc2-install/src/onslaught/input.rs::an_ai_seat_and_its_radius_stay] [test: rust/bc2-install/src/onslaught/input.rs::the_role_rule_without_a_counterpart]
+[data: round OR11, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's (rust/BENCHMARKS.md "OR11")]
+
+### XCONS-ONS-10: The dependency stage gives the retired Python's work files; stock sources only
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 10 (`console_deps.py`'s build, `bc2_install::onslaught::deps` since round OR11) gives the retired Python's work
+files byte for byte: every partition the level references that no bundle it loads holds (its Package and Dist level,
+ingame and loader bundles, mp_common, sp_common, the startup bundles), found in the PC level bundles (the PC map's
+own first, Package before Dist), copied in with its resources by name, round after round until nothing is missing,
+and the manifest's lines for them. Decided against the Python:
+
+- **Stock sources only**: a level folder holding Project OPFOR's install record (`opfor-<name>-installed.json`: the
+  WW2 levels) is not searched. Its partitions are BF1943 conversions, not the stock PC data the stage means to copy;
+  the user's own October install, which the port was made on, had none.
+- **The level's own bundle** is read as the bundle the ledger hands the stage, not the game copy: on a redo the game
+  copy already holds the copies this stage made, so the Python found nothing missing and its rebuilt bundle (from
+  the ledger's source) lost them.
+
+[code: rust/bc2-install/src/onslaught/deps.rs:181-200] [code: rust/bc2-install/src/onslaught/deps.rs:218-232] [code: rust/bc2-install/src/onslaught/files.rs:44-56] [code: opfor:src/tools/onslaught/console_deps.py:31-39]
+[test: rust/bc2-install/src/onslaught/deps.rs::the_first_name_with_a_prefix_in_insertion_order]
+[data: round OR11, 2026-11-27: the user's four levels on the stock install, every work and game file of the Rust stage identical to the Python's (rust/BENCHMARKS.md "OR11")]
+
 ## Open questions
 
 - 0x98BD6E on ONS_MP_004's console road / stop signs: which vertex layout or program the renderer lacks (layer 3,
