@@ -1,0 +1,402 @@
+{
+ "about": "The rules of spec/engine/eras.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the fixed lengths at 0x9422C8 - 0x9422FD, 0x77C9B2 - 0x77C9E2 and 0x77D0E1 - 0x77D111 (alloc 8, copy 7, end +7; the `BC2` branches alloc 4, copy 3, end +3), and ERA-UI-1"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_level_install.py:128"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode_rules.h:16"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-NAT-1",
+   "status": "inferred",
+   "title": "Four native eras, with tags and labels the engine can carry",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-MOD-1's stores (0x75FCF0, 0x77332C, 0x775D0A, 0x9563E5) and ERA-NAT-3"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x75FCB0 (prologue), 0x77D87A (`changeGameMod`: `atoi`, then the setter)"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-NAT-2",
+   "status": "inferred",
+   "title": "The era value is 0 - 3 everywhere; GM2's thunks keep registers and the stack",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: patch range `parser` 0x8FF330+49 (digest recorded), on an instruction boundary"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x8FF330 - 0x8FF360 (`push 0x142B6B4` `BC2`, `push 0x142B6C0` `VIETNAM`, `call 0x5084F0`); 0x5084F0 (bytes through 0x1502D00 on both sides); callers 0x77331D, 0x775D02 (no other call, jump or pointer)"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-NAT-3",
+   "status": "verified",
+   "title": "The parser 0x8FF330 learns the era tags",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: patch ranges `setter.entry` 0x75FCB0+8 and `setter.gate` 0x75FCC0+15"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x75FCC0 - 0x75FCEE; 0x920C00 - 0x920C61 (stores its argument to +0xC8C90 at 0x920C0E, posts message 0x25 when +0xC38D4 is 0); 0x94EB2E - 0x94EB3F"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:87-109"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-NAT-4",
+   "status": "verified",
+   "title": "The setter's sign-in gate: eras 2 and 3 switch at once, era 1 is unchanged",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: patch ranges `setter.label_test` 0x75FDB2+5, `setter.label_push` 0x75FDB7+10; kept range `redeem` 0x75FE32+5"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x75FD8C - 0x75FE42"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-NAT-5",
+   "status": "verified",
+   "title": "The setter's labels and the redeem pop-up",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: 45 patch ranges with their digests, none ragged; the 33 + 8 sites as ERA-MOD-1"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe every address in the table; 0x93D120 (after `C2 04 00 CC` at 0x93D11C; calls at 0x944EB3, 0x944F93 in 0x944D50, called at 0x76F853, the main-menu getter's case for id 0xD2 `playerStats`)"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-SITE-1",
+   "status": "verified",
+   "title": "Every reader of the game mod, with its decision and patch",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: patch ranges `menucfg.*`, `hudcfg.*`, `tips.hud`, `tips.loading`, `icons`"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x75AEA1 - 0x75AF15; 0x7584A2 - 0x758510; 0xF7A310 (`lea eax, [ecx+0x823F8"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-SITE-2",
+   "status": "verified",
+   "title": "Named resources: one name table per resource",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: patch ranges `unlocks.*`, `grid.*`, `weapons.*`; ERA-RES-2's Vietnam half 2 + 26 items"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x920860 (`/shared_config`, cache +0xC8990); 0x13D30C0 / 0x13D3440 (+0xE0) / 0x13D34C0 (+0x80); 0x94C5A3 - 0x94C5C0 and 0x957574 - 0x957588 (`asset+0x90`, `asset+0xB0` to 0x946330); 0x946389 / 0x94638F (+0x134, +0x138); 0x9381F0 (guard +0xC89A8, maps +0xC899C, +0xC89BC at 0x93838F / 0x938536; the +0x80 list from 0x9385C0); 0x93D198 - 0x93D1AB"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/engine/typeinfo/game_shared.md, UISharedConfigAsset row: 272 bytes, WeaponDataVietnam @128, UnlocksDataVietnam @144, UnlocksData @176, WeaponData @224"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-SITE-3",
+   "status": "verified",
+   "title": "The one-slot resources: a UISharedConfigAsset per era, chosen by host getters at the slot reads",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: patch ranges `maps.*`, `search.*`"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x942211 (`mov ecx, 1`), 0x942247 - 0x942324 (0x942302's else branch: an empty string, `push 0x14D68C8`); 0x77C994 - 0x77CA2B, 0x77CA55 - 0x77CA77; 0x77D0C3 - 0x77D146, 0x77D186 - 0x77D194"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-SITE-4",
+   "status": "verified",
+   "title": "The tag sites: the `BC2` and `VIETNAM` branches carry four tags",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the two tag tests (0x920D2B `cmp [eax+0x10"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x920CE0 - 0x920D86; 0x963887 (`lea ecx, [ebp+0xC8A38"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-SITE-5",
+   "status": "inferred",
+   "title": "The new-item tracker: tag = era + 1 (the tag's writer still to trace)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x76FCDE - 0x76FD0D; 0x785CEF - 0x785D42 (`OnFire` 0x142B85C); 0x786BCD - 0x786C30; 0x78812F - 0x78829C (`Client.EnableCollectibleNotifications`, the loop over [edi+0x70"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-SITE-6",
+   "status": "observed",
+   "title": "The sites left as they are",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "scratch dump of DICE's Package main_nav (OPFOR's work/aptgraft copy), 2026-11-27: frame labels of 438 (3), 466 (4), 477 (4); sprite 471's listener at 0x052019 - 0x0520B4 (`EA_PushByte 2`, `EA_PushByte 3`); setGameMod at 0x01AD24"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_MENU.md:129-138"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-UI-1",
+   "status": "observed",
+   "title": "DICE's main_nav was drawn for four eras; the engine sends labels, not numbers",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "scratch dumps of the 22 movies of DICE's Package main-menu bundle and OPFOR's work/aptgraft/hudlayer_shared_dump.txt and mp_objectives_dump.txt, 2026-11-27: `extern.gameMod` reads per movie as listed; compares with 1 except the cases named"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-UI-2",
+   "status": "observed",
+   "title": "Every movie reads extern.gameMod as \"1 or not\"",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-UI-1, ERA-UI-2, ERA-MOD-2 and GMD-DATA-1"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/pacific.rs:230"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/pacific.rs:875"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/pacific.rs:882"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-UI-3",
+   "status": "inferred",
+   "title": "The menus' contract for UI0 - UI7",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: 10 kept ranges with digests, none ragged, no overlap with the 45 patch ranges"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x649ED0 and the callers listed (ERA-LIC-1)"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-LIC-2",
+   "status": "verified",
+   "title": "No native-era patch touches Vietnam's checks",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-LIC-1 and GMD-DATA-3"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_level_install.py:128"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-LIC-3",
+   "status": "inferred",
+   "title": "Eras 2 and 3 carry no entitlement gate, which is a data rule",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-SITE-1 - ERA-SITE-5 and ERA-UI-2"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x775D32 - 0x775D44"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-RISK-1",
+   "status": "inferred",
+   "title": "Sites that assume a boolean, and assets that must exist",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the 33 addresses of ERA-MOD-1, each read to the first use of the loaded value"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-RISK-2",
+   "status": "observed",
+   "title": "No array is indexed by the game mod",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-MM-1, ERA-MOD-2, GMD-PERS-1"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x84FCA8 - 0x84FD52; 0x865064 - 0x8650D5 (`+0xB8` compared at 0x8650CB); 0x773940 - 0x77394F"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-RISK-3",
+   "status": "inferred",
+   "title": "Network and server strings, saved state",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the code of battlefield-opfor read on 2026-11-27 (crates/opfor-dll/src/gamemode.rs: `detour_parse_game_mod`, the patch constants; crates/opfor-vfs/src/modes.rs: `ModeId`, `engine_mode`, `from_menu_code`, the mode table's tags and labels) against ERA-NAT-1 - ERA-SITE-5"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-RISK-4",
+   "status": "inferred",
+   "title": "What battlefield-opfor's host must change",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-NAT-1, ERA-UI-3 and ERA-LIC-3 against OPFOR's module and installer as read on 2026-11-27"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode_rules.h:44"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_level_install.py:128"
+    }
+   ],
+   "file": "spec/engine/eras.md",
+   "id": "ERA-RISK-5",
+   "status": "inferred",
+   "title": "What Project OPFOR's module and data must change",
+   "variants": "PC"
+  }
+ ]
+}

@@ -6239,3 +6239,58 @@ after the runs.
 - **Unproven until a playtest**: nothing new in game on the stock install - the bundles are the Python's byte for
   byte. With the WW2 levels installed, a rerun of stages 8 / 10 now differs from what the Python would have built
   there (stock sources only), by design.
+
+## GM1: native eras 2 and 3 - a decision for every reading site (2026-11-27, branch `gm1`)
+
+The user's ruling (2026-11-27): OPFOR's eras are native engine eras (0 BFBC2, 1 Vietnam, 2 BF1943 / Pacific War,
+3 BFBC1), not a mapping onto DICE's 0 / 1. Round GM1 decided each reader of the game mod, so that round GM2 can patch
+with no guesswork.
+
+**Method.** Static only:
+
+- capstone over a scratch copy of `BFBC2Game.exe` (PC build 795745), function by function from GM0's 33 + 8 sites;
+- the extern names from the getters' jump tables (HUD getter 0x777B30 added);
+- the suite's APT dump of DICE's 22 Package main-menu movies and OPFOR's hudlayer_shared / mp_objectives dumps.
+
+Nothing was run or built. Nothing was written to `game\`. battlefield-opfor and OPFOR were read only.
+
+| Question | Found | Rules |
+|---|---|---|
+| tags and labels | `PACIFIC` (7) and `BC1` (3) fit the engine's fixed-length `VIETNAM` / `BC2` string builders, so each tag site needs a pointer only; labels `BFBC2143` and DICE's `BFBC2Beach` (four-frame sprites 466 / 477 have it) | ERA-NAT-1 |
+| the parser | 0x8FF330: two case-insensitive compares, 49 bytes; a detour returning 0 - 3 from the level's tag (battlefield-opfor's returns the active era) | ERA-NAT-3 |
+| the setter | today a non-zero mod without a session stores requested **1** and posts the sign-in: eras 2 / 3 would never switch offline and would later re-apply as Vietnam; a 15-byte cave keeps era 1's paths exactly; label `cmp ebp, 4; jae` plus a push thunk; redeem pop-up untouched | ERA-NAT-4, ERA-NAT-5 |
+| the 41 instructions | each with function, callers, control, test, decision for eras 2 / 3 and patch range (45 ranges, all on instruction boundaries) | ERA-SITE-1 |
+| named resources | menu config, HUD config, tips, icon set: four-entry name tables, era 1 = DICE's pointers; missing assets are not safe (the HUD start aborts on a failed icon set) | ERA-SITE-2, ERA-RISK-1 |
+| the one-slot resources | the unlock grid's +0x134 / +0x138 are `UISharedConfigAsset`+0xB0 / +0x90 (constructor 0x946330); weapon maps built once by 0x9381F0; design: a typed `UISharedConfigAsset` clone per era returned by host getters at the slot reads only (swap and code-cave data rejected) | ERA-SITE-3 |
+| tags | `extern.multiplayerMaps` and the two server-search cases: branch thunks (eras 0 / 3 take the `BC2` shape, 1 / 2 the `VIETNAM` one) and pointer thunks | ERA-SITE-4 |
+| new-item tracker | tags 1 BFBC2-only, 2 Vietnam-only: era + 1 generalises; the tag's writer not found (open) | ERA-SITE-5 |
+| left as they are | `playerHasLicenseToNam`, the burn sites, the collectible fallback, the copies, the dead levelList tag, the raw `extern.gameMod` | ERA-SITE-6 |
+| the menus | main_nav's four-era frames; only sprite 471 tests 2 / 3 (both = origin); 32 main-menu and 17 HUD reads, every other one `== 1`; the contract for UI0 - UI7 | ERA-UI-1 - 3 |
+| licences | 10 Vietnam check ranges kept and digest-checked, no patch overlapping; eras 2 / 3 ungated by data (the WW2 descriptions drop `nam`) | ERA-LIC-2, ERA-LIC-3 |
+| risks | boolean sites, no array indexed by the mod, the server's +0xB8 / +0x118 strings, saved state, what battlefield-opfor and OPFOR must change | ERA-RISK-1 - 5 |
+
+GM0's ERA-MOD-1 named the wrong function for 0x93D14F: it is in 0x93D120, reached from `extern.playerStats` through
+0x944D50 (corrected in place).
+
+**Probe and checks** (game tier; addresses and digests only, nothing of EA's kept). `spec/probes/gamemodes.py` gained
+`PATCH_SITES` (45) and `KEEP_SITES` (10), each a sha256 prefix, a boundary check and the overlap check: 5.3 s for the
+whole probe. `core/tests/test_spec_probes.py::game_modes` now checks 24 answers.
+
+**Rules** went from 1,633 to 1,654: eras.md has 21 (8 verified, 4 observed, 9 inferred). These pass:
+`spec/trace.py --check`, `spec/probes/census.py --check` (CENSUS.md rewritten), the game_modes step, the quick tier,
+ruff and mypy.
+
+### Playtests still pending (in-game tests are paused)
+
+- ERA-NAT-3: levels of three eras in one session.
+- ERA-NAT-4: switching to 2 / 3 offline, era 1 with and without `[patches] vietnam`.
+- ERA-NAT-5: the labels reaching DICE's frames.
+- ERA-SITE-2 / 3 / 4: each era's resources, era asset and level filter.
+- ERA-UI-2: the main menu after a level of each era.
+- ERA-RISK-3: the in-process server's level list and its +0xB8 string.
+
+### What is left (GM1)
+
+- For GM2, first: the new-item tracker's tag writer, and 0x9381F0's keys for the Vietnam weapon maps.
+- For GM0-rest: the server's mod strings.
+- Whether a lookup of a missing asset returns a null handle.

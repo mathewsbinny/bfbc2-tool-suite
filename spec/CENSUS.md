@@ -37,7 +37,7 @@ DICE's files of the game folder by kind (a `.opfor-orig` backup counts as DICE's
 | dfe | 1 | 1,000 | GFILE-DFE-1 |
 | dialoglogo128x128.jpg | 1 | 21,369 | GFILE-LOGO-1 |
 | movie (Output/win32/movies/**.res) | 33 | 293,728,468 | BINK-OUT-1, RES-WRAP-2 |
-| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-BLK-6, ATREE-HDR-1, ATREE-NODE-3, ENG-REND-1, ENG-TI-1, ERA-RES-1 (+38) |
+| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-BLK-6, ATREE-HDR-1, ATREE-NODE-3, ENG-REND-1, ENG-TI-1, ERA-RES-1 (+39) |
 | winui.dll | 1 | 262,144 | out of scope: an MFC 8 dialog library (resource-only UI helpers: rich edit, HTML help); no file of the game folder names it (not imported by BFBC2Game.exe or binkw32.dll), so it belongs to the installer / support tools |
 
 ## 2. Bundle entry types
@@ -359,7 +359,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | VehicleAsset | 98 | 98 | 7 | RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-8, VEH-ENT-1 |
 | VehicleComponentData | 98 | 98 | 18 | RTTI-GSR-3, VEH-ENT-1 |
 | VehicleEntityData | 98 | 98 | 57 | MAT-TEX-8, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 (+6) |
-| WeaponData | 98 | 22 | 39 | BOT-CMB-1, BOT-CMB-2, BOT-PER-5, ERA-RES-1 (+5) |
+| WeaponData | 98 | 22 | 39 | BOT-CMB-1, BOT-CMB-2, BOT-PER-5, ERA-RES-1 (+6) |
 | TreeHealthStateData | 97 | 17 | 12 | DATA-DSTR-1, RTTI-GSR-8 |
 | BoxFloatPhysicsData | 96 | 83 | 2 | DATA-VEH-1, RTTI-PHYS-1 |
 | MiddlegrowthModelGroupEntityData | 93 | 71 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+2) |
@@ -622,7 +622,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | FallingStateData | 2 | 2 | 1 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
 | GameTipAsset | 2 | 2 | 3 | HUD-MENU-1, RTTI-GSR-6 |
 | HdrSetting | 2 | 2 | 10 | RTTI-AUDIO-1, SGR-MIX-1 |
-| HudConfigAsset | 2 | 2 | 27 | ERA-RES-1, HUD-CFG-1, RTTI-GSR-6 |
+| HudConfigAsset | 2 | 2 | 27 | ERA-RES-1, ERA-SITE-1, HUD-CFG-1, RTTI-GSR-6 |
 | InAirStateData | 2 | 2 | 2 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
 | JoinSquadOrderEntityData | 2 | 1 | 25 | AIO-CLS-1, RTTI-GSR-3, SQD-PLAY-1 |
 | JumpStateData | 2 | 2 | 3 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
@@ -661,7 +661,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | CoverConstantData | 1 | 1 | 45 | BOT-CMB-5, RTTI-GSR-5 |
 | DebugConstantData | 1 | 1 | 7 | BOT-CMB-1, RTTI-GSR-5, RTTI-GSR-6 |
 | DifficultyModesData | 1 | 1 | 3 | CAMP-FLOW-1, RTTI-GSR-7 |
-| EntitlementAsset | 1 | 1 | 1 | ERA-LIC-1, PERS-DATA-1, RTTI-GSR-7 |
+| EntitlementAsset | 1 | 1 | 1 | ERA-LIC-1, ERA-LIC-2, PERS-DATA-1, RTTI-GSR-7 |
 | EnvironmentConstantData | 1 | 1 | 1 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
 | FakeAnimatedSoldierCollisionData | 1 | 1 | 7 | RTTI-GSR-3, RTTI-GSR-8, SOLD-COL-1 |
 | FileQueryData | 1 | 1 | 7 | DATA-LVL-1, RTTI-GSR-8 |
@@ -678,7 +678,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | LocalizationAsset | 1 | 1 | 5 | RTTI-UI-1, TEXT-DB-1 |
 | LookConstantData | 1 | 1 | 11 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
 | MatchMakerAsset | 1 | 1 | 7 | DATA-MM-1, RTTI-GSR-8 |
-| MenuConfigAsset | 1 | 1 | 16 | ERA-RES-1, HUD-MENU-1, RTTI-GSR-6 |
+| MenuConfigAsset | 1 | 1 | 16 | ERA-RES-1, ERA-SITE-1, HUD-MENU-1, RTTI-GSR-6 |
 | MeshAsset | 1 | 1 | 34 | DATA-DSTR-1, FX-PROC-6, RTTI-EMIT-1, RTTI-GSR-2 (+2) |
 | MixerAsset | 1 | 1 | 3 | RTTI-AUDIO-1, SGR-MIX-1 |
 | NavigationConstantData | 1 | 1 | 41 | BOT-MOV-1, BOT-MOV-3, BOT-MOV-4, BOT-VEH-4 (+1) |
@@ -713,7 +713,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | UI3DSystemAsset | 1 | 1 | 5 | HUD-MENU-1, RTTI-UI-1 |
 | UIMenuConfig | 1 | 1 | 1 | MENU-AS-1, RTTI-UI-1 |
 | UIShaderAsset | 1 | 1 | 2 | HUD-MENU-1, RTTI-UI-1 |
-| UISharedConfigAsset | 1 | 1 | 10 | ERA-MOD-1, ERA-RES-1, ERA-RES-2, HUD-CFG-1 (+2) |
+| UISharedConfigAsset | 1 | 1 | 10 | ERA-MOD-1, ERA-RES-1, ERA-RES-2, ERA-RISK-5 (+4) |
 | UnlockTokenData | 1 | 1 | 3 | PERS-DATA-1, RTTI-GSR-7 |
 | VOConstantData | 1 | 1 | 16 | RTTI-GSR-5, SGR-VO-1 |
 | VOTypesAsset | 1 | 1 | 5 | RTTI-GSR-5, SGR-VO-1 |
