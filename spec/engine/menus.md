@@ -532,7 +532,41 @@ Onslaught mode picture and, when enabled, the Pacific War menu install (aptgraft
 the step before. The byte-offset patches therefore always meet DICE's bytes; the later steps move only what they grow
 (APT-WR-2).
 
-[code: opfor:build_menus.bat:32-41] [code: opfor:build_menus.bat:54-55]
+[code: opfor:build_menus.bat:27-42] [code: opfor:build_menus.bat:49-50]
+
+### MENU-ED-7: A menu patch is applied whole or not at all, every expected byte checked
+
+Status: **verified** · Variants: PC
+
+`bfbc2 aptpatch <in.res> <file.patch> <out.res>` (OPFOR's `AptTool.cs patch` until round OR5) reads the patch
+format `aptcheck lint` reads, checks every expected byte, appends each `append` string NUL-terminated at its
+member's 4-aligned end, writes `@label` as the string's little-endian offset, and rebuilds the BIGF archive with
+the members in their index order, 4-byte aligned (APT-WR-1's layout). AptTool accepted a few inputs that can only
+be mistakes; they are refused, nothing written: a line `aptcheck lint` finds malformed, a label defined twice
+(AptTool kept the last, so the earlier string was unreferenced), a member named twice in the archive's index
+(DICE's movies have none: the loader finds members by name). OPFOR's 12 patch files have none of these: their
+movies are AptTool's byte for byte.
+
+[code: rust/bc2-menu/src/aptpatch.rs:36-70]
+[test: rust/bc2-menu/src/aptpatch.rs::refusals]
+[test: rust/bc2-menu/src/aptpatch.rs::patches_and_appends]
+[data: round OR5, 2026-11-23: OPFOR's 12 patch files on DICE's pristine main menu, 12 of 12 movies identical to AptTool.exe's]
+
+### MENU-ED-8: The ONSLAUGHT mode picture is new data appended, its pixels Pillow's
+
+Status: **verified** · Variants: PC, Xbox 360 (the source)
+
+`bfbc2 menuart onslaught` (OPFOR's `onslaught_art.py` until round OR5) adds main_nav's picture sprite a frame
+`ONSLAUGHT` placing a new shape and image (copies of the first mode's, the geometry's part re-pointed), each table it
+extends copied with the new entries and the old copies left unreferenced (MENU-UNL-1, APT-WR-2), and puts the
+picture into free DXT5 space of the menu atlas with a new `UITextureAtlasInfo` (APT-ATL-1). The picture's pixels
+are the retired Python's: Pillow 12's Lanczos resampling through premultiplied alpha, paste and alpha_composite,
+its DXT5 decoding, numpy's float32 luminance (green first, red and blue fused, as OpenBLAS' kernel sums it). The
+cache `work\import\onslaught_mode.png` is compared by its pixels: Pillow's and the png crate's file bytes differ.
+
+[code: rust/bc2-menu/src/modeart.rs:481-704] [code: rust/bc2-menu/src/pil.rs:1-20]
+[test: rust/bc2-menu/src/pil.rs::pillow_answers]
+[data: round OR5, 2026-11-23: rust/parity_menuart.py, 200 random cases of each of 9 operations identical to Pillow / numpy; the menu bundle built from the cache, the user's Xbox 360 package and the fallback identical to onslaught_art.py's]
 
 ## Open questions
 

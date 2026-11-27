@@ -190,8 +190,8 @@ PC map's own. The installed level: 0 lamp effects, 2 `GameEffectEntityData`, no 
 null. (WX1 attributed this level to Napisal; it is OPFOR's console port.) A faithful port must convert those
 resources instead of dropping them.
 
-[code: opfor:src/tools/onslaught/console_onslaught.py:261-278]
-[code: opfor:src/tools/onslaught/console_onslaught.py:350-355]
+[code: rust/bc2-install/src/onslaught.rs:696-728]
+[code: rust/bc2-install/src/onslaught.rs:812-891]
 [data: round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition (2,861 instances, OPFOR's `.opfor-*-applied` stage markers beside it): the counts listed; Napisal's backed-up ONS_MP_002: 53 lamp-effect references, 143 GameEffectEntityData, 10 sound areas with sounds]
 
 ### ONS-PORT-4: The console port rebuilds on the Linux server's level

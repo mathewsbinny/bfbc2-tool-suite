@@ -25,11 +25,15 @@ bc2-convert = { workspace = true, optional = true }
 bc2-menu = { workspace = true, optional = true }
 bc2-pyrt = { workspace = true, optional = true }
 sha1_smol = { workspace = true, optional = true }
+# the Onslaught import's error (round OR5, feature `onslaught`)
+thiserror = { workspace = true, optional = true }
 
 [features]
 # the WW2 level build (OPFOR's wake_install.build, round OR2): bc2_native's ww2build_* functions; bfbc2.exe's
 # installer does not need it
 levelbuild = ["dep:bc2-tools", "dep:bc2-convert", "dep:bc2-menu", "dep:bc2-pyrt", "dep:sha1_smol"]
+# the console Onslaught import (OPFOR's console_onslaught.build / install, round OR5): bc2_native's onslaught_*
+onslaught = ["dep:bc2-tools", "dep:bc2-pyrt", "dep:thiserror"]
 
 [lints]
 workspace = true
