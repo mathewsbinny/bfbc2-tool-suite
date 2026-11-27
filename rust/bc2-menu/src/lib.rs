@@ -10,6 +10,9 @@
 )]
 #![allow(missing_docs, reason = "fields and functions named as the Python they port")]
 
+pub mod aptpatch;
 pub mod common;
 pub mod error;
 pub mod graft;
+pub mod modeart;
+pub mod pil;

@@ -140,6 +140,23 @@ LOAD-PART-3, LOAD-PART-2, RNDR-DRAW-6.
 [exe: BFBC2Game.exe 0x5A5A61 (console-only vehicle mesh and physics), 0x4EB538 (null string of a value-less reference), 0x98BD6E (renderer)]
 [doc: opfor:DEVELOPMENT_NOTES.md:1266-1270] [doc: opfor:DEVELOPMENT_NOTES.md:1350]
 
+### XCONS-ONS-1: The console Onslaught import gives the retired Python's work files
+
+Status: **verified** · Variants: Xbox 360
+
+The first stage (`console_onslaught.py`'s build and install preparation, `bc2_install::onslaught` since round OR5)
+gives the retired Python's files in its work folder byte for byte: the extracted package files, the unpacks and
+their stamps, `level.cmd`, the level and its shared files, the description, the bundles and `report.json`
+(written as Python's text mode wrote them, `\r\n`), and the game copy's writes in the same order (the level's
+files, then startup-00, package.mft, bundleManifest: REG-NEW-4). Where the Python's answer hung on a set's or a
+folder listing's order, it does not: the shared files are copied in name order, the campaign bundles searched in
+CAMPAIGN's order. The printed count of a stripped bundle's dropped markers is the Python's (markers dropped less
+the renamed copies added; it can be negative).
+
+[code: rust/bc2-install/src/onslaught.rs:541-560] [code: rust/bc2-install/src/onslaught.rs:1041-1050] [code: opfor:src/tools/onslaught/console_onslaught.py:24-72]
+[test: rust/bc2-install/src/onslaught.rs::report_text]
+[data: round OR5, 2026-11-23: the user's Update #3 package on ONS_MP_008 / MP_008 and ONS_MP_002 / MP_002, every work file and write of the Rust import identical to the Python's (rust/BENCHMARKS.md "OR5")]
+
 ## Open questions
 
 - 0x98BD6E on ONS_MP_004's console road / stop signs: which vertex layout or program the renderer lacks (layer 3,
