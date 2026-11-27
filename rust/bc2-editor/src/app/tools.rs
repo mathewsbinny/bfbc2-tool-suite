@@ -327,20 +327,16 @@ impl ViewState {
     /// Whether a transient tool is open (placing, the polygon, the sink popup, the picker): Esc cancels it first.
     #[must_use]
     pub fn has_transient(&self) -> bool {
-        self.browser.placing.is_some()
-            || self.tools.transient()
-            || self.browser.sink.is_some()
-            || self.picker.is_some()
-            || !self.navs.clicks.is_empty()
+        self.tools.transient() || self.browser.sink.is_some() || self.picker.is_some()
     }
 
     /// Cancels the transient tools.
     pub fn cancel_transient(&mut self) {
-        if self.browser.placing.take().is_some() {
+        if self.tools.place.placing.is_some() {
             self.message = "Placing cancelled".into();
+            self.placing_ended();
         }
-        if !self.navs.clicks.is_empty() {
-            self.navs.clicks.clear();
+        if !self.tools.nav.clicks.is_empty() {
             self.navs.message = "Drawing cancelled".into();
             self.navs.dirty = true;
         }
@@ -523,7 +519,7 @@ impl ViewState {
                 self.message = format!("{} workspace", w.name());
                 // the navigation is drawn in the AI workspace (round GR2); its tools stay there
                 if w != Workspace::Ai {
-                    self.navs.tool = None;
+                    self.nav_tool_off();
                     self.navs.path.active = false;
                 }
                 self.apply_look(palette);
@@ -1121,7 +1117,7 @@ impl ViewState {
             "Placing {}: click to place, Alt+wheel sinks, Shift+wheel turns, Esc cancels",
             entry.name
         );
-        self.browser.placing = Some(Placing {
+        self.placing_begins(Placing {
             entry,
             yaw: 0.0,
             placement,
@@ -1130,6 +1126,31 @@ impl ViewState {
             half,
             gameplay: None,
         });
+    }
+
+    /// Placing begins (round E4-rest2): the place tool is the views' tool until it ends, the tool before kept.
+    fn placing_begins(&mut self, p: Placing) {
+        if self.tool != Tool::Place {
+            self.tools.place.back = self.tool;
+            // the navigation edit tool chosen stays chosen (its drawing is dropped, as another tool's would be)
+            let nav = self.tools.nav.kind;
+            self.tools.choose(Tool::Place);
+            if self.tool == Tool::Nav {
+                self.tools.nav.kind = nav;
+            }
+            self.tool = Tool::Place;
+        }
+        self.tools.place.placing = Some(p);
+    }
+
+    /// Placing ended (placed or dropped): the tool chosen before is the views' tool again.
+    fn placing_ended(&mut self) {
+        self.tools.place.placing = None;
+        if self.tool == Tool::Place {
+            let back = self.tools.place.back;
+            self.tool = back;
+            self.tools.choose(back);
+        }
     }
 
     /// The Spawners and Objectives tiles (made again when the log or the catalogue changed).
@@ -1182,7 +1203,7 @@ impl ViewState {
             "Placing {}: click to place, Alt+wheel sinks, Shift+wheel turns, Esc cancels",
             tile.label
         );
-        self.browser.placing = Some(Placing {
+        self.placing_begins(Placing {
             entry,
             yaw: 0.0,
             placement: Placement::default(),
@@ -1276,20 +1297,19 @@ impl ViewState {
         }
     }
 
-    /// Moves the object being placed to the surface under a ray.
+    /// Moves the object being placed to the surface under a ray (the place tool's, round E4-rest2).
     pub(super) fn placing_to(&mut self, o: V3, dir: V3) {
-        let hit = {
-            let skip = |k: usize| self.doc.as_ref().is_some_and(|d| !d.shown(k));
-            query::ray_hit_except(self.scene(), o, dir, &skip)
-        };
-        if let Some(p) = self.browser.placing.as_mut() {
-            p.at = hit.map(|h| query::place(&math::upright(h.point, p.yaw), p.extent, &h, &p.placement));
-        }
+        let mut place = std::mem::take(&mut self.tools.place);
+        place.to_ray(o, dir, self);
+        self.tools.place = place;
     }
 
     /// Places the object being placed where it is: one `place` operation; it is selected.
     pub fn finish_placing(&mut self, gpu: &GpuCtx, palette: &Palette) {
-        let Some(p) = self.browser.placing.take() else { return };
+        let Some(p) = self.tools.place.placing.take() else {
+            return;
+        };
+        self.placing_ended();
         let Some(m) = p.at else {
             self.message = "Nothing under the pointer to place on".into();
             return;
@@ -1367,6 +1387,9 @@ impl ViewState {
                 self.set_selection(gpu, list, true);
             }
             Outcome::Commit(op, label) => self.commit(gpu, palette, *op, &label),
+            // round E4-rest2: the navigation edit tools and placing
+            Outcome::NavDrawing(edit, note) => self.nav_drawing(gpu, palette, edit, note),
+            Outcome::Place => self.finish_placing(gpu, palette),
             // round E5: the brushes
             Outcome::TerrainPreview(target, region) => self.terrain_preview(gpu, &target, region),
             Outcome::Stroke(parts, label, clamped) => {
@@ -1473,7 +1496,8 @@ impl Tabs<'_> {
         if let Some(payload) = resp.dnd_hover_payload::<ContentDrag>()
             && self
                 .view
-                .browser
+                .tools
+                .place
                 .placing
                 .as_ref()
                 .is_none_or(|p| p.entry.path != payload.0)
@@ -1491,7 +1515,8 @@ impl Tabs<'_> {
         if let Some(payload) = resp.dnd_hover_payload::<GameplayDrag>()
             && self
                 .view
-                .browser
+                .tools
+                .place
                 .placing
                 .as_ref()
                 .is_none_or(|p| p.entry.path != format!("gameplay:{}", payload.0))
@@ -1513,12 +1538,12 @@ impl Tabs<'_> {
                 let shift = m.shift || ui.input(|i| i.modifiers.shift);
                 let ctrl = m.ctrl || m.command || ui.input(|i| i.modifiers.command);
                 let step = if shift { 0.01 } else { 0.1 };
-                if alt && let Some(p) = self.view.browser.placing.as_mut() {
+                if alt && let Some(p) = self.view.tools.place.placing.as_mut() {
                     p.placement.sink = ((p.placement.sink - n * step) * 1000.0).round() / 1000.0;
                     wheel = true;
                 } else if !alt
                     && shift
-                    && let Some(p) = self.view.browser.placing.as_mut()
+                    && let Some(p) = self.view.tools.place.placing.as_mut()
                 {
                     p.yaw += n * if ctrl { 1.0 } else { 15.0 };
                     wheel = true;
@@ -1534,18 +1559,8 @@ impl Tabs<'_> {
                 }
             }
         }
-        if self.view.browser.placing.is_some() {
-            if let Some(h) = hover {
-                let (o, d) = view.ray(local(h));
-                self.view.placing_to(o, d);
-            }
-            if released || resp.clicked() {
-                self.view.finish_placing(gpu, &palette);
-                self.view.redraw();
-            }
-            left = true;
-        }
-        // the chosen tool's input (round PR1b-0: the polygon's corners - clicks add, a double click or Enter closes)
+        // the chosen tool's input (round PR1b-0: the polygon's corners - clicks add, a double click or Enter closes;
+        // round E4-rest2: placing follows the pointer and a click or the drop places it)
         let pointer = crate::tool::Pointer {
             projection,
             rect,
@@ -1558,12 +1573,17 @@ impl Tabs<'_> {
             // round E5: a brush paints while the left button is held on the view (Alt+left still orbits)
             down: resp.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_down() && !i.modifiers.alt),
             terrain: self.view.doc.is_some() && self.view.workspace == Workspace::Terrain,
+            dropped: released,
         };
         let mut tools = std::mem::take(&mut self.view.tools);
         let taken = tools.get_mut(self.view.tool).input(&pointer, self.view);
         self.view.tools = tools;
         if let Some(outcome) = taken {
+            let placed = outcome == crate::tool::Outcome::Place;
             self.view.tool_outcome(gpu, &palette, outcome);
+            if placed {
+                self.view.redraw();
+            }
             left = true;
         }
         // a right-click: what is under the pointer; an object outside the selection is selected
@@ -1667,56 +1687,7 @@ impl Tabs<'_> {
         let p = self.palette;
         let painter = ui.painter().with_clip_rect(rect);
         let view = Tabs::view_of(rect, cam);
-        let to_screen = |w: V3| view.project(w).map(|s| rect.min + Vec2::new(s[0] as f32, s[1] as f32));
-        // the object being placed: its box, in the selection colour
-        if let Some(pl) = &self.view.browser.placing
-            && let Some(m) = pl.at
-        {
-            let (hx, hz) = pl.half;
-            let (lo, hi) = pl.extent;
-            let corner = |i: usize| -> V3 {
-                let l = [
-                    if i & 1 == 0 { -hx } else { hx },
-                    if i & 2 == 0 { lo } else { hi },
-                    if i & 4 == 0 { -hz } else { hz },
-                ];
-                let mut w = math::row(&m, 3);
-                for (r, v) in l.iter().enumerate() {
-                    w = math::add(w, math::mul(math::row(&m, r), *v));
-                }
-                w
-            };
-            for (a, b) in [
-                (0, 1),
-                (2, 3),
-                (4, 5),
-                (6, 7),
-                (0, 2),
-                (1, 3),
-                (4, 6),
-                (5, 7),
-                (0, 4),
-                (1, 5),
-                (2, 6),
-                (3, 7),
-            ] {
-                if let (Some(x), Some(y)) = (to_screen(corner(a)), to_screen(corner(b))) {
-                    painter.line_segment([x, y], Stroke::new(2.0, p.view_selection));
-                }
-            }
-            if let Some(c) = to_screen(math::row(&m, 3)) {
-                painter.circle_filled(c, 4.0, p.view_selection);
-                let text = format!(
-                    "{}  yaw {:.0} deg  sink {:.2} m",
-                    pl.entry.name, pl.yaw, pl.placement.sink
-                );
-                let g = painter.layout_no_wrap(text, FontId::proportional(12.0), p.ink);
-                let r = Rect::from_min_size(c + Vec2::new(12.0, 10.0), g.size()).expand(4.0);
-                painter.rect_filled(r, CornerRadius::same(3), p.scene_label);
-                painter.galley(r.min + Vec2::splat(4.0), g, p.ink);
-            }
-        }
-        // what the tools hold (the polygon being drawn)
+        // what the tools hold (the polygon being drawn, the object being placed: its box)
         self.view.tools.draw(
             &crate::tool::Draw {
                 painter: &painter,
@@ -2158,7 +2129,7 @@ impl Tabs<'_> {
             // it starts where the menu was opened
             if let Some(pt) = pk.point {
                 let hit = query::surface_below(self.view.scene(), pt[0], pt[2]);
-                if let (Some(h), Some(pl)) = (hit, self.view.browser.placing.as_mut()) {
+                if let (Some(h), Some(pl)) = (hit, self.view.tools.place.placing.as_mut()) {
                     pl.at = Some(query::place(
                         &math::upright(h.point, pl.yaw),
                         pl.extent,

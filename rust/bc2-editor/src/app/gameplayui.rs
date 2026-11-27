@@ -43,6 +43,8 @@ pub enum PanelRequest {
     RemoveStage(usize),
     /// "Rename" of a flag (its guid) to a name.
     Rename(String, String),
+    /// "Insert after" on stage `k` (round E4-rest2): the Gameplay tool inserts a stage after it.
+    InsertAfter(usize),
 }
 
 /// What the panel's buttons asked for this frame.
@@ -136,6 +138,7 @@ impl Tabs<'_> {
         match self.view.gameplay.request.take() {
             Some(PanelRequest::RemoveStage(k)) => asked.remove_stage = Some(k),
             Some(PanelRequest::Rename(g, n)) => asked.rename = Some((g, n)),
+            Some(PanelRequest::InsertAfter(k)) => asked.kind = Some(GameplayKind::InsertStage(k)),
             None => {}
         }
         let mut team = self.view.browser.place_team;
@@ -320,11 +323,26 @@ impl Tabs<'_> {
                                 if ui
                                     .add_enabled(editing && stages.len() > 1, egui::Button::new("Remove stage"))
                                     .on_hover_text(
-                                        "Takes the stage out with its M-COMs, bases, spawns, combat areas and                                          counters; the stage before hands on to the next (one undo step)",
+                                        "Takes the stage out with its M-COMs, bases, spawns, combat areas and \
+                                         counters; the stage before hands on to the next (one undo step)",
                                     )
                                     .clicked()
                                 {
                                     asked.remove_stage = Some(k);
+                                }
+                                // round E4-rest2: a stage inserted between this one and the next
+                                if k + 1 < stages.len() {
+                                    let ins = GameplayKind::InsertStage(k);
+                                    if ui
+                                        .add_enabled(
+                                            editing,
+                                            egui::Button::selectable(tool_on && kind == ins, "Insert after"),
+                                        )
+                                        .on_hover_text(ins.hint())
+                                        .clicked()
+                                    {
+                                        asked.kind = Some(ins);
+                                    }
                                 }
                             });
                         }

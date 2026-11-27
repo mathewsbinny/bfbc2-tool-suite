@@ -569,68 +569,8 @@ pub fn add_stage(
     let (Some(prev), Some(last)) = (st.stages.get(n - 2), st.stages.get(n - 1)) else {
         return Err(refused("the level has no Rush stages"));
     };
-    let copy: HashMap<String, String> = last
-        .set
-        .iter()
-        .map(|g| (g.clone(), guid(g).to_ascii_uppercase()))
-        .collect();
+    let (dup, copy) = copy_of(w, last, at, guid, ground)?;
     let c = |g: &String| copy.get(g).cloned().unwrap_or_else(|| g.clone());
-    // the move: the M-COMs' middle to `at`
-    let pts: Vec<[f32; 3]> = last.mcoms.iter().filter_map(|m| w.transform(m)).map(|r| r[3]).collect();
-    if pts.is_empty() {
-        return Err(refused("the last stage's M-COMs have no position"));
-    }
-    #[allow(clippy::cast_precision_loss, reason = "a handful of M-COMs")]
-    let mid = {
-        let k = pts.len() as f32;
-        let s = pts
-            .iter()
-            .fold([0.0f32; 3], |a, p| [a[0] + p[0], a[1] + p[1], a[2] + p[2]]);
-        [s[0] / k, s[1] / k, s[2] / k]
-    };
-    let d = [at[0] - mid[0], at[1] - mid[1], at[2] - mid[2]];
-    let moved = |r: Rows| -> Rows {
-        let [x, y, z] = r[3];
-        let (nx, nz) = (x + d[0], z + d[2]);
-        #[allow(clippy::cast_possible_truncation, reason = "transforms are singles")]
-        let ny = match (ground(f64::from(x), f64::from(z)), ground(f64::from(nx), f64::from(nz))) {
-            (Some(a), Some(b)) => (f64::from(y) - a + b) as f32,
-            _ => y + d[1],
-        };
-        let mut out = r;
-        out[3] = [nx, ny, nz];
-        out
-    };
-    let Some(root) = last.mcoms.first() else {
-        return Err(refused("the last stage has no M-COM"));
-    };
-    let root_rows = w
-        .transform(root)
-        .ok_or_else(|| refused("the last stage's M-COM has no position"))?;
-    let owned: Vec<SubCopy> = last
-        .set
-        .iter()
-        .filter(|g| *g != root)
-        .map(|g| SubCopy {
-            source: g.clone(),
-            guid: c(g),
-            transform: w.transform(g).map(moved),
-        })
-        .collect();
-    // the copies with the connections among them only (a placement's copy: the stage's links to the rest of the
-    // level are the wiring below)
-    let dup = Op::Place {
-        items: vec![Placed {
-            guid: c(root),
-            template: root.clone(),
-            blueprint: String::new(),
-            ref_field: None,
-            owned,
-            transform: moved(root_rows),
-            fields: Vec::new(),
-            placement: None,
-        }],
-    };
     // the wiring
     let conns = connections(w);
     let have: HashSet<&Connection> = conns.iter().collect();
@@ -760,11 +700,366 @@ pub fn add_stage(
     ))
 }
 
+/// A copy of a stage's set (one `place` of its first M-COM with the rest as its sub-instances, the connections among
+/// them copied), moved so its M-COMs' middle stands at `at` (each copy keeping its height above the ground where
+/// `ground(x, z)` gives one); with each original's copy (upper-case guids).
+fn copy_of(
+    w: &LevelWriter,
+    stage: &StageParts,
+    at: [f32; 3],
+    guid: &dyn Fn(&str) -> String,
+    ground: &dyn Fn(f64, f64) -> Option<f64>,
+) -> Result<(Op, HashMap<String, String>)> {
+    let copy: HashMap<String, String> = stage
+        .set
+        .iter()
+        .map(|g| (g.clone(), guid(g).to_ascii_uppercase()))
+        .collect();
+    let c = |g: &String| copy.get(g).cloned().unwrap_or_else(|| g.clone());
+    // the move: the M-COMs' middle to `at`
+    let pts: Vec<[f32; 3]> = stage
+        .mcoms
+        .iter()
+        .filter_map(|m| w.transform(m))
+        .map(|r| r[3])
+        .collect();
+    if pts.is_empty() {
+        return Err(refused("the stage's M-COMs have no position"));
+    }
+    #[allow(clippy::cast_precision_loss, reason = "a handful of M-COMs")]
+    let mid = {
+        let k = pts.len() as f32;
+        let s = pts
+            .iter()
+            .fold([0.0f32; 3], |a, p| [a[0] + p[0], a[1] + p[1], a[2] + p[2]]);
+        [s[0] / k, s[1] / k, s[2] / k]
+    };
+    let d = [at[0] - mid[0], at[1] - mid[1], at[2] - mid[2]];
+    let moved = |r: Rows| -> Rows {
+        let [x, y, z] = r[3];
+        let (nx, nz) = (x + d[0], z + d[2]);
+        #[allow(clippy::cast_possible_truncation, reason = "transforms are singles")]
+        let ny = match (ground(f64::from(x), f64::from(z)), ground(f64::from(nx), f64::from(nz))) {
+            (Some(a), Some(b)) => (f64::from(y) - a + b) as f32,
+            _ => y + d[1],
+        };
+        let mut out = r;
+        out[3] = [nx, ny, nz];
+        out
+    };
+    let Some(root) = stage.mcoms.first() else {
+        return Err(refused("the stage has no M-COM"));
+    };
+    let root_rows = w
+        .transform(root)
+        .ok_or_else(|| refused("the stage's M-COM has no position"))?;
+    let owned: Vec<SubCopy> = stage
+        .set
+        .iter()
+        .filter(|g| *g != root)
+        .map(|g| SubCopy {
+            source: g.clone(),
+            guid: c(g),
+            transform: w.transform(g).map(moved),
+        })
+        .collect();
+    // the copies with the connections among them only (a placement's copy: the stage's links to the rest of the
+    // level are the wiring)
+    let dup = Op::Place {
+        items: vec![Placed {
+            guid: c(root),
+            template: root.clone(),
+            blueprint: String::new(),
+            ref_field: None,
+            owned,
+            transform: moved(root_rows),
+            fields: Vec::new(),
+            placement: None,
+        }],
+    };
+    Ok((dup, copy))
+}
+
+/// A Rush stage inserted between two (round E4-rest2, GAME-RUSH-12): after stage `after` (play order, from 0) and
+/// before the stage that followed it, as a copy of that next stage's set (a later stage: its objects start out of
+/// play as a middle stage's do) moved so its M-COMs' middle stands at `at`. The wiring between the two stages is
+/// split in two: what the stage before did to the next stage (its counter enabling the next counter, base, forward
+/// base, combat area, timers) it does to the copy, and the copy does to the next stage as the stage before did (each
+/// object of the stage before mapped to its counterpart in the next stage, [`counterparts`], then to that one's
+/// copy); what the next stage's objects did to the stage before's as they came into play (a combat area's
+/// `OnEnabled` disabling the one before) the copy's do to the stage before's, and the next stage's do to the copy's.
+/// The next stage's links to the level's shared logic are copied; its links to the other stages are not. The
+/// defenders' `BaseCount` counts one more. Adding after the last is [`add_stage`].
+///
+/// Checked as it is made: the stages are played in the order `..., after, new, next, ...`, every stage as before
+/// (the objects whose state DICE's play leaves uncertain aside), the new one with its copies as the next stage's
+/// objects were and the next stage's own objects waiting as they did. Where the split wiring leaves an object
+/// otherwise, the counter of the stage before the one it is wrong in switches it (`Enable` / `Disable`).
+///
+/// # Errors
+/// [`stages`] refuses the level, `after` is not a stage followed by another, or the stages would not play so.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the stage's copy, its split wiring and its check in one piece"
+)]
+pub fn insert_stage(
+    w: &LevelWriter,
+    schema: &Schema,
+    after: usize,
+    at: [f32; 3],
+    guid: &dyn Fn(&str) -> String,
+    ground: &dyn Fn(f64, f64) -> Option<f64>,
+) -> Result<NewStage> {
+    use std::cmp::Ordering;
+    let st = stages(w)?;
+    let n = st.stages.len();
+    let (Some(prev), Some(next)) = (st.stages.get(after), st.stages.get(after + 1)) else {
+        return Err(refused(format!(
+            "a stage is inserted between two stages: the level has {n}, and stage {} is {}",
+            after + 1,
+            if after < n {
+                "the last (a stage is added after it)"
+            } else {
+                "not one of them"
+            }
+        )));
+    };
+    let conns = connections(w);
+    // what the next stage's counter switches on for a stage after it that is in play in no stage (MP_006's last
+    // counter's forward base for a sixth stage) belongs to the stages after it: not copied
+    let dormant: HashSet<String> = conns
+        .iter()
+        .filter(|e| e.source == next.base && e.source_event == "OnTrigger" && e.target_event == "Enable")
+        .filter(|e| next.set.contains(&e.target) && st.states.iter().all(|s| s.get(&e.target) == Some(&false)))
+        .flat_map(|e| modelayer::cluster(w, &e.target))
+        .collect();
+    let mut copied = next.clone();
+    copied.set.retain(|g| !dormant.contains(g));
+    let (dup, copy) = copy_of(w, &copied, at, guid, ground)?;
+    let c = |g: &String| copy.get(g).cloned().unwrap_or_else(|| g.clone());
+    let have: HashSet<&Connection> = conns.iter().collect();
+    // each object of the stage before to its counterpart in the next stage (then to that one's copy)
+    let phi = counterparts(w, &st, after, after + 1);
+    let in_next: HashSet<&String> = copied.set.iter().collect();
+    let in_prev: HashSet<&String> = prev.set.iter().collect();
+    let in_other: HashSet<&String> = st
+        .stages
+        .iter()
+        .enumerate()
+        .filter(|(k, _)| *k != after && *k != after + 1)
+        .flat_map(|(_, s)| s.set.iter())
+        .chain(dormant.iter())
+        .collect();
+    let mut wires: Vec<Connection> = Vec::new();
+    let mut gone: Vec<Connection> = Vec::new();
+    let push = |x: Connection, wires: &mut Vec<Connection>| {
+        if !have.contains(&x) && !wires.contains(&x) {
+            wires.push(x);
+        }
+    };
+    let mut unshifted = 0usize;
+    for e in &conns {
+        let (s_next, t_next) = (in_next.contains(&e.source), in_next.contains(&e.target));
+        let (s_prev, t_prev) = (in_prev.contains(&e.source), in_prev.contains(&e.target));
+        let wire = |s: String, t: String| Connection {
+            source: s,
+            source_event: e.source_event.clone(),
+            target: t,
+            target_event: e.target_event.clone(),
+        };
+        if s_next && t_next {
+            continue; // the copy's own (the placement copies them)
+        }
+        if s_prev && t_next {
+            // the stage before to the next: to the copy; the copy to the next in its place
+            push(wire(e.source.clone(), c(&e.target)), &mut wires);
+            match phi.get(&e.source) {
+                Some(s) => {
+                    push(wire(c(s), e.target.clone()), &mut wires);
+                    gone.push(e.clone());
+                }
+                None => unshifted += 1,
+            }
+        } else if s_next && t_prev {
+            // the next stage's objects acting on the stage before's: the copy's do; the next stage's act on the copy
+            push(wire(c(&e.source), e.target.clone()), &mut wires);
+            match phi.get(&e.target) {
+                Some(t) => {
+                    push(wire(e.source.clone(), c(t)), &mut wires);
+                    gone.push(e.clone());
+                }
+                None => unshifted += 1,
+            }
+        } else if s_next && !in_other.contains(&e.target) {
+            push(wire(c(&e.source), e.target.clone()), &mut wires);
+        } else if t_next && !in_other.contains(&e.source) && !s_prev {
+            push(wire(e.source.clone(), c(&e.target)), &mut wires);
+        }
+    }
+    let count = base_count(w, schema, &st.defenders, 1)?;
+    let make = |wires: &[Connection]| -> Op {
+        let mut edits = vec![partition(dup.clone())];
+        if !gone.is_empty() {
+            edits.push(partition(Op::Connect {
+                items: gone.clone(),
+                connected: false,
+            }));
+        }
+        if !wires.is_empty() {
+            edits.push(partition(Op::Connect {
+                items: wires.to_vec(),
+                connected: true,
+            }));
+        }
+        edits.push(partition(Op::SetField {
+            items: vec![count.clone()],
+        }));
+        Op::Files { edits }
+    };
+    let new_mcoms: Vec<String> = next.mcoms.iter().map(&c).collect();
+    let back: HashMap<String, String> = copy.iter().map(|(s, x)| (x.clone(), s.clone())).collect();
+    let is_counter = |g: &str| v_type(w, g).ends_with(".MultipleTriggerEntityData");
+    // a stage's state of an object where DICE's play is certain of it (the play's raw state and the counters' last
+    // word agree)
+    let certain = |old: usize, g: &str| -> Option<bool> {
+        let on = st.states.get(old)?.get(g).copied()?;
+        let raw = st.play.get(old)?.enabled.get(g).copied().unwrap_or(true);
+        (raw == on).then_some(on)
+    };
+    // what stage `k` of the new play should have (`None`: not checked): the old stage `k` before the new one, the
+    // old `k - 1` after it
+    let want = |k: usize, g: &str| -> Option<bool> {
+        if let Some(src) = back.get(g) {
+            return match k.cmp(&(after + 1)) {
+                Ordering::Less => certain(k, src),
+                Ordering::Equal => certain(after + 1, src),
+                // played: its own out of play (its counters stay enabled)
+                Ordering::Greater => (next.own.contains(src) && !is_counter(src)).then_some(false),
+            };
+        }
+        match k.cmp(&(after + 1)) {
+            Ordering::Less => certain(k, g),
+            Ordering::Equal if next.own.iter().any(|o| o == g) => certain(after, g),
+            Ordering::Equal if in_next.contains(&g.to_owned()) => None,
+            Ordering::Equal => certain(after + 1, g),
+            Ordering::Greater => certain(k - 1, g),
+        }
+    };
+    let order_want: Vec<Vec<String>> = st
+        .play
+        .iter()
+        .take(after + 1)
+        .map(|s| s.mcoms.clone())
+        .chain(std::iter::once(new_mcoms.clone()))
+        .chain(st.play.iter().skip(after + 1).map(|s| s.mcoms.clone()))
+        .collect();
+    let bases_v: Vec<String> = st
+        .stages
+        .iter()
+        .take(after + 1)
+        .map(|s| s.base.clone())
+        .chain(std::iter::once(c(&next.base)))
+        .chain(st.stages.iter().skip(after + 1).map(|s| s.base.clone()))
+        .collect();
+    for _round in 0..4 {
+        let v = applied(w, schema, &make(&wires))?;
+        let (play, uncertain) = modelayer::rush_play(&v);
+        let order: Vec<Vec<String>> = play.iter().map(|s| s.mcoms.clone()).collect();
+        if uncertain || order != order_want {
+            return Err(refused(format!(
+                "the new stage would not be played between stages {} and {} ({} stages{})",
+                after + 1,
+                after + 2,
+                play.len(),
+                if uncertain { ", in no certain order" } else { "" }
+            )));
+        }
+        let states = settled(&play, &bases_v, &connections(&v));
+        let mut wrong: Vec<(usize, String, bool)> = Vec::new();
+        for (k, s) in states.iter().enumerate() {
+            let mut here: Vec<(usize, String, bool)> = s
+                .iter()
+                .filter_map(|(g, on)| want(k, g).filter(|x| x != on).map(|x| (k, g.clone(), x)))
+                .collect();
+            here.sort();
+            wrong.extend(here);
+        }
+        // the counter of the stage before switches it; an object it switches already is left to it (the play follows
+        // events in no time: a delayed enable of a stage's own may come after the counter's disable)
+        let mut fixes: Vec<Connection> = Vec::new();
+        let mut stuck: Vec<String> = Vec::new();
+        for (k, g, on) in &wrong {
+            let Some(b) = k.checked_sub(1).and_then(|p| bases_v.get(p)) else {
+                stuck.push(format!("{g} in stage {}", k + 1));
+                continue;
+            };
+            let f = Connection {
+                source: b.clone(),
+                source_event: "OnTrigger".into(),
+                target: g.clone(),
+                target_event: if *on { "Enable" } else { "Disable" }.into(),
+            };
+            if !have.contains(&f) && !wires.contains(&f) && !fixes.contains(&f) {
+                fixes.push(f);
+            }
+        }
+        if !stuck.is_empty() {
+            return Err(refused(format!(
+                "the stages would not play as before: {}",
+                stuck.join(", ")
+            )));
+        }
+        if fixes.is_empty() {
+            return Ok(NewStage {
+                op: make(&wires),
+                mcoms: new_mcoms,
+                copies: copy.len(),
+                wires: wires.len() + gone.len(),
+                unshifted,
+            });
+        }
+        for f in fixes {
+            push(f, &mut wires);
+        }
+    }
+    Err(refused(
+        "the new stage's objects would not be in play as the next stage's are",
+    ))
+}
+
+/// The connections from stage `k + 1`'s objects to stage `k`'s, each retargeted to the stage before's counterpart of
+/// its target (round E4-rest2: [`remove_stage`] taking out stage `k`, `k` > 0); none for the last stage.
+fn handed_back(w: &LevelWriter, st: &Stages, conns: &[Connection], k: usize) -> Vec<Connection> {
+    let (Some(gone), Some(next), Some(before)) = (st.stages.get(k), st.stages.get(k + 1), k.checked_sub(1)) else {
+        return Vec::new();
+    };
+    let dead: HashSet<&String> = gone.set.iter().collect();
+    let next_set: HashSet<&String> = next.set.iter().collect();
+    let back: HashMap<String, String> = counterparts(w, st, before, k)
+        .into_iter()
+        .map(|(p, x)| (x, p))
+        .collect();
+    conns
+        .iter()
+        .filter(|e| next_set.contains(&e.source) && dead.contains(&e.target))
+        .filter_map(|e| {
+            back.get(&e.target).map(|t| Connection {
+                target: t.clone(),
+                ..e.clone()
+            })
+        })
+        .collect()
+}
+
 /// A Rush stage taken out (round E4-rest, GAME-RUSH-11): stage `k` (play order, from 0) deleted with its set, its
 /// wiring handed on as the module documentation says, the defenders' `BaseCount` one fewer. One operation.
 ///
 /// # Errors
 /// [`stages`] refuses the level, `k` is not one of its stages, or it is the level's only stage.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the stage's removal, its hand-over and its check in one piece"
+)]
 pub fn remove_stage(w: &LevelWriter, schema: &Schema, k: usize) -> Result<Op> {
     let st = stages(w)?;
     let n = st.stages.len();
@@ -838,6 +1133,11 @@ pub fn remove_stage(w: &LevelWriter, schema: &Schema, k: usize) -> Result<Op> {
                 target: e.target.clone(),
                 target_event: e.target_event.clone(),
             });
+        }
+        // round E4-rest2: what the next stage's objects did to stage k's (a hold-back timer disabling its combat
+        // area) they do to the stage before's counterparts, as they did before a stage was inserted between them
+        for x in handed_back(w, &st, &conns, k) {
+            push(x);
         }
     }
     fields.push(base_count(w, schema, &st.defenders, -1)?);

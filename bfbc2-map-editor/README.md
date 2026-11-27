@@ -120,10 +120,11 @@ comes from, recorded in the project; the terrain itself is generated in a later 
   under the ground, a vehicle spawner without room for its vehicle or out of its domain, gameplay objects outside
   every combat area, and - once the AI workspace has read the level's path data - spawns and objectives the bots
   cannot reach from the main route network.
-- **Gameplay tools** (rounds E4 and E4-rest, the Gameplay workspace; Commands: Show gameplay): the Gameplay tool adds
-  a flag, a spawn point, a soldier spawner or an M-COM where you click, each wired as the level's own, and a whole
-  **Rush stage** after the last (a copy of the last stage with its M-COMs, bases, spawns and combat areas, wired as
-  DICE wires its stages); the Gameplay panel takes a stage out ("Remove stage"), renames the selected flag ("E:
+- **Gameplay tools** (rounds E4, E4-rest and E4-rest2, the Gameplay workspace; Commands: Show gameplay): the Gameplay
+  tool adds a flag, a spawn point, a soldier spawner or an M-COM where you click, each wired as the level's own, and a
+  whole **Rush stage** after the last (a copy of the last stage with its M-COMs, bases, spawns and combat areas, wired
+  as DICE wires its stages) or between two (the panel's "Insert after": a copy of the next stage, played between
+  them); the Gameplay panel takes a stage out ("Remove stage"), renames the selected flag ("E:
   Harbor": the export makes its deploy-screen name), sets teams and the round's rules. A new flag's capture messages
   name its letter; past DICE's A - F the export words them as DICE's in each language. Every edit is one undo step.
 - **Auto layout** (round A1, the Gameplay workspace's panel; Commands: Show auto layout): with an export target chosen,

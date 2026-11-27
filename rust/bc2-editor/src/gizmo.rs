@@ -30,6 +30,12 @@ pub enum Tool {
     Gameplay,
     /// The Terrain workspace's brushes (round E5): sculpt and paint the terrain.
     Terrain,
+    /// The AI workspace's navigation edit tools (round E4-rest2): regions, seeds, links, route edges, traversals,
+    /// notes ([`crate::navtool::NavDrawTool`]).
+    Nav,
+    /// Placing an object from the content browser, a tile or the picker (round E4-rest2,
+    /// [`crate::placetool::PlaceTool`]).
+    Place,
 }
 
 impl Tool {
@@ -44,6 +50,8 @@ impl Tool {
             Self::Polygon => "Polygon",
             Self::Gameplay => "Gameplay",
             Self::Terrain => "Terrain brush",
+            Self::Nav => "Navigation edit",
+            Self::Place => "Place",
         }
     }
 }
@@ -160,7 +168,7 @@ pub fn handles(view: &View, f: &Frame, tool: Tool) -> Vec<(Handle, Outline)> {
                 }
             }
         }
-        Tool::Select | Tool::Ruler | Tool::Polygon | Tool::Gameplay | Tool::Terrain => {}
+        Tool::Select | Tool::Ruler | Tool::Polygon | Tool::Gameplay | Tool::Terrain | Tool::Nav | Tool::Place => {}
     }
     out
 }

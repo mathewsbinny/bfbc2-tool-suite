@@ -1,7 +1,8 @@
 //! Whole Rush stages added and taken out (`bc2_levelwrite::rushstage`, `EDITOR_ARCHITECTURE.md` 3.4): on a synthetic
 //! Rush level (CI, no game data) and on Port Valdez Rush (`MP_012GR`) - a stage added after the last and played
 //! last with its copies as the last stage's objects were, taken out again; a stage taken out of the middle and the
-//! first; every operation from the project's log, the partition read back after it is written (a DBX round trip).
+//! first; a stage inserted between every two stages and taken out again (round E4-rest2); every operation from the
+//! project's log, the partition read back after it is written (a DBX round trip).
 //! The game-tier sweep checks DICE's stage wiring (GAME-RUSH-11) on every stock Rush and Squad Rush level and the
 //! tools on each: a stage added and removed again, every stage taken out once.
 //!
@@ -249,6 +250,139 @@ fn check_level(lv: &str, w0: &LevelWriter, schema: &Schema) -> (usize, usize, us
     (added.copies, added.wires, kept.len(), differ)
 }
 
+/// A stage's states of what DICE's play is certain of (the play's raw state and the counters' last word agree).
+fn certain_states(w: &LevelWriter) -> Vec<HashMap<String, bool>> {
+    let st = rushstage::stages(w).unwrap();
+    st.states
+        .iter()
+        .zip(&st.play)
+        .map(|(s, raw)| {
+            s.iter()
+                .filter(|(g, on)| raw.enabled.get(*g).copied().unwrap_or(true) == **on)
+                .map(|(g, on)| (g.clone(), *on))
+                .collect()
+        })
+        .collect()
+}
+
+/// What the tools must do when a stage is inserted (round E4-rest2): between every two stages in turn, a copy of the
+/// next stage played between them - the stages before and after it in their order and playing as before, the new one
+/// with its copies as the next stage's objects were and the next stage's own waiting as during the stage before -,
+/// `BaseCount` one more; taken out again, the level's instances, the stages' states and the level's connections
+/// back. Returns (stages inserted, copies, wires, connections without a counterpart to split).
+fn check_insert(lv: &str, w0: &LevelWriter, schema: &Schema) -> (usize, usize, usize, usize) {
+    let st = rushstage::stages(w0).unwrap();
+    let n = st.stages.len();
+    let all: HashSet<String> = w0.guids().into_iter().collect();
+    let before = certain_states(w0);
+    let c0 = rushstage::connections(w0);
+    let (mut inserted, mut copies, mut wires, mut unshifted) = (0, 0, 0, 0);
+    for j in 0..n.saturating_sub(1) {
+        let next = &st.stages[j + 1];
+        let t = w0.transform(&next.mcoms[0]).unwrap()[3];
+        let s = rushstage::insert_stage(
+            w0,
+            schema,
+            j,
+            [t[0] + 60.0, t[1], t[2] - 30.0],
+            &|g| bc2_levelwrite::new_guid("Rush stages", 7, g),
+            &|_, _| None,
+        )
+        .unwrap_or_else(|e| panic!("{lv}: after stage {}: {e}", j + 1));
+        let w = applied(w0, schema, &s.op);
+        let (play, uncertain) = modelayer::rush_play(&w);
+        assert!(!uncertain, "{lv}: after {}: one order", j + 1);
+        let order: Vec<&Vec<String>> = play.iter().map(|p| &p.mcoms).collect();
+        let mut want: Vec<&Vec<String>> = st.play.iter().map(|p| &p.mcoms).collect();
+        want.insert(j + 1, &s.mcoms);
+        assert_eq!(
+            order,
+            want,
+            "{lv}: the new stage between stages {} and {}",
+            j + 1,
+            j + 2
+        );
+        assert_eq!(base_count(&w, schema), base_count(w0, schema) + 1, "{lv}: BaseCount");
+        let st1 = rushstage::stages(&w).unwrap_or_else(|e| panic!("{lv}: after {}: the stages read: {e}", j + 1));
+        assert_eq!(st1.stages.len(), n + 1);
+        // every old stage as before (its objects DICE's play is certain of)
+        for (old, s0) in before.iter().enumerate() {
+            let k = if old <= j { old } else { old + 1 };
+            for (g, on) in s0 {
+                assert_eq!(
+                    st1.states[k].get(g).copied().unwrap_or(true),
+                    *on,
+                    "{lv}: after {}: {g} during stage {} (now {})",
+                    j + 1,
+                    old + 1,
+                    k + 1
+                );
+            }
+        }
+        // the new stage: the next stage's own wait as during the stage before; the copies of the next stage's own in
+        // play as those were during it
+        for g in next
+            .own
+            .iter()
+            .filter(|g| !w0.type_of(w0.find(g).unwrap()).ends_with(".MultipleTriggerEntityData"))
+        {
+            if let Some(on) = before[j].get(g) {
+                assert_eq!(
+                    st1.states[j + 1].get(g).copied().unwrap_or(true),
+                    *on,
+                    "{lv}: {g} waits"
+                );
+            }
+        }
+        let new_set: Vec<&String> = st1.stages[j + 1].set.iter().filter(|g| !all.contains(*g)).collect();
+        assert_eq!(
+            new_set.len(),
+            s.copies,
+            "{lv}: after {}: the new stage's set is the copies",
+            j + 1
+        );
+        // taken out again: the level as it was
+        let back = applied(&w, schema, &rushstage::remove_stage(&w, schema, j + 1).unwrap());
+        assert_eq!(back.guids(), w0.guids(), "{lv}: after {}: the instances again", j + 1);
+        assert_eq!(base_count(&back, schema), base_count(w0, schema));
+        let st2 = rushstage::stages(&back).unwrap();
+        for (k, s0) in before.iter().enumerate() {
+            for (g, on) in s0 {
+                assert_eq!(
+                    st2.states[k].get(g).copied().unwrap_or(true),
+                    *on,
+                    "{lv}: inserted after {} and taken out: {g} during stage {}",
+                    j + 1,
+                    k + 1
+                );
+            }
+        }
+        let c1: HashSet<Connection> = rushstage::connections(&back).into_iter().collect();
+        let missing: Vec<&Connection> = c0.iter().filter(|c| !c1.contains(*c)).collect();
+        assert!(
+            missing.is_empty(),
+            "{lv}: inserted after {} and taken out: connections not back: {:?}",
+            j + 1,
+            missing
+                .iter()
+                .map(|c| format!(
+                    "{} ({} of stage {:?} -> {} of stage {:?})",
+                    c.describe(),
+                    w0.type_of(w0.find(&c.source).unwrap()),
+                    st.stage_of(&c.source),
+                    w0.type_of(w0.find(&c.target).unwrap()),
+                    st.stage_of(&c.target)
+                ))
+                .collect::<Vec<_>>()
+        );
+        inserted += 1;
+        copies += s.copies;
+        wires += s.wires;
+        unshifted += s.unshifted;
+    }
+    (inserted, copies, wires, unshifted)
+}
+
 // ------------------------------------------------------------------------------------------------ synthetic
 
 /// A synthetic Rush level as DICE wires one (GAME-RUSH-11): three stages of two M-COMs, each with its base counter
@@ -347,6 +481,7 @@ fn synthetic() -> Vec<u8> {
 /// after the last and played last with its base and combat area in play as the third's were, taken out again; each
 /// stage taken out; a project with a stage added needs this editor's version (the `connect` operation).
 // spec: GAME-RUSH-11
+// spec: GAME-RUSH-12
 // spec: XLOG-GAME-3
 #[test]
 fn stages_added_and_taken_out_on_a_synthetic_level() {
@@ -369,6 +504,13 @@ fn stages_added_and_taken_out_on_a_synthetic_level() {
     }
     let (copies, wires, kept, differ) = check_level("synthetic", &w0, &schema);
     assert_eq!(differ, 0);
+    let (inserted, i_copies, i_wires, unshifted) = check_insert("synthetic", &w0, &schema);
+    assert_eq!(
+        (inserted, unshifted),
+        (2, 0),
+        "a stage inserted after stages 1 and 2, every wire split"
+    );
+    println!("synthetic: inserted twice, {i_copies} copies, {i_wires} wires");
     println!("synthetic: {copies} copies, {wires} wires, {kept} connections kept on the last counter");
     // the log: one operation, the project's version, the partition read back
     let mut p = MapProject::new("Rush stages", "v1test", "levels/V1TEST", &base, Profile::Bfbc2);
@@ -448,6 +590,7 @@ fn connections_added_and_taken_out() {
 /// counters copied 80 m off), played last with its copies as the fourth stage's objects were; taken out again; each
 /// stage taken out; Squad Rush (MP_012SR) likewise. Through the project's log, the partition read back.
 // spec: GAME-RUSH-11
+// spec: GAME-RUSH-12
 // spec: XLOG-GAME-3
 #[test]
 fn a_stage_added_and_taken_out_on_port_valdez() {
@@ -463,6 +606,8 @@ fn a_stage_added_and_taken_out_on_port_valdez() {
         let schema = Schema::scan(Some(&w0.d));
         let (copies, wires, kept, differ) = check_level(lv, &w0, &schema);
         assert_eq!(differ, 0, "{lv}");
+        let (inserted, i_copies, i_wires, unshifted) = check_insert(lv, &w0, &schema);
+        println!("{lv}: {inserted} stages inserted, {i_copies} copies, {i_wires} wires, {unshifted} unsplit");
         println!("{lv}: {copies} copies, {wires} wires, {kept} connections kept on the last counter");
         let mut p = MapProject::new(
             "Rush stages",
@@ -498,6 +643,7 @@ fn a_stage_added_and_taken_out_on_port_valdez() {
 /// tools on each: a stage added and taken out again, every stage taken out once ([`check_level`]). The Onslaught
 /// install's `ons_mp_005gr`, wired otherwise, is refused in words.
 // spec: GAME-RUSH-11
+// spec: GAME-RUSH-12
 #[test]
 #[ignore = "game tier: every stock Rush and Squad Rush level; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn every_rush_level_is_wired_stage_by_stage() {
@@ -509,6 +655,7 @@ fn every_rush_level_is_wired_stage_by_stage() {
     let game = Game::open(&dir).unwrap();
     let modes = bc2_levelwrite::profile::modes(&game).unwrap();
     let (mut levels, mut stages, mut refused, mut differs) = (0, 0, Vec::new(), 0);
+    let mut insertions = 0usize;
     for by_mode in modes.values() {
         for (mode, lvs) in by_mode {
             if !["rush", "goldrush", "squadrush"].contains(&mode.as_str()) {
@@ -536,6 +683,11 @@ fn every_rush_level_is_wired_stage_by_stage() {
                     }
                 }
                 let (copies, wires, kept, differ) = check_level(lv, &w, &schema);
+                let (inserted, i_copies, i_wires, unshifted) = check_insert(lv, &w, &schema);
+                println!(
+                    "{lv}: inserted {inserted}: {i_copies} copies, {i_wires} wires, {unshifted} without a counterpart"
+                );
+                insertions += inserted;
                 println!(
                     "{lv}: {n} stages; a stage added: {copies} copies, {wires} wires; {kept} kept; {differ} differ"
                 );
@@ -545,11 +697,100 @@ fn every_rush_level_is_wired_stage_by_stage() {
             }
         }
     }
-    println!("{levels} levels, {stages} stages; refused {refused:?}; {differs} states differ after a stage taken out");
+    println!(
+        "{levels} levels, {stages} stages; refused {refused:?}; {differs} states differ after a stage taken out; \
+         {insertions} stages inserted"
+    );
     assert_eq!(
         refused,
         ["ons_mp_005gr"],
         "only the Onslaught install's level is wired otherwise"
     );
     assert!(levels >= 30, "{levels}");
+}
+
+/// Game tier (round E4-rest2): Port Valdez as BFBC2 Rush with a stage inserted between its first two, exported by the
+/// export's own path (`export::build`) and held by its stage check (`export::check`); the staged partition reads back
+/// byte for byte and plays five stages, the inserted one second. Whether the game plays it so stays unproven until a
+/// playtest (in-game tests are paused).
+// spec: GAME-RUSH-12
+#[test]
+#[ignore = "game tier: a whole staged export; run_tests.py game runs it (tests/test_rust.py run --game)"]
+fn port_valdez_with_a_stage_inserted_exports() {
+    let _gate = crate::gate();
+    let Some(dir) = game_dir() else {
+        println!("skipped: no game copy");
+        return;
+    };
+    let game = Game::open(&dir).unwrap();
+    let base = export::level_partition(&game, "mp_012gr").unwrap();
+    let mut p = MapProject::new(
+        "Rush insert export",
+        "mp_012gr",
+        "levels/MP_012GR",
+        &base,
+        Profile::Bfbc2,
+    );
+    let c = export::choose_mode(&game, &p, Profile::Bfbc2, "rush", None).unwrap();
+    p.push(Op::SetMode { to: Box::new(c) }, "target");
+    let (cur, _) = export::current(&game, &p).unwrap();
+    let schema = Schema::scan(Some(&cur.d));
+    let before = modelayer::rush_play(&cur).0;
+    assert!(before.len() >= 2, "{} stages", before.len());
+    let t = cur.transform(&before[1].mcoms[0]).unwrap()[3];
+    let n = p.next_n();
+    let id = p.id.clone();
+    let s = rushstage::insert_stage(
+        &cur,
+        &schema,
+        0,
+        [t[0] + 60.0, t[1], t[2] - 30.0],
+        &|g| bc2_levelwrite::new_guid(&id, n, g),
+        &|_, _| None,
+    )
+    .unwrap();
+    p.push(s.op, "Insert Rush stage 2");
+    let spec = export::ExportSpec {
+        format: export::FORMAT.into(),
+        version: export::VERSION,
+        level: "MAPEDIT_RUSH_INSERT".into(),
+        folder: String::new(),
+        title: "Port Valdez five stages".into(),
+        mode: "rush".into(),
+        layer: bc2_levelwrite::mpconvert::LayerSpec {
+            donor: p.mode().unwrap().donor.clone(),
+            bases: Vec::new(),
+            flags: Vec::new(),
+            combat_area: String::new(),
+        },
+        profile: Profile::Bfbc2,
+        identity: None,
+        path_data: false,
+    };
+    let tmp = std::env::temp_dir().join(format!("bc2_rush_insert_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let stage = tmp.join("stage");
+    let t = std::time::Instant::now();
+    let rec = export::build(&game, &p, "test", &spec, &stage).unwrap();
+    println!("built in {:.1} s", t.elapsed().as_secs_f64());
+    let report = export::check(&game, &stage).unwrap();
+    for (code, ok, what) in report.lines() {
+        if !ok {
+            println!("FAIL {code} {what}");
+        }
+    }
+    assert!(report.ok(), "the stage check holds the export");
+    let name = format!("Levels/{}.dbx", rec.level);
+    let level = bc2_gamefs::bundles::read_path(stage.join("level-00.fbrb"), &[&name]).unwrap();
+    let w = round_trip(&level[0]);
+    let (play, uncertain) = modelayer::rush_play(&w);
+    assert!(!uncertain);
+    assert_eq!(play.len(), before.len() + 1);
+    assert_eq!(play[1].mcoms, s.mcoms, "the inserted stage second");
+    assert_eq!(play[0].mcoms, before[0].mcoms);
+    for k in 1..before.len() {
+        assert_eq!(play[k + 1].mcoms, before[k].mcoms, "stage {} one later", k + 1);
+    }
+    assert_eq!(base_count(&w, &Schema::scan(Some(&w.d))), before.len() as i64 + 1);
+    let _ = std::fs::remove_dir_all(&tmp);
 }
