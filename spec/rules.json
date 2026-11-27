@@ -29147,6 +29147,81 @@
    ]
   },
   {
+   "id": "TEDIT-NEW-1",
+   "title": "A height map is stored from 0 m, its values kept as they are",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::dice_heights_through_the_import"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs::tests::a_height_map_read_and_written"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:119-160"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs on the game copy, 2026-11-27: 30 of 30 DICE main blocks (Dist's and Package's levels, bundles before 2013) through the import give DICE's stored samples, bounds and min / max tree"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-NEW-2",
+   "title": "A new level carries its own terrain under its own name, its base's left out",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:1-30"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1423-1465"
+    },
+    {
+     "kind": "inferred",
+     "ref": "TGEN-REQ-4, TGEN-REQ-5, XEXP-BLD-2, LVL-MODE-2"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-NEW-3",
+   "title": "A new level's path data is sampled and built on its own ground",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_path_data"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:189-192"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs on the game copy with MP_005 prepared for NavKit, 2026-11-27: as given; rust/BENCHMARKS.md E7-TG3"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/sample.rs:296-325"
+    }
+   ]
+  },
+  {
    "id": "TGEN-REQ-1",
    "title": "A level's terrain is eight kinds of data, most of them in the terrain bundle",
    "file": "spec/transforms/terrain_gen.md",
@@ -29226,12 +29301,20 @@
    "id": "TGEN-REQ-5",
    "title": "The export registers the new level's own terrain bundle",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "inferred",
+   "status": "implemented",
    "variants": "PC",
    "evidence": [
     {
      "kind": "inferred",
      "ref": "XEXP-BLD-2 (base bundles read at run time), XEXP-REG-1, XEXP-CHK-1; LVL-MODE-2"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1920-1932"
     }
    ]
   },
@@ -31015,6 +31098,26 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-TERR-4",
+   "title": "A new level's terrain is its own, read back whole and registered alone",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:681"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:553-570"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks"
     }
    ]
   },

@@ -15,7 +15,7 @@
 //!
 //! A height map stores its values as they are when its lowest height is 0 m: a DICE height field written out as a
 //! PNG and imported again gives DICE's stored samples, min / max tree and bounds back (the export's test on
-//! MP_005), only the lower envelope (built under the heights, TEDIT-HF-3) and the depth map (255) are the writer's.
+//! `MP_005`), only the lower envelope (built under the heights, TEDIT-HF-3) and the depth map (255) are the writer's.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -111,7 +111,7 @@ pub fn read_samples(path: &Path, format: HeightFormat) -> Result<(u32, Vec<u16>)
         vals
     } else {
         (0..n as usize)
-            .flat_map(|j| vals[j * s..j * s + n as usize].iter().copied())
+            .flat_map(|j| vals.get(j * s..j * s + n as usize).unwrap_or_default().iter().copied())
             .collect()
     };
     Ok((n, out))
@@ -125,7 +125,7 @@ pub fn read_samples(path: &Path, format: HeightFormat) -> Result<(u32, Vec<u16>)
 pub fn stored(vals: &[u16], range: [f64; 2], water: f64) -> (Generated, f64) {
     let lift = (-range[0]).max(0.0);
     let (lo, hi) = (range[0] + lift, range[1] + lift);
-    let n = (vals.len() as f64).sqrt() as u32;
+    let n = vals.len().isqrt() as u32;
     let raw: Vec<u16> = if lo == 0.0 {
         vals.to_vec()
     } else {
@@ -417,7 +417,7 @@ impl DonorFiles {
         }
         let mut names: Vec<&String> = live
             .keys()
-            .filter(|n| n.ends_with(".dbx") && is_base_terrain_entry(n, &stem))
+            .filter(|n| n.to_ascii_lowercase().ends_with(".dbx") && is_base_terrain_entry(n, &stem))
             .collect();
         names.sort();
         let mut partitions = Vec::new();
@@ -559,6 +559,7 @@ pub type Entries = std::collections::HashMap<String, (String, Vec<u8>)>;
 /// the level bundle holds the renamed terrain partition; the terrain block of `package.mft` names no bundle of the
 /// base level (TGEN-REQ-5).
 #[must_use]
+#[allow(clippy::too_many_lines, reason = "one check after another, in the resources' order")]
 pub fn check_stage(
     rec: &crate::export::NewTerrainRecord,
     base: &str,
@@ -707,7 +708,7 @@ pub fn check_stage(
                 bad.push(format!(
                     "{ename}: {} patch shader(s) of the new terrain missing (first {})",
                     missing.len(),
-                    missing[0]
+                    missing.first().map_or("", |m| m.as_str())
                 ));
             }
         }

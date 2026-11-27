@@ -246,7 +246,7 @@ impl Default for Settings {
     }
 }
 
-/// The base the forms start with: MP_005 (Atacama Desert), TG2's donor.
+/// The base the forms start with: `MP_005` (Atacama Desert), TG2's donor.
 pub const DEFAULT_BASE: &str = "mp_005";
 
 /// Whether a level can be a new level's base (round E7): a multiplayer map of its own - `mp_001` ... `mp_012`,
@@ -285,7 +285,7 @@ impl Settings {
             )));
         }
         // TGEN-REQ-2: BFBC2's terrain has 1 m samples, 1024 or 2048 a side; no other spacing is known to load
-        if self.map_size_m != 1024.0 && self.map_size_m != 2048.0 {
+        if !matches!(self.map_size_m.to_bits(), x if x == 1024f64.to_bits() || x == 2048f64.to_bits()) {
             return Err(EditorError::Input(
                 "The map size must be 1024 or 2048 metres: BFBC2's terrain has 1 m samples, 1024 or 2048 a side \
                  (no other spacing is known to load)."
@@ -436,14 +436,14 @@ impl GenerateForm {
             return Err(EditorError::Input("The rough relief is 0 to 1.".into()));
         }
         let half = f64::from(self.size) / 2.0;
-        if let Some(p) = self
+        if let Some([x, z, r]) = self
             .pads
             .iter()
-            .find(|p| p[0].abs() >= half || p[1].abs() >= half || p[2] <= 0.0)
+            .find(|[x, z, r]| x.abs() >= half || z.abs() >= half || *r <= 0.0)
         {
             return Err(EditorError::Input(format!(
-                "The pad at {}, {} (radius {}) is outside the {} m square or has no radius.",
-                p[0], p[1], p[2], self.size
+                "The pad at {x}, {z} (radius {r}) is outside the {} m square or has no radius.",
+                self.size
             )));
         }
         Ok(())

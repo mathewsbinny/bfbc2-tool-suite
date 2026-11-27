@@ -25,6 +25,8 @@
     clippy::too_many_lines,
     clippy::doc_markdown,
     clippy::cast_precision_loss,
+    clippy::many_single_char_names,
+    clippy::float_cmp,
     missing_docs
 )]
 
@@ -107,13 +109,13 @@ fn dice_heights_through_the_import() {
     ]
     .iter()
     .filter_map(|l| std::fs::read_dir(l).ok())
-    .flat_map(|r| r.flatten())
+    .flat_map(Iterator::flatten)
     .filter(|e| {
         e.path()
             .join("terrain-00.fbrb")
             .metadata()
             .and_then(|m| m.modified())
-            .is_ok_and(|t| t < std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_356_998_400))
+            .is_ok_and(|t| t < std::time::UNIX_EPOCH + std::time::Duration::from_hours(376_944))
     })
     .collect();
     entries.sort_by_key(std::fs::DirEntry::path);

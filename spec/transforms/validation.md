@@ -620,7 +620,7 @@ bundle of the base level. A project that also strokes the base's terrain is refu
 partitions copied under the new name keep DICE's references to editor partitions that never ship (TEDIT-SRC-1),
 renamed: XVAL-REF-2 lists them as the base's own. Rests on TEDIT-NEW-1, TEDIT-NEW-2, TGEN-REQ-4, TGEN-REQ-5.
 
-[code: rust/bc2-levelwrite/src/rules.rs:680] [code: rust/bc2-levelwrite/src/newterrain.rs:540-560]
+[code: rust/bc2-levelwrite/src/rules.rs:681] [code: rust/bc2-levelwrite/src/newterrain.rs:553-570]
 [test: rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks]
 
 ### XVAL-CONS-1: No Xbox 360 resource in a PC level

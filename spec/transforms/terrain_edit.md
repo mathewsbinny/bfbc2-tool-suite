@@ -414,8 +414,8 @@ the main block's edges between its knots (TERR-HF-12).
 
 [test: rust/bc2-levelwrite/tests/new_terrain.rs::dice_heights_through_the_import]
 [test: rust/bc2-levelwrite/src/newterrain.rs::tests::a_height_map_read_and_written]
-[code: rust/bc2-levelwrite/src/newterrain.rs:100-140]
-[data: rust/bc2-levelwrite/tests/new_terrain.rs on the game copy, 2026-11-27: NEWTERRAIN_DICE]
+[code: rust/bc2-levelwrite/src/newterrain.rs:119-160]
+[data: rust/bc2-levelwrite/tests/new_terrain.rs on the game copy, 2026-11-27: 30 of 30 DICE main blocks (Dist's and Package's levels, bundles before 2013) through the import give DICE's stored samples, bounds and min / max tree]
 
 ### TEDIT-NEW-2: A new level carries its own terrain under its own name, its base's left out
 
@@ -440,7 +440,7 @@ until a playtest (section 5, step 7).
 
 [test: rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks]
 [code: rust/bc2-levelwrite/src/newterrain.rs:1-30]
-[code: rust/bc2-levelwrite/src/export.rs:1403-1450]
+[code: rust/bc2-levelwrite/src/export.rs:1423-1465]
 [inferred: TGEN-REQ-4, TGEN-REQ-5, XEXP-BLD-2, LVL-MODE-2]
 
 ### TEDIT-NEW-3: A new level's path data is sampled and built on its own ground
@@ -451,11 +451,17 @@ The path-data step samples a new level's stage offline (`bfbc2 navkit sample --o
 height field, under the new name, written into the stage's terrain unpack) and builds its path data in process. The
 bots' measures on the playable area (the staged level's largest combat area's box): connectivity, the share of
 route nodes on the main route network; coverage, the share of walkable 8 m cells (dry, under 40 degrees) a
-main-network node reaches (15 m in plan, 4 m in height, as XVAL-PLACE-5 reaches a spawn). NEWTERRAIN_PATH
+main-network node reaches (15 m in plan, 4 m in height, as XVAL-PLACE-5 reaches a spawn). On MP_005 as Conquest: a generated arid 1,024 terrain 27 sectors, 7,593 route
+nodes, connectivity 0.883, coverage 0.860; MP_005's own heights imported 0.944 / 0.899, as MP_005 itself sampled on
+the stage. The canary: MP_005's heights imported, with MP_005's water mesh, give path data equal to MP_005's own
+(25 of 25 sectors, every node, edge count and mesh); with the import's water (one quad over the square, TGEN-WATER-1)
+36 fewer nodes, the water rule leaving out inland ground under the sea level. The stage sampler writes the staged
+water mesh into its tree with the height field (a new terrain's water is under the new name).
 
 [test: rust/bc2-levelwrite/tests/new_terrain.rs::new_level_path_data]
-[code: rust/bc2-levelwrite/src/pathdata.rs:175-180]
-[data: rust/bc2-levelwrite/tests/new_terrain.rs on the game copy with MP_005 prepared for NavKit, 2026-11-27: NEWTERRAIN_PATHDATA]
+[code: rust/bc2-levelwrite/src/pathdata.rs:189-192]
+[data: rust/bc2-levelwrite/tests/new_terrain.rs on the game copy with MP_005 prepared for NavKit, 2026-11-27: as given; rust/BENCHMARKS.md E7-TG3]
+[code: rust/bc2-cli/src/navkit/sample.rs:296-325]
 
 ## 5. The playtest plan (E5 / E7)
 

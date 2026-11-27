@@ -123,6 +123,7 @@ field). Whether the engine loads it stays a playtest's.
 
 [inferred: XEXP-BLD-2 (base bundles read at run time), XEXP-REG-1, XEXP-CHK-1; LVL-MODE-2]
 [test: rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks]
+[code: rust/bc2-levelwrite/src/export.rs:1920-1932]
 
 ### TGEN-REQ-6: Collision, water, navigation and cull trees
 
