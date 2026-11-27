@@ -1,7 +1,8 @@
 //! The Export window (`EDITOR_ARCHITECTURE.md` 3.12, "The editor"; round E3b): the project exported as a NEW
 //! multiplayer level, staged in OPFOR's `work\mapedit\<level>\stage` and checked offline (`bc2_levelwrite::export`).
-//! The window never writes the game copy: installing is Project OPFOR's `mapedit_install.py --apply`, shown with its
-//! command.
+//! The window never writes the game copy itself: Install runs the map export's install (`bc2_install::mapedit`, round
+//! OR6: in process, what Project OPFOR's `mapedit_install.py` ran in Python), shown with the `bfbc2 install mapedit`
+//! command that does the same.
 //!
 //! The form:
 //! - **the name** (what the launcher, the server browser, the menus and the loading screen show), with a description
@@ -189,8 +190,9 @@ pub fn stage_of(opfor: &Path, spec: &ExportSpec) -> Option<PathBuf> {
     )
 }
 
-/// The Install dialog's state (round E3d): OPFOR's `mapedit_install.py` run on a worker - the plan first (what an
-/// install changes, nothing written), then, on confirmation, the install; Uninstall takes the level out again.
+/// The Install dialog's state (round E3d; in process since round OR6): the map export's install run on a worker -
+/// the plan first (what an install changes, nothing written), then, on confirmation, the install; Uninstall takes
+/// the level out again.
 #[derive(Default)]
 pub struct Install {
     /// The dialog is shown.
@@ -208,7 +210,7 @@ pub struct Install {
     run: InstallRun,
 }
 
-/// Where the install script's run stands.
+/// Where the install's run stands.
 #[derive(Default)]
 enum InstallRun {
     /// None yet.
@@ -220,62 +222,65 @@ enum InstallRun {
     Ended(bool),
 }
 
-/// OPFOR's install script and its arguments as one command line (python, the script, the arguments).
+/// The command line that runs the same step outside the editor (`bfbc2 install mapedit <step> <stage or level>
+/// --game <opfor>\game`), shown above the step's lines.
 #[must_use]
-pub fn install_command(opfor: &Path, args: &[String]) -> Vec<String> {
-    let script = opfor
-        .join("src")
-        .join("tools")
-        .join("mapedit")
-        .join("mapedit_install.py");
-    let mut v = vec!["python".to_owned(), script.display().to_string()];
-    v.extend(args.iter().cloned());
-    v
+pub fn install_command(opfor: &Path, step: &str, target: &str) -> Vec<String> {
+    vec![
+        "bfbc2".to_owned(),
+        "install".to_owned(),
+        "mapedit".to_owned(),
+        step.to_owned(),
+        target.to_owned(),
+        "--game".to_owned(),
+        opfor.join("game").display().to_string(),
+    ]
 }
 
-/// Runs a command to its end, its output (stdout and stderr) going to a log file rather than to the editor's pipes
-/// (round DF1, audit AU4-DS-13: a child whose reader is gone - the editor closed - never fails on a broken pipe
-/// mid-install). Returns whether it succeeded and its output.
-fn run_logged(cmd: &[String], dir: &Path) -> (bool, String) {
-    static RUNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let n = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let log = std::env::temp_dir().join(format!("bc2-editor-install-{}-{n}.log", std::process::id()));
-    let run = || -> std::io::Result<std::process::ExitStatus> {
-        let out = std::fs::File::create(&log)?;
-        let err = out.try_clone()?;
-        std::process::Command::new(cmd.first().map_or("python", String::as_str))
-            .args(cmd.iter().skip(1))
-            .current_dir(dir)
-            .stdin(std::process::Stdio::null())
-            .stdout(out)
-            .stderr(err)
-            .status()
+/// One step of the map export's install, in process (round OR6: [`bc2_install::mapedit`], what OPFOR's
+/// `mapedit_install.py` ran in Python): `plan` or `apply` of a stage, `revert` of a level, on `<opfor>\game`, the
+/// shared patches built in `<opfor>\work\mapedit`. Returns whether it went through and its lines (the refusal
+/// last). A kill part way (the editor ended) leaves nothing half written: the next run finishes it.
+#[must_use]
+pub fn install_step(opfor: &Path, step: &str, target: &str) -> (bool, String) {
+    use bc2_install::mapedit::{Game, Installer};
+    let game = opfor.join("game").display().to_string();
+    let work = opfor.join("work").join("mapedit").display().to_string();
+    let mut lines: Vec<String> = Vec::new();
+    let r = {
+        let mut log = |l: &str| lines.push(l.to_owned());
+        // the test hook (BC2_INSTALL_CRASH_AT) is never read here: an editor run is never stopped by it
+        let steps = bc2_install::stages::Steps::new(None);
+        let mut inst = Installer::with_steps(Game::new(&game, None), &work, steps, &mut log);
+        match step {
+            "plan" => inst.plan_only(target),
+            "apply" => inst.apply(target),
+            _ => inst.revert(&[target.to_owned()]),
+        }
     };
-    let r = run();
-    let text = std::fs::read(&log).map_or_else(|_| String::new(), |b| String::from_utf8_lossy(&b).into_owned());
-    let _ = std::fs::remove_file(&log);
-    match r {
-        Ok(s) => (s.success(), text),
-        Err(e) => (false, format!("python could not be run: {e}")),
+    if let Err(e) = &r {
+        lines.extend(e.trim_end().lines().map(str::to_owned));
     }
+    (r.is_ok(), lines.join("\n"))
 }
 
 impl Install {
-    /// Runs the install script on a worker: `--plan <stage>`, `--apply <stage>` or `--revert <LV>`.
-    pub fn run(&mut self, opfor: &Path, step: &str, args: &[String]) {
-        let cmd = install_command(opfor, args);
+    /// Runs a step of the install on a worker: `plan` or `apply` of a stage, `revert` of a level.
+    pub fn run(&mut self, opfor: &Path, step: &str, target: &str) {
         self.open = true;
         step.clone_into(&mut self.step);
-        self.text = vec![format!("> {}", cmd.join(" "))];
-        let dir = opfor.to_path_buf();
-        self.run = InstallRun::Running(Task::spawn_value("The install", move || run_logged(&cmd, &dir)));
+        self.text = vec![format!("> {}", install_command(opfor, step, target).join(" "))];
+        let (dir, step, target) = (opfor.to_path_buf(), step.to_owned(), target.to_owned());
+        self.run = InstallRun::Running(Task::spawn_value("The install", move || {
+            install_step(&dir, &step, &target)
+        }));
     }
 
-    /// Runs the plan for a stage (`--plan <stage>`), keeping the stage and its `stage.json` for Install now.
+    /// Runs the plan for a stage, keeping the stage and its `stage.json` for Install now.
     pub fn plan(&mut self, opfor: &Path, stage: &Path) {
         let json = std::fs::read(stage.join("stage.json")).unwrap_or_default();
         self.planned = Some((stage.to_path_buf(), json));
-        self.run(opfor, "plan", &["--plan".into(), stage.display().to_string()]);
+        self.run(opfor, "plan", &stage.display().to_string());
     }
 
     /// Why Install now cannot install the planned stage (`None`: it can): no plan, or the stage was exported again
@@ -785,10 +790,11 @@ impl ExportWindow {
                 );
                 out.push(if r.ok() {
                     format!(
-                        "Staged in {} - nothing in the game copy changed. To install it (the game closed): python \
-                         src\\tools\\mapedit\\mapedit_install.py --apply {}",
+                        "Staged in {} - nothing in the game copy changed. To install it (the game closed): Install... \
+                         below, or bfbc2 install mapedit apply {} --game {}",
                         stage.display(),
-                        stage.display()
+                        stage.display(),
+                        opfor.join("game").display()
                     )
                 } else {
                     "A check failed: the stage is not ready to install".into()
@@ -1505,7 +1511,7 @@ pub fn window(
                         if ui
                             .add_enabled(staged && !installing && !busy, egui::Button::new("Install..."))
                             .on_hover_text(
-                                "Shows what an install changes in the game copy (OPFOR's mapedit_install.py --plan), \
+                                "Shows what an install changes in the game copy (bfbc2 install mapedit plan), \
                                  then installs it when you confirm",
                             )
                             .on_disabled_hover_text(install_why)
@@ -1645,7 +1651,7 @@ fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow) {
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
     }
     let mut open = true;
-    let mut ask: Option<(&'static str, Vec<String>)> = None;
+    let mut ask: Option<(&'static str, String)> = None;
     // round DF1 (audit AU4-SM-3): the level and the stage the plan was shown for, never the form as it is now
     let lv = w.install.lv.clone();
     let stage = w.install.planned.as_ref().map(|p| p.0.clone());
@@ -1706,7 +1712,7 @@ fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow) {
                             .clicked()
                             && let Some(s) = &stage
                         {
-                            ask = Some(("apply", vec!["--apply".into(), s.display().to_string()]));
+                            ask = Some(("apply", s.display().to_string()));
                         }
                         if ui.button("Cancel").clicked() {
                             w.install.open = false;
@@ -1723,7 +1729,7 @@ fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow) {
                             .on_disabled_hover_text(WAIT_EXPORT)
                             .clicked()
                         {
-                            ask = Some(("revert", vec!["--revert".into(), lv.clone()]));
+                            ask = Some(("revert", lv.clone()));
                         }
                         if ui.button("Cancel").clicked() {
                             w.install.open = false;
@@ -1745,12 +1751,12 @@ fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow) {
     if !open {
         w.install.open = false;
     }
-    if let (Some((step, args)), Some(o)) = (ask, w.opfor.clone()) {
+    if let (Some((step, target)), Some(o)) = (ask, w.opfor.clone()) {
         // checked again at the click (an export may have begun this frame)
         if w.running.is_some() {
             w.install.text.push(WAIT_EXPORT.into());
         } else {
-            w.install.run(&o, step, &args);
+            w.install.run(&o, step, &target);
         }
     }
 }

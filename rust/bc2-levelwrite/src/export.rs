@@ -11,7 +11,8 @@
 //! loads, every bundle and partition parses, the registration names every bundle once, the cull tree is one tree with
 //! one object per slot). [`patch_startup`] builds the one shared bundle an install changes besides the text files
 //! (`startup-00`: the descriptions and the menus' level list). Installing (copying the stage into the game copy,
-//! the backups, the registration last, the revert) is Project OPFOR's (`src\tools\mapedit\mapedit_install.py`).
+//! the ledger, the registration last, the revert) is `bc2_install::mapedit` (round OR6; Project OPFOR's
+//! `src\tools\mapedit\mapedit_install.py` before).
 
 #![allow(
     clippy::case_sensitive_file_extension_comparisons,

@@ -1023,7 +1023,8 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
 The user's goal: load Operation Aurora's map, edit it, save, export it, and find it in the level list on the next
 launch. A campaign level is exported as a NEW multiplayer level; no original is ever written. Built in round E3:
 `bc2_levelwrite::{export, mpconvert, culltree}`, the `mapexport` binary, the editor's Export window
-(`bc2-editor/src/export_ui.rs`), and OPFOR's `src\tools\mapedit\mapedit_install.py`.
+(`bc2-editor/src/export_ui.rs`), and OPFOR's `src\tools\mapedit\mapedit_install.py` (the install moved into the
+suite as `bc2_install::mapedit` in round OR6).
 
 #### What a campaign level lacks for multiplayer (from the data)
 
@@ -1155,29 +1156,34 @@ his Aurora Conquest).
 - `LevelData.Name` and the description's `LevelName`;
 - the cull tree is one preorder tree, every slotted object has its own slot, and every slot is a leaf.
 
-**Install and uninstall (Project OPFOR).** `mapedit_install.py --plan <stage>` runs the check, then builds the four
-shared files into `work\mapedit\<lv>\shared` and prints every change. `--apply` installs in WW2's order, and every
-check runs before the first write:
+**Install and uninstall.** The install is `bc2_install::mapedit` (round OR6, "OPFOR in Rust": `bfbc2 install
+mapedit plan | apply | revert | status`; the editor's Install dialog calls it in process, and Project OPFOR's
+`src\tools\mapedit\mapedit_install.py` runs the command - its Python, rounds E3 to E3d, was retired after OR6's
+parity proof). `plan <stage>` runs the check, then builds the shared files into `work\mapedit\<lv>\shared` (removed
+when the run goes through) and prints every change. `apply` installs in WW2's order, and every check runs before the
+first write (spec/transforms/install.md section 2):
 
-1. the level's bundles go into `Package\levels\<lv>\`, with `opfor-mapedit-installed.json` (their sha256);
-2. `startup-00` gets each exported level's description and list items (`mapexport startup`: FbrbTool's unpack and
-   pack, the list kept sorted as DICE's is);
-3. `maps.ini` gets a section per exported level after the tool's marker;
-4. last, `package.mft` and `bundleManifest`.
+1. the level's folder `Package\levels\<lv>\`: its record first (`opfor-mapedit-installed.json`, the bundles'
+   sha256), its kept copy (`opfor-mapedit-stage\`: the stage's description, texts and pictures, what later
+   installs build the shared patches from - audit AU4-DS-12), then its bundles;
+2. its path data through the install ledger (owner `mapedit-ai:<lv>`);
+3. one journalled commit of the ledger's owner `mapedit`: `startup-00` (each exported level's description and list
+   items, the list kept sorted as DICE's is), `overlay-00` and `ondemand_awards-00` while a level has its own name,
+   `maps.ini` (a section per exported level after the installer's marker), and last `package.mft` and
+   `bundleManifest`.
 
-The backups and the revert:
+The ledger and the revert:
 
-- **Backups** follow `console_common`'s stage protocol: stage `mapedit`, `<file>.opfor-mapedit-orig`, the last-writer
-  record. The file's earlier record is kept as `.opfor-mapedit-prevlast`.
-- **The shared patch** is always built from that backup while the tool wrote the file last, so every exported level
-  installed is in one patch.
-- **`--revert <LV>`** checks the bundles' sha256 first and takes the registration out first.
-  - The last level out: each file comes back from its backup, with its earlier last-writer record, so the WW2
-    opt-out still recognises its own state.
+- **The ledger** (spec/transforms/install.md section 0) keeps each shared file as it was before the owner, once.
+- **The shared patch** is always built from that copy while the owner wrote the file last, so every exported level
+  installed is in one patch, each from its own kept copy.
+- **`revert <LV>`** checks the bundles' sha256 first.
+  - The last level out: every shared file goes back as it was before the owner, in one commit.
   - One level among several: the patch is written again without it.
-  - The level's folder goes last.
+  - The level's folder goes last, its record last of all.
 - **Refusals.** Both refuse while the game runs, and when another tool wrote a shared file after this one (revert
   that tool first, as the stages already do).
+- **Interruptions.** A kill at any write step is finished by running the same command again (XINST-MAP-6).
 
 **Bots (later).** `HasAI` is false. Bots need NavKit path data for the new level, written under
 `Output\win32\ai\levels\<lv>`, with `HasAI`, `PathfindingTypes` and the `SectorOffsets` partitions under the new
@@ -1482,8 +1488,9 @@ squads)"). The editor's Export window shows the same lines and keeps Export disa
 - The panels follow the target: the asset browser lists the target era's objects (its content set's bundles);
   Spawners and Objectives are read from the edited partition (the target mode's layer); the team labels are the
   target era's (`FactionRUS` is RU, NVA or JP); Help names the target.
-- **Install** (Project OPFOR): "Install..." runs `mapedit_install.py --plan <stage>` on a worker and shows what an
-  install changes; "Install now" (the game closed) runs `--apply`; "Uninstall..." asks, then runs `--revert <LV>`.
+- **Install**: "Install..." runs the install's plan of the stage on a worker and shows what an install changes;
+  "Install now" (the game closed) applies it; "Uninstall..." asks, then reverts the level (in process since round
+  OR6, `bc2_install::mapedit`; before, OPFOR's `mapedit_install.py --plan / --apply / --revert`).
   The install side was already mode-free (`maps.ini` gets `<Mode>=Levels/<LV>` with the stage's mode, now `Rush`,
   `Squad Rush`, `Squad Deathmatch` too; one exported level is one mode, as DICE's mode levels are); `--check-game`
   checks a stage against the real game copy while installing into a scratch copy.

@@ -5002,3 +5002,82 @@ and `testharness/runs.py`'s fallback list equal navregress's `HIGHER` (19 measur
 - `mesh_corners` at area boundaries only; `terrain_fill` restricted to ground DICE's autoseed filters would reach;
   the sector-line / tile-line corner break on sp_003_b.
 - The rulings: the four switches above.
+
+## OR6: OPFOR in Rust - the map export's install side (2026-11-27, branch `or6`, with Project OPFOR's `or6`)
+
+Version 0.29.0 (OPFOR's `SUITE_REQUIRES` 0.29.0 to below 0.30.0).
+
+### Inventory
+
+| OPFOR / suite code | Lines | What it did | OR6 |
+|---|---|---|---|
+| `src\tools\mapedit\mapedit_install.py` | 457 -> 97 | plan / apply / revert / status of a map export: the stage's check, the shared patches (startup, overlay, awards, maps.ini, package.mft, bundleManifest), the level folder and record, the path data, the ledger writes through `console_common` / `opforcore.stages` | `bc2_install::mapedit` (feature `mapedit`, 1,160 lines with its docs; `stages.rs` 401); the script passes its options to `bfbc2 install mapedit` |
+| `console_common`'s `check_install` / `install` / `check_revert` / `revert` / `installed` / `source_bundle` as the export install called them (`opforcore.stages.Stages`) | - | the ledger's whole-file stage operations | `bc2_install::stages` (on `bc2_gamefs::ledger`'s `install_keep` / `uninstall` / `uninstall_files`) - what IN1 builds on |
+| `mapexport overlay / awards`' reading of the stages | ~60 | the texts and pictures from stage folders | `bc2_levelwrite::installpatch`, shared by `mapexport` and the install |
+| the editor's `run_logged` (python + the script, its output through a log file: AU4-DS-13) | ~30 | the Install dialog | `export_ui::install_step`: the install in process on a worker |
+
+AU1-G-N8 (installing an export needs OPFOR's Python): fixed - the editor's Install, Install now and Uninstall run
+`bc2_install::mapedit` in process; `bfbc2 install mapedit` is the command line.
+
+### Decided against the Python (spec XINST-MAP-5, -6, -7)
+
+- **Each install keeps its own copy of its stage** (audit AU4-DS-12, XINST-MAP-5): the Python rebuilt every other
+  installed export's description, texts and pictures from the stage folder its record named - the editor's live
+  `work\mapedit\<lv>\stage`, which the next export of that project rewrites - so installing or reverting one level
+  could change another's name or picture in the game. The install keeps `stage.json`, the description and the
+  pictures in `Package\levels\<lv>\opfor-mapedit-stage\` and builds from them; an install from before OR6 falls back
+  to its stage folder with a line saying so.
+- **The record first, the record last** (XINST-MAP-6): the Python wrote the level's record after its bundles, so a
+  kill between the folder and the record left a folder every later install refused ("not an exported level") and
+  no revert could take out. The record is the folder's first write and a revert's last removal; a folder holding
+  only the record's temporary files counts as an install's start.
+- **DICE's package.mft keeps its last blank line** (XINST-MAP-7): DICE's file ends `\r\n\r\n` (REG-MFT-1); the
+  Python's patch wrote one `\r\n`, a byte outside the levels' blocks. The WW2 install's text rules (`bc2_install::text`)
+  are unchanged: the WW2 oracle holds them.
+- The build's scratch (`work\mapedit\<lv>\shared`, `_revert`) is removed when a run goes through (XINST-STG-5; the
+  Python left it).
+- Kept as the Python had them: the record's form (`stage.json`'s fields, then `stage`, then `installed`;
+  `json.dumps(indent=1)`, ASCII), the maps.ini marker line (it names `mapedit_install.py`: installs made by either are
+  found), every printed line and refusal (the check's failure still reads "mapexport check failed").
+
+### Proof
+
+- **Parity** (`scratchpad\or6\parity.py`): the six shared files an export install writes, copied from OPFOR's
+  `game\` with their old markers and migrated into the ledger by OPFOR's `migrate.py` (owners import, loading,
+  loadset, minimap-edges, wake: the state an install meets on the author's copy). Two exports built fresh by
+  `examples/e3d_matrix.rs` (Atacama's Rush as Conquest with its own name, pictures and a French text; Arica Harbor as
+  a Vietnam Squad Deathmatch with its own name) and the Arica stage without a name of its own. The Python
+  (`mapedit_install.py` of OPFOR 706b909, with this branch's `mapexport.exe`) and `bfbc2 install mapedit` each ran:
+  plan, apply A, revert A, apply A, apply A again (a redo), apply plain N (a second export), apply named N (the level
+  replaced), revert A (one out of two), apply plain N (no level with a name left: overlay and awards back as before
+  the owner), revert all. **10 of 10 steps identical**: every game file (38 to 54) and level record, every ledger
+  record but its transaction id and time (the Rust writes keys sorted; the values the same), every printed line
+  (78 to 85 a step) but the Rust's one line on the kept copy, exit codes; the kept copies (2 to 8 files) the Rust's
+  alone. After each full revert the copy is the migrated base, files and records.
+- **Kills** (`scratchpad\or6\kill.py`, `BC2_INSTALL_CRASH_AT=<n>`, exit 9, then the same command again): from the state with export A installed, an apply of export N beside it - 18 write steps (the level folder, its record, 4 kept files, 4 bundles, the ledger commit's journal, 6 files and record) - and from the state with both, a revert of A - 17 steps (8 ledger steps, 9 removals, the record last): **35 of 35 kills finished identically** (files and ledger records those of an uninterrupted run; the ledger steps resumed by "an interrupted install was rolled back"). A long scratch path stopped the first parallel attempt: the bundle unpack refuses paths of 260 characters or more as FbrbTool (.NET) did - a real game folder is far shorter.
+  On synthetic stages (`rust/bc2-install/tests/mapedit.rs`) every write step of an apply, an apply beside it and a
+  revert (29 kills) is finished with the files and records of an uninterrupted run.
+- **Tests**: `rust/bc2-install/tests/mapedit.rs` (5 tests: the text patches, an install beside another and every
+  revert back byte for byte, the kept copy, the path data's owner, a kill at every step); OPFOR's
+  `test_mapedit_install.py` (the wrapper's command lines, its refusals through the binary, a real export installed and
+  reverted when the newest stage passes the check).
+- **`game\`** (1,582 files) hashed before the round's first run and after its last: identical (`scratchpad\or6\game_before.json` / `game_after.json`).
+- No WW2 rebuild: nothing the WW2 rebuild or install runs changed (`bc2_install::run`, `text`, `marks`, `levelbuild`
+  and `bc2_gamefs` untouched; `bc2_install::stages` is new and used by the export install alone).
+
+### Timing
+
+Debug builds of `bfbc2.exe` / `mapexport.exe` (the twin runs this branch's `mapexport.exe`), one run each on a loaded PC: plan 35.5 s (Python) / 31.4 s (Rust), apply of the first export 33.5 / 35.3 s, of a second 45.1 / 42.8 s, revert of one of two 2.0 / 3.0 s, of the last 0.8 / 1.1 s. The stage's check (`mapexport check`'s rules, about 30 s, Rust in both) is most of an apply; the rest is the shared bundles' unpack and pack (Rust in both). The port is for the editor (no Python) and the fixes, not speed.
+
+### What is left
+
+- **AU5-ARC-3** (three implementations of the ledger format: `bc2_gamefs::ledger`, `bfbc2core.gameledger`,
+  `opforcore.ledger`): none was replaced here. The export install stopped using OPFOR's Python ledger; the WW2
+  install's `run.rs` keeps its own copies of the stage operations `bc2_install::stages` now has (moving it is a WW2
+  rebuild slot's work); `bfbc2core.gameledger` serves NavKit's and stock-MP's Python and texqa; `opforcore.ledger`
+  every other OPFOR stage.
+- **IN1**: the doctor, the bug-report bundle, the game-folder setting (the editor still installs into
+  `<opfor>\game`, building in `<opfor>\work\mapedit`), anonymised sharing, per-level slots for the shared patch
+  (MM1-rest: one export disabled while the others stay). `bc2_install::mapedit::Installer` takes the game copy and the
+  work folder as arguments, so a game-folder setting needs no change there.
+- In game: an installed export has not been played (in-game tests paused).

@@ -213,8 +213,8 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 65,
-   "note": "NavKit's narrow lips and door sills (navwalk.LIP_WIDTH, LIP_OBJECT_RISE, LIP_OBJECT_FLAT) on sample rows bu...",
+   "lines": 74,
+   "note": "NavKit's narrow lips and door sills (navwalk.LIP_WIDTH, LIP_OBJECT_RISE, LIP_OBJECT_FLAT, LIP_OBJECT_FLAT_A...",
    "path": "bfbc2-auto-navkit/tests/test_lips.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -237,7 +237,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 1045,
+   "lines": 1060,
    "note": "NavKit in the Rust core (rust/bc2-navbuild through bc2_native).",
    "path": "bfbc2-auto-navkit/tests/test_navbuild_native.py",
    "retiring": "Tests in Rust",
@@ -685,7 +685,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 309,
+   "lines": 323,
    "note": "the regression builds call navwalk.build (Rust since NK5); left: the run, its inputs and measures in Python",
    "path": "bfbc2-auto-navkit/tools/navregress.py",
    "retiring": "NK5",
@@ -733,7 +733,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 597,
+   "lines": 607,
    "note": "walkable, coarse and the rules are Rust (NK4); build / water_tops / outside_bounds / deep_water are thin calls of the Rust build (NK5-rest: navbuild.py's); left: score's command line",
    "path": "bfbc2-auto-navkit/tools/navwalk.py",
    "retiring": "NK5",
@@ -957,7 +957,7 @@
    "embedded_by": [],
    "folder": "bfbc2-automated-map-and-bot-test-harness",
    "kind": "library",
-   "lines": 251,
+   "lines": 253,
    "note": "saved runs and their comparison; bfbc2 harness show / compare / list answer in Rust",
    "path": "bfbc2-automated-map-and-bot-test-harness/testharness/runs.py",
    "retiring": "PR1b-2",
@@ -2245,7 +2245,7 @@
    "embedded_by": [],
    "folder": "bfbc2-model-tools",
    "kind": "test",
-   "lines": 164,
+   "lines": 165,
    "note": "Project OPFOR's WW2 pictures in the Rust core (round OR4, \"OPFOR in Rust\" stage 4: bc2_convert::pictures an...",
    "path": "bfbc2-model-tools/tests/test_pictures_native.py",
    "retiring": "Tests in Rust",
@@ -2739,7 +2739,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 169,
+   "lines": 170,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -4605,7 +4605,7 @@
  "totals": {
   "all": {
    "files": 378,
-   "lines": 110517
+   "lines": 110569
   },
   "by_folder": {
    "(root)": {
@@ -4632,25 +4632,25 @@
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 14803,
-    "live": 1859,
-    "partly": 4408,
+    "lines": 14851,
+    "live": 1873,
+    "partly": 4418,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5442,
+    "test": 5466,
     "twin": 2821
    },
    "bfbc2-automated-map-and-bot-test-harness": {
     "files": 15,
-    "lines": 3833,
+    "lines": 3835,
     "live": 636,
     "partly": 743,
     "ported": 40,
     "retired-pending": 0,
     "stays": 0,
     "test": 1308,
-    "twin": 1106
+    "twin": 1108
    },
    "bfbc2-bf1943-import": {
     "files": 27,
@@ -4753,13 +4753,13 @@
    },
    "bfbc2-model-tools": {
     "files": 9,
-    "lines": 2090,
+    "lines": 2091,
     "live": 0,
     "partly": 267,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 974,
+    "test": 975,
     "twin": 849
    },
    "bfbc2-navigation-studio": {
@@ -4797,8 +4797,8 @@
    },
    "core": {
     "files": 76,
-    "lines": 20381,
-    "live": 760,
+    "lines": 20382,
+    "live": 761,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
@@ -4854,11 +4854,11 @@
   "by_status": {
    "live": {
     "files": 18,
-    "lines": 5287
+    "lines": 5302
    },
    "partly": {
     "files": 20,
-    "lines": 16518
+    "lines": 16528
    },
    "ported": {
     "files": 22,
@@ -4874,11 +4874,11 @@
    },
    "test": {
     "files": 191,
-    "lines": 52486
+    "lines": 52511
    },
    "twin": {
     "files": 56,
-    "lines": 19670
+    "lines": 19672
    }
   }
  }

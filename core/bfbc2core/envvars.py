@@ -104,7 +104,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
     # build
     'BC2_SOURCE_HASH': ('build', "the sources' fingerprint build_native.py passes to cargo; the artefacts bake it in"),
     # opfor
-    'BFBC2_MAPEXPORT': ('opfor', "a mapexport.exe for Project OPFOR's mapedit_install (default: the suite's bin\\)"),
+    'BFBC2_MAPEXPORT': ('opfor', "a mapexport.exe for Project OPFOR's mapedit_install before round OR6 (since then "
+                                 "the install runs in bfbc2.exe and the variable is unused)"),
     # tests only
     'BFBC2_CLI_WORKERS': ('test', 'the command-line parity tests (O2 to O5): processes at a time'),
     'BFBC2_O2_REF': ('test', 'the reference checkout of the O2 / O4 parity tests'),

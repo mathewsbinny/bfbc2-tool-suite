@@ -66,7 +66,8 @@ shader = []
 readers = []
 import = []
 # round MM1: the mod manager (`bfbc2 mods`: Project OPFOR's mods enabled, disabled, verified on the install ledger)
-mods = []
+# round OR6: `bfbc2 install mapedit` (the map export's install, bc2_install::mapedit) is in this group
+mods = ["bc2-install/mapedit"]
 # round TG1: a new terrain from a seed (`bfbc2 terrain generate`: bc2-terragen's generator)
 terrain = ["dep:bc2-terragen"]
 

@@ -28,7 +28,18 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-27
+
+Round OR6 moves the map export's install into the suite and changes `bc2_editor::export_ui::install_command` (a Rust
+public API), so this merge releases a minor version (`RELEASING.md`, "A merge that removes something"). Project
+OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs `bfbc2 install mapedit`.
+
 ### Changed
+- **The map editor installs an export itself** ("OPFOR in Rust", round OR6): Install..., Install now and
+  Uninstall... run the map export's install in process (`bc2_install::mapedit`) instead of Project OPFOR's
+  `mapedit_install.py` - no Python needed. The dialog shows the `bfbc2 install mapedit` command that does the same;
+  `bc2_editor::export_ui::install_command(opfor, step, target)` and `install_step` replace the old
+  `install_command(opfor, args)`.
 - **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
   corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
   without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7
@@ -50,6 +61,15 @@ landed on `main`.
   it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
 
 ### Added
+- **`bfbc2 install mapedit plan | apply | revert | status`** (round OR6, tool group `mods`; `rust/BENCHMARKS.md`
+  "OR6"): Project OPFOR's `mapedit_install.py` in Rust (`bc2_install::mapedit`, feature `mapedit`), on the install
+  ledger as owner `mapedit` - the same game files, level records, ledger records and printed lines as the Python on
+  scratch copies of the real shared files through plan, apply, revert, re-apply, a second export, a level replaced,
+  one out of two and all out (spec XINST-MAP-8). OPFOR's script now runs it; its Python twin is retired.
+- **`bc2_install::stages`**: `opforcore.stages`' whole-file operations (resume, the old markers' refusal,
+  `check_install`, `install`, `check_revert`, `revert`, `source`) for an installer owning shared files - what IN1's
+  installer builds on; `bc2_levelwrite::installpatch`: the overlay's texts and the awards bundle's pictures from
+  stages (`mapexport overlay | awards` and the install share it).
 - **NavKit: four walkability and placement switches, measured for the user's ruling** (round NKS-deep D,
   `rust/BENCHMARKS.md` "NKS-deep D"): `navregress.RECT_ON_DICE_LEVELS` (the rectangle in place of DICE's extent on
   campaign levels), `navwalk.TERRAIN_FILL` / `Switches::terrain_fill` (XNAV-BLD-5: the height field's surface in
@@ -71,6 +91,18 @@ landed on `main`.
   the material map is drawn around the brush; the game-accurate view follows a stroke while it is made. The export
   writes all of it (`mapexport check`: XVAL-TERR-2 / -3). Project format 12 (`terrain-range`, `material-add`, colour
   and ring strokes, strokes over several rasters).
+
+### Fixed
+- **An export install no longer rebuilds the other exports from their live stage folders** (audit AU4-DS-12): each
+  install keeps its stage's description, texts and pictures in `Package\levels\<lv>\opfor-mapedit-stage\`, and
+  every later install or revert builds that level's share of the shared patches from it (spec XINST-MAP-5); an
+  install from before keeps working from its stage folder, with a line saying so.
+- **A kill at any write step of an export's install or revert is finished by the same command** (spec XINST-MAP-6):
+  the level's record is its folder's first write and a revert's last removal (a kill between the folder and the
+  record used to leave a folder the install refused as "not an exported level").
+- **DICE's `package.mft` keeps its last blank line under an export install** (spec XINST-MAP-7): only the levels'
+  blocks change. The build's scratch (`work\mapedit\<lv>\shared`, `_revert`) is removed when a run goes through
+  (XINST-STG-5).
 
 ## [0.28.0] - 2026-11-27
 

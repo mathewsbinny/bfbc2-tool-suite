@@ -9,6 +9,8 @@
 //!                                                  on changed (the input fingerprint, every staged file's sha256)
 //! bfbc2 install revert <plan.json>                 the Pacific War opt-out (less the menu mode: menu_install.py)
 //! bfbc2 install marks  <plan.json> <file> ...      the install's own content in each file, one JSON list a line
+//! bfbc2 install mapedit plan|apply|revert|status ...
+//!                                                  round OR6: the map export's install (crate::mapedit_cli)
 //!   --lock-token <t>   run under the rebuild lock OPFOR's driver took for this run (else the command takes it)
 //! ```
 //!
@@ -27,7 +29,8 @@ use bc2_install::staged;
 const USAGE: &str = "usage: bfbc2 install plan <plan.json> [--lock-token <t>]\n       \
                      bfbc2 install apply <plan.json> | --staged <staged.json> [--lock-token <t>]\n       \
                      bfbc2 install revert <plan.json> [--lock-token <t>]\n       \
-                     bfbc2 install marks <plan.json> <file> ...\n\
+                     bfbc2 install marks <plan.json> <file> ...\n       \
+                     bfbc2 install mapedit plan|apply|revert|status ... (the map export's install)\n\
                      The game-copy installer (Project OPFOR's WW2 install, on the install ledger): the plan is the one \
                      OPFOR's build wrote (wake_install.py).\n";
 
@@ -43,8 +46,23 @@ fn stop(msg: &str) -> ExitCode {
     ExitCode::from(1)
 }
 
+/// `bfbc2 install mapedit ...` (round OR6: the map export's install, in the tool group `mods`).
+fn mapedit(args: &[String]) -> ExitCode {
+    #[cfg(feature = "mods")]
+    return crate::mapedit_cli::main(args);
+    #[cfg(not(feature = "mods"))]
+    {
+        let _ = args;
+        eprintln!("bfbc2 install mapedit: this bfbc2 was built without the tool group mods");
+        ExitCode::from(2)
+    }
+}
+
 /// Runs `bfbc2 install <args>`.
 pub fn main(args: &[String]) -> ExitCode {
+    if args.first().map(String::as_str) == Some("mapedit") {
+        return mapedit(args.get(1..).unwrap_or_default());
+    }
     let mut a: Vec<&str> = args.iter().map(String::as_str).collect();
     let mut token = None;
     if let Some(i) = a.iter().position(|x| *x == "--lock-token") {
