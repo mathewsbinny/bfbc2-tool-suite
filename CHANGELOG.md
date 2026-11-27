@@ -40,6 +40,19 @@ OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs
   `mapedit_install.py` - no Python needed. The dialog shows the `bfbc2 install mapedit` command that does the same;
   `bc2_editor::export_ui::install_command(opfor, step, target)` and `install_step` replace the old
   `install_command(opfor, args)`.
+- **The map editor's navigation edit tools and placing are view tools** (round E4-rest2, PR1b-0's leftovers): the AI
+  workspace's nine edit tools are the views' tool while chosen (`Tool::Nav`; choosing Select, Move, Rotate or another
+  tool turns them off, and the gizmo is not shown while one is chosen); placing from the content browser, a tile or
+  the picker is the views' tool while it lasts (`Tool::Place`), the tool chosen before comes back once the object is
+  placed or dropped, and choosing another tool drops it. `NavState`'s drawing fields moved to `Tools::nav`
+  (`NavDrawTool`), `BrowserState::placing` to `Tools::place.placing`. A Package level's preparation in the editor runs
+  on `Task` (a panic is its error line); only the pipe readers keep bare threads.
+- **Taking out a Rush stage** also hands what the next stage's objects did to it (a hold-back timer disabling its
+  combat area) on to the stage before's counterparts (round E4-rest2), so a stage inserted and taken out gives the
+  level back connection for connection.
+- Specification (round SPG2-rest5): MENU-LOAD-1 no longer says the Flash loading roots are named by no data
+  (MENU-LOAD-2), and round SPG2-rest4's "slot 12 of vtable 0x142B4C8" is the main menu's third vtable; FX-PROC-4's
+  inferred "the input is an offset" is the `EmittableField` enumeration.
 - **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
   corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
   without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7
@@ -70,6 +83,29 @@ OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs
   `check_install`, `install`, `check_revert`, `revert`, `source`) for an installer owning shared files - what IN1's
   installer builds on; `bc2_levelwrite::installpatch`: the overlay's texts and the awards bundle's pictures from
   stages (`mapexport overlay | awards` and the install share it).
+- **The map editor inserts a Rush stage between two** (round E4-rest2, spec GAME-RUSH-12): the Gameplay panel's
+  **Insert after** on a stage, then a click on the ground, puts a copy of the next stage there, played between the
+  two (`bc2_levelwrite::rushstage::insert_stage`; one undo step, the `connect` operation of project format 10). The
+  wiring between the two stages is split as DICE's chain is read; every stage plays as before. Checked on every stock
+  Rush and Squad Rush level between every two stages, and Port Valdez with a stage inserted exports and passes the
+  stage check.
+- **Specification (round SPG2-rest5), read from the executable and checked on DICE's data** (`rust/BENCHMARKS.md`
+  "SPG2-rest5"; 1,506 -> 1,518 rules):
+  - the render settings that scale the undergrowth (`VisualTerrainSettings`: density, view distance and its fade,
+    the cell grid, the instance capacity; VEG-UG-8) and where `WindScale` goes (the undergrowth shader's
+    `windParams`, with the clock and `UndergrowthWindSpeed`); the entry's second flag byte has no reader (VEG-UG-9);
+  - the particle evaluators' formulas (box, random, random XYZ, rotate vector, sphere, constant, the colour
+    interpolation and the polynomial operator, whose operands run from the linear term up: FX-PROC-6), the
+    evaluator inputs (only `EfNormTime` is used; DICE's 40 `EfVelocity` processors have no evaluator;
+    `EmitterParameter` picks one of the particle's four parameters: FX-PROC-7, verified) and the particle record and
+    the spawn and force processors (FX-PROC-8);
+  - the loading screen's root is the game mode's `LoaderName` and the HUD's its `HudRootName` (MENU-LOAD-2,
+    verified); the screens' FSCommand handlers and the UI manager's shared one, 4 of the movies' 133 commands answered
+    by nothing (MENU-RT-7, verified); no code sets a menu event's delay (MENU-EVT-5);
+  - when award criteria are reset by `CriteriaType` (PERS-AWD-6) and that every award code's `<Code>_00` / `_01` is a
+    `Final` value template in DICE's templates (PERS-AWD-7), with a new game-tier probe `spec/probes/persistence.py`;
+  - the 26 compiled anim-tree node types named by the executable (ATREE-NODE-1) and blocks B and C as one entry per
+    animation node, B's first float the animation's length (ATREE-BLK-4).
 - **NavKit: four walkability and placement switches, measured for the user's ruling** (round NKS-deep D,
   `rust/BENCHMARKS.md` "NKS-deep D"): `navregress.RECT_ON_DICE_LEVELS` (the rectangle in place of DICE's extent on
   campaign levels), `navwalk.TERRAIN_FILL` / `Switches::terrain_fill` (XNAV-BLD-5: the height field's surface in

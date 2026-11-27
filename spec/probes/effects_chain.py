@@ -80,6 +80,8 @@ def main() -> None:
     inputs: Counter[str] = Counter()
     evaluators: Counter[str] = Counter()
     eval_nested = 0
+    params: Counter[str] = Counter()
+    velocity: Counter[str] = Counter()
     order_spawn_first: Counter[bool] = Counter()
     unchained: Counter[str] = Counter()
     pos_after: Counter[str] = Counter()
@@ -132,7 +134,11 @@ def main() -> None:
                     ev = by.get(ref(p.child(slot)).lower())
                     if ev is not None:
                         evaluators[f'{slot} {kind(ev)}'] += 1
+                        params[text(ev.child('EmitterParameter'))] += 1
                         eval_nested += any(c.attr('ref') not in (None, 'null') for c in ev.children or ())
+                if text(p.child('EvaluatorInput')) == 'EfVelocity':
+                    pre = by.get(ref(p.child('Pre')).lower())
+                    velocity[f'{k} {kind(pre) if pre is not None else "no Pre"}'] += 1
             for c in (tc, dc):
                 ks = [kind(x) for x in c]
                 spawn = [j for j, k in enumerate(ks) if k.startswith('Spawn')]
@@ -156,6 +162,8 @@ def main() -> None:
     print(f'EvaluatorInput: {dict(inputs.most_common())}')
     print(f'evaluators named by Pre / Post: {dict(evaluators.most_common(16))}; with references of their own: '
           f'{eval_nested}')
+    print(f'EmitterParameter of the evaluators: {dict(params.most_common())}')
+    print(f'EfVelocity processors (class, Pre evaluator): {dict(velocity.most_common())}')
     print(f'chains with spawn and update processors: every spawn before every update {dict(order_spawn_first)}')
     print(f'processors in no chain: {dict(unchained)}')
 

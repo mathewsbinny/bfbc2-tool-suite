@@ -3519,7 +3519,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 818,
+   "lines": 836,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3987,7 +3987,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 883,
+   "lines": 885,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4035,7 +4035,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 143,
+   "lines": 151,
    "note": "read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier",
    "path": "spec/probes/effects_chain.py",
    "retiring": "stays",
@@ -4095,7 +4095,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 529,
+   "lines": 580,
    "note": "read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier",
    "path": "spec/probes/menus.py",
    "retiring": "stays",
@@ -4131,6 +4131,18 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
+   "lines": 99,
+   "note": "read-only probe for spec/engine/persistence.md (award codes against the value templates); checked in the game tier",
+   "path": "spec/probes/persistence.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
    "lines": 161,
    "note": "read-only probe for spec/model/registration.md and bundles.md (the stock registries); checked in the game tier",
    "path": "spec/probes/registry.py",
@@ -4143,7 +4155,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 318,
+   "lines": 370,
    "note": "read-only probe for the SPG4 resource and loose-file formats (occluder, soot, animtree, bink, game_folder); game tier",
    "path": "spec/probes/resources.py",
    "retiring": "stays",
@@ -4604,8 +4616,8 @@
  ],
  "totals": {
   "all": {
-   "files": 378,
-   "lines": 110569
+   "files": 379,
+   "lines": 110799
   },
   "by_folder": {
    "(root)": {
@@ -4797,13 +4809,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20382,
+    "lines": 20400,
     "live": 761,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15283,
+    "test": 15301,
     "twin": 2429
    },
    "design": {
@@ -4819,23 +4831,23 @@
    },
    "rust": {
     "files": 34,
-    "lines": 6142,
+    "lines": 6144,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5875,
+    "stays": 5877,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 19,
-    "lines": 6491,
+    "files": 20,
+    "lines": 6701,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 6491,
+    "stays": 6701,
     "test": 0,
     "twin": 0
    },
@@ -4869,12 +4881,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 68,
-    "lines": 13356
+    "files": 69,
+    "lines": 13568
    },
    "test": {
     "files": 191,
-    "lines": 52511
+    "lines": 52529
    },
    "twin": {
     "files": 56,

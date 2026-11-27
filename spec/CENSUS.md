@@ -14,7 +14,7 @@ instances or a typeinfo module has neither (GFILE-KIND-1, ENG-TI-1).
 | files outside the bundles (kinds) | 16 | 13 | 3 | 0 | 0 | 6 / 7 |
 | bundle entry types | 37 | 37 | 0 | 0 | 0 | 28 / 9 |
 | DBX instance classes | 630 | 630 | 0 | 0 | 0 | 304 / 326 |
-| typeinfo records | 1,900 | 801 | 0 | 1,099 | 0 | 419 / 1481 |
+| typeinfo records | 1,900 | 811 | 0 | 1,089 | 0 | 419 / 1481 |
 | typeinfo modules | 22 | 22 | 0 | 0 | 0 | 19 / 3 |
 
 ## 1. Files outside the bundles
@@ -31,8 +31,8 @@ DICE's files of the game folder by kind (a `.opfor-orig` backup counts as DICE's
 | aerial height map (Output/win32/levels/*/aerialheightmap.res) | 1 | 524,316 | GFILE-AHM-1 |
 | binkw32.dll (RAD Bink) | 1 | 175,616 | BINK-DLL-1, BINK-HDR-1, GFILE-DFE-1 |
 | bundle (.fbrb) | 1,022 | 6,225,186,692 | FBRB-HDR-1 |
-| bundle registry: bundleManifest | 1 | 58,296 | B43-BNDL-1, CSUM-CHK-1, ONS-REG-1, REG-BM-1, REG-BM-2, REG-NEW-1 (+17) |
-| bundle registry: package.mft | 1 | 136,251 | AI-NEED-3, B43-BNDL-1, BNDL-KIND-1, BNDL-LOC-1, BNDL-LOC-3, CSUM-CHK-1 (+25) |
+| bundle registry: bundleManifest | 1 | 58,296 | B43-BNDL-1, CSUM-CHK-1, ONS-REG-1, REG-BM-1, REG-BM-2, REG-NEW-1 (+18) |
+| bundle registry: package.mft | 1 | 136,251 | AI-NEED-3, B43-BNDL-1, BNDL-KIND-1, BNDL-LOC-1, BNDL-LOC-3, CSUM-CHK-1 (+26) |
 | database.dbmanifest | 1 | 1,868 | GFILE-DBM-1, RES-NAME-2 |
 | dfe | 1 | 1,000 | GFILE-DFE-1 |
 | dialoglogo128x128.jpg | 1 | 21,369 | GFILE-LOGO-1 |
@@ -74,11 +74,11 @@ Every entry type of DICE's bundles (`**/*.fbrb`, live entries; names: distinct e
 | `SkinnedMeshSet` | 793 | 326 | MESH-HDR-2 |
 | `SootMesh` | 90 | 40 | DSTR-MESH-4, SOOT-HDR-1, TERR-SOOT-1 |
 | `SwfMovie` | 876 | 55 | APT-RES-1, APT-WR-1, BIGF-DAT-1, MENU-AS-1 |
-| `Terrain` | 42 | 30 | COLL-MG-2, COLL-MG-3, COLL-TERR-1, DSTR-TERR-4, LEVEL-MG-3, LEVEL-OBJ-3 (+15) |
+| `Terrain` | 42 | 30 | COLL-MG-2, COLL-MG-3, COLL-TERR-1, DSTR-TERR-4, LEVEL-MG-3, LEVEL-OBJ-3 (+16) |
 | `TerrainHeightfield` | 450 | 318 | COLL-TERR-1, TERR-NAME-1 |
 | `TerrainMaterialMap` | 42 | 30 | TEDIT-MM-1, TERR-NAME-1 |
 | `TreeMeshSet` | 164 | 92 | MESH-HDR-2, VEG-TREE-1 |
-| `VisualTerrain` | 83 | 30 | DSTR-TERR-1, TERR-NAME-1, TGEN-OUT-5, VEG-UG-6 |
+| `VisualTerrain` | 83 | 30 | DSTR-TERR-1, TERR-NAME-1, TGEN-OUT-5, VEG-UG-6, VEG-UG-8 |
 | `VisualWater` | 42 | 30 | RNDR-WATER-1, TERR-NAME-1, WATER-VIS-4 |
 | `WaterMesh` | 42 | 30 | COLL-WATER-1, TERR-NAME-1, WATER-MESH-3, WATER-VIS-4 |
 | `Wave` | 212,482 | 45,117 | RES-WRAP-2, SGR-NODE-1, SND-WAVE-1, STRM-CNT-1, WAVE-HDR-1, WAVE-HDR-2 (+6) |
@@ -90,8 +90,8 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 
 | Class | Instances | Partitions | Members | Rules |
 |---|---|---|---|---|
-| PolynomialData | 208,719 | 53,076 | 9 | FX-PROC-2, FX-PROC-5 |
-| RandomEvaluatorData | 202,922 | 58,737 | 7 | FX-PROC-2 |
+| PolynomialData | 208,719 | 53,076 | 9 | FX-PROC-2, FX-PROC-5, FX-PROC-6 |
+| RandomEvaluatorData | 202,922 | 58,737 | 7 | FX-PROC-2, FX-PROC-6 |
 | MaterialRelationData | 163,984 | 74 | 3 | MAT-GRID-1, MAT-GRID-5 |
 | MaterialRelationDamageData | 162,950 | 74 | 9 | MAT-GRID-5, MAT-GRID-6, MAT-GRID-7 |
 | ReferenceObjectData | 141,725 | 230 | 11 | CULL-SLOT-2, GAME-RUSH-1, LEVEL-PART-3, LEVEL-SLOT-1 (+10) |
@@ -121,26 +121,26 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | GravityData | 41,585 | 41,585 | 11 | FX-PROC-1 |
 | AirResistanceData | 40,646 | 40,646 | 11 | FX-PROC-1 |
 | AreaGeometryEntityData | 40,494 | 74 | 9 | AIO-FLD-3, LEVEL-ENT-2, LEVEL-PART-3 |
-| RotateVectorData | 37,045 | 37,045 | 7 | FX-PROC-2 |
+| RotateVectorData | 37,045 | 37,045 | 7 | FX-PROC-2, FX-PROC-6 |
 | UpdateAlphaLevelScaleData | 33,748 | 33,748 | 11 | DATA-FX-1 |
-| PolynomialColorInterpData | 26,821 | 26,821 | 8 | FX-PROC-2 |
+| PolynomialColorInterpData | 26,821 | 26,821 | 8 | FX-PROC-2, FX-PROC-6 |
 | UIFontGlyph | 26,596 | 56 | 12 | TEXT-FONT-1 |
-| BoxEvaluatorData | 23,823 | 23,823 | 7 | FX-CLS-2, FX-PROC-2 |
-| RandomXYZEvaluatorData | 22,919 | 19,489 | 11 | FX-PROC-2 |
+| BoxEvaluatorData | 23,823 | 23,823 | 7 | FX-CLS-2, FX-PROC-2, FX-PROC-6 |
+| RandomXYZEvaluatorData | 22,919 | 19,489 | 11 | FX-PROC-2, FX-PROC-6 |
 | SubtitleWaveHashPair | 22,878 | 13 | 3 | TEXT-SUB-1 |
 | MaterialRelationDecalData | 19,730 | 74 | 2 | DECAL-IMP-1, MAT-GRID-5 |
 | SpawnAnimationData | 17,941 | 17,941 | 11 | FX-PROC-1 |
 | SpawnAnimationFrameData | 17,936 | 17,936 | 11 | FX-ATL-2, FX-CLS-1, FX-PROC-1 |
 | SoundNodeConnection | 17,908 | 1,312 | 4 | SGR-WIRE-1 |
 | DialogLineNode | 15,734 | 8 | 5 | SGR-VO-1 |
-| TurbulanceData | 15,705 | 15,705 | 11 | FX-PROC-1 |
+| TurbulanceData | 15,705 | 15,705 | 11 | FX-PROC-1, FX-PROC-7 |
 | SubtitleRuntimeData | 15,519 | 13 | 3 | TEXT-SUB-1 |
 | TerrainSplinePointData | 14,449 | 74 | 2 | DECAL-SRC-2 |
 | UpdateAlphaLevelMaxData | 13,984 | 13,984 | 11 | DATA-FX-1 |
 | UpdateSizeXData | 13,511 | 13,511 | 11 | DATA-FX-1 |
 | GameEffectEntityData | 12,423 | 74 | 15 | FX-PLACE-1, LEVEL-PART-3, LIGHT-PT-3, LIGHT-PT-4 (+3) |
 | LocalForceData | 12,394 | 12,394 | 11 | FX-PROC-1 |
-| SphereEvaluatorData | 12,333 | 12,333 | 8 | FX-CLS-2, FX-PROC-2 |
+| SphereEvaluatorData | 12,333 | 12,333 | 8 | FX-CLS-2, FX-PROC-2, FX-PROC-6 |
 | UpdateSizeYData | 10,266 | 10,266 | 11 | DATA-FX-1 |
 | SamplerWaveMapEntry | 9,801 | 1,306 | 3 | SGR-NODE-1 |
 | TextureAsset | 9,083 | 4,585 | 14 | WTH-CLS-1, WTH-RES-1 |
@@ -161,7 +161,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | EmitterEntityData | 3,359 | 1,100 | 22 | FX-CLS-1 |
 | MaterialPropertySoundData | 3,352 | 74 | 6 | MAT-GRID-9 |
 | ReceiveEntry | 3,265 | 1,312 | 4 | SGR-WIRE-1 |
-| AlternateSpawnEntityData | 3,126 | 74 | 5 | GAME-SPAWN-1 |
+| AlternateSpawnEntityData | 3,126 | 74 | 5 | GAME-SPAWN-1, KYG-RECT-1 |
 | DelayTriggerEntityData | 2,878 | 74 | 8 | SCR-EVT-1 |
 | MeshShaderSetAsset | 2,772 | 2,335 | 3 | FX-CLS-1, MAT-TEX-8 |
 | ReceiveNode | 2,759 | 1,312 | 3 | SGR-WIRE-1 |
@@ -194,7 +194,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | RigidMeshAsset | 1,595 | 1,595 | 39 | FX-CLS-1, MAT-TEX-8 |
 | RichPresenceContextValue | 1,529 | 75 | 2 | CAMP-DESC-1 |
 | AimNode2AimBoneData | 1,518 | 111 | 11 | DATA-ANIM-2 |
-| UITextureAtlasInfo | 1,458 | 52 | 7 | APT-ATL-1 |
+| UITextureAtlasInfo | 1,458 | 52 | 7 | APT-ATL-1, MENU-ED-8 |
 | VOGroup | 1,419 | 28 | 4 | SGR-VO-1 |
 | VehicleSpawnEntityData | 1,408 | 70 | 42 | MAT-TEX-8, VEH-SPAWN-1 |
 | StaticModelEntityData | 1,407 | 1,407 | 44 | DSTR-STATE-1, MAT-SLOT-5, MAT-TEX-8 |
@@ -389,7 +389,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | EmitterSystemAsset | 74 | 74 | 4 | DATA-FX-1 |
 | ForestEntityData | 74 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, VEG-CLS-1 |
 | HumanPlayerEntityData | 74 | 74 | 8 | SQD-TEAM-1 |
-| LevelData | 74 | 74 | 49 | AI-START-3, BOT-CMB-5, COLL-MG-3, CULL-LVL-1 (+27) |
+| LevelData | 74 | 74 | 49 | AI-START-3, BOT-CMB-5, COLL-MG-3, CULL-LVL-1 (+28) |
 | LevelDescriptionAsset | 74 | 74 | 4 | CAMP-DESC-1 |
 | MaterialGridData | 74 | 74 | 5 | MAT-GRID-1, MAT-GRID-2 |
 | SearchAndDestroyOrderEntityData | 74 | 10 | 30 | AIO-CLS-1 |
@@ -536,7 +536,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | SoundState | 11 | 2 | 8 | SGR-MIX-1 |
 | AnimationEntityData | 10 | 3 | 9 | CAMP-WORLD-1 |
 | DetailedTreeBangerEntityData | 10 | 10 | 17 | DSTR-STATE-1 |
-| GameModeData | 10 | 10 | 19 | GAME-MODE-1, MENU-HUD-1, MENU-HUD-2, ONS-MODE-1 |
+| GameModeData | 10 | 10 | 19 | GAME-MODE-1, MENU-HUD-1, MENU-HUD-2, MENU-LOAD-2 (+1) |
 | JetEngineConfigData | 10 | 10 | 21 | VEH-PHYS-1 |
 | MobilityData | 10 | 1 | 2 | BOT-VEH-2 |
 | TeamData | 10 | 10 | 6 | SQD-TEAM-1 |
@@ -634,7 +634,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | ParachuteStateData | 2 | 2 | 3 | SOLD-PHYS-1 |
 | PathfindingSettings | 2 | 2 | 33 | AI-START-3, KYG-IN-1, KYG-PAR-2, LVL-RT-1 |
 | PathfindingType | 2 | 2 | 13 | HPD-USE-1, KYN-WORLD-1, KYRT-CFG-1 |
-| PersistenceData | 2 | 2 | 14 | PERS-DATA-1, PERS-DATA-2, PERS-SCORE-2 |
+| PersistenceData | 2 | 2 | 14 | PERS-AWD-7, PERS-DATA-1, PERS-DATA-2, PERS-SCORE-2 |
 | PowerToolWeaponEffectsData | 2 | 2 | 8 | DATA-WPN-1 |
 | RemoteEntryComponentData | 2 | 2 | 27 | DATA-VEH-2 |
 | SlidingStateData | 2 | 2 | 3 | SOLD-PHYS-1 |
@@ -731,9 +731,9 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | GameDll | 262 | 262 | 0 | 0 | 0 | 13 | 0 |
 | Render | 128 | 84 | 16 | 28 | 0 | 40 | 18 |
 | Audio | 125 | 103 | 4 | 18 | 0 | 74 | 72 |
-| Animation | 124 | 102 | 15 | 7 | 0 | 36 | 29 |
+| Animation | 124 | 102 | 15 | 7 | 0 | 40 | 29 |
 | Physics | 85 | 57 | 20 | 8 | 0 | 40 | 37 |
-| Emitter | 76 | 62 | 4 | 10 | 0 | 50 | 44 |
+| Emitter | 76 | 62 | 4 | 10 | 0 | 55 | 44 |
 | Entity | 74 | 56 | 10 | 8 | 0 | 25 | 18 |
 | UI | 45 | 25 | 13 | 7 | 0 | 27 | 23 |
 | Core | 40 | 9 | 10 | 3 | 18 | 22 | 0 |
@@ -743,7 +743,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | Aidll | 24 | 24 | 0 | 0 | 0 | 7 | 0 |
 | Game | 12 | 10 | 1 | 1 | 0 | 9 | 0 |
 | Decal | 10 | 10 | 0 | 0 | 0 | 3 | 2 |
-| TerrainRender | 8 | 7 | 0 | 1 | 0 | 3 | 0 |
+| TerrainRender | 8 | 7 | 0 | 1 | 0 | 4 | 0 |
 | Scene | 5 | 4 | 1 | 0 | 0 | 5 | 2 |
 | EmitterRender | 3 | 3 | 0 | 0 | 0 | 3 | 0 |
 | World | 3 | 2 | 1 | 0 | 0 | 1 | 1 |
@@ -758,7 +758,7 @@ DBX classes below the gate and typeinfo records no rule names, by module (the ne
 
 **Aidll** (17 of 24): ControlEntry::ControlEntryCreator, IOrderReceiver, IPlan::IPlanCreator, KynapseNavigation, NoNavigation, OrderAimAt, OrderChange, OrderFireAtArea, OrderFollowPlayer, OrderHoldGround, OrderInterlude, OrderMoveTo, OrderPatrol, OrderRandomWalk, OrderSearchAndDestroy, OrderShootAtObject, SquadMember.
 
-**Animation** (88 of 124): AbstractMovementNodeData, AimControlData, AimNode2Data, AlwaysNodeGroupData, AnimNodePortGroupData, AnimTreeDataAsset, AnimTreeReplacementData, AnimatedPropertyData, AnimationExportQuality, AnimationMotionType, AnimationNodeData, AnimationParamType, AnimationSettings, AutoEndingEnumeratedSwitchNodeData, AutoEndingEnumeratedSwitchNodeGroupData, AutoEndingLoopNodeData, BaseAnimation, BaseAnimationAsset, BaseAnimationControlData, BaseExpressionData, BaseHandsIkNodeData, BaseInfluenceMapData, BaseNodeData, BaseParameter, BasePreprocessorData, BaseSkeletonAsset, BlendShapeAnimationAsset, BlendShapeSkeletonAsset, BoneToBoneIkNodeData, BoolNodeGroupData, BoolValueGroupData, ComparisonType, CompositeExpressionData, CompositeSkeletonAsset, DisablePropertyCurve, DisablePropertyCurve_ManualInput, EnumeratedSwitchNodeData, EnumeratedSwitchNodeGroupData, FloatNodeGroupData, FloatParameterExpressionData, FloatValueGroupData, GenericHandsIkNodeData, GroupNodeData, GroupNodeGroupData, HandIkInfo, HandInfoData, IfNodeData, IntNodeGroupData, IntValueGroupData, LegInfoData, LerpNodeData, LimbCount, LodInterval, Movement4WayNodeData, MovementBlendNodeData, MovementBlendNodeGroupData, MovementNodeData, NodeAligmentData, NodeFieldAligmentData, NodesAligmentHelperAsset, NotExpressionData, ParameterTypeGroupData, PingPongNodeData, ProceduralLeaningNodeData, PropertyCurveType, QualityMapData, RagdollNodeData, RandomSelectorGroupData, RandomSelectorMainGroupData, RandomSelectorNodeData, ReplacementAnimationPairData, SelectorByPoseNodeData, SelectorNodeData, SkeletonPoseData, StringSelectorNodeData, StringSelectorNodeGroupData, TimeControllerNodeData, TimeSynchronizationType, TimeSynchronizerNodeData, TimeSynchronizerToParentNodeData, TransitionInfoData, TransitionNodeData, TripleBool, TripleStateNodeData, TurnNodeData, WeaponHandsIkNodeData, WeightFactorNodeData, XorSelectorNodeData.
+**Animation** (84 of 124): AbstractMovementNodeData, AimControlData, AlwaysNodeGroupData, AnimNodePortGroupData, AnimTreeDataAsset, AnimTreeReplacementData, AnimatedPropertyData, AnimationExportQuality, AnimationMotionType, AnimationParamType, AnimationSettings, AutoEndingEnumeratedSwitchNodeData, AutoEndingEnumeratedSwitchNodeGroupData, AutoEndingLoopNodeData, BaseAnimation, BaseAnimationAsset, BaseAnimationControlData, BaseExpressionData, BaseHandsIkNodeData, BaseInfluenceMapData, BaseNodeData, BaseParameter, BasePreprocessorData, BaseSkeletonAsset, BlendShapeAnimationAsset, BlendShapeSkeletonAsset, BoneToBoneIkNodeData, BoolNodeGroupData, BoolValueGroupData, ComparisonType, CompositeExpressionData, CompositeSkeletonAsset, DisablePropertyCurve, DisablePropertyCurve_ManualInput, EnumeratedSwitchNodeData, EnumeratedSwitchNodeGroupData, FloatNodeGroupData, FloatParameterExpressionData, FloatValueGroupData, GenericHandsIkNodeData, GroupNodeData, GroupNodeGroupData, HandIkInfo, HandInfoData, IntNodeGroupData, IntValueGroupData, LegInfoData, LerpNodeData, LimbCount, LodInterval, Movement4WayNodeData, MovementBlendNodeData, MovementBlendNodeGroupData, MovementNodeData, NodeAligmentData, NodeFieldAligmentData, NodesAligmentHelperAsset, NotExpressionData, ParameterTypeGroupData, PingPongNodeData, ProceduralLeaningNodeData, PropertyCurveType, QualityMapData, RagdollNodeData, RandomSelectorGroupData, RandomSelectorMainGroupData, RandomSelectorNodeData, ReplacementAnimationPairData, SelectorByPoseNodeData, SkeletonPoseData, StringSelectorNodeData, StringSelectorNodeGroupData, TimeControllerNodeData, TimeSynchronizationType, TimeSynchronizerNodeData, TimeSynchronizerToParentNodeData, TransitionInfoData, TransitionNodeData, TripleBool, TripleStateNodeData, TurnNodeData, WeaponHandsIkNodeData, WeightFactorNodeData, XorSelectorNodeData.
 
 **Audio** (51 of 125): AudioPortConnection, BusConnection, CharacterNode, ConditionType, DebugEventInput, DebugRenderType, DistanceAttenuationType, EffectId, EventDebugNode, FaderType, FollowEnvelopeNode, FourChannelSamplerGroup, FourChannelSamplerNode, HelicopterNode, IWave, JoypadNode, LinearTransformNode, LoopType, MathOp, MinMaxNode, MixType, OscillatorGroup, OscillatorMode, OscillatorNode, PointEnvelope, PointEnvelopePoint, RandomType, ResamplingQuality, RuntimeDialogLineNode, SceneNode, SoundAreaType, SoundAsset, SoundEntity, SoundNode, SoundNodePortGroup, SoundNodePortType, SoundSourceBypassHdrEmitter, SoundSourceEmitter, TimePair, VehicleInput, VoiceOverChildNode, VoiceOverLeafNode, VoiceOverNodeBase, VoiceOverRootNode, WaveAssetNode, WaveClassification, WaveMetaData, WavePriority, WaveProperty, WaveSegment, WireConnection.
 
@@ -766,7 +766,7 @@ DBX classes below the gate and typeinfo records no rule names, by module (the ne
 
 **Decal** (7 of 10): ContainerEntity, DecalSetEntity, DecalSettings, DecalTemplateAsset, SootMaterialData, SootTemplateAsset, SootTemplateData.
 
-**Emitter** (26 of 76): ConstantEvaluatorData, EmittableField, EmitterAsset, EmitterComponentConnection, EmitterComponentData, EmitterConstants, EmitterEntity, EmitterHavokInfo, EmitterParameter, EmitterShaderAsset, EmitterTextureAsset, EmitterTextureInfo, EvaluatorData, Expression, ExpressionCollectionData, ExpressionComponent, ExpressionOperator, MeshEvaluatorData, MultiplyData, PolynomialOperation, PolynomialOperatorData, ProcessorConnection, ProcessorData, UpdateCollisionData, VertexSemantics, ZRotate2DData.
+**Emitter** (21 of 76): EmitterAsset, EmitterComponentConnection, EmitterComponentData, EmitterConstants, EmitterEntity, EmitterHavokInfo, EmitterShaderAsset, EmitterTextureAsset, EmitterTextureInfo, EvaluatorData, ExpressionCollectionData, ExpressionComponent, ExpressionOperator, MeshEvaluatorData, MultiplyData, PolynomialOperation, ProcessorConnection, ProcessorData, UpdateCollisionData, VertexSemantics, ZRotate2DData.
 
 **Entity** (49 of 74): AimStateOverride, AssemblyDescriptorData, BasicEntityEvent, BasicLogicEntityEvent, BoolPropertyTrackData, ComponentData, ConnectionPair, DataConnection, DataUpdateEvent, EffectEntity, EntityBusData, EntityEvent, EventConnection, EventSpec, FloatPropertyTrackData, GameModeTypes, GameObjectData, GeometryEntityData, GraphGeometryEntityData, IntPropertyTrackData, LogicEntity, MaterialGridAsset, MaterialGridLayerData, MaterialMapAsset, MaterialRelationPropertyData, PropertyKeyData, PropertySpec, PropertyTrackData, PropertyTypeEnum, PulseEntityData, RandomPulseEntityData, RoadData, RoadPointData, SequenceEntity, SequenceEventData, SequenceNotificationEvent, SpeedStateOverride, StanceOverride, StateContainer, StateContainerEntry, TreeBase, TreeNodeBase, VectorShapeAttachment, VectorShapeData, VectorShapePointData, VisualTransformModifierData, WorldData, WorldPartData, WorldPartPlatform.
 
@@ -784,7 +784,7 @@ DBX classes below the gate and typeinfo records no rule names, by module (the ne
 
 **Terrain** (14 of 34): HeightfieldProxy, ITerrain, IWaterMesh, TerrainDecal, TerrainDecalData, TerrainDecalTexCoordParams, TerrainLayerData, TerrainMaskTexture, TerrainMaskTextureType, TerrainQuadDecalConnection, TerrainQuadDecalTemplate, TerrainQuadGeometryData, TerrainSplinePlaneType, WaterData.
 
-**TerrainRender** (5 of 8): IVisualWater, TerrainViewMode, VisualTerrainEntity, VisualTerrainEntityData, VisualTerrainSettings.
+**TerrainRender** (4 of 8): IVisualWater, TerrainViewMode, VisualTerrainEntity, VisualTerrainEntityData.
 
 **UI** (18 of 45): ISwfMovie, MinimapData, UI3DCameraAnimation, UI3DCameraSampledFrame, UI3DGeometryAnimation, UI3DGeometrySampledFrame, UICharacterSet, UIFileWrapper, UIHudIcon, UIMinimapConfig, UIMinimapShape, UIMinimapShapeType, UIMinimapZoomConfig, UIMinimapZoomConversion, UIMinimapZoomState, UIMovieViewport, UITaggedVehicleCrosshair, UITextAnchor.
 

@@ -228,7 +228,7 @@ FX-PROC-2). A polynomial evaluator's fields are `Coefficients` (one Vec4), `Scal
 the operator classes add `ExpressionType` (`PolynomialExpression`, `SineExpression`, `CosineExpression`) and
 `Operator` (none, add, sub; `Multiplication` / `Addition` / `Subtraction` for the polynomial operator). The
 `EvaluatorInput` values step like byte offsets into a particle record (`EfVelocity` 0x50, `EfNormTime` 0x70,
-`EfSpeed` 0x78, `EfNone` 0x7C): presumably the input is read at that offset of the particle. The evaluation is
+`EfSpeed` 0x78, `EfNone` 0x7C): they are the particle record's offsets (`EmittableField`, FX-PROC-7, FX-PROC-8). The evaluation is
 FX-PROC-5 (round SPG2-rest4: an 11-way dispatch, 0xB268E0, not a 12- or 37-way switch). The 37-way switch at 0x11DD76A, left unread by round
 SPG2-rest2, is the C runtime's code-page upper-casing (`toupper` for bytes 0x80 and up: 0x9A -> 0x8A, 0xE0 - 0xFE ->
 0xC0 - 0xDE), not the particle update. Round SPG2-rest3's census of the switches with 36 or more cases found 16; of
@@ -236,7 +236,7 @@ those read none is the particle update's (0x98B7F0, 38 cases, copies dirty rende
 command dispatcher; 0x1363390 and 0x11B31C0 as before), and 0x9AF940 (41 cases) and the rest were not read.
 
 [exe: BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; round SPG2-rest3: 0x11DD76A (37) is `toupper` for code-page bytes (low half through the CRT's `toupper`, the switch maps 0x9A / 0x9C / 0x9E / 0xE0 - 0xFE, 0xFF -> 0x9F), Ghidra's switch census of 36+ targets: 0x76ECC1, 0x776569, 0x77BC8C, 0x83B9BD, 0x85D53A, 0x95A2B7, 0x95E743, 0x98B8A1, 0x9AF960, 0x1198550, 0x11B39B3, 0x11B3A29, 0x11DD7BF, 0x11FD505, 0x1205000, 0x13633AB]
-[inferred: "the input is an offset" from the values' spacing (0x48, 0x4C, 0x50, 0x60, 0x70 ... matching floats and vectors laid out in a record)]
+[exe: BFBC2Game.exe the enumeration EmittableField (round SPG2-rest5) names the same values, and the update writes the particle record at those offsets (FX-PROC-8)]
 
 ### FX-PROC-5: The evaluator dispatch and the polynomial: a cubic in the input, clamped, then scaled
 
@@ -260,19 +260,98 @@ selected component v:
 So the clamp applies to the polynomial before the scale, and `Coefficients` runs from the cubic term down to the
 constant. The input t is the vector the update passes for the particle when the processor's `EvaluatorInput` is
 `EfNormTime` (0x70, the particle's normalised age: FX-PROC-2, all but 40 of DICE's processors); for any other input
-this dispatcher evaluates the polynomial at t = 1.0 (the 40 `EfVelocity` processors' own path was not followed).
+this dispatcher evaluates the polynomial at t = 1.0 (FX-PROC-7: DICE's 40 `EfVelocity` processors have no evaluator).
 
 [exe: BFBC2Game.exe dispatcher 0xB268E0 (type at record +0x18 minus 1 against 0xA at 0xB268F6 - 0xB26905, table 0xB26E98; component switch at +0x14 with the default 1.0 from 0x14D94F0; the input test `cmp ecx, 0x70` at 0xB26A2E); its wrapper 0xB26F80; the record built at 0xB27CB0 - 0xB27D1E in 0xB27BF0 (the processor's DefaultValues +0x10, Pre +0x0C, EvaluatorInput +0x24 by the field descriptors 0x1C1DEC0, 0x1C1DB60, 0x1C1DE90; the evaluator's +0x14 the type, +0x10 minus 1 the component); polynomial 0xB24FD0 (coefficients +0x20, MaxClamp +0x30, MinClamp +0x34, ScaleValue +0x38; the powers and their shuffles 0xB24FFF - 0xB25047, `maxps` with MinClamp 0xB25052, `minps` with MaxClamp 0xB25058, the product with ScaleValue x v 0xB2505B); PolynomialTempData's field descriptors 0x1C1E8F8 - 0x1C1E954 (Coefficients +0x0, MaxClamp +0x10, MinClamp +0x14, ScaleValue +0x18; record 0x1BFA934, 0x20 bytes)]
+
+### FX-PROC-6: The other evaluators
+
+Status: **observed** · Variants: PC
+
+Each evaluator returns a Vec4 from its data object (the field offsets below are the `*Data` classes'), the input t
+(FX-PROC-5: the particle's normalised age for `EfNormTime`, else 1.0), the selected parameter v (FX-PROC-7) and the
+emitter's random numbers r (0x4E45C0: ((a random word | 0x80) >> 7) + 1, times 2^-24, so 0 < r <= 1; a fresh r per
+draw). "w = 1" means the result's fourth component is forced to 1.
+
+| Type | Class | Result |
+|---|---|---|
+| 1 box | `BoxEvaluatorData` (`Pivot` +0x20, `Dimensions` +0x30) | v x D x (2r - 1) + `Pivot` x D, one r per axis, D the dimensions (so a box of half-extents D about `Pivot` x D); w = 1 |
+| 3 polynomial | `PolynomialData` | FX-PROC-5 |
+| 4 polynomial operator | `PolynomialOperatorData` (`Operation` +0x20, `MinClampResult` +0x18, `MaxClampResult` +0x1C, `FirstOperand` +0x30 and `SecondOperand` +0x50, each a `PolynomialTempData`) | each operand o = clamp(c.x t + c.y t^2 + c.z t^3 + c.w, MinClamp, MaxClamp) x ScaleValue x v; then o1 x o2 (`Multiplication`, and any other value), o1 + o2 (`Addition`) or o1 - o2 (`Subtraction`), clamped to the result's limits |
+| 5 random | `RandomEvaluatorData` (`Min` +0x18, `Max` +0x1C) | (Min + (Max - Min) r) x v, one r for all four components |
+| 6 random XYZ | `RandomXYZEvaluatorData` (`MinX` +0x28, `MaxX` +0x24, `MinY` +0x18, `MaxY` +0x2C, `MinZ` +0x20, `MaxZ` +0x1C) | (MinX + (MaxX - MinX) r1, the same for y, z) x v; w = 1 |
+| 7 rotate vector | `RotateVectorData` (`Angle` +0x18, `RotateWithinPlane` +0x1C) | the unit vector (-cos p sin h, cos h, sin p sin h, 1): h uniform in +-(`Angle` x v) / 2 degrees from the y axis, p uniform in +-90 degrees, or 0 with `RotateWithinPlane` (a cone of opening `Angle` about y, or a fan in the x-y plane) |
+| 9 sphere | `SphereEvaluatorData` (`Pivot` +0x20, `Scale` +0x30, `Radius` +0x40) | (`Pivot` x R + p) x `Scale` x v, p uniform in the ball of radius R (cube draws, rejected outside); w = 1 |
+| 10 constant | `ConstantEvaluatorData` (`Scale` +0x18) | t x v x `Scale`; w = 1 |
+| 11 colour interpolation | `PolynomialColorInterpData` (`Coefficients` +0x20, `Color1` +0x30, `Color0` +0x40) | s = clamp(c.x t^3 + c.y t^2 + c.z t + c.w, 0, 1) per component (w: 0); (1 - s) x `Color1` + s x `Color0`, times v; w = 1 |
+
+So the polynomial operator's operands run from the linear term up, the reverse of `PolynomialData`'s (FX-PROC-5);
+DICE's data uses neither the operator nor the constant (FX-PROC-2), but an editor that writes them must keep the two
+orders apart. `ExpressionType` (sine / cosine) and the `Expression*` classes are read by none of these. The mesh
+(0xB26830) and sample-texture (0xB265F0, 15 DICE processors) evaluators were not read.
+
+[exe: BFBC2Game.exe box 0xB23890 (-D at 0xB238AD, three draws 0xB238BF - 0xB23942, Pivot x D 0xB2396A - 0xB23972, w 0xB23979 - 0xB2397D); random 0xB21300; random XYZ 0xB23780; rotate vector 0xB23500 (pi/2 x (RotateWithinPlane == 0) 0xB2350F - 0xB23534, the half-degree factor 0.0087266 0x15165BC, the sine and cosine polynomials 0x145A3AC - 0x145A3C4, the result 0xB23758 - 0xB23770); sphere 0xB25090 (the rejection loop 0xB250E1 - 0xB251A4 against R^2); constant 0xB23990; polynomial operator 0xB266D0 (the powers in the order t, t^2, t^3 at 0xB26732 - 0xB26757, the operation +0x20 at 0xB267A9 - 0xB267EF, the result's clamp 0xB2680E - 0xB2681E); colour interpolation inline at 0xB26DF5 - 0xB26E86; the random number 0x4E45C0 (2^-24 at 0x14112F0); the classes' field descriptors as classes.json of round SPG2-rest5 read them (BoxEvaluatorData 0x1BFAA14, SphereEvaluatorData 0x1BFAA2C, RandomEvaluatorData 0x1BFA9E4, RandomXYZEvaluatorData 0x1BFA9FC, RotateVectorData 0x1BFA99C, ConstantEvaluatorData 0x1BFAA5C, PolynomialOperatorData 0x1BFA96C, PolynomialColorInterpData 0x1BFAA74)]
+
+### FX-PROC-7: The evaluator's inputs: the particle's age, and one of four emitter parameters
+
+Status: **verified** · Variants: PC
+
+`EvaluatorInput` takes its values from the enumeration `EmittableField`, the particle record's fields (FX-PROC-8):
+`EfSpawnAnimationSpeed` 0x48, `EfSpawnAnimationFrameIndex` 0x4C, `EfVelocity` 0x50, `EfParameters` 0x60,
+`EfNormTime` 0x70, `EfRotation` 0x74, `EfSpeed` 0x78, `EfUserDefined` 0x79, `EfConstantFloat` 0x7A, `EfConstantVec`
+0x7B, `EfNone` 0x7C. The update always passes the particle's new normalised age as the input vector, and the
+dispatcher uses it only when the input is `EfNormTime`: any other input, `EfVelocity` included, evaluates at t = 1.0.
+DICE's 40 `EfVelocity` processors are all `TurbulanceData` with no `Pre` evaluator, and a processor with no evaluator
+returns its `DefaultValues` whatever the input, so the field changes nothing in DICE's data.
+
+The evaluator's `EmitterParameter` picks v, the value the evaluator scales by: `EmitterParameter1` - `4` are the x - w
+of the particle's `Parameters` (record +0x60, copied from the emitter when the particle is spawned: the values game
+code sets on an emitter, such as a vehicle's speed), `EmitterParameterNone` gives 1.0. DICE's evaluators:
+`EmitterParameterNone` 442,864, `EmitterParameter4` 20,478, `EmitterParameter1` 6,120, `EmitterParameter2` 506.
+
+[test: core/tests/test_spec_probes.py::emitters]
+[data: spec/probes/effects_chain.py, round SPG2-rest5 2026-11-27: EfVelocity on 40 processors, all TurbulanceData without Pre; EmitterParameter over the template chains' evaluators as listed]
+[exe: BFBC2Game.exe EmittableField's records from 0x1BF99C0 (EvaluatorInput's type); the dispatcher's evaluator test 0xB268EC (no evaluator: DefaultValues at 0xB26E8E) and the component switch from evaluator +0x10 minus 1 (0xB2690C - 0xB26947); the update 0xB2C1A0 passes the age vector [esp+0x80] (+0x70 plus the step, 0xB2DCB2 - 0xB2DD17) and the particle's +0x60 (0xB2DD23) to every evaluation (0xB2DE52 - 0xB2DE6B and the calls after it)]
+
+### FX-PROC-8: The particle record and what the processors write
+
+Status: **observed** · Variants: PC
+
+A CPU particle is a 0x80-byte record: its axes and position as four rows (+0x00, +0x10, +0x20, +0x30: the position
+the fourth), +0x40 a vector holding the animation speed (+0x48) and frame index (+0x4C), the velocity (+0x50), the
+`Parameters` (+0x60), the normalised age (+0x70), the rotation (+0x74), the size (+0x78; the enumeration calls it
+`EfSpeed`) and the rotation speed (+0x7C). The emitter's update (0xB2C1A0) finds each processor by its type (a byte
+per `ProcessorType` at +0x20 of the emitter's processor set, an index into its list, 0xFF for none), so the chain's
+order (FX-PROC-1) does not decide the order of evaluation. Read so far:
+
+- **Spawn**: `SpawnPosition`'s value, moved into the emitter's space, is the position; `SpawnDirection`'s, rotated
+  and normalised, times `SpawnSpeed`'s is the velocity, plus the emitter's own velocity with
+  `InheritSpeedAndDirectionFromEmitter`; `SpawnSize` sets +0x78, `SpawnRotation` +0x74, `SpawnRotationSpeed` +0x7C,
+  `SpawnAnimation` / `SpawnAnimationFrame` the +0x40 vector; `UpdateAge`'s `Lifetime` gives the age step 1 /
+  `Lifetime`.
+- **Update**, each frame at the new age: `Turbulance`, `Gravity`, `LocalForce` and `AirResistance` change the
+  velocity, each added as its value times a vector the emitter set up before the loop (turbulence: three noise
+  draws; air resistance: the velocity itself, the factor limited from below so it cannot reverse the velocity);
+  `UpdateLinearVelocity` moves the position by velocity x the time step; `UpdateOrientation` rebuilds the axes
+  from the velocity's direction when it is long enough; `UpdateRotation` adds value x step x the rotation speed to the
+  rotation; `UpdateSize` scales the spawn size (+0x78) by its value, `UpdateSizeX` / `Y` take the larger of that and
+  their own value x the spawn size.
+
+The colour, transparency, alpha-level, texture-coordinate and clip-scale processors are not evaluated in this CPU
+update (they appear only in small accessors, 0xB24430 - 0xB24510, and the vertex fill 0xB27BF0 / 0xB280C0), presumably
+evaluated per vertex or in the shader; not followed.
+
+[exe: BFBC2Game.exe the update 0xB2C1A0: processor lookups by type byte 0xB2C1B4 (UpdateAge, 1 / Lifetime at 0xB2C1D6 - 0xB2C1E4), 0xB2C6C7 - 0xB2C771 (spawn), 0xB2D664 - 0xB2D791 (update); spawn evaluations 0xB2CE06 (position, then 0x403870), 0xB2CEF3 (speed), 0xB2CF35 (direction, 0x403970 and 0x4182E0; InheritSpeedAndDirectionFromEmitter +0x30 at 0xB2D046), 0xB2D100 (size), 0xB2D146 / 0xB2D186 (animation), 0xB2D214 (rotation), 0xB2D25C (rotation speed); the record written 0xB2D27C - 0xB2D3F5; update evaluations 0xB2DE6B (turbulence after three 0xB20A90 draws), 0xB2DEE6 (gravity), 0xB2DF34 (local force), 0xB2DF82 (air resistance, `maxps` 0xB2DFA9), 0xB2DFD8 (linear velocity), 0xB2DFFD - 0xB2E13C (orientation), 0xB2E172 (rotation), 0xB2E1BD (size), 0xB2E1FF / 0xB2E24C (size x / y)]
 
 ## Open questions
 
 - **The effect instance cap** (FX-CLS-3, LIGHT-PT-7).
 - **Appending images to a target's own atlas** (FX-ATL-4) instead of a merge: room in DICE's atlases is not measured
   (the merged Wake atlas is 82 % full).
-- **The processor chain's semantics** (FX-PROC-1, FX-PROC-2, FX-PROC-4, FX-PROC-5): the evaluator dispatch and the
-  polynomial are read; the other evaluators (box 0xB23890, random 0xB21300, random XYZ 0xB23780, rotate vector
-  0xB23500, sphere 0xB25090, the colour interpolation), the polynomial operator 0xB266D0, what each processor does with
-  the value (the update functions that call 0xB26F80), the `EfVelocity` path and which vector the update passes as
-  the selected component's source are not traced.
+- **The processor chain's semantics** (FX-PROC-5 - 8): the evaluators but mesh and sample texture are read, and the
+  CPU update's spawn and force processors. Left: the mesh (0xB26830) and sample-texture (0xB265F0) evaluators; the
+  colour, transparency, alpha-level, texture-coordinate and clip-scale processors (the vertex fill 0xB27BF0 /
+  0xB280C0 and the shaders); the mesh particles' update 0xB328C0; the exact force vectors (gravity's and local
+  force's set-up before the loop, 0xB2D7C6 - 0xB2DBA2); what game code sets the emitter parameters.
 - **The 1,092 `BaseEmitterData` outside any chain** and the documents whose root starts there.
 - **Cost** of camera-proximity grids and of many lights: a playtest.

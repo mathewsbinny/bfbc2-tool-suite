@@ -82,6 +82,19 @@ EVENT_NAME = 0x143C1E0
 FSCMD_INSTALL = (0xFA71AD, bytes.fromhex('c705f8aabe018053fa00'))
 FSCMD_TABLE = (0xFA6C27, 0xFA7050)
 DRAIN_FRAME = ((0x918FC2, bytes.fromhex('8383f82c080001')), (0x918FCE, bytes.fromhex('8383f82c080001')))
+# MENU-LOAD-2 (round SPG2-rest5): a screen's root name is its vtable's slot 4 (+0x10). The main menu's (vtable
+# 0x142B4E8) pushes "main_root" (0x753660); the loading screen's (0x142B210 -> 0x74EA90) and the HUD's (0x142B7A0 ->
+# 0x74D860) read the current level's GameModeData (0x920750, then +0x20) at +0x30 (LoaderName) and +0x90 (HudRootName).
+ROOT_SLOTS = ((0x753667, bytes.fromhex('68a0ae4201')),                       # push "main_root"
+              (0x74EA9F, bytes.fromhex('8b40208b74241433c983c030')),         # mov eax,[eax+0x20] ... add eax,0x30
+              (0x74D86F, bytes.fromhex('8b40208b74241433c90590000000')))       # ... add eax,0x90
+SCREEN_VTABLES = {'main menu': (0x142B4E8, 0x753660), 'loading': (0x142B210, 0x74EA90), 'hud': (0x142B7A0, 0x74D860)}
+# MENU-RT-7: the screens' FSCommand handlers (vtable slot 12, +0x30) switch on the command's id (the name table's,
+# UiManager 0x929C40); a case the switch's byte map sends to the default goes on to the UI manager's shared handler
+# 0x95E680. (key, index map, count, first id, jump table, default)
+FSC_SWITCHES = (('main menu', 0x77D964, 0xDE, 7, 0x77D8B0, 0x77D88C),
+                ('hud', 0x7772F4, 0xBB, 1, 0x777234, 0x777210),
+                ('shared', 0x963F24, 0xD8, 0xB, 0x963DA4, 0x963D97))
 
 
 def stock(p: Path) -> bool:
@@ -221,6 +234,7 @@ class Stats:
         self.exported: dict[str, set[str]] = collections.defaultdict(set)    # movie -> the names it exports
         self.assets: dict[str, tuple[tuple[str, ...], str]] = {}     # movie -> (instance types, SourceFile)
         self.modes: dict[str, dict[str, str]] = {}                   # GameModes/<mode> -> HUD movie names
+        self.mode_loader: dict[str, str] = {}                        # GameModes/<mode> -> LoaderName (MENU-LOAD-2)
         self.loading: dict[str, str] = {}                 # level -> its LevelDescription.LoadingMovie partition ('')
         self.exe: dict[str, Any] = {}
 
@@ -298,6 +312,8 @@ def partitions(st: Stats, parts: dict[str, bytes]) -> None:
                 if i.attr('type') == 'GameSharedResources.GameModeData':
                     fields = {k: i.child(k) for k in HUD_FIELDS}
                     st.modes[n[len('gamemodes/'):-4]] = {k: e.text if e is not None else '' for k, e in fields.items()}
+                    ld = i.child('LoaderName')
+                    st.mode_loader[n[len('gamemodes/'):-4]] = ld.text if ld is not None and ld.text else ''
         elif n.startswith('levels/'):
             for i in f.instances:
                 if (i.attr('type') or '').endswith('.LevelData'):
@@ -342,6 +358,23 @@ def engine(st: Stats, exe: Path) -> None:
     st.exe['callback_install'] = all(img.b[img.off(va):img.off(va) + len(b)] == b for va, b in (FSCMD_INSTALL,))
     st.exe['drain_frames'] = all(img.b[img.off(va):img.off(va) + len(b)] == b for va, b in DRAIN_FRAME)
     st.exe['callback_commands'] = callback_commands(img)
+    st.exe['root_slots'] = all(img.b[img.off(va):img.off(va) + len(b)] == b for va, b in ROOT_SLOTS)
+    st.exe['screen_vtables'] = all(struct.unpack_from('<I', img.b, img.off(vt + 0x10))[0] == fn
+                                   for vt, fn in SCREEN_VTABLES.values())
+    ids: dict[int, set[str]] = collections.defaultdict(set)
+    for nm, i, _va in aptrefslib.extern_table(img):
+        ids[i].add(nm)
+    fsc = set(st.refs['fscommand'])
+    st.exe['fscommand_handlers'] = {key: sorted({n for i in fsc_cases(img, idx, cnt, first, jumps, dflt)
+                                                 for n in ids.get(i, ()) if n in fsc})
+                                    for key, idx, cnt, first, jumps, dflt in FSC_SWITCHES}
+
+
+def fsc_cases(img: Any, index: int, count: int, first: int, jumps: int, default: int) -> set[int]:
+    """MENU-RT-7: the command ids a handler's switch answers itself (its byte map's entries not sent to the default)."""
+    io = img.off(index)
+    return {first + k for k in range(count)
+            if struct.unpack_from('<I', img.b, img.off(jumps + 4 * img.b[io + k]))[0] != default}
 
 
 def callback_commands(img: Any) -> dict[str, int]:
@@ -443,7 +476,21 @@ def summary(st: Stats) -> dict[str, Any]:
         'callback_commands': st.exe.get('callback_commands'),
         'missing_fscommands_in_callback': sorted(x for x in st.exe.get('missing', {}).get('fscommand', ())
                                                  if x in (st.exe.get('callback_commands') or {})),
+        'mode_loaders': dict(sorted(collections.Counter(st.mode_loader.values()).items())),
+        'mode_loaders_known': all(v in st.names for v in st.mode_loader.values()),
+        'root_slots': st.exe.get('root_slots'), 'screen_vtables': st.exe.get('screen_vtables'),
+        'fscommand_handled': {k: len(v) for k, v in (st.exe.get('fscommand_handlers') or {}).items()},
+        'fscommand_by_no_handler': fsc_unanswered(st),
     }
+
+
+def fsc_unanswered(st: Stats) -> list[str] | None:
+    """MENU-RT-7: the movies' FSCommands that neither the callback (MENU-RT-6) nor a screen's handler answers."""
+    h = st.exe.get('fscommand_handlers')
+    if h is None:
+        return None
+    done = set().union(*h.values()) | set(st.exe.get('callback_commands') or {})
+    return sorted(set(st.refs['fscommand']) - done)
 
 
 # The 2026-11-22 run (game copy of Project OPFOR BFBC2, PC build 795745); the rules of spec/engine/menus.md cite these.
@@ -473,6 +520,10 @@ EXPECTED: dict[str, Any] = {
     'callback_commands': {'assert': 7, 'bind3D': 2, 'load3D': 3, 'loadTexture': 0, 'playSound': 9, 'pop3D': 5,
                           'quitToMenu': 8, 'setInputRoot': 6, 'unload3D': 4, 'unloadTexture': 1},
     'missing_fscommands_in_callback': ['assert', 'loadTexture', 'playSound', 'unloadTexture'],
+    'mode_loaders': {'loading_mp': 8, 'loading_sp': 1, 'loading_sp01': 1}, 'mode_loaders_known': True,
+    'root_slots': True, 'screen_vtables': True,
+    'fscommand_handled': {'hud': 29, 'main menu': 28, 'shared': 69},
+    'fscommand_by_no_handler': ['cancelJoinServer', 'clearLocalDeathMessages', 'g', 'showAchivementBlade'],
 }
 
 
@@ -498,6 +549,8 @@ RULES: dict[str, str] = {
     'movie_ids': 'MENU-HUD-2', 'hud_states': 'MENU-HUD-3',
     'callback_install': 'MENU-RT-6', 'callback_commands': 'MENU-RT-6', 'missing_fscommands_in_callback': 'MENU-RT-6',
     'drain_frames': 'MENU-EVT-4',
+    'mode_loaders': 'MENU-LOAD-2', 'mode_loaders_known': 'MENU-LOAD-2', 'root_slots': 'MENU-LOAD-2',
+    'screen_vtables': 'MENU-LOAD-2, MENU-RT-7', 'fscommand_handled': 'MENU-RT-7', 'fscommand_by_no_handler': 'MENU-RT-7',
 }
 
 
@@ -572,7 +625,9 @@ def report(st: Stats) -> None:
           f'not Menu/<own name>.swf: {s["source_not_own"]}; with a UI.UIConfig (root movies): {s["config_roots"]}')
     print(f'== HUD movies per game mode ({len(st.modes)} GameModeData)')
     for mode, f in sorted(st.modes.items()):
-        print(f'  {mode}: ' + ', '.join(f'{k[:-4]}={v}' for k, v in f.items()))
+        print(f'  {mode}: ' + ', '.join(f'{k[:-4]}={v}' for k, v in f.items()) + f', Loader={st.mode_loader.get(mode)}')
+    print(f'== FSCommands each screen handler answers (MENU-RT-7): {s["fscommand_handled"]}; answered by none: '
+          f'{s["fscommand_by_no_handler"]}')
 
 
 def main() -> None:

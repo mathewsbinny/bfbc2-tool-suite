@@ -709,6 +709,8 @@ TABLE: tuple[Row, ...] = (
       'read-only probe for spec/engine/bot_ai.md (mode entities: event names against the exe); checked in the game tier'),
     R('spec/probes/options.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
       'read-only probe for spec/engine/settings.md and input.md; checked in the game tier'),
+    R('spec/probes/persistence.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
+      'read-only probe for spec/engine/persistence.md (award codes against the value templates); checked in the game tier'),
     R('spec/probes/registry.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
       'read-only probe for spec/model/registration.md and bundles.md (the stock registries); checked in the game tier'),
     R('spec/probes/resources.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',

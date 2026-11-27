@@ -6,7 +6,8 @@ lines of their output that hold a rule's counts (EXPECT; `<head>§<line>` for a 
 `grime.py`, `menus.py`, `modes.py`, `level.py`, `registry.py` and round SPG3's `options.py`, `scripting.py` and
 `dependencies.py`, round TG0's `terrain_shape.py` (round TG0's throw-away generator prototype `terrain_gen_proto.py`
 was retired by round TG2: the generator and its proofs are Rust's, `rust/bc2-terragen`), and round SPG4's
-`resources.py` and `census.py` (the census as spec/census.json holds it) by their own `checks()`.
+`resources.py` and `census.py` (the census as spec/census.json holds it) and round SPG2-rest5's `persistence.py`
+by their own `checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
 
@@ -217,11 +218,13 @@ def terrain_partitions(t: Terrains) -> None:
     check(mask_tile == collections.Counter({'64': 30}), f'DSTR-TERR-4: MaskTileSize 64 on 30 ({dict(mask_tile)})')
 
 
-# spec: FX-PROC-1, FX-PROC-2, FX-PROC-3
+# spec: FX-PROC-1, FX-PROC-2, FX-PROC-3, FX-PROC-7
 def emitters(bundles: list[Path], fx: ModuleType) -> None:
     seen: set[str] = set()
     docs = spawn_root = order_ok = order_bad = type_ok = type_bad = 0
     emittable: collections.Counter[str] = collections.Counter()
+    velocity: collections.Counter[str] = collections.Counter()
+    params: collections.Counter[str] = collections.Counter()
     for path in bundles:
         names = [e.name for e in fbrb.entries(path) if not e.deleted and e.name.lower().endswith('.dbx')
                  and re.search(r'(^|/)fx/', e.name.lower()) and e.name.lower() not in seen]
@@ -254,11 +257,21 @@ def emitters(bundles: list[Path], fx: ModuleType) -> None:
                     type_ok += 1
                 else:
                     type_bad += 1
+                pre = by.get(fx.ref(p.child('Pre')).lower())
+                if fx.text(p.child('EvaluatorInput')) == 'EfVelocity':
+                    velocity[f'{fx.kind(p)} {fx.kind(pre) if pre is not None else "no Pre"}'] += 1
+                if pre is not None:
+                    params[fx.text(pre.child('EmitterParameter'))] += 1
     check(docs == 50141 and spawn_root == docs, f'FX-PROC-1: every template chain starts at SpawnRateData ({spawn_root} of {docs})')
     check(order_bad == 0 and order_ok > 0, f'FX-PROC-1: spawn before update ({order_ok}, {order_bad})')
     check(type_bad == 0 and type_ok > 0, f'FX-PROC-2: ProcessorType = Pt + class ({type_ok}, {type_bad})')
     check(emittable == collections.Counter({'ScreenAlignedQuad': 30443, 'DirectionAlignedQuad': 7830, 'ParticleMesh': 7339,
                                             'Quad': 4529}), f'FX-PROC-3: EmittableType over the templates ({dict(emittable)})')
+    check(velocity == collections.Counter({'TurbulanceData no Pre': 40}),
+          f'FX-PROC-7: the EfVelocity processors are turbulences without an evaluator ({dict(velocity)})')
+    check(params == collections.Counter({'EmitterParameterNone': 442864, 'EmitterParameter4': 20478,
+                                         'EmitterParameter1': 6120, 'EmitterParameter2': 506}),
+          f"FX-PROC-7: the evaluators' EmitterParameter ({dict(params)})")
 
 
 # spec: TERR-HF-4, TERR-HF-9, TERR-HF-10, TERR-HF-11
@@ -802,6 +815,7 @@ def grime(game: Path) -> None:
 
 # spec: MENU-AS-1, MENU-AS-2, MENU-AS-3, MENU-AS-4, MENU-AS-5, MENU-AS-6, MENU-AS-7, MENU-AS-8, MENU-DLG-1
 # spec: MENU-RT-1, MENU-RT-2, MENU-RT-4, MENU-RT-6, MENU-EVT-2, MENU-EVT-4, MENU-HUD-1, MENU-HUD-2, MENU-HUD-3, MENU-ED-2
+# spec: MENU-LOAD-2, MENU-RT-7
 def menus(game: Path) -> None:
     probe_checks('menus', game)
 
@@ -844,7 +858,7 @@ def terrain_shapes(game: Path) -> None:
 
 # spec: OCC-HDR-1, OCC-VTX-1, SOOT-HDR-1, SOOT-VTX-1, SOOT-TAIL-1, ATREE-HDR-1, ATREE-PTR-1, IR-HDR-1, HAVOK-RAG-1
 # spec: BINK-HDR-1, BINK-RES-1, BINK-OUT-1, GFILE-AHM-1, GFILE-DBM-1, GFILE-DFE-1, GFILE-INST-1, GFILE-LOGO-1
-# spec: ATREE-BLK-1, ATREE-BLK-2, ATREE-BLK-3
+# spec: ATREE-BLK-1, ATREE-BLK-2, ATREE-BLK-3, ATREE-BLK-4, ATREE-NODE-1
 def resources(game: Path) -> None:
     probe_checks('resources', game)
 
@@ -852,6 +866,11 @@ def resources(game: Path) -> None:
 # spec: GFILE-KIND-1, ENG-TI-1, ENG-TI-2, ENG-TI-3, SHDB-TYPE-1
 def census(game: Path) -> None:
     probe_checks('census', game)
+
+
+# spec: PERS-AWD-6, PERS-AWD-7
+def persistence(game: Path) -> None:
+    probe_checks('persistence', game)
 
 
 def main() -> int:
@@ -877,7 +896,8 @@ def main() -> int:
                                        lambda: level_partitions(game), lambda: registries(game),
                                        lambda: options(game), lambda: event_graph(game), lambda: asset_graph(game),
                                        lambda: terrain_shapes(game),
-                                       lambda: resources(game), lambda: census(game)]
+                                       lambda: resources(game), lambda: census(game),
+                                       lambda: persistence(game)]
     for step in steps:
         step()
     print(f'{"FAILED " + str(len(FAILED)) if FAILED else "passed"}: the specification probes\' counts '

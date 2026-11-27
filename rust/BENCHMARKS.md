@@ -5003,6 +5003,182 @@ and `testharness/runs.py`'s fallback list equal navregress's `HIGHER` (19 measur
   the sector-line / tile-line corner break on sp_003_b.
 - The rulings: the four switches above.
 
+## SPG2-rest5: reverse engineering for the specification (2026-11-27, branch `spg2r5`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745), read only. REA had no deep provider on this PC (only its
+artifact-graph and .NET providers were available), so the reading was done with capstone over a scratch copy of the
+executable, as in rounds SPG2-rest3 / rest4, plus a scratch map of every class's field descriptors (the registration
+calls in the `ctr` section push each class's field table and type record: 1,378 tables). DICE's data was read through
+the suite's readers. Nothing was run in the game, and nothing was written to `game\`.
+
+| Item | Found | Rules |
+|---|---|---|
+| undergrowth settings (VEG-UG-5, 7) | the renderer reads `VisualTerrainSettings` (+0xDC): `UndergrowthDensityScale` (+0x4C) is the generator's density factor, `UndergrowthViewDistanceScale` (+0x48) the draw's, snapped down to whole cells, `UndergrowthPoplessDistanceRatio` (+0x24) the fade's start, `ViewDistanceScaleMax` / `ForceCellSideCount` / `MaxCellSideCount` the cell grid, `OverlapDensityScale` the per-cell capacity | VEG-UG-8 new |
+| `WindScale`, second flag byte | `windParams` = (clock, `UndergrowthWindSpeed`, `WindScale`, 0) set per type at the draw 0xA0EE10; byte +0x35 read only by the loader and the two record copies | VEG-UG-9 new, VEG-UG-5 updated |
+| particle evaluators (FX-PROC-5) | box, random, random XYZ, rotate vector, sphere, constant, colour interpolation, polynomial operator read; the operator's operands are c.x t + c.y t^2 + c.z t^3 + c.w, the reverse of `PolynomialData` | FX-PROC-6 new |
+| inputs, `EfVelocity` | `EvaluatorInput` is `EmittableField`, the particle record's offsets; the update passes the age always and the dispatcher uses it only for `EfNormTime`; DICE's 40 `EfVelocity` processors are `TurbulanceData` without `Pre` (so `DefaultValues`); `EmitterParameter` 1 - 4 pick the particle's `Parameters` x - w | FX-PROC-7 new (verified) |
+| processors' use of the value | the 0x80-byte particle record; spawn (position, direction x speed, size, rotation, rotation speed, animation) and update (turbulence, gravity, local force, air resistance, linear velocity, orientation, rotation, size) in 0xB2C1A0 | FX-PROC-8 new |
+| loading roots (MENU-LOAD-1) | a screen's main vtable slot 4 (+0x10) is its root name: main menu "main_root", loading screen `GameModeData.LoaderName`, HUD `HudRootName` (via the level's `LevelDescription.GameMode`); DICE: loading_mp 8, loading_sp, loading_sp01 | MENU-LOAD-2 new (verified), MENU-LOAD-1 corrected |
+| FSCommand handlers (MENU-RT-6) | slot 12 (+0x30): main menu 0x77BC10, HUD 0x7764F0, loading 0x753540 (all to the shared 0x95E680 but `startLoading`); the shared one 0x95E680. Of 133 movie FSCommands: main 28, HUD 29, shared 69, callback 4, none 4 | MENU-RT-7 new (verified) |
+| event delay (MENU-EVT-4) | nothing writes the record's +0x01 / +0x02 / +0x08 but the pool's clear: the delayed pass never runs | MENU-EVT-5 new |
+| criteria classes (PERS-AWD-5) | a met criterion is parked by `CriteriaType` (round, life, death streak) and re-armed by the reset (0x85F3E0 / 0x85F330); all-time and if-not-true never; the criterion objects' maker not found | PERS-AWD-6 new (observed; its counts probe-checked) |
+| `<Code>_00` in `Final` | DICE (Dist, 2010): MP 380 of 380 codes, SP 70 of 70 have both `_00` and `_01` among `Final` | PERS-AWD-7 new (verified) |
+| anim-tree node types (ATREE-BLK-1) | 0xF490A0 names types 1 - 26 (`AnimationNodeInfo` ... `RagdollNodeInfo`) | ATREE-NODE-1 new (verified) |
+| blocks B and C (ATREE-BLK-2, 3) | B = (B + 16, n, 0, 0) + n 16-byte entries, C n records, n = the animation nodes; node +0x20 the index; B's first float the length (1/30 - 182.3 s) | ATREE-BLK-4 new (verified), ANIM-TREE-3 updated |
+
+Probes and checks (game tier; counts, types and identifiers only, nothing of EA's kept):
+
+- `spec/probes/menus.py`: the game modes' `LoaderName`, the three root slots' bytes and the screens' vtables, each
+  FSCommand handler's answered commands against the movies' (54 checks, 6 new; 17 s).
+- `spec/probes/resources.py`: node type names from the executable, counts per type, nodes in table order, block B's
+  head and entries per animation node, the +0x20 index, the lengths (3.0 s).
+- `spec/probes/effects_chain.py` and `core/tests/test_spec_probes.py::emitters`: the `EfVelocity` processors and the
+  evaluators' `EmitterParameter`.
+- `spec/probes/persistence.py` (new, 0.2 s): award codes, `Repeat`, `CriteriaType` and the `_00` / `_01` templates in
+  DICE's start-up bundle; the grant's two name formats in the executable.
+
+Rules went from 1,506 to 1,518 (by status: verified 899, implemented 143, observed 411, inferred 65); the census's
+typeinfo records with a rule 801 -> 811.
+
+### Playtests still pending (in-game tests are paused)
+
+- `transforms/terrain_edit.md` section 5 (E5 / E7).
+- ONS-CAP-3's patch.
+- MAT-TEX-20's RenderDoc capture.
+- BOT-GS-5.
+- bot_ai.md's plan, including the kill probe.
+- After OPFOR attaches the filled stats to the scoring record (PERS-SCORE-2, an OPFOR round): a round with kills and
+  deaths whose save keeps them.
+- New: a save with an award's `<Code>_00` / `_01` (PERS-AWD-5, 7); a burst of one menu event reaching the movie once
+  per send (MENU-EVT-5); whether `-VisualTerrain.Undergrowth*` overrides change the undergrowth (VEG-UG-8, SET-CLI-1).
+
+### What is left (SPG2-rest6)
+
+- The undergrowth shaders' use of `windParams`; `UndergrowthMaxHeight`'s use.
+- The mesh and sample-texture evaluators; the colour, transparency, alpha, texture-coordinate and clip-scale
+  processors (the vertex fill); the mesh particles' update; the force vectors' set-up.
+- What each FSCommand handler case does.
+- Who makes the award criterion objects; the event 0x51.
+- The anim-tree node records' fields; block C's words beside its pointers.
+- OPFOR's fix for PERS-SCORE-2, as an OPFOR round.
+
+## E4-rest2: the AI tools and placing on `ViewTool`, the last worker on `Task`, a Rush stage inserted between two (2026-11-27, branch `e4r2`)
+
+What rounds E4 and E4-rest left (ROADMAP E4-rest2). Nothing was written to `game\`; the game never launched. Test
+builds with `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4`, build folder `rust-targets\bfbc2-tool-suite-e4r2`, the PC
+shared with three other rounds' builds.
+
+### 1. PR1b-0's leftovers: the AI workspace's nine `NavTool`s and placing onto `ViewTool`
+
+- `bc2_editor::navtool::NavDrawTool` (`Tool::Nav`) holds what `NavState` held for drawing: the chosen `NavTool`, the
+  clicks, polygon / box, the height range, the traversal kind, two-way, the note, who the edits are recorded as.
+  `ViewTool::input` refreshes whether its clicks are live (the navigation drawn in the AI workspace with a project
+  open: `nav_click`'s old condition) and closes a region's outline after Enter (`takes_enter` / `enter`, as the
+  polygon tool); `click` takes the point the navigation's click took before (the picture's surface, else the
+  navigation ground along the ray, else a marker's object: the views hand it over as `query::Hit::at`); a complete
+  drawing is `Outcome::NavDrawing(edit, note)`, which the editor checks against the base (`nav::problems`), commits
+  (`nav-add`) and draws (the clicks stay in the navigation's line layer, as before). `cancel` (Esc) drops the clicks,
+  `left` (another tool) turns it off. The context menu's "Seed here" etc. add their point through `NavDrawTool::add`.
+- `bc2_editor::placetool::PlaceTool` (`Tool::Place`) holds the object being placed (`BrowserState::placing` before):
+  placing begins by choosing it (the tool before kept in `back`; a navigation tool chosen stays chosen), its input
+  moves the object to the surface under the pointer, a click or the drag released over a view (`Pointer::dropped`)
+  is `Outcome::Place` (`finish_placing`: `place`, or a model group's `duplicate`), its `draw` is the box and the
+  yaw / sink read-out `tools_overlay` drew, Esc drops it; the tool before comes back either way. The wheel's turn
+  and sink stay with the views' wheel.
+- What changed for the user: a navigation tool and a gizmo tool were two independent choices; now a navigation
+  tool is the views' tool, so choosing Select / Move / Rotate turns it off and the gizmo is not drawn while one is
+  chosen. Choosing another tool while placing drops the object (before, it went on following the pointer).
+- Interface tests, both themes: gr2 (`edit_build_install_restore_on_a_scratch_copy`: SP_009's route edge,
+  traversal, link and note drawn by clicks, undo / redo, the side file, build, install, restore) and
+  `ai_workspace_on_ons_mp_004`, e2b (the picker's placing with Shift / Alt wheel, the content browser's drag, the
+  Objectives tile), `gameplay_tools`, `rush_stage_tools` pass unchanged but for the field paths
+  (`tools.nav.note`, `tools.place.placing`). New `tests/view_tools.rs` (demo level, no game copy, CI): placing is
+  the views' tool, Esc drops it and gives back the tool before, a click places and gives back Rotate; a seed by a
+  click (one `nav-add`), a route edge's first point dropped by Esc ("Drawing cancelled"), the same tool again or
+  Move turns the navigation tool off, a click with Select adds nothing.
+
+Frames measured (headless 1500 x 900, demo level, median of 40 frames with the pointer moving over the ground; the
+test fails past Select's frame + 16 ms):
+
+| | dark | light |
+|---|---:|---:|
+| frame, Select | 1.03 ms | 0.85 ms |
+| frame, placing (the object following the pointer) | 1.01 ms | 0.91 ms |
+| frame, a navigation tool chosen (AI workspace) | 2.00 ms | 1.78 ms |
+| a placing click to the committed `place` | 13.1 ms | 10.5 ms |
+| a seed's click to the committed `nav-add` | 13.2 ms | 7.6 ms |
+
+The budgets the editor tests hold, on this branch: `editor_core::stroke_budgets` (OP1's: a stroke's commit under 16
+ms, undo under 100 ms) 400 strokes on 2048 x 2048, commit median 2.96 ms (p95 7.33, max 20.2), undo 20.8 ms, a
+History jump of 40 15.8 ms, redo 15.6 ms. The views' tools are taken out of `ViewState` for each input call
+(`std::mem::take`): `NavDrawTool::default` reads the PC's name once per process (`OnceLock`), not per frame.
+
+### 2. The other workers onto `Task`
+
+Of PR1b-0's 12 hand-made workers, rounds PR1b-2 and PR1b-1-rest had moved 11 (BENCHMARKS "PR1b-2", the install's run
+in "PR1b-1-rest"). The last, a Package level's preparation in the editor (`prepare::Job::start_package`, a bare
+`std::thread::spawn`), runs on `Task::spawn_value("Preparing <LV>")`: its lines still stream on the job's own channel;
+a panic, which used to end the job with "stopped without saying why", is now the job's error line (the Task's
+answer, read when the stream ends). What keeps bare threads: the four pipe readers (`prepare`'s stdout / stderr,
+NavKit's two in `nav::start_navkit`), which read a child's output line by line while it runs, and the scoped
+fan-outs inside a job (`catalog::read_first`, `package::read_entries`: one reader per bundle, joined before the job
+answers).
+
+### 3. A Rush stage inserted between two (GAME-RUSH-12)
+
+`bc2_levelwrite::rushstage::insert_stage(w, schema, after, at, guid, ground)`: a copy of stage `after + 1`'s set
+(a later stage's: its objects start out of play) moved to `at`; the connections between the two stages split - stage
+`after` to the next goes to the copy, and from the copy (through `counterparts`) to the next; the next stage's to
+stage `after` go from the copy, and from the next stage to the copy's counterparts; the next stage's links to the
+shared logic copied, to the other stages not. `BaseCount` + 1. Checked by playing the level: the order `..., after,
+new, next, ...`, every old stage's certain states as before, the copies as the next stage's objects, the next stage's
+own waiting; where not, the counter of the stage before switches the object (up to 4 rounds), else refused.
+`add_stage` and `insert_stage` share `copy_of`. Not copied: what the next stage's counter switches on for a stage
+no one plays (MP_006's sixth forward base: copied, it was read as the last stage's and stayed behind when the stage
+was taken out - one of the sweep's first failures).
+
+`remove_stage` now also retargets the next stage's connections into the removed stage to the stage before's
+counterparts (`handed_back`): the sweep's other first failure was MP_004, where stage 2's hold-back timer disables
+stage 1's combat area; with a stage inserted and taken out, that connection had become the stage-1 counter's.
+
+Editor: `GameplayKind::InsertStage(k)`, the Gameplay panel's "Insert after" on every stage but the last
+(`PanelRequest::InsertAfter`), History label "Insert Rush stage <k + 2>". The `Stage` hint and "Remove stage"'s
+tooltip had a run of spaces where a line continuation was lost (fixed).
+
+Proofs:
+
+- Synthetic Rush level (CI): a stage inserted after stages 1 and 2 (13 copies each), every wire split; taken out.
+- Port Valdez Rush (`mp_012gr`): 3 insertions (712 copies, 113 wires, 5 without a counterpart); Squad Rush
+  (`mp_012sr`) 1 (126 copies, 18 wires, 1).
+- Game tier, every stock Rush and Squad Rush level (`every_rush_level_is_wired_stage_by_stage`, the module 2,186 s
+  on the shared PC): 30 levels, 57 insertions (72 - 900 copies, 15 - 238 connections a level); each plays between
+  the two, the other stages as before; taken out again, every instance, stage state and connection is back; 42
+  connections had no counterpart to split (0 - 5 a level, left as they were). E4-rest's add / remove results
+  unchanged; one state still differs with a stage taken out (`nam_mp_002r` stage 2: `CombatArea7`).
+- Export (`port_valdez_with_a_stage_inserted_exports`, game tier): Port Valdez as BFBC2 Rush with a stage inserted
+  after the first, `export::build` in 28.5 - 36.6 s, `export::check` holds it, the staged partition reads back byte
+  for byte and plays five stages, the inserted second, `BaseCount` 5.
+- Editor (headless, both themes, `a_rush_stage_through_the_interface`): after E4-rest's steps, "Insert after" on
+  stage 1 and a click: one operation "Insert Rush stage 2", 4 stages, stage 1 and the later ones as before, the new
+  stage's M-COMs new; undone. Screenshot `gameplay_insert_<theme>` with `BC2_EDITOR_SHOTS`.
+
+### What is left
+
+- In-game proof of every gameplay edit (in-game tests are paused, 2026-11-20): whether the game spawns at, captures
+  and announces a copied flag and shows a fifth letter; an added M-COM arming and ending its stage; the rules'
+  effect on a round; an added, inserted or shortened stage chain playing (bases, areas, hold-back timers,
+  reinforcements, the round's end); the new texts on the HUD and the deploy screen; a spawner added to a flag.
+- From E4-rest, unchanged: removing an added stage leaves the last counter the switches it gained (semantically the
+  level's); `nam_mp_002r`'s hold-back area with stage 2 out; vehicle spawners shared between stages that a new
+  stage's end does not stop where no counterpart is found.
+- The 42 connections without a counterpart to split stay as they were (each the stage before's object acting on the
+  next stage's: at worst a timer or message of the stage before reaching the next stage during the inserted one).
+
+Checks on the final tree (main d6bad8f3 merged): `cargo clippy --all-targets -D warnings` on bc2-editor and
+bc2-levelwrite, and bc2-cli's 19 tool groups alone, clean; bc2-editor's tests 58 passed (28 game-tier ignored) and
+80 unit tests; the rush stage module with the game tier (5 of 5); gr2 and rush_stage_tools with the game copy; the
+quick tier 137 of 137; `spec/trace.py --check` ok (1,519 rules, GAME-RUSH-12 unused on main).
+
 ## OR6: OPFOR in Rust - the map export's install side (2026-11-27, branch `or6`, with Project OPFOR's `or6`)
 
 Version 0.29.0 (OPFOR's `SUITE_REQUIRES` 0.29.0 to below 0.30.0).
