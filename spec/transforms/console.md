@@ -274,7 +274,9 @@ and the manifest's lines for them. Decided against the Python:
 
 - **Stock sources only**: a level folder holding Project OPFOR's install record (`opfor-<name>-installed.json`: the
   WW2 levels) is not searched. Its partitions are BF1943 conversions, not the stock PC data the stage means to copy;
-  the user's own October install, which the port was made on, had none.
+  the user's own October install, which the port was made on, had none. With them installed the Python copied
+  766 - 837 files from them into each of ONS_MP_004 / 005 / 008 (BF1943's Thompson, WW2 builds of BFBC2's 1P weapon
+  animations the stock install has nowhere); the Rust's files are the same with or without them.
 - **The level's own bundle** is read as the bundle the ledger hands the stage, not the game copy: on a redo the game
   copy already holds the copies this stage made, so the Python found nothing missing and its rebuilt bundle (from
   the ledger's source) lost them.
