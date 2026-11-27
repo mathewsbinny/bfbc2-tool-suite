@@ -29,6 +29,9 @@ landed on `main`.
 ## [Unreleased]
 
 ### Changed
+- Specification (round SPG2-rest5): MENU-LOAD-1 no longer says the Flash loading roots are named by no data
+  (MENU-LOAD-2), and round SPG2-rest4's "slot 12 of vtable 0x142B4C8" is the main menu's third vtable; FX-PROC-4's
+  inferred "the input is an offset" is the `EmittableField` enumeration.
 - **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
   corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
   without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7
@@ -50,6 +53,23 @@ landed on `main`.
   it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
 
 ### Added
+- **Specification (round SPG2-rest5), read from the executable and checked on DICE's data** (`rust/BENCHMARKS.md`
+  "SPG2-rest5"; 1,506 -> 1,518 rules):
+  - the render settings that scale the undergrowth (`VisualTerrainSettings`: density, view distance and its fade,
+    the cell grid, the instance capacity; VEG-UG-8) and where `WindScale` goes (the undergrowth shader's
+    `windParams`, with the clock and `UndergrowthWindSpeed`); the entry's second flag byte has no reader (VEG-UG-9);
+  - the particle evaluators' formulas (box, random, random XYZ, rotate vector, sphere, constant, the colour
+    interpolation and the polynomial operator, whose operands run from the linear term up: FX-PROC-6), the
+    evaluator inputs (only `EfNormTime` is used; DICE's 40 `EfVelocity` processors have no evaluator;
+    `EmitterParameter` picks one of the particle's four parameters: FX-PROC-7, verified) and the particle record and
+    the spawn and force processors (FX-PROC-8);
+  - the loading screen's root is the game mode's `LoaderName` and the HUD's its `HudRootName` (MENU-LOAD-2,
+    verified); the screens' FSCommand handlers and the UI manager's shared one, 4 of the movies' 133 commands answered
+    by nothing (MENU-RT-7, verified); no code sets a menu event's delay (MENU-EVT-5);
+  - when award criteria are reset by `CriteriaType` (PERS-AWD-6) and that every award code's `<Code>_00` / `_01` is a
+    `Final` value template in DICE's templates (PERS-AWD-7), with a new game-tier probe `spec/probes/persistence.py`;
+  - the 26 compiled anim-tree node types named by the executable (ATREE-NODE-1) and blocks B and C as one entry per
+    animation node, B's first float the animation's length (ATREE-BLK-4).
 - **NavKit: four walkability and placement switches, measured for the user's ruling** (round NKS-deep D,
   `rust/BENCHMARKS.md` "NKS-deep D"): `navregress.RECT_ON_DICE_LEVELS` (the rectangle in place of DICE's extent on
   campaign levels), `navwalk.TERRAIN_FILL` / `Switches::terrain_fill` (XNAV-BLD-5: the height field's surface in

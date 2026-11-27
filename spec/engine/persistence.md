@@ -264,6 +264,48 @@ commit (PERS-SAVE-1) hands on and OPFOR's commit hook writes to `stats.txt` when
 
 [exe: BFBC2Game.exe 0x865DE8 (0x85AED0 with the player id, the stats from 0x85F7B0 and the record object); 0x85AED0 (`push 0xBD4`, 0x8531B0, insert 0x854A40 at +0x20); 0x8531B0 (vtable 0x1433780, +0x08, +0xBD0, 0x68 lists from +0x74 at 0x853210 - 0x853227); handler 0x85F530 (0x83C170, criterion vtable +0x0C / +0x14 / +0x08 at 0x85F5EB - 0x85F604; 0x852CB0 at 0x85F671, 0x853240 at 0x85F67F; scopes 2 / 0x51 -> 0x85F3E0 at 0x85F769 - 0x85F777); grant 0x852CB0 ("%s_00" 0x141D918, "%s_01" 0x14333AC with the data's Code +0x90; 0x7D26C0 at 0x85306E and 0x8530B6; 86,400.0 at 0x141DA20; 0x50ED90(2008, 1, 1) into 0x15714C0; Repeat +0x30 through the table 0x853170, MaxRepetitions +0x3C at 0x8530F5; the dependents 0x853124 - 0x85315C); AwardData field descriptors 0x1C32170 - 0x1C322F0 (Code +0x90, Repeat +0x30, MaxRepetitions +0x3C); AwardType 0x1C31D38 - 0x1C31D80]
 
+### PERS-AWD-6: A criterion's CriteriaType decides when its progress is reset
+
+Status: **observed** · Variants: PC
+
+The award listener (PERS-AWD-5) keeps its armed criteria in one map per stat event (the 0x1C-byte maps from +0x74,
+the event at criterion +0x0C). When a met criterion's award is granted, 0x853240 takes the criterion off its event's
+map and, by its `CriteriaType` (+0x10), moves it from that type's list to the type's parked list: `IAR_InARound` (0)
++0x28 -> +0x4C, `IAD_InADeathStreak` (4) +0x34 -> +0x58, `IAS_InASpawn` (1) +0x40 -> +0x64. `GLOBAL_AllTimeTotal` (2)
+and `IfNotTrue` (3) have no lists, so once met they stay off for good. The reset (0x85F3E0 with a type) puts every
+parked criterion of that type back into its event's map (0x85F330) and empties the parked list:
+
+- type 0 (in a round): at the listener's round start / end (0x861960, from 0x861EFE and 0x8632B4);
+- type 1 (in a life): after the events 2 and 0x51 (the handler's fourth argument, the number its event maps are
+  indexed by; 2 is `StatEvent_DeathAs_X_By_Y` if the numbering is `StatEvent`'s, presumably the player's death), and
+  at 0x861A4A;
+- type 4 (in a death streak): never; no call passes 4.
+
+So DICE's award criteria (MP_Awards: 315 all-time, 47 per round, 6 per life; SP_Awards: 30 all-time, 40 per round)
+need two resets the game makes offline as online; an `IAD_InADeathStreak` criterion would never reset, and DICE has
+none. The criterion objects themselves (their vtables +0x08 met, +0x0C add, +0x14 write progress) were not found by
+class: they are made per listener, not by the award tree's loader.
+
+[test: core/tests/test_spec_probes.py::persistence]
+[data: spec/probes/persistence.py, round SPG2-rest5 2026-11-27: CriteriaType over DICE's MP_Awards (GLOBAL 315, IAR 47, IAS 6) and SP_Awards (GLOBAL 30, IAR 40), Dist/win32/async/startup-00.fbrb]
+[exe: BFBC2Game.exe the parking after a grant 0x853240 (called at 0x85F67F; off the event map 0x853270 - 0x8532D1 with 0x8493E0; CriteriaType at criterion +0x10 through the tables 0x853360 / 0x853374: 0 -> +0x28 / +0x4C, 1 -> +0x40 / +0x64, 4 -> +0x34 / +0x58, 2 and 3 none; the append 0x85331E - 0x853355); the reset 0x85F3E0 (the parked lists by the table 0x85F504, each back into its event map by 0x85F330 (lookup 0x844CB0, insert 0x85B610), the type's list by 0x85F518, the parked nodes freed 0x85F4B0 - 0x85F4C6); its callers 0x85F777 (events 2 and 0x51, type 1), 0x86196E (type 0), 0x861A4A (type 1); the listener's vtable 0x1433780 (+0 0x8618B0, +4 0x85F530); CriteriaType's records 0x1C03364]
+
+### PERS-AWD-7: Every award code's two stats are Final value templates
+
+Status: **verified** · Variants: PC
+
+A grant writes `<Code>_00` and `<Code>_01` with the plain set, which writes names the stats object already has
+(PERS-AWD-5). DICE's templates have them: in `MP_Template` every one of MP_Awards' 380 distinct codes has both
+`<Code>_00` and `<Code>_01` among `PersistenceData.Final`'s value templates (1,756 names), and in `SP_Template` every
+one of SP_Awards' 70 (317 names); 4 and 3 awards have no `Code` (group headers). So a finished award lands in the
+stats object and the commit (PERS-SAVE-1) hands it on; for OPFOR's local career it reaches `stats.txt` (PERS-OPF-1)
+when the award evaluator runs (PERS-AWD-4: with the scoring patch). A port that adds awards (the Pacific War career)
+must add both templates for each new code, or its grants are dropped.
+
+[test: core/tests/test_spec_probes.py::persistence]
+[data: spec/probes/persistence.py, round SPG2-rest5 2026-11-27: DICE's Dist/win32/async/startup-00.fbrb (2010): MP 384 awards, 380 codes, 380 / 380 with _00 / _01 in Final; SP 73 awards, 70 codes, 70 / 70; the game copy's patched Package set (rewritten by OPFOR's install) 446 / 446 of 446 codes]
+[exe: BFBC2Game.exe the grant's formats "%s_00" 0x141D918 and "%s_01" 0x14333AC (probe-checked)]
+
 ### PERS-SCORE-1: With the scoring patch, bots' deaths are scored in the round
 
 Status: **observed** · Variants: PC
@@ -372,9 +414,9 @@ game yet.
 
 - **The rank table's sources** (PERS-UNLK-1): which stats the award and vehicle scores sum.
 - **BFBC2's award evaluator**: loaded and wired at every level start, driven by the stat events (PERS-AWD-4), one
-  listener per player writing `<Code>_00` / `_01` into a stats object (PERS-AWD-5). Open: the criteria objects' own
-  classes (vtables +0x08 / +0x0C / +0x14), whether `<Code>_00` names exist in DICE's `Final` templates (else the set
-  drops them as it drops unknown names), and the scopes 2 / 0x51.
+  listener per player writing `<Code>_00` / `_01` into a stats object (PERS-AWD-5), whose names DICE's `Final`
+  templates hold (PERS-AWD-7); resets by `CriteriaType` (PERS-AWD-6). Open: the criterion objects' classes (vtables
+  +0x08 / +0x0C / +0x14: who makes them), the event 0x51, and a save with an award (playtest).
 - **The career save's kills** (PERS-SCORE-2): the scoring record's stats pointer is never set offline; OPFOR's module
   should attach the filled stats with 0x866240. Then a playtest: the kill probe and a save with kills and deaths.
 - **Bots' deaths scored or not**: settled statically by round AIS-rest (PERS-SCORE-1 holds with the patch, BOT-SCO-3);
