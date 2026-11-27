@@ -269,7 +269,7 @@ pub(crate) fn settings(d: &Bound<'_, PyDict>) -> PyResult<WalkSettings> {
         lip_width: opt(d, "lip_width")?,
         lip_object_rise: opt(d, "lip_object_rise")?,
         lip_object_slope_max: get(d, "lip_object_slope_max")?,
-        lip_object_flat_all: opt(d, "lip_object_flat_all")?.unwrap_or(false),
+        lip_object_flat_all: opt(d, "lip_object_flat_all")?.unwrap_or(true),
         lip_flat_cos: opt(d, "lip_flat_cos")?,
         roof_prune: get(d, "roof_prune")?,
         roof: RoofCfg {

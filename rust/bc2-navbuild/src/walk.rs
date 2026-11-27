@@ -949,7 +949,8 @@ pub struct WalkSettings {
     /// `bool(LIP_OBJECT_SLOPE_MAX)`.
     pub lip_object_slope_max: bool,
     /// `LIP_OBJECT_FLAT_ALL` (round NKS-deep D): every object lip, at any steepness, needs flat floor on both sides
-    /// (`lip_flat_cos`); `false`: only those steeper than `steep_max_cos`.
+    /// (`lip_flat_cos`); `false`: only those steeper than `steep_max_cos`. On by the user's ruling (2026-11-27; its
+    /// dips named exceptions in `spec/transforms/navkit.md`).
     pub lip_object_flat_all: bool,
     /// `cos(radians(LIP_OBJECT_FLAT))`.
     pub lip_flat_cos: Option<f64>,
@@ -1001,7 +1002,7 @@ impl WalkSettings {
             lip_width: Some(2),
             lip_object_rise: Some(0.3),
             lip_object_slope_max: false,
-            lip_object_flat_all: false,
+            lip_object_flat_all: true,
             lip_flat_cos: Some(rad(15.0).cos()),
             roof_prune: true,
             roof: RoofCfg {

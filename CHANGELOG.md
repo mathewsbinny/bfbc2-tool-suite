@@ -38,14 +38,22 @@ landed on `main`.
   and `costs` are listed when they change (`INFO`); the pairing measures of round NKS-deep E judge the graph. The test
   harness's parity directions (`testharness/runs.py`, `bfbc2 harness`) take the same lists.
 
+- **NavKit: object lips need flat floor on both sides** (round NKS-deep D, the user's ruling 2026-11-27):
+  `navwalk.LIP_OBJECT_FLAT_ALL` / `WalkSettings::lip_object_flat_all` **on**: a steep object sample between walkable
+  ground is crossed only where the floor on both sides is within 15 degrees of level (door sills), at any steepness.
+  On the 15 regression levels `ai_pairwise` 95.57 -> 95.89 %, `nodes_paired` 23.30 -> 23.40 %, `over_connection`
+  15.74 -> 15.69 %; the dips (sp_005_b `ai_pairwise` -0.3, sp_006 `outline` -0.11, three node measures -0.05 to
+  -0.07, `ground` -0.004) are named exceptions in `spec/transforms/navkit.md`. **Path data NavKit builds changes**;
+  navregress's reference `regression` re-recorded (the old one kept as `regression_before_2026-11-27_nksdd.json`).
+
 ### Added
-- **NavKit: four walkability and placement switches, measured and off for the user's ruling** (round NKS-deep D,
+- **NavKit: four walkability and placement switches, measured for the user's ruling** (round NKS-deep D,
   `rust/BENCHMARKS.md` "NKS-deep D"): `navregress.RECT_ON_DICE_LEVELS` (the rectangle in place of DICE's extent on
   campaign levels), `navwalk.TERRAIN_FILL` / `Switches::terrain_fill` (XNAV-BLD-5: the height field's surface in
   narrow sampling holes under thick objects; sp_003_b `ai_pairwise` 74.4 -> 93.4 %), `navwalk.MESH_CORNERS` /
   `Switches::mesh_corners` (KYG-NODE-9: the placement's probes turn cell corners through a side cell) and
-  `navwalk.LIP_OBJECT_FLAT_ALL` (object lips need flat floor on both sides; every mean better, 5 levels dip). Path
-  data NavKit builds is unchanged.
+  `navwalk.LIP_OBJECT_FLAT_ALL` (on by the ruling, above). The other three stay off: a narrower `terrain_fill`
+  (only under the objects the sampler got stuck on) and `mesh_corners` at area boundaries are queued.
 - **Spec: the autoseed step and the map builder's derived limits** (round NKS-deep D): KYG-SEED-3 (autoseeds are
   terrain, within the slope limit and open to the sky for 100 m; every sector is probed), KYG-PAR-4 (HoleMax is
   -StepMax; the step and slope limits as ratios).

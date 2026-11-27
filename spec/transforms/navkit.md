@@ -221,6 +221,12 @@ never failing).
    `nodes_near` sp_009 41.08 -> 32.43 % (the old build held 2.6 x DICE's nodes there; NavKit's nodes near a DICE node
    23.0 -> 32.4 %) and sp_008_b 61.82 -> 59.16 %, `ai_pairwise` sp_008 96.2 -> 95.5 % (`rust/BENCHMARKS.md` "NKS-deep
    B").
+   Named by the user's ruling (2026-11-27, round NKS-deep D) with object lips held to flat floor on both sides
+   (`navwalk.LIP_OBJECT_FLAT_ALL`, `WalkSettings::lip_object_flat_all`; on the 15 levels `ai_pairwise` 95.57 -> 95.89 %,
+   `nodes_paired` 23.30 -> 23.40 %, `over_connection` 15.74 -> 15.69 %, `extra_ground` 8.31 -> 8.29 %, every other mean
+   as good or better): `ground` 98.217 -> 98.213 % (the mean); sp_005_b `ai_pairwise` 98.5 -> 98.2 %; sp_006 `outline`
+   98.79 -> 98.68 %; sp_01 `nodes_paired_candidate` 23.55 -> 23.48 %, sp_005 26.67 -> 26.62 % and sp_02
+   `nodes_paired` 19.03 -> 18.98 % (`rust/BENCHMARKS.md` "NKS-deep D").
 
 Measured 2026-11-20 (15 regression levels, means): `ground` 98.22 %, `connectivity` 98.79 %, `ai_coverage`
 99.16 %, `ai_pairwise` 92.67 %, `extra_ground` 8.31 %, `over_connection` 15.31 %, `sectors_extra` 1.33;

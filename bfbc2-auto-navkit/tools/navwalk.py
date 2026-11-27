@@ -135,8 +135,9 @@ LIP_OBJECT_RISE = 0.3              # ... and on objects when the steep sample is
 LIP_OBJECT_SLOPE_MAX = None        # a slope cap (deg) on object lips; None: any steepness, above STEEP_TERRAIN_MAX
                                     # only with flat floor on both sides (LIP_OBJECT_FLAT deg; 2026-10-22 evening)
 LIP_OBJECT_FLAT = 15.0
-LIP_OBJECT_FLAT_ALL = False        # every object lip needs LIP_OBJECT_FLAT floor on both sides, not only those steeper
-                                    # than STEEP_TERRAIN_MAX (round NKS-deep D, measured: rust/BENCHMARKS.md)
+LIP_OBJECT_FLAT_ALL = True         # every object lip needs LIP_OBJECT_FLAT floor on both sides, not only those steeper
+                                    # than STEEP_TERRAIN_MAX (round NKS-deep D, rust/BENCHMARKS.md); on by the user's
+                                    # ruling (2026-11-27), its dips named exceptions in spec/transforms/navkit.md
 ROOF_PRUNE = True                  # drop roof islands nothing reaches: a kept island (step-rule connected) that
                                     # holds no anchor (soldier spawn, AI order position, ladder end, or ground the
                                     # normal build kept - stage b), is not the largest, is mostly raised (ROOF_SHARE of

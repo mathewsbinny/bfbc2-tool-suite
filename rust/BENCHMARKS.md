@@ -4819,9 +4819,15 @@ the reference `regression`; this branch's baseline gives every measure of it (sc
   sp_009 97.2 -> 100, ons_mp_004 `nodes_paired` 14.75 -> 15.54. Screen S1 (no object lips at all) showed why: sp_009
   collapsed (32.8 %, its aircraft sills) while four levels rose.
 
-All four stay **off** by XNAV-BLD-3's rule (a measure got worse on some level): the numbers are for the user's
-ruling. `lip_object_flat_all` and `terrain_fill` are the candidates (both raise `ai_pairwise`; their dips are listed
-above). The build's output is unchanged: the reference and the golden builds are not re-recorded.
+By XNAV-BLD-3's rule (a measure got worse on some level) none could go on alone; the numbers went to the user.
+
+**The user's ruling (2026-11-27):** `lip_object_flat_all` **on** (`navwalk.LIP_OBJECT_FLAT_ALL`,
+`WalkSettings::navkit`, the binding's default), its dips named exceptions in `spec/transforms/navkit.md` ("Parity
+target"); `terrain_fill` off for now, a narrower one queued (fill only under the objects the sampler got stuck on:
+sp_003_b's gain without sp_008 / sp_008_b's extra ground or sp_03's dip); `mesh_corners` and `RECT_ON_DICE_LEVELS`
+off (`mesh_corners` at area boundaries only is the next test). navregress's reference `regression` re-recorded with
+the new default (the old one kept as `regression_before_2026-11-27_nksdd.json`): its 15 rows equal the scratch
+`lip_object_flat_all` run above in every value.
 
 ### 4. navregress and the harness
 
