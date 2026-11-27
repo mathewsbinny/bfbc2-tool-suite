@@ -19,6 +19,7 @@
 //! | `rebuild_all.locked` (the install takes it too) | [`lock`] |
 //! | `wake_install.build` and the parts it calls (round OR2, feature `levelbuild`) | [`levelbuild`] |
 //! | `console_onslaught.build` / `install`'s preparation, the console Onslaught import (round OR5, feature `onslaught`) | [`onslaught`] |
+//! | `rebuild_all.py`'s runner, `stepstamps.py`'s records and decisions: the WW2 rebuild as a step graph (round OR7, feature `rebuild`) | [`rebuild`] |
 //! | `opforcore\migrate.py`; the mod manager (round MM1): enable / disable / uninstall / restore-original / verify | [`mods`] |
 //! | `mapedit_install.py` (the map export's install: plan, apply, revert, status; round OR6, feature `mapedit`) | `mapedit` |
 //! | `opforcore.stages.Stages`' whole-file operations as `console_common` calls them (round OR6) | [`stages`] |
@@ -34,6 +35,8 @@ pub mod mods;
 pub mod onslaught;
 pub mod plan;
 pub mod pytext;
+#[cfg(feature = "rebuild")]
+pub mod rebuild;
 pub mod run;
 pub mod staged;
 pub mod stages;

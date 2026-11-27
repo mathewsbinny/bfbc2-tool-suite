@@ -93,7 +93,9 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'OPFOR_ROOT': ('paths', 'the Project OPFOR BFBC2 checkout (default: found beside or above the suite)'),
     'OPFOR_TOOLKIT': ('paths', "the folder holding the suite as Project OPFOR sees it (OPFOR's opforcore.paths)"),
     'OPFOR_GAME': ('paths', "a game folder for levelwrite's export tests (default: OPFOR's game copy)"),
-    'OPFOR_XBOX': ('paths', "the folder searched for the user's Xbox 360 Update #3 package (bfbc2 menuart onslaught)"),
+    'OPFOR_REBUILD_TRACK': ('paths', "set for each WW2 rebuild step by the runner (bc2_install::rebuild): the folder "
+                            "its processes' hook records go to (OPFOR's stepstamps_hook)"),
+    'OPFOR_XBOX': ('paths',"the folder searched for the user's Xbox 360 Update #3 package (bfbc2 menuart onslaught)"),
     'OPFOR_ONS_DROP_TYPES': ('paths', "an experiment of the Onslaught import: instance types (comma-separated) "
                              "dropped from the level (bc2_install::onslaught)"),
     # workers

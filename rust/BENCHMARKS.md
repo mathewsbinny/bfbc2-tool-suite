@@ -5495,3 +5495,115 @@ Debug builds of `bfbc2.exe` / `mapexport.exe` (the twin runs this branch's `mape
   (MM1-rest: one export disabled while the others stay). `bc2_install::mapedit::Installer` takes the game copy and the
   work folder as arguments, so a game-folder setting needs no change there.
 - In game: an installed export has not been played (in-game tests paused).
+
+## OR7: OPFOR in Rust - `rebuild_all` as a step graph (2026-11-27, branch `or7`, with Project OPFOR's `or7`)
+
+The last item of the "OPFOR in Rust" row. OPFOR's WW2 rebuild (55 steps) no longer runs as a fixed list. It runs as a
+step graph, in the suite: `bc2_install::rebuild` (new feature `rebuild`) and `bc2_native.rebuild_run` /
+`rebuild_graph` / `rebuild_derive`.
+
+| Project OPFOR (Python, until OR7) | here |
+|---|---|
+| `rebuild_all.run` / `run_changed` / `run_chains` / `run_step`, `JOBS`, `MIN_FREE`, `peak_memory`, `free_memory` | `rebuild::run::run` |
+| `stepstamps.Tracker.begin` / `finish` / `why` / `stale_inputs`, `Hashes`, `scan`, `listing` | `rebuild::tracker` |
+| (none: the fixed list) | `rebuild::graph`, `rebuild::derive` / `describe` |
+
+OPFOR keeps the step list, the folders each step writes (`OUTPUTS`), the inputs no step writes (`EXTERNAL_INPUTS`,
+still checked: exit 2) and the hook. It hands the runner a plan as JSON: each step's command line, log, scanned
+folders and declared earlier steps, plus the interpreter and the environment. `stepstamps.py` keeps only the record
+names and reads records.
+
+**The graph** (spec XDEP-STEP-8). Step j waits for an earlier step i when:
+- their records conflict: read-after-write, write-after-write, write-after-read, a listing above a write, or a probe
+  of a write;
+- OPFOR's declared graph says so: `rebuild_graph.json`, derived from a full rebuild's records by
+  `rebuild_all --graph --write`, plus `READS`. `READS` covers the folders a step reads whole: `material_grid`'s
+  `build_roots`, and `wake_install.our_files` in `wake_translate`, `emitter_atlas` and `fidelity_checks`, which a
+  native call is handed inside a JSON string the hook cannot see. Each level's parts declare their own reads;
+- either step is unknown to both: the list order.
+
+Listings of `work\ww2` and the folders above it are no edge. The clone pass lists both, and counting them chained
+every later step to it.
+
+After a run, two steps that the new records order but that ran at once fail the run. Edges the declared graph does
+not imply are reported.
+
+**Running** (XDEP-STEP-9):
+- a step starts when its earlier steps are done, at most `--jobs` (4) at once, the longest remaining path first;
+- the steps' estimates must fit in a memory budget together. A step's estimate is its last measured peak (the commit
+  of all its processes, through a job object; tracker 4 records it). The budget defaults to 70% of physical memory,
+  capped at the memory free at the start less 1 GB;
+- free physical memory must cover the step's estimate plus 1 GB;
+- two steps whose scanned folders overlap never run at once.
+
+With `--changed`, a step decides when it becomes ready, against the files as its earlier steps left them. The
+send-backs of XDEP-STEP-7 are found before the run starts.
+
+**XDEP-STEP-3 resolved for the graph; XDEP-STEP-10.** The main checkout's records (tracker 3) ordered the three level
+chains one after another (write-after-read): Guadalcanal's chain "read" 527 of Iwo Jima's and 422 of Coral Sea's
+files. These were not reads:
+- `wake_install` saves its pickled indexes at the top of `work\ww2` and prunes them through the cache budget,
+  handing it all of `work\ww2`;
+- the hook stamped the first 50,000 files of that walk as read before it gave up and listed the folder. The chain's
+  record held 33,019 inputs, among them 5,051 of `install_iwo_jima_s`, 1,106 of `_qa` and 271 of `menu_install`.
+
+Now the budget's functions are not wrapped and an oversized folder keeps none of its stamps. The v4 records give no
+edge between the chains, and they ran side by side.
+
+**Found and fixed on the way.**
+- The first `--changed` after a code change stopped at `wake_translate`: "its inputs from the clone pass were rewritten
+  by a later step, which the pass before the run did not foresee". The pass had expected the clone pass to run. Once
+  the steps before it reran and gave the same files, the clone pass was skipped, so `wake_translate` would have edited
+  `wake_sky`'s databases. The pass now sends back to every writer whose recorded version the disk no longer holds,
+  whether or not it expects that writer to run. New OPFOR test:
+  `test_a_writer_a_rerun_leaves_unchanged_is_still_sent_back_to`.
+- With the budget at 70% of physical memory, a run while other rounds were building took the PC to 15.2 GB in use. The
+  default is now capped by the memory free at the start.
+- `qa_checks`' step line lost `import time` in the rewrite; ruff caught it before a run.
+- Two OPFOR tests (`test_qa_checks`, `test_ww2_fidelity_gate`) faked `subprocess.Popen`. The fidelity one ran the real
+  `fidelity_checks.py` on the worktree's `work\ww2` once the fake no longer applied. Both now stand in for the runner
+  (`rebuild_all.drive`).
+
+**Proof.** All runs in OPFOR's `or7` worktree with its own `work\ww2`, seeded with the 14 declared inputs (599 files).
+`game\` was read only, through a junction. The PC was shared with other rounds throughout: 4.4 - 9 GB in use by
+others.
+
+| Run | Steps | Steps' time | At once | Peaks together | In use (PC) | Oracle (7,945) |
+|---|---|---|---|---|---|---|
+| sequential before OR7 (WW2-ORC1, OR4, OR5) | 55 | 11.8 - 14 min | 1 (+2 chains) | - | - | 7,945 |
+| seeded-empty, graph from main's tracker-3 records (chains in a row), `--jobs 3 --memory-gb 7` | 55 | 9.8 min | 3 | 6,510 MB | 8,154 -> 13,109 MB | 7,945 identical |
+| `--changed` after the module was rebuilt (all code changed), budget 70% | 55 | 7.6 min | 4 | 10,721 MB | 8,975 -> 15,185 MB | 7,945 identical |
+| seeded-empty again, final graph, defaults (budget capped by free memory) | 55 | 10.5 min | 4 | 5,718 MB | 9,046 -> 13,799 MB | 7,945 identical |
+| `--changed --dry`, then `--changed`, nothing changed | 0 | 0.2 min | - | - | - | 7,945 identical |
+| `install_ports\plans.json` touched (a byte added) | 7: `wake_translate` and the writers of the versions it and `grime` edit (XDEP-STEP-7) | 1.7 min | 3 | 4,735 MB | - | 7,945 identical |
+| one leaf's code touched (`minimap_icons.py`, then put back) | 1 | 0.2 min | 1 | 77 MB | - | 7,945 identical |
+
+- Step peaks (commit of all processes): a level chain 4,396 - 4,490 MB, `material_grid` 3,758 - 3,929 MB, the clone
+  pass 1.8 GB, `bf1943_fx` 3.1 GB.
+- The declared graph: 55 steps, 514 edges (62 after the reduction). The longest path is 6.2 min with the measured
+  times; one after another, the same times add up to 15.1 min, since they were measured side by side on a busy PC.
+- How far a run gets toward the 6.2 min depends on the memory free at its start. On this shared PC the budget let at
+  most one level chain beside the small steps in run 2; the 7.6 min run had 4 GB more room.
+- Install plan (`wake_install.py --plan`, 3 min 42 s): install oracle 21,149 of 21,149.
+- `game\` sha256 before the first run and after the plan: 0 of 1,582 files changed.
+
+**Tests.**
+- bc2-install's rebuild module, 8 tests, on records built by hand and `cmd.exe` steps run for real: the conflicts and
+  their kinds, the record keys and listing digests against `stepstamps`, a record from hook records and its
+  decisions, side by side within a budget, a rerun that skips everything, a touched output, a failure, a derived
+  graph.
+- OPFOR: `test_rebuild_changed` (11, one new), `test_rebuild_tracker` (two rewritten for the graph),
+  `test_ww2_build`'s declared-graph check, and the fidelity gate's place in the graph.
+
+**Unproven until a playtest** (in-game tests paused): nothing is installed by this round, and the outputs are
+byte-identical to the oracle.
+
+**What is left.**
+- The declared graph is only as good as the records and `READS`. A step that starts reading another step's folder
+  through a native call's JSON string must be declared, or a run can start it too early. The check after the run
+  only sees what the hook records.
+- The plan's porting as a rebuild step (XDEP-STEP-5) is still proposed, not done.
+- The graph's measured times were taken side by side on a busy PC. Re-derive them on an idle PC
+  (`rebuild_all.py --graph --write` after a full rebuild).
+
+Checks on the final tree (main bceb84f4 and 6d95c313 merged): cargo fmt; `cargo clippy --all-targets -D warnings` on bc2-install (feature `rebuild`) and bc2-py, and bc2-cli's 19 tool groups alone and together, clean; bc2-install's tests 41 passed (the rebuild module's 8 among them); the quick tier 134 of 137 on the first merge - the three failures were the new `OPFOR_REBUILD_TRACK` (now registered) and the spec / native-census checks reading OPFOR's main checkout, which does not have OR7's OPFOR side yet (against OPFOR's `or7`: `trace.py --check` ok, 1,574 rules, XDEP-STEP-8 - 10 unused on main; `native_census.py --check` 378 exports, 0 without a caller); OPFOR's `run_tests.py quick` 372 passed, 15 skipped; ruff and mypy clean on OPFOR's `ww2` and `tests`.

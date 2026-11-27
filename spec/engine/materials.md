@@ -612,7 +612,7 @@ sheets (`grime.py --sheet`, `grime_models.py`) are pictures for review: a 256-te
 busiest painted area beside a DICE texture of its class at the same texel density, and the weathered weapons and
 vehicles rendered whole from `.orig` (before) and the weathered file (after); nothing is installed from them.
 
-[code: opfor:src/tools/ww2/rebuild_all.py:99-103]
+[code: opfor:src/tools/ww2/rebuild_all.py:60-63]
 [code: opfor:src/tools/ww2/grime.py:157-164]
 [code: opfor:src/tools/ww2/grime_sheet.py:15-29]
 [code: opfor:src/tools/ww2/grime_sheet.py:48-83]

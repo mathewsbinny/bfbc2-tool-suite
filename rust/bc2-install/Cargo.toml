@@ -28,6 +28,10 @@ sha1_smol = { workspace = true, optional = true }
 # the Onslaught import's error (round OR5, feature `onslaught`)
 thiserror = { workspace = true, optional = true }
 
+# the rebuild's free memory and each step's peak (round OR7, feature `rebuild`: GlobalMemoryStatusEx, a job object)
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, optional = true }
+
 [features]
 # the WW2 level build (OPFOR's wake_install.build, round OR2): bc2_native's ww2build_* functions; bfbc2.exe's
 # installer does not need it
@@ -37,6 +41,8 @@ onslaught = ["dep:bc2-tools", "dep:bc2-pyrt", "dep:thiserror"]
 # the map export's install (Project OPFOR's mapedit_install.py, round OR6): `bfbc2 install mapedit` and the map
 # editor's Install dialog
 mapedit = ["dep:bc2-pyrt"]
+# OPFOR's WW2 rebuild as a step graph (rebuild_all / stepstamps, round OR7): bc2_native's rebuild_* functions
+rebuild = ["dep:sha1_smol", "dep:windows-sys"]
 
 [lints]
 workspace = true
