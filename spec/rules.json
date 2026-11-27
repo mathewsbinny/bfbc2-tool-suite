@@ -2043,6 +2043,27 @@
    ]
   },
   {
+   "id": "CAMP-SAVE-1",
+   "title": "The campaign save: a `header` and a `body` stream in `GameSettings.bin`",
+   "file": "spec/engine/campaign.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: SaveEntityData.SaveDelayTime 0 x 179, 1.5 x 2, 0.1 x 1, 1 x 1"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the Save hash `push 0x7C8A0784` at 0x67AB37; ServerSaveEntity's constructor 0x67AAD0 (`mov dword [esi+0x50"
+    }
+   ]
+  },
+  {
    "id": "DATA-FX-1",
    "title": "The emitter update processors",
    "file": "spec/engine/data_classes.md",
@@ -4249,7 +4270,7 @@
   },
   {
    "id": "HUD-KILL-1",
-   "title": "The kill cam has no data class",
+   "title": "The kill cam has no camera class of its own",
    "file": "spec/engine/hud.md",
    "status": "observed",
    "variants": "PC",
@@ -4260,7 +4281,28 @@
     },
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe one string \"KillCam\"; no typeinfo record of that name"
+     "ref": "BFBC2Game.exe no typeinfo record named KillCam; the member `ServerSettings.KillCam` (RTTI-GAME-1) and the setting `Server.KillCam` (HUD-KILL-2)"
+    }
+   ]
+  },
+  {
+   "id": "HUD-KILL-2",
+   "title": "The kill cam is the level's spectate entities, gated by `Server.KillCam` and hardcore",
+   "file": "spec/engine/hud.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: SpectateEntityData Target, Mode and UseInHardcoreMode as above (227)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe ServerSpectateEntity's test 0x67AEE0: `cmp byte [eax+0xAC"
     }
    ]
   },
@@ -4526,7 +4568,7 @@
     },
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe section table: typeinfo VA 0x1BF0000 size 0x22D18, fieldinf VA 0x1C13000 size 0x34E60; e.g. GameEntityData's record 0x1BFAF98, CapturePointEntityData's 0x1BFD8C4 with its field table 0x1C25870"
+     "ref": "BFBC2Game.exe section table: typeinfo VA 0x1BF0000 size 0x22D18, fieldinf VA 0x1C13000 size 0x34E60; e.g. GameEntityData's record 0x1BFAF98, CapturePointEntityData's 0x1BFD8C4 with its field table 0x1C256F0"
     }
    ]
   },
@@ -10710,6 +10752,27 @@
    ]
   },
   {
+   "id": "SOLD-PHYS-2",
+   "title": "The controller's nine states: their ids, how they are built, their transitions",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: the nine state classes 2 each among the States of DICE's 2 CharacterPhysicsData"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe state builder 0xB08CE0 (`push 0x1BF90D8` at 0xB08D5C), state ids at 0xAB7B70 (`xor eax, eax; ret`), 0xA9D590, 0xA9D580, 0xA9D150, 0xA9D570, 0xA9DAC0, 0xA9DAE0, 0xA9CCC0, 0xA9DAD0 (`mov eax, 1` - `8; ret`); factories 0xAB7B00, 0xAB7A90, 0xAB7A20, 0xAB7920, 0xAB79B0, 0xAB8310, 0xAB83F0, 0xABA950, 0xAB8380; context setState 0xD40B80, character setState 0xB095C0"
+    }
+   ]
+  },
+  {
    "id": "SOLD-SPR-1",
    "title": "Sprint is a power budget and a field-of-view change",
    "file": "spec/engine/soldier.md",
@@ -10935,6 +10998,27 @@
    ]
   },
   {
+   "id": "SGR-NODE-2",
+   "title": "Each node data class has a factory; the enumerations' numbers",
+   "file": "spec/engine/sound_graph.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe SimpleTransformNode's factory vtable 0x14B3DA8: slot 1 0xFE5CC0 `mov eax, 0x1C101E4; ret`, slot 2 0xFEDE70 allocates 0x20 bytes and stores the node vtable 0x14B3E70 (0xFEDE83)"
+    }
+   ]
+  },
+  {
    "id": "SQD-TEAM-1",
    "title": "A team is a faction with its kits and player caps",
    "file": "spec/engine/squads.md",
@@ -10982,6 +11066,27 @@
     {
      "kind": "data",
      "ref": "spec/census.json, 2026-11-23: no DBX class for the players' squads: the six Squad classes with instances (SquadAsset, SquadData, SquadTypeData, SquadEntityData, SquadGhostEntityData, JoinSquadOrderEntityData) are the AI's; SquadManagerEntityData is a typeinfo class with no instance in DICE's partitions"
+    }
+   ]
+  },
+  {
+   "id": "SQD-PLAY-2",
+   "title": "Spawning on a squad mate: the request's checks and the 13 positions",
+   "file": "spec/engine/squads.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: TeamData.MaxPlayersPerSquad 4 in 10 of 10"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe request reader 0x83A370, handler 0x83A3C0, checks 0x662F20 (squad test 0x6C9790, `cmp eax, 0x18` at 0x6C9796; anti-spam 0x673FB0 over 0x156F2D0; combat areas 0x547760), placement 0x572CC0 (13 candidates, `cmp eax, 0xD` at 0x5735E9; ground ray to -1000.0 at 0x1418B70; height limit 100.0 at 0x14D9638; fit test 0xB095B0; seat 0x68E7C0)"
     }
    ]
   },
@@ -11198,6 +11303,549 @@
     {
      "kind": "data",
      "ref": "spec/census.json, 2026-11-23: the classes above; LevelData member SubtitleAsset; CutsceneEntityData member Subtitle"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-REG-1",
+   "title": "Every record is registered by a static initialiser, five ways",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --measure, 2026-11-27 (spec/typeinfo.json): 1,900 of 1,900 records registered: data class 961, class 400, value type 289, enumeration 231, built-in 19"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe register functions 0x500880, 0x500660, 0x43C390, 0x5008E0, 0x4FE260 (templates 0x5007C0); CapturePointEntityData's initialiser 0x13ACAA0 (record 0x1BFD8C4, class info 0x1BFE0FC), ServerSoldierEntity's 0x13710A0 (record 0x1BF1D90, class info 0x1BF2390), CharacterPoseType's 0x13D1220 (0x5008E0), Vec3's 0x136F3D0 (0x43C390)"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-MEM-1",
+   "title": "A member is a 24-byte descriptor; a record lists only its own",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py, 2026-11-27: 7,087 members (564 arrays), 1,952 enumeration values; offset + size inside the record 7,087 of 7,087; own members at or past the parent's size in every class"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe `fieldinf` VA 0x1C13000: CapturePointEntityData's table 0x1C256F0 (35 descriptors), SoldierWeaponDispersion's 0x1C205A8, CharacterPoseType's 0x1C36610"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-DBX-1",
+   "title": "The run-time members are DICE's DBX fields, less the pipeline's",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --dbx against spec/census.json (DICE's partitions), 2026-11-27: 630 classes: the same 398, DBX more 230, differ 2; 118 DBX-only names"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-DBX-2",
+   "title": "The pathfinding switches and the AI's sensing template are pipeline-only",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --dbx, 2026-11-27: the fields above in the DBX classes and in no run-time member of the class or its parents; instances from spec/census.json"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a member the run-time class lacks cannot be read by the loader, which fills objects through the member tables (RTTI-MEM-1)"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-CORE-1",
+   "title": "`Core`'s records",
+   "file": "spec/engine/typeinfo/core.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Core 40 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-1",
+   "title": "The 131 enumerations and their values",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources enumerations 131"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-2",
+   "title": "The 182 value types",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources value types 182"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-3",
+   "title": "The entity data classes",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources classes below EntityData 188"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-4",
+   "title": "Weapons, firing and damage",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-5",
+   "title": "AI, cover, squads and voice-over",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-6",
+   "title": "The HUD, menus and screen effects",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-7",
+   "title": "Persistence, online, settings and modes",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GSR-8",
+   "title": "The rest of the module",
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-FAC-1",
+   "title": "Which run-time class each data class makes, from the factories' constructors",
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --measure, 2026-11-27: factories server 148, client 100; resolved pairs server 110, client 75; 173 classes made"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory registries 0x157041C (register 0x71C790) and 0x1572768 (0x8B6A60); the server's create 0x711740 calls slot 4 (e.g. the factory vtable 0x1427568: slot 3 `mov eax, 0x30; ret 4`, slot 4 0x6FBDA0 allocates 0x30 and jumps to the constructor 0x586AC0), the client's create 0x8A07F0 calls slot 6 (`call [eax+0x18"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GDLL-1",
+   "title": "The server's run-time classes",
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameDll records not named Client* 163"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GDLL-2",
+   "title": "The client's run-time classes",
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameDll records named Client* 99"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-ENT-1",
+   "title": "`Entity`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Entity 74 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-AI-1",
+   "title": "`Aidll`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Aidll 24 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-GAME-1",
+   "title": "`Game`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Game 12 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-SCENE-1",
+   "title": "`Scene` and `World`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Scene 5, World 3 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-PHYS-1",
+   "title": "`Physics`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Physics 85 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-ANIM-1",
+   "title": "`Animation`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Animation 124 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-AUDIO-1",
+   "title": "`Audio`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Audio 125 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-REND-1",
+   "title": "`Render`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Render 128 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-WREND-1",
+   "title": "`WorldRender`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: WorldRender 30 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-EMIT-1",
+   "title": "`Emitter` and `EmitterRender`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Emitter 76, EmitterRender 3 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-DECAL-1",
+   "title": "`Decal`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Decal 10 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-TERR-1",
+   "title": "`Terrain` and `TerrainRender`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Terrain 34, TerrainRender 8 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-OVG-1",
+   "title": "`Overgrowth` and `OvergrowthRender`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Overgrowth 2, OvergrowthRender 2 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-WEATH-1",
+   "title": "`Weather`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Weather 31 records"
+    }
+   ]
+  },
+  {
+   "id": "RTTI-UI-1",
+   "title": "`UI`",
+   "file": "spec/engine/typeinfo/modules.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: UI 45 records"
     }
    ]
   },
@@ -14115,6 +14763,31 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe typeinfo record `ImpulseResponse` (module Audio, 20 bytes) at 0x1C0E804; settings and fields `ReverbIR`, `ReverbArea`, `SoundAreaReverbs`"
+    }
+   ]
+  },
+  {
+   "id": "IR-PART-1",
+   "title": "A partition is two channel blocks: a block-scale head and 1,024 spectrum bins",
+   "file": "spec/formats/audio.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: 518 channel blocks in 5 files; head = (2^k - 1, 14 zero bytes) in 518; first bin's imaginary 0 in 518; scales 32,767 x 308, 16,383 x 85, 8,191 x 59, 4,095 x 44, 2,047 x 17, 1,023 x 5; peak above 16,383 in 210 of the 210 blocks scaled below 32,767"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory vtable 0x14B2288 (type 0xFC8CD0, load 0xFD2260): a 20-byte object (vtable 0x14B1EF0), the whole file read into a 16-aligned buffer (+0x0C) of the stream's size (+0x10); load requests 0xFCA9E0 and the reverb table 0xFDC5D6 - 0xFDC63C"
     }
    ]
   },
@@ -19649,18 +20322,26 @@
   },
   {
    "id": "OCC-TRI-1",
-   "title": "The triangle block: 24-byte records, at least one per triangle",
+   "title": "The triangle block: one 192-bit part mask per triangle, padded to an even count",
    "file": "spec/formats/occluder.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
-     "kind": "data",
-     "ref": "spec/probes/resources.py, 2026-11-23: block present 321 (+1 present and empty), absent 39; records = triangles in 253, more in 68"
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
     },
     {
-     "kind": "inferred",
-     "ref": "the meshes with a block are the destructible buildings' (their records' set bits differ triangle by triangle); those without are static (bridges, silos), whose fourth vertex word differs instead"
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: the first payload at 16 in 361 of 361; 321 blocks, records = triangles rounded up to even in 321 of 321, the padding record zero in 321 of 321 (records = triangles in 253, one more in 68); 82 blocks with set bits, 5,812 of 22,998 triangles, highest bit 106"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0x976900 (the reads 0x976A28 - 0x976A6B); instance set-up 0x96B170 (data +0x7C, the masks +0x60 - +0x74 cleared); job 0x9848A0 -> 0x9765C0: the triangle's six words tested against the instance's masks 0x976805 - 0x976846 (`test [esi+0x60"
     }
    ]
   },
@@ -20744,6 +21425,52 @@
     {
      "kind": "data",
      "ref": "spec/probes/resources.py, 2026-11-23: tail = (0, n, triangles, 60) in 40 of 40"
+    }
+   ]
+  },
+  {
+   "id": "SOOT-FLAG-1",
+   "title": "The two flag words pick the soot vertex declaration",
+   "file": "spec/formats/soot.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: (word 8, word 12, stride) = (1, 1, 12) x 22, (0, 1, 12) x 12, (1, 0, 16) x 6"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory vtable 0x147E990 (type 0xC409E0, load 0xC48670: a 0x80-byte object, constructor 0xC45850, vtable 0x147E9CC, its loader slot +0xC 0xC4EDD0); the stride into +0x40, the flags +0x44 / +0x48, the name chosen 0xC4EE44 - 0xC4EE9A (strings 0x147EAE8, 0x147EAD4, 0x147EAC4, 0x147EAB0), the declaration into +0x4C"
+    }
+   ]
+  },
+  {
+   "id": "SOOT-SLOT-1",
+   "title": "Each vertex names a box and a part slot; the trailer maps slots to parts",
+   "file": "spec/formats/soot.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-27: in 40 of 40: part indices first then padding, distinct, below 192; every vertex's slot below the used count and every used slot referenced; every vertex's box below n, every box referenced, every vertex inside its box"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0xC4EDD0: boxes into +0x60 / +0x64 (0xC4EF00 - 0xC4EF36), sub-meshes +0x50 (0x24 bytes each), the buffers through the manager's slots +0x58 / +0x5C, the two words +0x1C / +0x20, the primitive count 0xC4F1F6, the slot words into +0xC; the draw 0xC4D44C (60 constants) -> 0xC431C0 (masks +0x84 and +0x9C); the mask copy 0xC3CF40 from the mesh's part show / hide 0xB99380"
     }
    ]
   },

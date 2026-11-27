@@ -14,7 +14,7 @@ instances or a typeinfo module has neither (GFILE-KIND-1, ENG-TI-1).
 | files outside the bundles (kinds) | 16 | 13 | 3 | 0 | 0 | 6 / 7 |
 | bundle entry types | 37 | 37 | 0 | 0 | 0 | 28 / 9 |
 | DBX instance classes | 630 | 630 | 0 | 0 | 0 | 304 / 326 |
-| typeinfo records | 1,900 | 816 | 0 | 1,084 | 0 | 419 / 1481 |
+| typeinfo records | 1,900 | 1,900 | 0 | 0 | 0 | 419 / 1481 |
 | typeinfo modules | 22 | 22 | 0 | 0 | 0 | 19 / 3 |
 
 ## 1. Files outside the bundles
@@ -25,7 +25,7 @@ DICE's files of the game folder by kind (a `.opfor-orig` backup counts as DICE's
 |---|---|---|---|
 | DirectX redistributables (D3DCompiler_42, D3DX*_42) | 4 | 4,555,600 | out of scope: Microsoft's DirectX runtime (the shader compiler and D3DX helpers of the 2010 SDK), loaded by the executable as any Windows program loads them; the suite never reads or changes them |
 | InstallationData.xml | 1 | 280 | GFILE-INST-1 |
-| NavKit path data (Output/win32/ai/levels/*/*/pathdata.hpd) | 23 | 163,017,028 | AI-KY-1, HPD-USE-1, XLAY-PATH-1 |
+| NavKit path data (Output/win32/ai/levels/*/*/pathdata.hpd) | 23 | 163,017,028 | AI-KY-1, HPD-USE-1, RTTI-DBX-2, XLAY-PATH-1 |
 | Support folder | 224 | 3,399,419 | out of scope: EA's customer-service help pages, the EULA, the uninstaller, the CD-key tool and the Windows Game Explorer resource (GDFBinary.dll, GL.ini): installer and support content no game system reads |
 | UpdateHistory.log | 1 | 47 | GFILE-INST-1 |
 | aerial height map (Output/win32/levels/*/aerialheightmap.res) | 1 | 524,316 | GFILE-AHM-1 |
@@ -37,7 +37,7 @@ DICE's files of the game folder by kind (a `.opfor-orig` backup counts as DICE's
 | dfe | 1 | 1,000 | GFILE-DFE-1 |
 | dialoglogo128x128.jpg | 1 | 21,369 | GFILE-LOGO-1 |
 | movie (Output/win32/movies/**.res) | 33 | 293,728,468 | BINK-OUT-1, RES-WRAP-2 |
-| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-HDR-1, ENG-REND-1, ENG-TI-1, HUD-KILL-1, IR-HDR-1, OCC-HDR-1 (+3) |
+| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-HDR-1, ENG-REND-1, ENG-TI-1, HUD-KILL-1, IR-HDR-1, OCC-HDR-1 (+35) |
 | winui.dll | 1 | 262,144 | out of scope: an MFC 8 dialog library (resource-only UI helpers: rich edit, HTML help); no file of the game folder names it (not imported by BFBC2Game.exe or binkw32.dll), so it belongs to the installer / support tools |
 
 ## 2. Bundle entry types
@@ -47,42 +47,42 @@ Every entry type of DICE's bundles (`**/*.fbrb`, live entries; names: distinct e
 | Type | Entries | Names | Rules |
 |---|---|---|---|
 | `<non-resource>` | 139,154 | 99,322 | FBRB-ENT-3, GFILE-DBM-1, PART-NAME-1, RES-NAME-2, SND-STRM-1 |
-| `AimAnimation` | 815 | 266 | AIM-HDR-1, ANIM-RES-1 |
-| `AnimTreeInfo` | 2,594 | 1,926 | ANIM-RES-1, ANIM-TREE-1, ANIM-TREE-2, ATREE-HDR-1, DATA-ANIM-1 |
-| `BinkMemory` | 57 | 56 | BINK-HDR-1, BINK-OUT-1, BINK-RES-1, MENU-LOAD-1 |
-| `CompositeMeshSet` | 666 | 353 | MESH-HDR-2, XDEP-RES-2 |
-| `DeltaAnimation` | 1,272 | 295 | ANIM-RES-1 |
-| `Dx10PixelShader` | 112 | 112 | SHDB-TYPE-1 |
-| `Dx10ShaderDatabase` | 109 | 76 | SHDB-TYPE-1 |
-| `Dx10VertexShader` | 14 | 14 | SHDB-TYPE-1 |
-| `Dx11PixelShader` | 112 | 112 | RNDR-POST-1, SHDB-TYPE-1 |
-| `Dx11ShaderDatabase` | 109 | 76 | SHDB-TYPE-1 |
-| `Dx11VertexShader` | 14 | 14 | RNDR-POST-1, SHDB-TYPE-1 |
-| `Dx9PixelShader` | 112 | 112 | SHDB-TYPE-1 |
-| `Dx9ShaderDatabase` | 109 | 76 | SHDB-TYPE-1, XDEP-RES-2 |
-| `Dx9VertexShader` | 14 | 14 | SHDB-TYPE-1 |
-| `GrannyAnimation` | 11,381 | 4,792 | ANIM-RES-1 |
-| `GrannyModel` | 126 | 73 | ANIM-RES-1, ANIM-SKEL-1 |
-| `HavokPhysicsData` | 3,035 | 1,595 | COLL-TERR-1, HAVOK-RAG-1, HAVOK-RES-1, HAVOK-WRAP-2, HAVOK-X360-1, LEVEL-MG-2 (+3) |
-| `ITexture` | 6,511 | 3,826 | FBRB-ENT-3, LIGHT-BAKE-3, MAT-TEX-1, MAT-TEX-4, RES-WRAP-1, RES-WRAP-2 (+6) |
-| `ImpulseResponse` | 17 | 5 | IR-HDR-1 |
-| `IrradianceVolume` | 55 | 25 | LIGHT-IRR-1, RNDR-LIGHT-1 |
-| `MeshData` | 7,425 | 4,265 | ANIM-SKIN-1, FBRB-ENT-3, MESH-HDR-1, MESH-HDR-2, MESH-HDR-3, MESH-HDR-4 (+7) |
-| `OccluderMesh` | 636 | 361 | OCC-HDR-1 |
-| `RagdollResource` | 2 | 1 | ANIM-RAG-1, ANIM-RES-1, HAVOK-RAG-1 |
-| `RigidMeshSet` | 2,650 | 1,741 | MESH-HDR-2, VEG-UG-1, XDEP-RES-2 |
-| `SkinnedMeshSet` | 793 | 326 | MESH-HDR-2, XDEP-RES-2 |
-| `SootMesh` | 90 | 40 | DSTR-MESH-4, SOOT-HDR-1, TERR-SOOT-1 |
-| `SwfMovie` | 876 | 55 | APT-RES-1, APT-WR-1, BIGF-DAT-1, MENU-AS-1, XDEP-RES-2 |
-| `Terrain` | 42 | 30 | COLL-MG-2, COLL-MG-3, COLL-TERR-1, DSTR-TERR-4, LEVEL-MG-3, LEVEL-OBJ-3 (+17) |
-| `TerrainHeightfield` | 450 | 318 | COLL-TERR-1, TERR-NAME-1 |
-| `TerrainMaterialMap` | 42 | 30 | TEDIT-MM-1, TERR-NAME-1 |
-| `TreeMeshSet` | 164 | 92 | MESH-HDR-2, VEG-TREE-1, XDEP-RES-2 |
-| `VisualTerrain` | 83 | 30 | DSTR-TERR-1, SCR-EVT-3, SET-CLI-2, TERR-NAME-1, TGEN-OUT-5, VEG-UG-6 (+2) |
-| `VisualWater` | 42 | 30 | RNDR-WATER-1, TERR-NAME-1, WATER-VIS-4, XDEP-RES-2 |
-| `WaterMesh` | 42 | 30 | COLL-WATER-1, TERR-NAME-1, WATER-MESH-3, WATER-VIS-4 |
-| `Wave` | 212,482 | 45,117 | RES-WRAP-2, SGR-NODE-1, SND-WAVE-1, STRM-CNT-1, WAVE-HDR-1, WAVE-HDR-2 (+6) |
-| `WeatherSystem` | 39 | 27 | RNDR-WTHR-1, RNDR-WTHR-5, RNDR-WTHR-8, WTH-RES-1 |
+| `AimAnimation` | 815 | 266 | AIM-HDR-1, ANIM-RES-1, RTTI-ANIM-1 |
+| `AnimTreeInfo` | 2,594 | 1,926 | ANIM-RES-1, ANIM-TREE-1, ANIM-TREE-2, ATREE-HDR-1, DATA-ANIM-1, RTTI-ANIM-1 |
+| `BinkMemory` | 57 | 56 | BINK-HDR-1, BINK-OUT-1, BINK-RES-1, MENU-LOAD-1, RTTI-REND-1 |
+| `CompositeMeshSet` | 666 | 353 | MESH-HDR-2, RTTI-REND-1, XDEP-RES-2 |
+| `DeltaAnimation` | 1,272 | 295 | ANIM-RES-1, RTTI-ANIM-1 |
+| `Dx10PixelShader` | 112 | 112 | RTTI-REND-1, SHDB-TYPE-1 |
+| `Dx10ShaderDatabase` | 109 | 76 | RTTI-REND-1, SHDB-TYPE-1 |
+| `Dx10VertexShader` | 14 | 14 | RTTI-REND-1, SHDB-TYPE-1 |
+| `Dx11PixelShader` | 112 | 112 | RNDR-POST-1, RTTI-REND-1, SHDB-TYPE-1 |
+| `Dx11ShaderDatabase` | 109 | 76 | RTTI-REND-1, SHDB-TYPE-1 |
+| `Dx11VertexShader` | 14 | 14 | RNDR-POST-1, RTTI-REND-1, SHDB-TYPE-1 |
+| `Dx9PixelShader` | 112 | 112 | RTTI-REND-1, SHDB-TYPE-1 |
+| `Dx9ShaderDatabase` | 109 | 76 | RTTI-REND-1, SHDB-TYPE-1, XDEP-RES-2 |
+| `Dx9VertexShader` | 14 | 14 | RTTI-REND-1, SHDB-TYPE-1 |
+| `GrannyAnimation` | 11,381 | 4,792 | ANIM-RES-1, RTTI-ANIM-1 |
+| `GrannyModel` | 126 | 73 | ANIM-RES-1, ANIM-SKEL-1, RTTI-ANIM-1 |
+| `HavokPhysicsData` | 3,035 | 1,595 | COLL-TERR-1, HAVOK-RAG-1, HAVOK-RES-1, HAVOK-WRAP-2, HAVOK-X360-1, LEVEL-MG-2 (+4) |
+| `ITexture` | 6,511 | 3,826 | FBRB-ENT-3, LIGHT-BAKE-3, MAT-TEX-1, MAT-TEX-4, RES-WRAP-1, RES-WRAP-2 (+7) |
+| `ImpulseResponse` | 17 | 5 | IR-HDR-1, RTTI-AUDIO-1 |
+| `IrradianceVolume` | 55 | 25 | LIGHT-IRR-1, RNDR-LIGHT-1, RTTI-REND-1 |
+| `MeshData` | 7,425 | 4,265 | ANIM-SKIN-1, FBRB-ENT-3, MESH-HDR-1, MESH-HDR-2, MESH-HDR-3, MESH-HDR-4 (+8) |
+| `OccluderMesh` | 636 | 361 | OCC-HDR-1, RTTI-REND-1 |
+| `RagdollResource` | 2 | 1 | ANIM-RAG-1, ANIM-RES-1, HAVOK-RAG-1, RTTI-PHYS-1 |
+| `RigidMeshSet` | 2,650 | 1,741 | MESH-HDR-2, RTTI-REND-1, VEG-UG-1, XDEP-RES-2 |
+| `SkinnedMeshSet` | 793 | 326 | MESH-HDR-2, RTTI-REND-1, XDEP-RES-2 |
+| `SootMesh` | 90 | 40 | DSTR-MESH-4, RTTI-DECAL-1, SOOT-HDR-1, TERR-SOOT-1 |
+| `SwfMovie` | 876 | 55 | APT-RES-1, APT-WR-1, BIGF-DAT-1, MENU-AS-1, RTTI-UI-1, XDEP-RES-2 |
+| `Terrain` | 42 | 30 | COLL-MG-2, COLL-MG-3, COLL-TERR-1, DSTR-TERR-4, LEVEL-MG-3, LEVEL-OBJ-3 (+18) |
+| `TerrainHeightfield` | 450 | 318 | COLL-TERR-1, RTTI-TERR-1, TERR-NAME-1 |
+| `TerrainMaterialMap` | 42 | 30 | RTTI-TERR-1, TEDIT-MM-1, TERR-NAME-1 |
+| `TreeMeshSet` | 164 | 92 | MESH-HDR-2, RTTI-REND-1, VEG-TREE-1, XDEP-RES-2 |
+| `VisualTerrain` | 83 | 30 | DSTR-TERR-1, RTTI-TERR-1, SCR-EVT-3, SET-CLI-2, TERR-NAME-1, TGEN-OUT-5 (+3) |
+| `VisualWater` | 42 | 30 | RNDR-WATER-1, RTTI-TERR-1, TERR-NAME-1, WATER-VIS-4, XDEP-RES-2 |
+| `WaterMesh` | 42 | 30 | COLL-WATER-1, RTTI-TERR-1, TERR-NAME-1, WATER-MESH-3, WATER-VIS-4 |
+| `Wave` | 212,482 | 45,117 | RES-WRAP-2, RTTI-AUDIO-1, SGR-NODE-1, SND-WAVE-1, STRM-CNT-1, WAVE-HDR-1 (+7) |
+| `WeatherSystem` | 39 | 27 | RNDR-WTHR-1, RNDR-WTHR-5, RNDR-WTHR-8, RTTI-WEATH-1, WTH-RES-1 |
 
 ## 3. DBX instance classes
 
@@ -90,636 +90,636 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 
 | Class | Instances | Partitions | Members | Rules |
 |---|---|---|---|---|
-| PolynomialData | 208,719 | 53,076 | 9 | FX-PROC-2, FX-PROC-5, FX-PROC-6 |
-| RandomEvaluatorData | 202,922 | 58,737 | 7 | FX-PROC-2, FX-PROC-6 |
-| MaterialRelationData | 163,984 | 74 | 3 | MAT-GRID-1, MAT-GRID-5 |
-| MaterialRelationDamageData | 162,950 | 74 | 9 | MAT-GRID-5, MAT-GRID-6, MAT-GRID-7 |
-| ReferenceObjectData | 141,725 | 230 | 11 | CULL-SLOT-2, GAME-RUSH-1, LEVEL-PART-3, LEVEL-SLOT-1 (+10) |
-| MaterialRelationEffectData | 70,241 | 74 | 2 | MAT-GRID-5 |
-| SoundNodePort | 59,593 | 1,312 | 3 | SGR-WIRE-1 |
-| EmitterDocument | 58,899 | 58,899 | 7 | FX-CLS-1 |
-| EmitterTemplateData | 58,899 | 58,899 | 44 | FX-CLS-1, LIGHT-PT-2 |
-| UpdateAgeData | 58,899 | 58,899 | 11 | FX-PROC-1 |
-| UpdateBoundingBoxData | 58,899 | 58,899 | 11 | FX-PROC-1 |
-| SpawnRateData | 58,590 | 58,590 | 15 | FX-PROC-1 |
-| MaterialRelationSoundData | 57,871 | 74 | 4 | MAT-GRID-5 |
-| SpawnSizeData | 55,272 | 55,272 | 11 | FX-PROC-1 |
-| SpawnDirectionData | 54,850 | 54,850 | 12 | FX-PROC-1 |
-| UpdateSizeData | 54,775 | 54,775 | 11 | DATA-FX-1 |
-| SpawnSpeedData | 54,560 | 54,560 | 11 | FX-PROC-1 |
-| SpawnRotationData | 52,393 | 52,393 | 11 | FX-PROC-1 |
-| SpawnRotationSpeedData | 51,542 | 51,542 | 11 | FX-PROC-1 |
-| UpdateLinearVelocityData | 51,467 | 51,467 | 11 | DATA-FX-1 |
-| SpawnPositionData | 48,584 | 48,584 | 11 | FX-CLS-1, FX-CLS-2, FX-PROC-1 |
-| UpdateRotationData | 48,123 | 48,123 | 11 | DATA-FX-1 |
-| UpdateColorData | 46,982 | 46,982 | 11 | DATA-FX-1 |
-| UpdateTransparencyData | 46,982 | 46,982 | 11 | DATA-FX-1 |
-| UpdateTextureCoordsData | 46,937 | 46,937 | 12 | FX-ATL-2 |
-| TerrainSplinePlanePointData | 44,132 | 74 | 8 | DECAL-SRC-2, LEVEL-OBJ-1 |
-| UpdateClipScaleData | 42,618 | 42,618 | 11 | DATA-FX-1 |
-| UpdateOrientationData | 41,803 | 41,803 | 11 | DATA-FX-1 |
-| GravityData | 41,585 | 41,585 | 11 | FX-PROC-1 |
-| AirResistanceData | 40,646 | 40,646 | 11 | FX-PROC-1 |
-| AreaGeometryEntityData | 40,494 | 74 | 9 | AIO-FLD-3, LEVEL-ENT-2, LEVEL-PART-3 |
-| RotateVectorData | 37,045 | 37,045 | 7 | FX-PROC-2, FX-PROC-6 |
-| UpdateAlphaLevelScaleData | 33,748 | 33,748 | 11 | DATA-FX-1 |
-| PolynomialColorInterpData | 26,821 | 26,821 | 8 | FX-PROC-2, FX-PROC-6 |
-| UIFontGlyph | 26,596 | 56 | 12 | TEXT-FONT-1 |
-| BoxEvaluatorData | 23,823 | 23,823 | 7 | FX-CLS-2, FX-PROC-2, FX-PROC-6 |
-| RandomXYZEvaluatorData | 22,919 | 19,489 | 11 | FX-PROC-2, FX-PROC-6 |
-| SubtitleWaveHashPair | 22,878 | 13 | 3 | TEXT-SUB-1 |
-| MaterialRelationDecalData | 19,730 | 74 | 2 | DECAL-IMP-1, MAT-GRID-5 |
-| SpawnAnimationData | 17,941 | 17,941 | 11 | FX-PROC-1 |
-| SpawnAnimationFrameData | 17,936 | 17,936 | 11 | FX-ATL-2, FX-CLS-1, FX-PROC-1 |
-| SoundNodeConnection | 17,908 | 1,312 | 4 | SGR-WIRE-1 |
-| DialogLineNode | 15,734 | 8 | 5 | SGR-VO-1 |
-| TurbulanceData | 15,705 | 15,705 | 11 | FX-PROC-1, FX-PROC-7 |
-| SubtitleRuntimeData | 15,519 | 13 | 3 | TEXT-SUB-1 |
-| TerrainSplinePointData | 14,449 | 74 | 2 | DECAL-SRC-2 |
-| UpdateAlphaLevelMaxData | 13,984 | 13,984 | 11 | DATA-FX-1 |
-| UpdateSizeXData | 13,511 | 13,511 | 11 | DATA-FX-1 |
-| GameEffectEntityData | 12,423 | 74 | 15 | FX-PLACE-1, LEVEL-PART-3, LIGHT-PT-3, LIGHT-PT-4 (+3) |
-| LocalForceData | 12,394 | 12,394 | 11 | FX-PROC-1 |
-| SphereEvaluatorData | 12,333 | 12,333 | 8 | FX-CLS-2, FX-PROC-2, FX-PROC-6 |
-| UpdateSizeYData | 10,266 | 10,266 | 11 | DATA-FX-1 |
-| SamplerWaveMapEntry | 9,801 | 1,306 | 3 | SGR-NODE-1 |
-| TextureAsset | 9,083 | 4,585 | 14 | WTH-CLS-1, WTH-RES-1 |
-| HealthStateData | 8,578 | 727 | 10 | DSTR-STATE-1, VEH-HP-4 |
-| InfluenceMapBoneData | 8,559 | 54 | 2 | DATA-ANIM-2 |
-| BaseEmitterData | 7,496 | 7,496 | 11 | FX-PROC-1 |
-| FloatParameter | 6,833 | 1,690 | 3 | DATA-ANIM-1 |
-| UpdateAlphaLevelMinData | 6,268 | 6,268 | 11 | DATA-FX-1 |
-| MaterialData | 5,746 | 74 | 9 | MAT-GRID-1, MAT-GRID-2, MAT-GRID-3, TERR-MM-4 (+1) |
-| VoiceOverLineAsset | 5,221 | 74 | 3 | SGR-VO-1 |
-| AnimationAsset | 4,794 | 4,794 | 16 | ANIM-TREE-1 |
-| VoiceOverEntityData | 4,578 | 74 | 14 | SCR-EVT-1 |
-| PartComponentData | 4,196 | 716 | 12 | DSTR-STATE-1, VEH-ENT-1, VEH-HP-4 |
-| WaveAsset | 4,161 | 4,161 | 11 | FX-CLS-1 |
-| MaterialRelationVehicleData | 3,467 | 74 | 5 | MAT-FX-2, MAT-GRID-5 |
-| ObjectSet | 3,466 | 213 | 6 | LEVEL-OBJ-1 |
-| MaterialRelationTerrainDestructionData | 3,454 | 74 | 3 | DECAL-IMP-1, DSTR-TERR-3, MAT-GRID-5 |
-| EmitterEntityData | 3,359 | 1,100 | 22 | FX-CLS-1 |
-| MaterialPropertySoundData | 3,352 | 74 | 6 | MAT-GRID-9 |
-| ReceiveEntry | 3,265 | 1,312 | 4 | SGR-WIRE-1 |
-| AlternateSpawnEntityData | 3,126 | 74 | 5 | GAME-SPAWN-1, KYG-RECT-1 |
-| DelayTriggerEntityData | 2,878 | 74 | 8 | SCR-EVT-1, SCR-EVT-3 |
-| MeshShaderSetAsset | 2,772 | 2,335 | 3 | FX-CLS-1, MAT-TEX-8 |
-| ReceiveNode | 2,759 | 1,312 | 3 | SGR-WIRE-1 |
-| VOPersonParam | 2,689 | 25 | 3 | SGR-VO-1 |
-| StaticModelGroupMemberData | 2,583 | 74 | 13 | DSTR-MG-3, LEVEL-MG-1, LEVEL-OBJ-1 |
-| EventSplitterEntityData | 2,457 | 74 | 7 | SCR-EVT-1 |
-| SamplerGroup | 2,373 | 1,302 | 14 | SGR-NODE-1 |
-| PartLinkData | 2,357 | 121 | 6 | DSTR-STATE-6 |
-| SamplerNode | 2,357 | 1,301 | 3 | SGR-NODE-1 |
-| MaterialSoldierSoundSettings | 2,167 | 74 | 3 | MAT-GRID-9 |
-| SoundGraphEvent | 2,143 | 1,312 | 4 | SGR-WIRE-1 |
-| PersistentValueTemplateData | 2,080 | 2 | 8 | PERS-DATA-1, PERS-DATA-2 |
-| ResultAnimTreeData | 1,985 | 1,985 | 20 | ANIM-TREE-1 |
-| SoldierSpawnEntityData | 1,945 | 74 | 31 | AIO-ASN-1, AIO-ASN-2, BOT-DIF-3, BOT-PER-5 (+7) |
-| ScaleClampNode | 1,917 | 324 | 8 | SGR-NODE-1 |
-| UIFontGlyphKerning | 1,870 | 23 | 3 | TEXT-FONT-1 |
-| OutputEntry | 1,832 | 1,308 | 2 | SGR-OUT-1 |
-| SoundOutput | 1,829 | 1,305 | 2 | SGR-OUT-1 |
-| AabbGeometryEntityData | 1,819 | 47 | 6 | AIO-FLD-3 |
-| RigidMeshEntityData | 1,733 | 76 | 9 | LEVEL-MG-1 |
-| PhysicsEntityData | 1,721 | 1,484 | 8 | LEVEL-MG-1 |
-| SimpleTransformNode | 1,709 | 186 | 6 | SGR-NODE-1 |
-| ParameterGroupData | 1,690 | 1,690 | 2 | ANIM-TREE-1 |
-| AreaTriggerEntityData | 1,678 | 52 | 16 | SCR-EVT-1 |
-| AnimTreeData | 1,675 | 1,675 | 16 | ANIM-TREE-1 |
-| ObjectBlueprint | 1,661 | 1,661 | 7 | FX-CLS-1, LOAD-CSUM-1, LOAD-PART-4, WTH-CLS-1 |
-| VOLine | 1,653 | 28 | 11 | SGR-VO-1 |
-| StaticModelTriggerEntityData | 1,617 | 61 | 13 | CAMP-TRIG-1 |
-| HavokAsset | 1,595 | 1,370 | 20 | HAVOK-MAT-1, LEVEL-OBJ-1, MAT-SLOT-1 |
-| RigidMeshAsset | 1,595 | 1,595 | 39 | FX-CLS-1, MAT-TEX-8 |
-| RichPresenceContextValue | 1,529 | 75 | 2 | CAMP-DESC-1 |
-| AimNode2AimBoneData | 1,518 | 111 | 11 | DATA-ANIM-2 |
-| UITextureAtlasInfo | 1,458 | 52 | 7 | APT-ATL-1, MENU-ED-8 |
-| VOGroup | 1,419 | 28 | 4 | SGR-VO-1 |
-| VehicleSpawnEntityData | 1,408 | 70 | 42 | MAT-TEX-8, VEH-SPAWN-1 |
-| StaticModelEntityData | 1,407 | 1,407 | 44 | DSTR-STATE-1, MAT-SLOT-5, MAT-TEX-8 |
-| TerrainSplinePlaneData | 1,372 | 74 | 22 | DECAL-SRC-2 |
-| TerrainSplineData | 1,360 | 74 | 8 | DECAL-SRC-2 |
-| MessageEntityData | 1,340 | 48 | 10 | GAME-AS-1 |
-| OutputNode | 1,312 | 1,312 | 9 | SGR-OUT-1 |
-| SoundSource | 1,312 | 1,312 | 2 | SGR-OUT-1 |
-| SoundTemplate | 1,312 | 1,312 | 26 | CAMP-CUT-1, FX-CLS-1, SGR-OUT-1 |
-| EffectAsset | 1,302 | 1,302 | 7 | FX-CLS-1 |
-| EffectEntityData | 1,302 | 1,302 | 14 | FX-CLS-1, FX-CLS-3, LIGHT-PT-7 |
-| DamageAreaTriggerEntityData | 1,283 | 53 | 13 | DSTR-MG-4, GAME-DMG-1 |
-| ClearAreaTriggerEntityData | 1,270 | 49 | 18 | CAMP-TRIG-1 |
-| SequenceData | 1,266 | 68 | 11 | SCR-EVT-2 |
-| InterludeOrderEntityData | 1,229 | 13 | 26 | AIO-CLS-1 |
-| VORow | 1,206 | 28 | 2 | SGR-VO-1 |
-| EmitterData | 1,194 | 1,194 | 12 | DATA-FX-1 |
-| PatrolOrderEntityData | 1,141 | 13 | 30 | AIO-CLS-1, BOT-VEH-3 |
-| ExplosionEntityData | 1,106 | 271 | 22 | WPN-CLS-1, WPN-DMG-1 |
-| SoundGraphParameter | 1,032 | 234 | 4 | SGR-WIRE-1 |
-| SoundSourceConeEmitter | 1,032 | 767 | 17 | SGR-OUT-1 |
-| CancelOrderEntityData | 997 | 13 | 24 | AIO-CLS-1 |
-| CutsceneSoldierEntityData | 979 | 13 | 34 | CAMP-CUT-1 |
-| UIAnimatedTextureFrame | 952 | 4 | 4 | HUD-MAP-1 |
-| MaterialPropertyImpulseData | 939 | 74 | 2 | MAT-GRID-9 |
-| AreaOrderEntityData | 904 | 13 | 28 | AIO-CLS-1 |
-| PredestructionEntityData | 895 | 53 | 6 | CAMP-FLOW-2 |
-| CompositeMeshEntityData | 884 | 74 | 9 | LEVEL-MG-1 |
-| SoundSourceFlatEmitter | 797 | 677 | 14 | SGR-OUT-1 |
-| SoundAreaEntityData | 786 | 73 | 13 | WTH-FX-2 |
-| TreeMeshEntityData | 737 | 74 | 6 | ENG-REND-1, LEVEL-MG-1, VEG-CLS-1, VEG-TREE-1 |
-| AmbientModelEntityData | 722 | 34 | 17 | CAMP-WORLD-1 |
-| DeMuxOutput | 670 | 146 | 1 | SGR-NODE-1 |
-| SoundEntityData | 661 | 586 | 15 | SGR-OUT-1 |
-| MapMarkerEntityData | 653 | 74 | 19 | HUD-MARK-1 |
-| MaterialPropertyPhysicsData | 651 | 74 | 4 | MAT-GRID-9 |
-| SquadData | 649 | 52 | 1 | GAME-LAYER-3, SQD-PLAY-1 |
-| StaticPositionEntityData | 634 | 33 | 5 | CAMP-WORLD-1 |
-| GenericPropertyTrackData | 577 | 22 | 4 | CAMP-CUT-1 |
-| ZoomLevelData | 572 | 299 | 27 | WPN-CLS-1, WPN-ZOOM-1 |
-| CutsceneVehicleEntityData | 556 | 48 | 21 | CAMP-CUT-1 |
-| CutsceneEntityData | 553 | 49 | 25 | CAMP-CUT-1, TEXT-SUB-1 |
-| BoolParameter | 546 | 374 | 3 | DATA-ANIM-1 |
-| FakeHingeData | 541 | 141 | 17 | ANIM-KIT-1 |
-| UIAnimatedTextureGroup | 526 | 4 | 15 | HUD-MAP-1 |
-| CutsceneObjectEntityData | 512 | 36 | 24 | CAMP-CUT-1 |
-| NumberGeneratorNode | 512 | 424 | 7 | SGR-NODE-1 |
-| MultipleTriggerEntityData | 503 | 48 | 10 | AIO-MODE-1, GAME-RUSH-1, GAME-RUSH-10, GAME-RUSH-9 (+1) |
-| VOListenerParam | 494 | 10 | 3 | SGR-VO-1 |
-| GameSoundEntityData | 486 | 54 | 9 | ONS-PORT-3 |
-| ChildComponentData | 468 | 85 | 17 | SND-VEH-1, VEH-ENT-1 |
-| AwardData | 457 | 2 | 20 | PERS-AWD-1, PERS-AWD-3, PERS-AWD-5, PERS-DATA-1 |
-| CriteriaData | 457 | 7 | 12 | PERS-AWD-2, PERS-AWD-3, PERS-DATA-1 |
-| VOEvent | 452 | 28 | 4 | GAME-TKT-2, GAME-TKT-4, SND-EVT-1 |
-| VOVehicleParam | 450 | 17 | 3 | SGR-VO-1 |
-| ExplosiveObjectData | 429 | 12 | 6 | ONS-CAP-2 |
-| MixerGroup | 422 | 111 | 2 | SGR-NODE-1 |
-| CharacterStateTriggerEntityData | 421 | 17 | 31 | CAMP-TRIG-1 |
-| TerrainSplineDecal | 416 | 29 | 8 | DECAL-SRC-1, TEDIT-SRC-1 |
-| WeatherStateEntityData | 411 | 67 | 10 | RNDR-WTHR-6, WTH-STATE-5 |
-| TreeMemberData | 396 | 74 | 9 | LEVEL-MG-1, VEG-CLS-1, VEG-CLS-2 |
-| KeyboardInputActionData | 390 | 8 | 3 | INP-DATA-1 |
-| ConditionGroup | 379 | 137 | 4 | SGR-NODE-1 |
-| ConditionNode | 379 | 137 | 3 | SGR-NODE-1 |
-| CameraComponentData | 377 | 90 | 21 | VEH-ENT-1 |
-| VehicleExitPointComponentData | 375 | 68 | 5 | VEH-ENT-1 |
-| MaterialPropertyTerrainData | 363 | 74 | 4 | DSTR-TERR-3, MAT-GRID-9, MAT-TEX-20, MAT-TEX-7 |
-| SoldierWeaponData | 361 | 360 | 28 | MAT-TEX-8, WPN-ATT-1, WPN-CLS-1, WPN-CLS-2 (+4) |
-| SoldierWeaponAsset | 359 | 359 | 7 | WPN-CLS-1 |
-| PhysicsNode | 358 | 283 | 4 | SGR-NODE-1 |
-| CompositeMeshAsset | 353 | 353 | 41 | MAT-TEX-8 |
-| WeatherSystemState | 352 | 352 | 28 | WTH-CLS-1, WTH-CLS-2 |
-| DynamicCloudLayerData | 349 | 349 | 16 | WTH-CLS-1, WTH-CLS-2 |
-| DynamicFogData | 349 | 349 | 18 | WTH-CLS-1, WTH-CLS-2 |
-| DynamicOutdoorLightData | 349 | 349 | 20 | WTH-CLS-1, WTH-CLS-2 |
-| DynamicPostProcessData | 349 | 349 | 24 | WTH-CLS-1, WTH-CLS-2 |
-| DynamicSkyData | 349 | 349 | 33 | WTH-CLS-1, WTH-CLS-2 |
-| DynamicSunData | 349 | 349 | 8 | LIGHT-SKY-1, WTH-CLS-1, WTH-CLS-2 |
-| MiddlegrowthModelGroupMemberData | 341 | 71 | 9 | LEVEL-MG-1, VEG-CLS-1, VEG-CLS-2 |
-| SoldierSpawnGhostEntityData | 339 | 13 | 13 | SQD-SQ-1 |
-| UIInputNodeDescription | 338 | 1 | 2 | HUD-CFG-1 |
-| GameInteractionEntityData | 335 | 39 | 19 | BOT-GS-9, GAME-LAYER-2, GAME-RUSH-1, SCR-EVT-1 |
-| SkinnedMeshAsset | 335 | 335 | 36 | MAT-TEX-8 |
-| DeMuxNode | 334 | 146 | 6 | SGR-NODE-1 |
-| CapturePointEntityData | 332 | 61 | 40 | AIO-MODE-1, BOT-GS-1, ENG-TI-1, GAME-AS-1 (+5) |
-| InputActionsData | 320 | 8 | 2 | INP-DATA-1, INP-FILE-1 |
-| LfoGroup | 319 | 133 | 6 | SGR-NODE-1 |
-| LfoNode | 319 | 133 | 3 | SGR-NODE-1 |
-| TerrainFullDecal | 314 | 30 | 10 | DECAL-SRC-1, TEDIT-SRC-1 |
-| SpecificAnimTreeData | 310 | 310 | 9 | DATA-ANIM-1 |
-| SpawnCompositeMeshPartsData | 309 | 309 | 11 | DATA-FX-1 |
-| UpdateSizeZData | 309 | 309 | 11 | DATA-FX-1 |
-| PingPongRotationVisualTransformModifierData | 303 | 54 | 5 | DATA-LVL-1 |
-| SquadEntityData | 301 | 13 | 10 | AI-NEED-2, AIO-ASN-1, AIO-RDY-4, BOT-SQD-1 (+1) |
-| CompositeHavokAsset | 299 | 299 | 5 | LEVEL-MG-2, TYPE-CPLX-3 |
-| DeltaAnimationAsset | 296 | 296 | 16 | ANIM-TREE-1 |
-| ChaseCameraData | 294 | 91 | 38 | SOLD-CAM-2 |
-| VOTeamParam | 289 | 9 | 3 | SGR-VO-1 |
-| MenuEntityData | 288 | 74 | 8 | HUD-MENU-1 |
-| TargetObjectData | 284 | 11 | 9 | CAMP-WORLD-1 |
-| CombatAreaTriggerEntityData | 283 | 74 | 18 | GAME-AREA-1 |
-| SoldierAimingSimulationData | 279 | 279 | 9 | WPN-CLS-1, WPN-SWAY-3 |
-| BoneFakePhysicsData | 275 | 109 | 3 | B43-DBX-1 |
-| AimAnimationAsset | 266 | 266 | 14 | ANIM-TREE-1 |
-| PlayerEntryComponentData | 263 | 171 | 27 | ANIM-KIT-1, VEH-ENT-1, VEH-SEAT-1 |
-| FiringFunctionData | 253 | 253 | 17 | WPN-AMMO-1, WPN-CLS-1, WPN-PROJ-1 |
-| WeaponFiringData | 253 | 253 | 14 | VEH-WPN-1, WPN-AIM-1, WPN-CLS-1 |
-| UnlockToken | 245 | 1 | 2 | PERS-DATA-1, PERS-DATA-2 |
-| WeaponComponentData | 241 | 77 | 21 | SND-VEH-1, VEH-ENT-1, VEH-WPN-1 |
-| SpawnableEffectComponentData | 239 | 40 | 8 | DATA-FX-1 |
-| ChildRotationBodyData | 235 | 78 | 20 | DATA-VEH-1 |
-| EntryInputActionMappingData | 233 | 7 | 2 | INP-DATA-2 |
-| PadInputActionData | 227 | 8 | 8 | INP-DATA-1, INP-FILE-1 |
-| SpectateEntityData | 227 | 62 | 14 | HUD-SPEC-1 |
-| TeamFilterEntityData | 224 | 21 | 6 | SQD-TEAM-1 |
-| MeshLodSettingsAsset | 222 | 222 | 15 | RNDR-LOD-1 |
-| RichPresenceConnection | 221 | 147 | 4 | CAMP-DESC-1 |
-| WorldObjectListData | 217 | 44 | 2 | LEVEL-PART-2 |
-| AdsrNode | 214 | 96 | 10 | SGR-NODE-1 |
-| TeamEntityData | 213 | 61 | 16 | GAME-LAYER-1, GAME-LAYER-3, GAME-SDM-1, LEVEL-MP-1 |
-| MixerNode | 212 | 111 | 4 | SGR-NODE-1 |
-| MissionObjectiveEntityData | 209 | 42 | 22 | AIO-MODE-1, BOT-GS-4, CAMP-FLOW-1, HUD-MARK-1 (+1) |
-| ParameterFilterLinearNode | 209 | 51 | 6 | SGR-NODE-1 |
-| HighPassIir2Node | 199 | 155 | 5 | SGR-NODE-1 |
-| AnimatedWaypointData | 193 | 17 | 14 | CAMP-WORLD-1 |
-| CrossfaderNode | 192 | 108 | 6 | SGR-NODE-1 |
-| LowPassIir2Node | 189 | 119 | 5 | SGR-NODE-1 |
-| StatsCategoryData | 187 | 12 | 6 | PERS-AWD-2, PERS-AWD-3, PERS-DATA-1 |
-| NetworkableLoosePartPhysicsData | 185 | 31 | 2 | DATA-VEH-1 |
-| SaveEntityData | 183 | 13 | 10 | CAMP-FLOW-1 |
-| LoosePartPhysicsData | 182 | 33 | 1 | DATA-VEH-1 |
-| ShootAtObjectOrderEntityData | 180 | 11 | 26 | AIO-CLS-1 |
-| TargetObjectDataGroup | 179 | 12 | 6 | CAMP-WORLD-1 |
-| SphereGeometryEntityData | 173 | 14 | 6 | AIO-FLD-3 |
-| BulletEntityData | 170 | 169 | 49 | VEH-WPN-1, WPN-CLS-1, WPN-DMG-1, WPN-DMG-4 (+5) |
-| SoldierAnimationTreeData | 168 | 84 | 8 | ANIM-KIT-1, ANIM-KIT-2 |
-| TrackWheelComponentData | 168 | 10 | 16 | VEH-ENT-1 |
-| MouseInputActionData | 164 | 8 | 8 | INP-DATA-1 |
-| StaticCameraData | 161 | 89 | 33 | SOLD-CAM-2 |
-| VehicleStateTriggerEntityData | 156 | 20 | 20 | VEH-WW2-2 |
-| VOWeaponParam | 155 | 9 | 3 | SGR-VO-1 |
-| DelayNode | 152 | 108 | 6 | SGR-NODE-1 |
-| StaticCullTreeData | 148 | 148 | 2 | CULL-FLD-1, CULL-LVL-1 |
-| ArmDisarmAwardEntityData | 146 | 30 | 5 | DATA-LVL-1 |
-| RichPresenceContext | 138 | 75 | 4 | CAMP-DESC-1 |
-| VOTargetDistanceParam | 136 | 5 | 3 | SGR-VO-1 |
-| SoundSourceLfeEmitter | 134 | 134 | 13 | SGR-OUT-1 |
-| InputRestrictionEntityData | 128 | 73 | 37 | CAMP-FLOW-2 |
-| CutsceneEntityScreenFadeData | 127 | 48 | 7 | CAMP-CUT-1 |
-| EventGateEntityData | 125 | 13 | 7 | SCR-EVT-2 |
-| CutsceneCameraEntityData | 124 | 48 | 15 | CAMP-CUT-1 |
-| CutsceneEntityCameraData | 124 | 48 | 21 | CAMP-CUT-1 |
-| WaypointData | 119 | 12 | 6 | CAMP-WORLD-1 |
-| UIMovieAsset | 110 | 24 | 11 | HUD-MENU-1 |
-| BigWorldSetting | 106 | 64 | 5 | LEVEL-PART-2 |
-| FakeSpringData | 106 | 29 | 13 | SOLD-COL-1 |
-| StaticModelGroupEntityData | 106 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1 |
-| DebugMenuItemEntityData | 104 | 21 | 8 | SCR-CMD-1 |
-| SubtitleLevelMap | 104 | 13 | 2 | TEXT-SUB-1 |
-| PersistentWeapon | 101 | 3 | 11 | PERS-DATA-1, PERS-DATA-3 |
-| WheelComponentData | 101 | 27 | 15 | VEH-ENT-1 |
-| VehicleAsset | 98 | 98 | 7 | VEH-ENT-1 |
-| VehicleComponentData | 98 | 98 | 18 | VEH-ENT-1 |
-| VehicleEntityData | 98 | 98 | 57 | MAT-TEX-8, SND-VEH-1, VEH-CON-1, VEH-ENT-1 (+3) |
-| WeaponData | 98 | 22 | 39 | BOT-CMB-1, BOT-CMB-2, BOT-PER-5, HUD-CFG-1 |
-| TreeHealthStateData | 97 | 17 | 12 | DATA-DSTR-1 |
-| BoxFloatPhysicsData | 96 | 83 | 2 | DATA-VEH-1 |
-| MiddlegrowthModelGroupEntityData | 93 | 71 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, VEG-CLS-1 |
-| TreeMeshAsset | 93 | 93 | 50 | MAT-TEX-8, VEG-TREE-1 |
-| WeaponPickupEntityData | 91 | 71 | 23 | MAT-TEX-11 |
-| EngineComponentData | 86 | 64 | 10 | SND-VEH-1, VEH-ENT-1, VEH-PHYS-1 |
-| IndexedAnimationData | 86 | 86 | 6 | ANIM-KIT-1 |
-| IndoorDampingSetting | 85 | 28 | 2 | SGR-MIX-1 |
-| FPSCameraData | 84 | 84 | 17 | ANIM-KIT-1 |
-| SoldierAsset | 84 | 84 | 7 | ANIM-KIT-1 |
-| SoldierEntityData | 84 | 84 | 73 | ANIM-KIT-1, ANIM-RAG-1, MAT-TEX-8, SOLD-CAM-1 (+4) |
-| UINametag | 84 | 2 | 12 | HUD-CFG-1 |
-| CameraRecoilData | 82 | 82 | 3 | SOLD-CAM-1 |
-| ExplosionPackEntityData | 82 | 14 | 34 | WPN-CLS-1, WPN-PROJ-3 |
-| UserMusicArbiterNode | 81 | 81 | 4 | SGR-NODE-1 |
-| TerrainGroupDecal | 80 | 30 | 6 | DECAL-SRC-1, TEDIT-SRC-1 |
-| ReverbAsset | 79 | 26 | 5 | IR-HDR-1 |
-| RichPresenceString | 78 | 75 | 2 | CAMP-DESC-1 |
-| RumbleNode | 78 | 61 | 4 | SGR-NODE-1 |
-| ShaderAsset | 78 | 76 | 2 | SHDB-TYPE-1 |
-| GunSwayData | 77 | 77 | 16 | WPN-CLS-1, WPN-SWAY-1 |
-| MissionEntityData | 77 | 74 | 11 | ONS-LVL-1 |
-| ShaderDatabaseCollection | 75 | 75 | 3 | ENG-SCENE-1 |
-| AnimationSoundMapData | 74 | 74 | 3 | SGR-MIX-1 |
-| DeltaGroup | 74 | 44 | 2 | SGR-NODE-1 |
-| DeltaNode | 74 | 44 | 3 | SGR-NODE-1 |
-| EmitterSystemAsset | 74 | 74 | 4 | DATA-FX-1 |
-| ForestEntityData | 74 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, VEG-CLS-1 |
-| HumanPlayerEntityData | 74 | 74 | 8 | SQD-TEAM-1 |
-| LevelData | 74 | 74 | 49 | AI-START-3, BOT-CMB-5, COLL-MG-3, CULL-LVL-1 (+28) |
-| LevelDescriptionAsset | 74 | 74 | 4 | CAMP-DESC-1 |
-| MaterialGridData | 74 | 74 | 5 | MAT-GRID-1, MAT-GRID-2 |
-| SearchAndDestroyOrderEntityData | 74 | 10 | 30 | AIO-CLS-1 |
-| TerrainEntityData | 74 | 74 | 11 | LEVEL-MG-3, LEVEL-OBJ-1, LEVEL-TERR-1, MAT-SLOT-5 (+2) |
-| SkeletonAsset | 73 | 73 | 19 | ANIM-SKEL-1 |
-| AlternateCameraViewData | 72 | 52 | 11 | SOLD-CAM-2, SOLD-FOV-1 |
-| AmmoCrateEntityData | 71 | 12 | 10 | DATA-WPN-1 |
-| SoldierGripComponentData | 71 | 49 | 5 | VEH-ENT-1 |
-| IntParameter | 70 | 48 | 3 | DATA-ANIM-1 |
-| CameraNode | 69 | 51 | 5 | SGR-NODE-1 |
-| EffectComponentData | 68 | 43 | 8 | DATA-FX-1 |
-| PointLightEntityData | 68 | 12 | 18 | LIGHT-PT-5, LIGHT-SKY-4 |
-| StaticEnvmapEntityData | 68 | 68 | 7 | LEVEL-ENV-1, LEVEL-OBJ-1, LIGHT-ENV-1, LIGHT-ENV-2 (+1) |
-| VehicleConfigData | 68 | 68 | 39 | VEH-PHYS-1 |
-| GearboxConfigData | 66 | 66 | 15 | VEH-PHYS-1 |
-| WheelConfigData | 66 | 35 | 70 | DATA-VEH-1 |
-| BangerEntityData | 64 | 64 | 16 | DSTR-STATE-1 |
-| StabilizerData | 64 | 64 | 7 | DATA-VEH-1 |
-| PreRoundEntityData | 63 | 62 | 7 | SQD-TEAM-1 |
-| BigWorldSettingsAsset | 62 | 62 | 3 | SGR-MIX-1 |
-| AutoTeamEntityData | 61 | 61 | 10 | GAME-LAYER-5 |
-| DynamicModelEntityData | 61 | 61 | 13 | DSTR-STATE-1, MAT-TEX-8 |
-| VOVehicle | 61 | 1 | 1 | SGR-VO-1 |
-| KillCounterEntityData | 60 | 15 | 7 | BOT-GS-4, GAME-SDM-1 |
-| LifeCounterEntityData | 60 | 30 | 21 | BOT-GS-4, BOT-GS-8, GAME-RUSH-11, GAME-RUSH-2 (+1) |
-| VOReadinessParam | 60 | 5 | 3 | SGR-VO-1 |
-| DebugValueInput | 57 | 17 | 5 | SGR-NODE-1 |
-| BinkMemoryAsset | 56 | 56 | 4 | BINK-OUT-1, MENU-LOAD-1 |
-| UIFontData | 56 | 56 | 9 | TEXT-FONT-1 |
-| UIAsset | 55 | 55 | 6 | MENU-AS-1 |
-| InfluenceMapData | 54 | 54 | 7 | DATA-ANIM-2 |
-| ResultInfluenceMapData | 54 | 54 | 2 | DATA-ANIM-2 |
-| TerrainHeightfieldData | 53 | 30 | 7 | TEDIT-HF-2, TEDIT-SRC-1, TERR-HF-9 |
-| ObjectData | 52 | 10 | 10 | BOT-VEH-2 |
-| UIFontProxyAsset | 52 | 11 | 7 | TEXT-FONT-1 |
-| UITextureAtlasData | 52 | 52 | 1 | HUD-KILL-1, TEXT-ATL-1 |
-| MultiCrossfaderGroup | 51 | 23 | 7 | SGR-NODE-1 |
-| PersistentSpecialization | 51 | 2 | 15 | PERS-DATA-1, PERS-DATA-3 |
-| FollowClosestHumanOrderEntityData | 50 | 10 | 24 | AIO-CLS-1 |
-| ScreenFadeEntityData | 50 | 13 | 10 | CAMP-FLOW-2, HUD-FX-1 |
-| ChildMovingBodyData | 49 | 44 | 10 | DATA-VEH-1 |
-| OneOptionButtonEditableAction | 49 | 1 | 2 | INP-CFG-1 |
-| PropellerEngineConfigData | 49 | 27 | 51 | VEH-PHYS-1 |
-| UnderFireTriggerEntityData | 49 | 9 | 14 | CAMP-TRIG-1 |
-| RotorComponentData | 47 | 25 | 14 | VEH-ENT-1, VEH-ENT-2 |
-| UIFontAsset | 45 | 45 | 13 | TEXT-FONT-1 |
-| BangerSpawnImpulseParams | 44 | 33 | 7 | DATA-VEH-1 |
-| BehaviourData | 44 | 1 | 4 | BOT-RT-8 |
-| Crossfader2Node | 44 | 36 | 5 | SGR-NODE-1 |
-| TooltipEntityData | 44 | 9 | 7 | HUD-MARK-1 |
-| TerrainHeightfieldGridCellInfo | 43 | 29 | 3 | TEDIT-SRC-1 |
-| WorldInteractionComponentData | 41 | 41 | 6 | DATA-VEH-2 |
-| TerrainQuadDecal | 40 | 7 | 9 | DECAL-SRC-1, TEDIT-SRC-1 |
-| MotionDampingData | 39 | 39 | 5 | DATA-VEH-1 |
-| SoldierEntryComponentData | 38 | 26 | 31 | VEH-ENT-1, VEH-SEAT-1 |
-| ChangeOrderEntityData | 37 | 8 | 27 | AIO-CLS-1 |
-| SquadGhostEntityData | 37 | 10 | 6 | CAMP-WORLD-1, SQD-PLAY-1, SQD-SQ-1 |
-| ArtilleryStrikeEntityData | 36 | 3 | 23 | CAMP-FLOW-2 |
-| DynamicLensFlareData | 35 | 35 | 14 | WTH-CLS-1 |
-| CrtHudFxData | 33 | 20 | 7 | HUD-FX-1, SOLD-CAM-2 |
-| LookAtTriggerEntityData | 33 | 10 | 14 | CAMP-TRIG-1 |
-| MissileEntityData | 33 | 31 | 40 | VEH-WPN-1, WPN-CLS-1, WPN-PROJ-1, WPN-PROJ-2 (+1) |
-| OneOptionAxisEditableAction | 33 | 1 | 3 | INP-CFG-1 |
-| VOWeapon | 33 | 2 | 1 | SGR-VO-1 |
-| InfluenceMapEffectData | 32 | 14 | 2 | ANIM-RIG-1 |
-| MultiCrossfaderNode | 32 | 23 | 7 | SGR-NODE-1 |
-| RigidModelGroupMemberData | 32 | 26 | 8 | LEVEL-MG-1 |
-| TicketCounterEntityData | 32 | 16 | 15 | BOT-GS-4, BOT-GS-6, GAME-TKT-2, SCR-EVT-1 |
-| AnimationData | 31 | 1 | 13 | DATA-ANIM-2 |
-| TerrainMaterialMapAsset | 31 | 30 | 4 | TERR-MM-4 |
-| WeatherSystemEntityData | 31 | 31 | 6 | RNDR-WTHR-5, WTH-CLS-1 |
-| AeroDynamicPhysicsData | 30 | 30 | 4 | DATA-VEH-1 |
-| CharacterStatePoseInfo | 30 | 2 | 7 | SOLD-PHYS-1 |
-| TerrainData | 30 | 30 | 14 | DECAL-SRC-1, DSTR-TERR-4, TEDIT-SRC-1, TERR-HF-9 |
-| WingComponentData | 30 | 8 | 13 | VEH-ENT-1 |
-| Curve2D | 29 | 11 | 1 | DATA-VEH-1 |
-| Mat4Parameter | 29 | 29 | 3 | DATA-ANIM-1 |
-| AmbientSoundsAsset | 28 | 28 | 8 | SGR-MIX-1 |
-| FireAtAreaOrderEntityData | 28 | 9 | 26 | AIO-CLS-1 |
-| LockingControllerData | 28 | 28 | 16 | HUD-FX-1 |
-| MiddlegrowthModelEntityData | 28 | 28 | 12 | DSTR-STATE-1 |
-| VOAsset | 28 | 28 | 3 | SND-EVT-3, SND-VO-1 |
-| WingPhysicsData | 28 | 8 | 11 | DATA-VEH-1 |
-| RadarSweepComponentData | 27 | 27 | 15 | HUD-FX-1 |
-| StaticCloudLayerData | 27 | 27 | 5 | WTH-CLS-1 |
-| StaticFogData | 27 | 27 | 3 | WTH-CLS-1 |
-| StaticOutdoorLightData | 27 | 27 | 2 | WTH-CLS-1 |
-| WeatherSystemData | 27 | 27 | 4 | WTH-CLS-1 |
-| WeatherSystemSettings | 27 | 27 | 10 | RNDR-WTHR-1, WTH-CLS-1 |
-| WeatherSystemSetup | 27 | 27 | 10 | WTH-CLS-1 |
-| BoolParameterExpressionData | 26 | 3 | 2 | DATA-ANIM-1 |
-| EdgeModelMeshData | 26 | 26 | 4 | DATA-DSTR-1 |
-| ReverbSettingsAsset | 26 | 26 | 3 | IR-HDR-1 |
-| RigidModelGroupEntityData | 26 | 26 | 10 | LEVEL-MG-1, LEVEL-OBJ-1 |
-| VOPerson | 26 | 1 | 1 | SGR-VO-1 |
-| ArmamentData | 25 | 2 | 3 | BOT-VEH-2 |
-| PathdataSectorOffsets | 25 | 25 | 4 | DATA-AI-1 |
-| SoldierSpawnTemplateData | 25 | 25 | 7 | ANIM-KIT-1, BOT-DIF-3, BOT-PER-1 |
-| CombustionEngineConfigData | 24 | 24 | 12 | VEH-PHYS-1 |
-| ConsumableTriggerEntityData | 24 | 9 | 6 | CAMP-FLOW-1 |
-| DynamicWeaponPickupEntityData | 24 | 24 | 22 | ANIM-KIT-3, MAT-TEX-11 |
-| LockingWeaponEffectsData | 24 | 24 | 8 | DATA-VEH-2 |
-| UIMovieData | 24 | 24 | 3 | MENU-AS-1 |
-| ScreenEffectEntityData | 23 | 9 | 12 | HUD-FX-1 |
-| UITextDatabase | 23 | 18 | 5 | TEXT-DB-1 |
-| EdgeModelGenerationSettings | 22 | 22 | 3 | DATA-DSTR-1 |
-| VehicleWaterEffectData | 22 | 6 | 2 | DATA-VEH-2 |
-| CrtAnalogLinkHudFxData | 21 | 21 | 8 | HUD-FX-1, SOLD-CAM-2 |
-| EdgeModelInstances | 21 | 21 | 3 | DATA-DSTR-1 |
-| TurretData | 21 | 2 | 5 | BOT-VEH-2 |
-| WeaponEffectsData | 21 | 20 | 4 | DATA-VEH-2, DATA-WPN-1, SOLD-SPOT-1 |
-| MatchMakingMap | 20 | 1 | 7 | DATA-MM-1 |
-| TrackComponentData | 20 | 10 | 9 | VEH-ENT-1 |
-| WeaponInputRouterComponentData | 19 | 19 | 7 | DATA-VEH-2 |
-| EventIfSwitchEntityData | 18 | 3 | 7 | SCR-EVT-2 |
-| UrgencySetData | 18 | 2 | 2 | AIO-RDY-3 |
-| ValueDebugNode | 18 | 17 | 3 | SGR-NODE-1 |
-| BehaviourTemplateData | 17 | 17 | 46 | BOT-CMB-1, BOT-CMB-2, BOT-CMB-5, BOT-DIF-3 (+3) |
-| RotorParameters | 17 | 17 | 9 | DATA-VEH-1 |
-| SensingTemplateData | 17 | 17 | 19 | BOT-DIF-3, BOT-PER-1 |
-| SkinnedMeshComponentData | 17 | 11 | 8 | DATA-VEH-2 |
-| DecalTemplateData | 16 | 16 | 9 | DATA-DSTR-1 |
-| UIFontMapAsset | 16 | 16 | 4 | TEXT-FONT-1 |
-| AIVehicleBehaviourData | 15 | 1 | 6 | BOT-MOV-4, BOT-RT-7, BOT-VEH-1 |
-| SampleTextureData | 15 | 15 | 12 | FX-PROC-2 |
-| AimAtOrderEntityData | 14 | 5 | 25 | AIO-CLS-1 |
-| FenceModelEntityData | 14 | 14 | 46 | DSTR-STATE-1 |
-| RandomTriggerEntityData | 14 | 9 | 8 | CAMP-TRIG-1 |
-| TreeBangerEntityData | 14 | 14 | 17 | DSTR-STATE-1 |
-| LevelSubtitles | 13 | 13 | 1 | TEXT-SUB-1 |
-| RotationVisualTransformModifierData | 13 | 10 | 4 | DATA-LVL-1 |
-| SpawnPointManagerData | 13 | 13 | 3 | ONS-LVL-1 |
-| StatCategoriesTree | 13 | 13 | 6 | CAMP-FLOW-1 |
-| VOFacialAnimMapData | 13 | 13 | 1 | TEXT-SUB-1 |
-| WaypointAnimationData | 13 | 13 | 3 | CAMP-WORLD-1 |
-| AwardStarData | 12 | 1 | 21 | PERS-DATA-1 |
-| CriteriaStarData | 12 | 1 | 13 | PERS-DATA-1 |
-| LinearMovementVisualTransformModifierData | 12 | 9 | 4 | DATA-LVL-1 |
-| RadioComponentData | 12 | 12 | 6 | SND-VEH-1 |
-| SoundSourceDialogEmitter | 12 | 12 | 13 | SGR-OUT-1 |
-| StatEventTriggerEntityData | 12 | 9 | 8 | CAMP-FLOW-1 |
-| BinkTextureAsset | 11 | 11 | 6 | BINK-OUT-1 |
-| OrderReadiness | 11 | 1 | 6 | AIO-RDY-1, AIO-RDY-3 |
-| SoundState | 11 | 2 | 8 | SGR-MIX-1 |
-| AnimationEntityData | 10 | 3 | 9 | CAMP-WORLD-1 |
-| DetailedTreeBangerEntityData | 10 | 10 | 17 | DSTR-STATE-1 |
-| GameModeData | 10 | 10 | 19 | GAME-MODE-1, MENU-HUD-1, MENU-HUD-2, MENU-LOAD-2 (+1) |
-| JetEngineConfigData | 10 | 10 | 21 | VEH-PHYS-1 |
-| MobilityData | 10 | 1 | 2 | BOT-VEH-2 |
-| TeamData | 10 | 10 | 6 | SQD-TEAM-1 |
-| BoatFloatPhysicsData | 9 | 9 | 20 | DATA-VEH-1 |
-| BonePriority | 9 | 1 | 4 | ANIM-RIG-1 |
-| DebugTextEntityData | 9 | 3 | 8 | SCR-CMD-1 |
-| AndExpressionData | 8 | 2 | 1 | DATA-ANIM-1 |
-| EntryInputActionMapData | 8 | 8 | 3 | INP-DATA-1, INP-FILE-1 |
-| EntryInputActionMapsData | 8 | 8 | 5 | INP-DATA-1 |
-| ForbiddenAIAreaData | 8 | 2 | 7 | SCR-EVT-2 |
-| LadderEntityData | 8 | 8 | 44 | DSTR-STATE-1 |
-| MatchMakingStringPreference | 8 | 1 | 12 | DATA-MM-1 |
-| VoiceOverTree | 8 | 8 | 12 | SGR-VO-1 |
-| WeaponLagSpringEffectData | 8 | 4 | 8 | SOLD-CAM-1 |
-| AIAimingConstraintsData | 7 | 2 | 4 | BOT-VEH-2 |
-| DeathAreaTriggerEntityData | 7 | 7 | 8 | CAMP-TRIG-1 |
-| GrenadeEntityData | 7 | 7 | 28 | WPN-CLS-1, WPN-GREN-1, WPN-GREN-2, WPN-PROJ-1 (+2) |
-| HaloAimerData | 7 | 1 | 24 | SOLD-AIM-1 |
-| InputActionMappingsData | 7 | 7 | 1 | INP-DATA-2 |
-| ParameterFilterLpNode | 7 | 5 | 5 | SGR-NODE-1 |
-| AntiRollBar | 6 | 3 | 2 | DATA-VEH-1 |
-| DisablePropertyCurve_ManualInput_OrAnimated | 6 | 1 | 1 | DATA-ANIM-1 |
-| FormationData | 6 | 1 | 2 | BOT-MOV-5 |
-| MatchMakingSession | 6 | 1 | 11 | DATA-MM-1 |
-| PersistenceWeaponData | 6 | 5 | 3 | PERS-DATA-1 |
-| SharedSoldierAnimationTreeData | 6 | 6 | 18 | ANIM-RAG-1, ANIM-RIG-1 |
-| SimpleCarNode | 6 | 6 | 18 | SGR-NODE-1 |
-| CompressorSettings | 5 | 1 | 4 | SGR-MIX-1 |
-| DebugMenuSubMenuEntityData | 5 | 3 | 6 | SCR-CMD-1 |
-| EqualizerSettings | 5 | 1 | 5 | SGR-MIX-1 |
-| IrAsset | 5 | 5 | 12 | IR-HDR-1 |
-| MeleeWeaponEffectsData | 5 | 5 | 7 | DATA-WPN-1 |
-| MixGroup | 5 | 1 | 5 | SGR-MIX-1 |
-| MonophonicSamplerNode | 5 | 5 | 3 | SGR-NODE-1 |
-| MotionSensorEntityData | 5 | 5 | 40 | DATA-WPN-1 |
-| RigidModelEntityData | 5 | 5 | 13 | DSTR-STATE-1 |
-| SoundSystemSettings | 5 | 1 | 10 | SGR-MIX-1 |
-| VertexShaderFragmentAsset | 5 | 5 | 4 | SHDB-TYPE-1 |
-| BotPriorityConfigData | 4 | 1 | 7 | BOT-RT-4 |
-| CharacterPoseData | 4 | 2 | 7 | SOLD-PHYS-1 |
-| CutsceneCameraData | 4 | 2 | 18 | CAMP-CUT-1 |
-| DisablePropertyCurve_ManualInput_EndsAbsoluteTime | 4 | 1 | 1 | DATA-ANIM-1 |
-| EntitlementQuery | 4 | 1 | 9 | PERS-DATA-1 |
-| FirstPersonCameraData | 4 | 4 | 24 | SOLD-CAM-1 |
-| MatchMakingPlaylist | 4 | 1 | 5 | DATA-MM-1 |
-| MonophonicSamplerGroup | 4 | 4 | 15 | SGR-NODE-1 |
-| OrExpressionData | 4 | 3 | 1 | DATA-ANIM-1 |
-| PersistentDerivedValueTemplateData | 4 | 2 | 9 | PERS-DATA-1, PERS-SCORE-2 |
-| PersistentPartition | 4 | 2 | 2 | PERS-DATA-1 |
-| PlayVideoEntityData | 4 | 3 | 7 | CAMP-FLOW-2 |
-| SoldierBoneCollisionData | 4 | 4 | 1 | SOLD-COL-1 |
-| StreamPool | 4 | 1 | 12 | ENG-MEM-1, SGR-MIX-1 |
-| TraversalConfigData | 4 | 1 | 3 | DATA-AI-1 |
-| Vec3Parameter | 4 | 4 | 3 | DATA-ANIM-1 |
-| AwardStarNameData | 3 | 1 | 1 | PERS-DATA-1 |
-| ColorTintScopeFilterData | 3 | 3 | 4 | HUD-FX-1 |
-| CriteriaStarCategoryData | 3 | 1 | 1 | PERS-DATA-1 |
-| DetonatedWeaponEffectsData | 3 | 3 | 6 | DATA-WPN-1 |
-| DifficultyData | 3 | 1 | 19 | BOT-CMB-1, BOT-DIF-2, BOT-VEH-4 |
-| DisablePropertyCurve_ManualInput_NormalizedTime | 3 | 1 | 1 | DATA-ANIM-1 |
-| DogTagData | 3 | 1 | 8 | PERS-AWD-3, PERS-DATA-1, PERS-RANK-1 |
-| MatchMakingFilter | 3 | 1 | 6 | DATA-MM-1 |
-| MortarStrikeFiringEffectsData | 3 | 3 | 8 | DATA-WPN-1 |
-| SniperLensScopeFilterData | 3 | 3 | 12 | HUD-FX-1 |
-| SoldierSoundData | 3 | 3 | 24 | SOLD-COL-1, SOLD-SPR-1 |
-| SpeedEventGateEntityData | 3 | 3 | 7 | SCR-EVT-2 |
-| SquadTypeData | 3 | 1 | 4 | BOT-SQD-2, SQD-PLAY-1, SQD-SQ-1 |
-| TracerDartEntityData | 3 | 3 | 25 | DATA-WPN-1 |
-| UIConfig | 3 | 3 | 2 | MENU-AS-1 |
-| VehicleProjectileEntityData | 3 | 3 | 18 | VEH-WPN-1 |
-| AIStateAnimationData | 2 | 2 | 0 | SOLD-RAG-1 |
-| AchievementsDataAsset | 2 | 2 | 3 | PERS-DATA-1 |
-| AmmoBoxEntityData | 2 | 2 | 35 | DATA-WPN-1 |
-| AmmoBoxWeaponEffectsData | 2 | 2 | 4 | DATA-WPN-1 |
-| AnimationControlledStateData | 2 | 2 | 2 | SOLD-PHYS-1 |
-| AwardDataTree | 2 | 2 | 7 | PERS-AWD-3, PERS-DATA-1 |
-| BinocularsWeaponEffectsData | 2 | 2 | 6 | DATA-WPN-1 |
-| CarNode | 2 | 2 | 65 | SGR-NODE-1 |
-| CharacterPhysicsData | 2 | 2 | 19 | SOLD-PHYS-1 |
-| CharacterSprintData | 2 | 2 | 3 | SOLD-SPR-1 |
-| ClimbingStateData | 2 | 2 | 7 | SOLD-PHYS-1 |
-| DefibrillatorWeaponEffectsData | 2 | 2 | 5 | DATA-WPN-1 |
-| FallingStateData | 2 | 2 | 1 | SOLD-PHYS-1 |
-| GameTipAsset | 2 | 2 | 3 | HUD-MENU-1 |
-| HdrSetting | 2 | 2 | 10 | SGR-MIX-1 |
-| HudConfigAsset | 2 | 2 | 27 | HUD-CFG-1 |
-| InAirStateData | 2 | 2 | 2 | SOLD-PHYS-1 |
-| JoinSquadOrderEntityData | 2 | 1 | 25 | AIO-CLS-1, SQD-PLAY-1 |
-| JumpStateData | 2 | 2 | 3 | SOLD-PHYS-1 |
-| MatchMakingIntegerPreference | 2 | 1 | 9 | DATA-MM-1 |
-| MedicBagEntityData | 2 | 2 | 35 | DATA-WPN-1 |
-| MedicBagWeaponEffectsData | 2 | 2 | 4 | DATA-WPN-1 |
-| MissionObjectiveHudData | 2 | 1 | 7 | HUD-MARK-1 |
-| OnGroundStateData | 2 | 2 | 7 | SOLD-PHYS-1 |
-| ParachuteStateData | 2 | 2 | 3 | SOLD-PHYS-1 |
-| PathfindingSettings | 2 | 2 | 33 | AI-START-3, KYG-IN-1, KYG-PAR-2, LVL-RT-1 |
-| PathfindingType | 2 | 2 | 13 | HPD-USE-1, KYN-WORLD-1, KYRT-CFG-1 |
-| PersistenceData | 2 | 2 | 14 | PERS-AWD-7, PERS-DATA-1, PERS-DATA-2, PERS-SCORE-2 |
-| PowerToolWeaponEffectsData | 2 | 2 | 8 | DATA-WPN-1 |
-| RemoteEntryComponentData | 2 | 2 | 27 | DATA-VEH-2 |
-| SlidingStateData | 2 | 2 | 3 | SOLD-PHYS-1 |
-| SoldierAutoAimData | 2 | 2 | 1 | SOLD-AIM-1 |
-| SoldierHeadCollisionData | 2 | 2 | 2 | SOLD-COL-1 |
-| SoldierParachuteData | 2 | 2 | 13 | SOLD-PHYS-1 |
-| SoldierSprintSettingsData | 2 | 2 | 8 | SOLD-FOV-1, SOLD-SPR-1 |
-| SoundStateSettingsAsset | 2 | 2 | 5 | SGR-MIX-1 |
-| SwimmingStateData | 2 | 2 | 2 | SOLD-PHYS-1 |
-| TankNode | 2 | 2 | 40 | SGR-NODE-1 |
-| UIAnimatedTextureData | 2 | 2 | 1 | HUD-MAP-1 |
-| UIAnimatedTextureManagerAsset | 2 | 2 | 4 | HUD-MAP-1 |
-| UIHudConfig | 2 | 2 | 15 | HUD-CFG-1, MENU-AS-1 |
-| AISettingsData | 1 | 1 | 27 | AIO-RDY-4 |
-| AIVehicleTypes | 1 | 1 | 5 | DATA-AI-1 |
-| AnimatedSoldierRagdollSettingsData | 1 | 1 | 4 | SOLD-RAG-1 |
-| AnimationMovementAsset | 1 | 1 | 3 | DATA-ANIM-2 |
-| AudioMasterSettingsAsset | 1 | 1 | 3 | SGR-MIX-1 |
-| AudioMaterialDefinitions | 1 | 1 | 4 | SGR-MIX-1 |
-| CSITextData | 1 | 1 | 20 | SCR-EVT-2 |
-| CarControlConstantData | 1 | 1 | 1 | DATA-AI-1 |
-| CombatConstantData | 1 | 1 | 28 | BOT-CMB-1, BOT-CMB-2, BOT-MOV-2 |
-| ContinueEntityData | 1 | 1 | 12 | CAMP-FLOW-1 |
-| CoverConstantData | 1 | 1 | 45 | BOT-CMB-5 |
-| DebugConstantData | 1 | 1 | 7 | BOT-CMB-1 |
-| DifficultyModesData | 1 | 1 | 3 | CAMP-FLOW-1 |
-| EntitlementAsset | 1 | 1 | 1 | PERS-DATA-1 |
-| EnvironmentConstantData | 1 | 1 | 1 | DATA-AI-1 |
-| FakeAnimatedSoldierCollisionData | 1 | 1 | 7 | SOLD-COL-1 |
-| FileQueryData | 1 | 1 | 7 | DATA-LVL-1 |
-| FollowConstantData | 1 | 1 | 11 | BOT-MOV-3, BOT-MOV-5 |
-| ForceAreaEntityData | 1 | 1 | 13 | CAMP-FLOW-2 |
-| FormationHolder | 1 | 1 | 3 | SQD-SQ-1 |
-| GameSettingsAsset | 1 | 1 | 3 | SET-GS-1 |
-| HelicopterControlConstantData | 1 | 1 | 50 | BOT-VEH-4 |
-| HudCounterEntityData | 1 | 1 | 12 | HUD-MARK-1 |
-| InputActionMappingData | 1 | 1 | 0 | DATA-LVL-1 |
-| InputConfigurationAsset | 1 | 1 | 12 | INP-CFG-1 |
-| IntParameterExpressionData | 1 | 1 | 3 | DATA-ANIM-1 |
-| KynapseConstantData | 1 | 1 | 2 | BOT-VEH-2 |
-| LocalizationAsset | 1 | 1 | 5 | TEXT-DB-1 |
-| LookConstantData | 1 | 1 | 11 | DATA-AI-1 |
-| MatchMakerAsset | 1 | 1 | 7 | DATA-MM-1 |
-| MenuConfigAsset | 1 | 1 | 16 | HUD-MENU-1 |
-| MeshAsset | 1 | 1 | 34 | DATA-DSTR-1 |
-| MixerAsset | 1 | 1 | 3 | SGR-MIX-1 |
-| NavigationConstantData | 1 | 1 | 41 | BOT-MOV-1, BOT-MOV-3, BOT-MOV-4, BOT-VEH-4 |
-| OrderSettings | 1 | 1 | 3 | AIO-RDY-1 |
-| OutdoorLightEntityData | 1 | 1 | 24 | ENG-SCENE-1 |
-| PathfindingZoneSettings | 1 | 1 | 3 | DATA-AI-1 |
-| PointSystemParamsAsset | 1 | 1 | 105 | PERS-DATA-1, PERS-RANK-1 |
-| PositionEvaluationConstantData | 1 | 1 | 6 | DATA-AI-1 |
-| RagdollAsset | 1 | 1 | 4 | ANIM-RAG-1 |
-| RandomWalkOrderEntityData | 1 | 1 | 25 | AIO-CLS-1 |
-| RichPresenceData | 1 | 1 | 7 | CAMP-DESC-1 |
-| SceneData | 1 | 1 | 16 | ENG-SCENE-1 |
-| SceneSettings | 1 | 1 | 14 | ENG-SCENE-1 |
-| SearchAndDestroyConstantData | 1 | 1 | 4 | DATA-AI-1 |
-| SensingConstantData | 1 | 1 | 27 | BOT-PER-2 |
-| SequenceGeneratorNode | 1 | 1 | 8 | SGR-NODE-1 |
-| SoldierAimingConstraintsData | 1 | 1 | 1 | SOLD-AIM-1 |
-| SoldierControlConstantData | 1 | 1 | 28 | BOT-CMB-3, BOT-MOV-2 |
-| SoldierIKData | 1 | 1 | 18 | ANIM-RIG-1 |
-| SoldierProceduralLeaningData | 1 | 1 | 4 | ANIM-RIG-1 |
-| SoldierRagdollSettingsData | 1 | 1 | 11 | SOLD-RAG-1 |
-| SoundEnvironmentConstantData | 1 | 1 | 3 | BOT-PER-2 |
-| SquadAsset | 1 | 1 | 3 | SQD-PLAY-1, SQD-SQ-1 |
-| StaticLensFlareData | 1 | 1 | 3 | WTH-CLS-1 |
-| StrafePreprocessorData | 1 | 1 | 6 | DATA-ANIM-1 |
-| StreamPools | 1 | 1 | 3 | SGR-MIX-1 |
-| TankControlConstantData | 1 | 1 | 4 | DATA-AI-1 |
-| TargetEvaluationConstantData | 1 | 1 | 6 | BOT-PER-4, BOT-PER-5 |
-| TimingConstantData | 1 | 1 | 3 | BOT-RT-4 |
-| TraversalConstantData | 1 | 1 | 4 | DATA-AI-1 |
-| TurretControlConstantData | 1 | 1 | 4 | DATA-AI-1 |
-| UI3DSystemAsset | 1 | 1 | 5 | HUD-MENU-1 |
-| UIMenuConfig | 1 | 1 | 1 | MENU-AS-1 |
-| UIShaderAsset | 1 | 1 | 2 | HUD-MENU-1 |
-| UISharedConfigAsset | 1 | 1 | 10 | HUD-CFG-1 |
-| UnlockTokenData | 1 | 1 | 3 | PERS-DATA-1 |
-| VOConstantData | 1 | 1 | 16 | SGR-VO-1 |
-| VOTypesAsset | 1 | 1 | 5 | SGR-VO-1 |
-| VehicleInputTweakData | 1 | 1 | 5 | DATA-VEH-1 |
-| WeaponSwitchingData | 1 | 1 | 2 | SOLD-AIM-1 |
-| WorldRenderSettings | 1 | 1 | 98 | ENG-SCENE-1 |
+| PolynomialData | 208,719 | 53,076 | 9 | FX-PROC-2, FX-PROC-5, FX-PROC-6, RTTI-EMIT-1 |
+| RandomEvaluatorData | 202,922 | 58,737 | 7 | FX-PROC-2, FX-PROC-6, RTTI-EMIT-1 |
+| MaterialRelationData | 163,984 | 74 | 3 | MAT-GRID-1, MAT-GRID-5, RTTI-ENT-1 |
+| MaterialRelationDamageData | 162,950 | 74 | 9 | MAT-GRID-5, MAT-GRID-6, MAT-GRID-7, RTTI-GSR-4 |
+| ReferenceObjectData | 141,725 | 230 | 11 | CULL-SLOT-2, GAME-RUSH-1, LEVEL-PART-3, LEVEL-SLOT-1 (+12) |
+| MaterialRelationEffectData | 70,241 | 74 | 2 | MAT-GRID-5, RTTI-GSR-8 |
+| SoundNodePort | 59,593 | 1,312 | 3 | RTTI-AUDIO-1, SGR-WIRE-1 |
+| EmitterDocument | 58,899 | 58,899 | 7 | FX-CLS-1, RTTI-EMIT-1 |
+| EmitterTemplateData | 58,899 | 58,899 | 44 | FX-CLS-1, LIGHT-PT-2, RTTI-EMIT-1 |
+| UpdateAgeData | 58,899 | 58,899 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| UpdateBoundingBoxData | 58,899 | 58,899 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| SpawnRateData | 58,590 | 58,590 | 15 | FX-PROC-1, RTTI-EMIT-1 |
+| MaterialRelationSoundData | 57,871 | 74 | 4 | MAT-GRID-5, RTTI-GSR-8 |
+| SpawnSizeData | 55,272 | 55,272 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| SpawnDirectionData | 54,850 | 54,850 | 12 | FX-PROC-1, RTTI-EMIT-1 |
+| UpdateSizeData | 54,775 | 54,775 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| SpawnSpeedData | 54,560 | 54,560 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| SpawnRotationData | 52,393 | 52,393 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| SpawnRotationSpeedData | 51,542 | 51,542 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| UpdateLinearVelocityData | 51,467 | 51,467 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| SpawnPositionData | 48,584 | 48,584 | 11 | FX-CLS-1, FX-CLS-2, FX-PROC-1, RTTI-EMIT-1 |
+| UpdateRotationData | 48,123 | 48,123 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| UpdateColorData | 46,982 | 46,982 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| UpdateTransparencyData | 46,982 | 46,982 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| UpdateTextureCoordsData | 46,937 | 46,937 | 12 | FX-ATL-2, RTTI-EMIT-1 |
+| TerrainSplinePlanePointData | 44,132 | 74 | 8 | DECAL-SRC-2, LEVEL-OBJ-1, RTTI-TERR-1 |
+| UpdateClipScaleData | 42,618 | 42,618 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| UpdateOrientationData | 41,803 | 41,803 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| GravityData | 41,585 | 41,585 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| AirResistanceData | 40,646 | 40,646 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| AreaGeometryEntityData | 40,494 | 74 | 9 | AIO-FLD-3, LEVEL-ENT-2, LEVEL-PART-3, RTTI-ENT-1 (+1) |
+| RotateVectorData | 37,045 | 37,045 | 7 | FX-PROC-2, FX-PROC-6, RTTI-EMIT-1 |
+| UpdateAlphaLevelScaleData | 33,748 | 33,748 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| PolynomialColorInterpData | 26,821 | 26,821 | 8 | FX-PROC-2, FX-PROC-6, RTTI-EMIT-1 |
+| UIFontGlyph | 26,596 | 56 | 12 | RTTI-UI-1, TEXT-FONT-1 |
+| BoxEvaluatorData | 23,823 | 23,823 | 7 | FX-CLS-2, FX-PROC-2, FX-PROC-6, RTTI-EMIT-1 |
+| RandomXYZEvaluatorData | 22,919 | 19,489 | 11 | FX-PROC-2, FX-PROC-6, RTTI-EMIT-1 |
+| SubtitleWaveHashPair | 22,878 | 13 | 3 | RTTI-DBX-1, RTTI-GSR-6, TEXT-SUB-1 |
+| MaterialRelationDecalData | 19,730 | 74 | 2 | DECAL-IMP-1, MAT-GRID-5, RTTI-DECAL-1 |
+| SpawnAnimationData | 17,941 | 17,941 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| SpawnAnimationFrameData | 17,936 | 17,936 | 11 | FX-ATL-2, FX-CLS-1, FX-PROC-1, RTTI-EMIT-1 |
+| SoundNodeConnection | 17,908 | 1,312 | 4 | RTTI-AUDIO-1, SGR-WIRE-1 |
+| DialogLineNode | 15,734 | 8 | 5 | RTTI-AUDIO-1, RTTI-GSR-2, RTTI-GSR-5, RTTI-GSR-6 (+3) |
+| TurbulanceData | 15,705 | 15,705 | 11 | FX-PROC-1, FX-PROC-7, RTTI-EMIT-1 |
+| SubtitleRuntimeData | 15,519 | 13 | 3 | RTTI-GSR-6, TEXT-SUB-1 |
+| TerrainSplinePointData | 14,449 | 74 | 2 | DECAL-SRC-2, RTTI-TERR-1 |
+| UpdateAlphaLevelMaxData | 13,984 | 13,984 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| UpdateSizeXData | 13,511 | 13,511 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| GameEffectEntityData | 12,423 | 74 | 15 | FX-PLACE-1, LEVEL-PART-3, LIGHT-PT-3, LIGHT-PT-4 (+7) |
+| LocalForceData | 12,394 | 12,394 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| SphereEvaluatorData | 12,333 | 12,333 | 8 | FX-CLS-2, FX-PROC-2, FX-PROC-6, RTTI-EMIT-1 |
+| UpdateSizeYData | 10,266 | 10,266 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| SamplerWaveMapEntry | 9,801 | 1,306 | 3 | RTTI-AUDIO-1, SGR-NODE-1, SGR-NODE-2 |
+| TextureAsset | 9,083 | 4,585 | 14 | RTTI-DECAL-1, RTTI-EMIT-1, RTTI-GSR-2, RTTI-GSR-3 (+8) |
+| HealthStateData | 8,578 | 727 | 10 | DSTR-STATE-1, RTTI-GSR-3, RTTI-GSR-8, VEH-HP-4 |
+| InfluenceMapBoneData | 8,559 | 54 | 2 | DATA-ANIM-2, RTTI-ANIM-1 |
+| BaseEmitterData | 7,496 | 7,496 | 11 | FX-PROC-1, RTTI-EMIT-1 |
+| FloatParameter | 6,833 | 1,690 | 3 | DATA-ANIM-1, RTTI-ANIM-1 |
+| UpdateAlphaLevelMinData | 6,268 | 6,268 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| MaterialData | 5,746 | 74 | 9 | MAT-GRID-1, MAT-GRID-2, MAT-GRID-3, RTTI-ENT-1 (+2) |
+| VoiceOverLineAsset | 5,221 | 74 | 3 | RTTI-GSR-3, RTTI-GSR-8, SGR-VO-1 |
+| AnimationAsset | 4,794 | 4,794 | 16 | ANIM-TREE-1, RTTI-ANIM-1, RTTI-GSR-2, RTTI-GSR-3 (+3) |
+| VoiceOverEntityData | 4,578 | 74 | 14 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, SCR-EVT-1 |
+| PartComponentData | 4,196 | 716 | 12 | DSTR-STATE-1, RTTI-GSR-3, VEH-ENT-1, VEH-HP-4 |
+| WaveAsset | 4,161 | 4,161 | 11 | FX-CLS-1, RTTI-AUDIO-1, RTTI-GSR-2, RTTI-GSR-3 (+4) |
+| MaterialRelationVehicleData | 3,467 | 74 | 5 | MAT-FX-2, MAT-GRID-5, RTTI-GSR-8 |
+| ObjectSet | 3,466 | 213 | 6 | LEVEL-OBJ-1, RTTI-ENT-1, RTTI-GSR-3 |
+| MaterialRelationTerrainDestructionData | 3,454 | 74 | 3 | DECAL-IMP-1, DSTR-TERR-3, MAT-GRID-5, RTTI-GSR-8 |
+| EmitterEntityData | 3,359 | 1,100 | 22 | FX-CLS-1, RTTI-EMIT-1 |
+| MaterialPropertySoundData | 3,352 | 74 | 6 | MAT-GRID-9, RTTI-GSR-8 |
+| ReceiveEntry | 3,265 | 1,312 | 4 | RTTI-AUDIO-1, SGR-WIRE-1 |
+| AlternateSpawnEntityData | 3,126 | 74 | 5 | GAME-SPAWN-1, KYG-RECT-1, RTTI-GSR-3 |
+| DelayTriggerEntityData | 2,878 | 74 | 8 | RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-1, SCR-EVT-3 |
+| MeshShaderSetAsset | 2,772 | 2,335 | 3 | FX-CLS-1, MAT-TEX-8, RTTI-GSR-2, RTTI-GSR-3 (+4) |
+| ReceiveNode | 2,759 | 1,312 | 3 | RTTI-AUDIO-1, SGR-WIRE-1 |
+| VOPersonParam | 2,689 | 25 | 3 | RTTI-GSR-5, SGR-VO-1 |
+| StaticModelGroupMemberData | 2,583 | 74 | 13 | DSTR-MG-3, LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GSR-7 |
+| EventSplitterEntityData | 2,457 | 74 | 7 | RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-1 |
+| SamplerGroup | 2,373 | 1,302 | 14 | RTTI-AUDIO-1, SGR-NODE-1 |
+| PartLinkData | 2,357 | 121 | 6 | DSTR-STATE-6, RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-8 |
+| SamplerNode | 2,357 | 1,301 | 3 | RTTI-AUDIO-1, SGR-NODE-1 |
+| MaterialSoldierSoundSettings | 2,167 | 74 | 3 | MAT-GRID-9, RTTI-GSR-7, RTTI-GSR-8 |
+| SoundGraphEvent | 2,143 | 1,312 | 4 | RTTI-AUDIO-1, SGR-WIRE-1 |
+| PersistentValueTemplateData | 2,080 | 2 | 8 | PERS-DATA-1, PERS-DATA-2, RTTI-GSR-7 |
+| ResultAnimTreeData | 1,985 | 1,985 | 20 | ANIM-TREE-1, RTTI-ANIM-1 |
+| SoldierSpawnEntityData | 1,945 | 74 | 31 | AIO-ASN-1, AIO-ASN-2, BOT-DIF-3, BOT-PER-5 (+10) |
+| ScaleClampNode | 1,917 | 324 | 8 | RTTI-AUDIO-1, SGR-NODE-1 |
+| UIFontGlyphKerning | 1,870 | 23 | 3 | RTTI-UI-1, TEXT-FONT-1 |
+| OutputEntry | 1,832 | 1,308 | 2 | RTTI-AUDIO-1, SGR-OUT-1 |
+| SoundOutput | 1,829 | 1,305 | 2 | RTTI-AUDIO-1, SGR-OUT-1 |
+| AabbGeometryEntityData | 1,819 | 47 | 6 | AIO-FLD-3, RTTI-ENT-1 |
+| RigidMeshEntityData | 1,733 | 76 | 9 | LEVEL-MG-1, RTTI-GSR-7, RTTI-WREND-1 |
+| PhysicsEntityData | 1,721 | 1,484 | 8 | LEVEL-MG-1, RTTI-EMIT-1, RTTI-GSR-3, RTTI-PHYS-1 |
+| SimpleTransformNode | 1,709 | 186 | 6 | RTTI-AUDIO-1, SGR-NODE-1, SGR-NODE-2 |
+| ParameterGroupData | 1,690 | 1,690 | 2 | ANIM-TREE-1, RTTI-ANIM-1 |
+| AreaTriggerEntityData | 1,678 | 52 | 16 | RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-1 |
+| AnimTreeData | 1,675 | 1,675 | 16 | ANIM-TREE-1, RTTI-ANIM-1, RTTI-GSR-3, RTTI-GSR-5 (+1) |
+| ObjectBlueprint | 1,661 | 1,661 | 7 | FX-CLS-1, LOAD-CSUM-1, LOAD-PART-4, RTTI-ENT-1 (+3) |
+| VOLine | 1,653 | 28 | 11 | RTTI-GSR-5, SGR-VO-1 |
+| StaticModelTriggerEntityData | 1,617 | 61 | 13 | CAMP-TRIG-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| HavokAsset | 1,595 | 1,370 | 20 | HAVOK-MAT-1, LEVEL-OBJ-1, MAT-SLOT-1, RTTI-EMIT-1 (+1) |
+| RigidMeshAsset | 1,595 | 1,595 | 39 | FX-CLS-1, MAT-TEX-8, RTTI-EMIT-1, RTTI-GSR-3 (+5) |
+| RichPresenceContextValue | 1,529 | 75 | 2 | CAMP-DESC-1, RTTI-GSR-7 |
+| AimNode2AimBoneData | 1,518 | 111 | 11 | DATA-ANIM-2, RTTI-ANIM-1 |
+| UITextureAtlasInfo | 1,458 | 52 | 7 | APT-ATL-1, MENU-ED-8, RTTI-UI-1 |
+| VOGroup | 1,419 | 28 | 4 | RTTI-GSR-5, SGR-VO-1 |
+| VehicleSpawnEntityData | 1,408 | 70 | 42 | MAT-TEX-8, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 (+1) |
+| StaticModelEntityData | 1,407 | 1,407 | 44 | DSTR-STATE-1, MAT-SLOT-5, MAT-TEX-8, RTTI-DBX-2 (+3) |
+| TerrainSplinePlaneData | 1,372 | 74 | 22 | DECAL-SRC-2, RTTI-TERR-1 |
+| TerrainSplineData | 1,360 | 74 | 8 | DECAL-SRC-2, RTTI-TERR-1 |
+| MessageEntityData | 1,340 | 48 | 10 | GAME-AS-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| OutputNode | 1,312 | 1,312 | 9 | RTTI-AUDIO-1, SGR-OUT-1 |
+| SoundSource | 1,312 | 1,312 | 2 | RTTI-AUDIO-1, SGR-OUT-1 |
+| SoundTemplate | 1,312 | 1,312 | 26 | CAMP-CUT-1, FX-CLS-1, RTTI-AUDIO-1, RTTI-GSR-3 (+2) |
+| EffectAsset | 1,302 | 1,302 | 7 | FX-CLS-1, RTTI-ENT-1, RTTI-GSR-2, RTTI-GSR-3 (+2) |
+| EffectEntityData | 1,302 | 1,302 | 14 | FX-CLS-1, FX-CLS-3, LIGHT-PT-7, RTTI-AUDIO-1 (+3) |
+| DamageAreaTriggerEntityData | 1,283 | 53 | 13 | DSTR-MG-4, GAME-DMG-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| ClearAreaTriggerEntityData | 1,270 | 49 | 18 | CAMP-TRIG-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| SequenceData | 1,266 | 68 | 11 | RTTI-ENT-1, RTTI-FAC-1, RTTI-GSR-3, SCR-EVT-2 |
+| InterludeOrderEntityData | 1,229 | 13 | 26 | AIO-CLS-1, RTTI-GSR-3 |
+| VORow | 1,206 | 28 | 2 | RTTI-GSR-5, SGR-VO-1 |
+| EmitterData | 1,194 | 1,194 | 12 | DATA-FX-1, RTTI-EMIT-1 |
+| PatrolOrderEntityData | 1,141 | 13 | 30 | AIO-CLS-1, BOT-VEH-3, RTTI-GSR-3 |
+| ExplosionEntityData | 1,106 | 271 | 22 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-2, RTTI-GSR-3 (+3) |
+| SoundGraphParameter | 1,032 | 234 | 4 | RTTI-AUDIO-1, SGR-WIRE-1 |
+| SoundSourceConeEmitter | 1,032 | 767 | 17 | RTTI-AUDIO-1, SGR-OUT-1 |
+| CancelOrderEntityData | 997 | 13 | 24 | AIO-CLS-1, RTTI-GSR-3 |
+| CutsceneSoldierEntityData | 979 | 13 | 34 | CAMP-CUT-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| UIAnimatedTextureFrame | 952 | 4 | 4 | HUD-MAP-1, RTTI-UI-1 |
+| MaterialPropertyImpulseData | 939 | 74 | 2 | MAT-GRID-9, RTTI-GSR-8 |
+| AreaOrderEntityData | 904 | 13 | 28 | AIO-CLS-1, RTTI-GSR-3 |
+| PredestructionEntityData | 895 | 53 | 6 | CAMP-FLOW-2, RTTI-GDLL-1, RTTI-GSR-3 |
+| CompositeMeshEntityData | 884 | 74 | 9 | LEVEL-MG-1, RTTI-WREND-1 |
+| SoundSourceFlatEmitter | 797 | 677 | 14 | RTTI-AUDIO-1, SGR-OUT-1 |
+| SoundAreaEntityData | 786 | 73 | 13 | RTTI-FAC-1, RTTI-GDLL-1, RTTI-GSR-3, WTH-FX-2 |
+| TreeMeshEntityData | 737 | 74 | 6 | ENG-REND-1, LEVEL-MG-1, RTTI-GSR-7, RTTI-GSR-8 (+3) |
+| AmbientModelEntityData | 722 | 34 | 17 | CAMP-WORLD-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| DeMuxOutput | 670 | 146 | 1 | RTTI-AUDIO-1, SGR-NODE-1 |
+| SoundEntityData | 661 | 586 | 15 | RTTI-AUDIO-1, RTTI-FAC-1, SGR-OUT-1 |
+| MapMarkerEntityData | 653 | 74 | 19 | HUD-MARK-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| MaterialPropertyPhysicsData | 651 | 74 | 4 | MAT-GRID-9, RTTI-PHYS-1 |
+| SquadData | 649 | 52 | 1 | GAME-LAYER-3, RTTI-GSR-5, SQD-PLAY-1 |
+| StaticPositionEntityData | 634 | 33 | 5 | CAMP-WORLD-1, RTTI-FAC-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| GenericPropertyTrackData | 577 | 22 | 4 | CAMP-CUT-1, RTTI-ENT-1 |
+| ZoomLevelData | 572 | 299 | 27 | RTTI-GSR-4, RTTI-GSR-5, WPN-CLS-1, WPN-ZOOM-1 |
+| CutsceneVehicleEntityData | 556 | 48 | 21 | CAMP-CUT-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| CutsceneEntityData | 553 | 49 | 25 | CAMP-CUT-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 (+1) |
+| BoolParameter | 546 | 374 | 3 | DATA-ANIM-1, RTTI-ANIM-1 |
+| FakeHingeData | 541 | 141 | 17 | ANIM-KIT-1, RTTI-PHYS-1 |
+| UIAnimatedTextureGroup | 526 | 4 | 15 | HUD-MAP-1, RTTI-UI-1 |
+| CutsceneObjectEntityData | 512 | 36 | 24 | CAMP-CUT-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| NumberGeneratorNode | 512 | 424 | 7 | RTTI-AUDIO-1, SGR-NODE-1, SGR-NODE-2 |
+| MultipleTriggerEntityData | 503 | 48 | 10 | AIO-MODE-1, GAME-RUSH-1, GAME-RUSH-10, GAME-RUSH-9 (+3) |
+| VOListenerParam | 494 | 10 | 3 | RTTI-GSR-5, SGR-VO-1 |
+| GameSoundEntityData | 486 | 54 | 9 | ONS-PORT-3, RTTI-FAC-1, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
+| ChildComponentData | 468 | 85 | 17 | RTTI-GSR-3, SND-VEH-1, VEH-ENT-1 |
+| AwardData | 457 | 2 | 20 | PERS-AWD-1, PERS-AWD-3, PERS-AWD-5, PERS-DATA-1 (+2) |
+| CriteriaData | 457 | 7 | 12 | PERS-AWD-2, PERS-AWD-3, PERS-DATA-1, RTTI-GSR-7 (+1) |
+| VOEvent | 452 | 28 | 4 | GAME-TKT-2, GAME-TKT-4, RTTI-GSR-2, RTTI-GSR-5 (+1) |
+| VOVehicleParam | 450 | 17 | 3 | RTTI-GSR-5, SGR-VO-1 |
+| ExplosiveObjectData | 429 | 12 | 6 | ONS-CAP-2, RTTI-GSR-8 |
+| MixerGroup | 422 | 111 | 2 | RTTI-AUDIO-1, SGR-NODE-1 |
+| CharacterStateTriggerEntityData | 421 | 17 | 31 | CAMP-TRIG-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| TerrainSplineDecal | 416 | 29 | 8 | DECAL-SRC-1, RTTI-TERR-1, TEDIT-SRC-1 |
+| WeatherStateEntityData | 411 | 67 | 10 | RNDR-WTHR-6, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 (+1) |
+| TreeMemberData | 396 | 74 | 9 | LEVEL-MG-1, RTTI-GSR-8, VEG-CLS-1, VEG-CLS-2 |
+| KeyboardInputActionData | 390 | 8 | 3 | INP-DATA-1, RTTI-GSR-8 |
+| ConditionGroup | 379 | 137 | 4 | RTTI-AUDIO-1, SGR-NODE-1, SGR-NODE-2 |
+| ConditionNode | 379 | 137 | 3 | RTTI-AUDIO-1, SGR-NODE-1 |
+| CameraComponentData | 377 | 90 | 21 | RTTI-GSR-3, VEH-ENT-1 |
+| VehicleExitPointComponentData | 375 | 68 | 5 | RTTI-GSR-3, VEH-ENT-1 |
+| MaterialPropertyTerrainData | 363 | 74 | 4 | DSTR-TERR-3, MAT-GRID-9, MAT-TEX-20, MAT-TEX-7 (+1) |
+| SoldierWeaponData | 361 | 360 | 28 | MAT-TEX-8, RTTI-GSR-4, WPN-ATT-1, WPN-CLS-1 (+5) |
+| SoldierWeaponAsset | 359 | 359 | 7 | RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-4, WPN-CLS-1 |
+| PhysicsNode | 358 | 283 | 4 | RTTI-AUDIO-1, SGR-NODE-1 |
+| CompositeMeshAsset | 353 | 353 | 41 | MAT-TEX-8, RTTI-DBX-1, RTTI-GSR-3, RTTI-REND-1 (+1) |
+| WeatherSystemState | 352 | 352 | 28 | RTTI-WEATH-1, WTH-CLS-1, WTH-CLS-2 |
+| DynamicCloudLayerData | 349 | 349 | 16 | RTTI-WEATH-1, WTH-CLS-1, WTH-CLS-2 |
+| DynamicFogData | 349 | 349 | 18 | RTTI-WEATH-1, WTH-CLS-1, WTH-CLS-2 |
+| DynamicOutdoorLightData | 349 | 349 | 20 | RTTI-WEATH-1, WTH-CLS-1, WTH-CLS-2 |
+| DynamicPostProcessData | 349 | 349 | 24 | RTTI-REND-1, RTTI-WEATH-1, WTH-CLS-1, WTH-CLS-2 |
+| DynamicSkyData | 349 | 349 | 33 | RTTI-WEATH-1, WTH-CLS-1, WTH-CLS-2 |
+| DynamicSunData | 349 | 349 | 8 | LIGHT-SKY-1, RTTI-WEATH-1, WTH-CLS-1, WTH-CLS-2 |
+| MiddlegrowthModelGroupMemberData | 341 | 71 | 9 | LEVEL-MG-1, RTTI-GSR-7, VEG-CLS-1, VEG-CLS-2 |
+| SoldierSpawnGhostEntityData | 339 | 13 | 13 | RTTI-GSR-3, SQD-SQ-1 |
+| UIInputNodeDescription | 338 | 1 | 2 | HUD-CFG-1, RTTI-GSR-2, RTTI-GSR-6 |
+| GameInteractionEntityData | 335 | 39 | 19 | BOT-GS-9, GAME-LAYER-2, GAME-RUSH-1, RTTI-FAC-1 (+4) |
+| SkinnedMeshAsset | 335 | 335 | 36 | MAT-TEX-8, RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-4 (+3) |
+| DeMuxNode | 334 | 146 | 6 | RTTI-AUDIO-1, SGR-NODE-1 |
+| CapturePointEntityData | 332 | 61 | 40 | AIO-MODE-1, BOT-GS-1, ENG-TI-1, GAME-AS-1 (+11) |
+| InputActionsData | 320 | 8 | 2 | INP-DATA-1, INP-FILE-1, RTTI-GSR-8 |
+| LfoGroup | 319 | 133 | 6 | RTTI-AUDIO-1, SGR-NODE-1, SGR-NODE-2 |
+| LfoNode | 319 | 133 | 3 | RTTI-AUDIO-1, SGR-NODE-1 |
+| TerrainFullDecal | 314 | 30 | 10 | DECAL-SRC-1, RTTI-TERR-1, TEDIT-SRC-1 |
+| SpecificAnimTreeData | 310 | 310 | 9 | DATA-ANIM-1, RTTI-ANIM-1 |
+| SpawnCompositeMeshPartsData | 309 | 309 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| UpdateSizeZData | 309 | 309 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| PingPongRotationVisualTransformModifierData | 303 | 54 | 5 | DATA-LVL-1, RTTI-ENT-1 |
+| SquadEntityData | 301 | 13 | 10 | AI-NEED-2, AIO-ASN-1, AIO-RDY-4, BOT-SQD-1 (+3) |
+| CompositeHavokAsset | 299 | 299 | 5 | LEVEL-MG-2, RTTI-PHYS-1, TYPE-CPLX-3 |
+| DeltaAnimationAsset | 296 | 296 | 16 | ANIM-TREE-1, RTTI-ANIM-1 |
+| ChaseCameraData | 294 | 91 | 38 | RTTI-GSR-3, RTTI-GSR-8, SOLD-CAM-2 |
+| VOTeamParam | 289 | 9 | 3 | RTTI-GSR-5, SGR-VO-1 |
+| MenuEntityData | 288 | 74 | 8 | HUD-MENU-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| TargetObjectData | 284 | 11 | 9 | CAMP-WORLD-1, RTTI-GSR-3 |
+| CombatAreaTriggerEntityData | 283 | 74 | 18 | GAME-AREA-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| SoldierAimingSimulationData | 279 | 279 | 9 | RTTI-GSR-4, RTTI-GSR-5, WPN-CLS-1, WPN-SWAY-3 |
+| BoneFakePhysicsData | 275 | 109 | 3 | B43-DBX-1, RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-8 |
+| AimAnimationAsset | 266 | 266 | 14 | ANIM-TREE-1, RTTI-ANIM-1 |
+| PlayerEntryComponentData | 263 | 171 | 27 | ANIM-KIT-1, RTTI-GSR-3, VEH-ENT-1, VEH-SEAT-1 |
+| FiringFunctionData | 253 | 253 | 17 | RTTI-GSR-4, WPN-AMMO-1, WPN-CLS-1, WPN-PROJ-1 |
+| WeaponFiringData | 253 | 253 | 14 | RTTI-GSR-3, RTTI-GSR-4, VEH-WPN-1, WPN-AIM-1 (+1) |
+| UnlockToken | 245 | 1 | 2 | PERS-DATA-1, PERS-DATA-2, RTTI-GSR-7 |
+| WeaponComponentData | 241 | 77 | 21 | RTTI-GSR-3, SND-VEH-1, VEH-ENT-1, VEH-WPN-1 |
+| SpawnableEffectComponentData | 239 | 40 | 8 | DATA-FX-1, RTTI-GSR-3 |
+| ChildRotationBodyData | 235 | 78 | 20 | DATA-VEH-1, RTTI-GSR-8 |
+| EntryInputActionMappingData | 233 | 7 | 2 | INP-DATA-2, RTTI-GSR-8 |
+| PadInputActionData | 227 | 8 | 8 | INP-DATA-1, INP-FILE-1, RTTI-GSR-8 |
+| SpectateEntityData | 227 | 62 | 14 | HUD-KILL-1, HUD-KILL-2, HUD-SPEC-1, RTTI-GDLL-1 (+2) |
+| TeamFilterEntityData | 224 | 21 | 6 | RTTI-GDLL-1, RTTI-GSR-3, SQD-TEAM-1 |
+| MeshLodSettingsAsset | 222 | 222 | 15 | RNDR-LOD-1, RTTI-REND-1 |
+| RichPresenceConnection | 221 | 147 | 4 | CAMP-DESC-1, RTTI-GSR-2, RTTI-GSR-7 |
+| WorldObjectListData | 217 | 44 | 2 | LEVEL-PART-2, RTTI-ENT-1 |
+| AdsrNode | 214 | 96 | 10 | RTTI-AUDIO-1, SGR-NODE-1 |
+| TeamEntityData | 213 | 61 | 16 | GAME-LAYER-1, GAME-LAYER-3, GAME-SDM-1, LEVEL-MP-1 (+4) |
+| MixerNode | 212 | 111 | 4 | RTTI-AUDIO-1, SGR-NODE-1 |
+| MissionObjectiveEntityData | 209 | 42 | 22 | AIO-MODE-1, BOT-GS-4, CAMP-FLOW-1, HUD-MARK-1 (+4) |
+| ParameterFilterLinearNode | 209 | 51 | 6 | RTTI-AUDIO-1, SGR-NODE-1 |
+| HighPassIir2Node | 199 | 155 | 5 | RTTI-AUDIO-1, SGR-NODE-1 |
+| AnimatedWaypointData | 193 | 17 | 14 | CAMP-WORLD-1, RTTI-GSR-5 |
+| CrossfaderNode | 192 | 108 | 6 | RTTI-AUDIO-1, SGR-NODE-1 |
+| LowPassIir2Node | 189 | 119 | 5 | RTTI-AUDIO-1, SGR-NODE-1 |
+| StatsCategoryData | 187 | 12 | 6 | PERS-AWD-2, PERS-AWD-3, PERS-DATA-1, RTTI-GSR-2 (+3) |
+| NetworkableLoosePartPhysicsData | 185 | 31 | 2 | DATA-VEH-1, RTTI-GSR-8 |
+| SaveEntityData | 183 | 13 | 10 | CAMP-FLOW-1, CAMP-SAVE-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| LoosePartPhysicsData | 182 | 33 | 1 | DATA-VEH-1, RTTI-GSR-8, RTTI-PHYS-1 |
+| ShootAtObjectOrderEntityData | 180 | 11 | 26 | AIO-CLS-1, RTTI-GSR-3 |
+| TargetObjectDataGroup | 179 | 12 | 6 | CAMP-WORLD-1, RTTI-GSR-3 |
+| SphereGeometryEntityData | 173 | 14 | 6 | AIO-FLD-3, RTTI-ENT-1 |
+| BulletEntityData | 170 | 169 | 49 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, VEH-WPN-1 (+8) |
+| SoldierAnimationTreeData | 168 | 84 | 8 | ANIM-KIT-1, ANIM-KIT-2, RTTI-GSR-3, RTTI-GSR-8 |
+| TrackWheelComponentData | 168 | 10 | 16 | RTTI-GSR-3, VEH-ENT-1 |
+| MouseInputActionData | 164 | 8 | 8 | INP-DATA-1, RTTI-GSR-8 |
+| StaticCameraData | 161 | 89 | 33 | RTTI-GSR-8, SOLD-CAM-2 |
+| VehicleStateTriggerEntityData | 156 | 20 | 20 | RTTI-GDLL-1, RTTI-GSR-3, VEH-WW2-2 |
+| VOWeaponParam | 155 | 9 | 3 | RTTI-GSR-4, SGR-VO-1 |
+| DelayNode | 152 | 108 | 6 | RTTI-AUDIO-1, SGR-NODE-1 |
+| StaticCullTreeData | 148 | 148 | 2 | CULL-FLD-1, CULL-LVL-1, RTTI-GSR-8, RTTI-SCENE-1 |
+| ArmDisarmAwardEntityData | 146 | 30 | 5 | DATA-LVL-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| RichPresenceContext | 138 | 75 | 4 | CAMP-DESC-1, RTTI-GSR-7 |
+| VOTargetDistanceParam | 136 | 5 | 3 | RTTI-GSR-5, SGR-VO-1 |
+| SoundSourceLfeEmitter | 134 | 134 | 13 | RTTI-AUDIO-1, SGR-OUT-1 |
+| InputRestrictionEntityData | 128 | 73 | 37 | CAMP-FLOW-2, RTTI-GDLL-1, RTTI-GSR-3 |
+| CutsceneEntityScreenFadeData | 127 | 48 | 7 | CAMP-CUT-1, RTTI-GSR-3, RTTI-GSR-8 |
+| EventGateEntityData | 125 | 13 | 7 | RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-2 |
+| CutsceneCameraEntityData | 124 | 48 | 15 | CAMP-CUT-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| CutsceneEntityCameraData | 124 | 48 | 21 | CAMP-CUT-1, RTTI-GSR-3, RTTI-GSR-8 |
+| WaypointData | 119 | 12 | 6 | CAMP-WORLD-1, RTTI-ENT-1, RTTI-GSR-5 |
+| UIMovieAsset | 110 | 24 | 11 | HUD-MENU-1, RTTI-GSR-2, RTTI-GSR-6, RTTI-UI-1 |
+| BigWorldSetting | 106 | 64 | 5 | LEVEL-PART-2, RTTI-GSR-7 |
+| FakeSpringData | 106 | 29 | 13 | RTTI-PHYS-1, SOLD-COL-1 |
+| StaticModelGroupEntityData | 106 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
+| DebugMenuItemEntityData | 104 | 21 | 8 | RTTI-GSR-3, SCR-CMD-1 |
+| SubtitleLevelMap | 104 | 13 | 2 | RTTI-GSR-6, TEXT-SUB-1 |
+| PersistentWeapon | 101 | 3 | 11 | PERS-DATA-1, PERS-DATA-3, RTTI-GSR-2, RTTI-GSR-4 (+1) |
+| WheelComponentData | 101 | 27 | 15 | RTTI-GSR-3, VEH-ENT-1 |
+| VehicleAsset | 98 | 98 | 7 | RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-8, VEH-ENT-1 |
+| VehicleComponentData | 98 | 98 | 18 | RTTI-GSR-3, VEH-ENT-1 |
+| VehicleEntityData | 98 | 98 | 57 | MAT-TEX-8, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 (+6) |
+| WeaponData | 98 | 22 | 39 | BOT-CMB-1, BOT-CMB-2, BOT-PER-5, HUD-CFG-1 (+3) |
+| TreeHealthStateData | 97 | 17 | 12 | DATA-DSTR-1, RTTI-GSR-8 |
+| BoxFloatPhysicsData | 96 | 83 | 2 | DATA-VEH-1, RTTI-PHYS-1 |
+| MiddlegrowthModelGroupEntityData | 93 | 71 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+2) |
+| TreeMeshAsset | 93 | 93 | 50 | MAT-TEX-8, RTTI-DBX-1, RTTI-GSR-3, RTTI-OVG-1 (+2) |
+| WeaponPickupEntityData | 91 | 71 | 23 | MAT-TEX-11, RTTI-FAC-1, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
+| EngineComponentData | 86 | 64 | 10 | RTTI-GSR-3, SND-VEH-1, VEH-ENT-1, VEH-PHYS-1 |
+| IndexedAnimationData | 86 | 86 | 6 | ANIM-KIT-1, RTTI-GSR-8 |
+| IndoorDampingSetting | 85 | 28 | 2 | RTTI-GSR-7, RTTI-GSR-8, SGR-MIX-1 |
+| FPSCameraData | 84 | 84 | 17 | ANIM-KIT-1, RTTI-GSR-8 |
+| SoldierAsset | 84 | 84 | 7 | ANIM-KIT-1, RTTI-GSR-3, RTTI-GSR-8 |
+| SoldierEntityData | 84 | 84 | 73 | ANIM-KIT-1, ANIM-RAG-1, MAT-TEX-8, RTTI-GDLL-1 (+7) |
+| UINametag | 84 | 2 | 12 | HUD-CFG-1, RTTI-UI-1 |
+| CameraRecoilData | 82 | 82 | 3 | RTTI-GSR-4, SOLD-CAM-1 |
+| ExplosionPackEntityData | 82 | 14 | 34 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, WPN-CLS-1 (+1) |
+| UserMusicArbiterNode | 81 | 81 | 4 | RTTI-AUDIO-1, SGR-NODE-1 |
+| TerrainGroupDecal | 80 | 30 | 6 | DECAL-SRC-1, RTTI-TERR-1, TEDIT-SRC-1 |
+| ReverbAsset | 79 | 26 | 5 | IR-HDR-1, RTTI-AUDIO-1, RTTI-GSR-8 |
+| RichPresenceString | 78 | 75 | 2 | CAMP-DESC-1, RTTI-GSR-7 |
+| RumbleNode | 78 | 61 | 4 | RTTI-AUDIO-1, SGR-NODE-1 |
+| ShaderAsset | 78 | 76 | 2 | RTTI-DECAL-1, RTTI-REND-1, RTTI-TERR-1, SHDB-TYPE-1 |
+| GunSwayData | 77 | 77 | 16 | RTTI-GSR-4, WPN-CLS-1, WPN-SWAY-1 |
+| MissionEntityData | 77 | 74 | 11 | ONS-LVL-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| ShaderDatabaseCollection | 75 | 75 | 3 | ENG-SCENE-1, RTTI-REND-1 |
+| AnimationSoundMapData | 74 | 74 | 3 | RTTI-GSR-8, SGR-MIX-1 |
+| DeltaGroup | 74 | 44 | 2 | RTTI-AUDIO-1, SGR-NODE-1 |
+| DeltaNode | 74 | 44 | 3 | RTTI-AUDIO-1, SGR-NODE-1 |
+| EmitterSystemAsset | 74 | 74 | 4 | DATA-FX-1, RTTI-EMIT-1 |
+| ForestEntityData | 74 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+2) |
+| HumanPlayerEntityData | 74 | 74 | 8 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, SQD-TEAM-1 |
+| LevelData | 74 | 74 | 49 | AI-START-3, BOT-CMB-5, COLL-MG-3, CULL-LVL-1 (+30) |
+| LevelDescriptionAsset | 74 | 74 | 4 | CAMP-DESC-1, RTTI-GSR-8 |
+| MaterialGridData | 74 | 74 | 5 | MAT-GRID-1, MAT-GRID-2, RTTI-ENT-1 |
+| SearchAndDestroyOrderEntityData | 74 | 10 | 30 | AIO-CLS-1, RTTI-GSR-3 |
+| TerrainEntityData | 74 | 74 | 11 | LEVEL-MG-3, LEVEL-OBJ-1, LEVEL-TERR-1, MAT-SLOT-5 (+5) |
+| SkeletonAsset | 73 | 73 | 19 | ANIM-SKEL-1, RTTI-ANIM-1, RTTI-GSR-3, RTTI-GSR-8 (+1) |
+| AlternateCameraViewData | 72 | 52 | 11 | RTTI-GSR-3, RTTI-GSR-8, SOLD-CAM-2, SOLD-FOV-1 |
+| AmmoCrateEntityData | 71 | 12 | 10 | DATA-WPN-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| SoldierGripComponentData | 71 | 49 | 5 | RTTI-GSR-3, VEH-ENT-1 |
+| IntParameter | 70 | 48 | 3 | DATA-ANIM-1, RTTI-ANIM-1 |
+| CameraNode | 69 | 51 | 5 | RTTI-AUDIO-1, SGR-NODE-1 |
+| EffectComponentData | 68 | 43 | 8 | DATA-FX-1, RTTI-GSR-3 |
+| PointLightEntityData | 68 | 12 | 18 | LIGHT-PT-5, LIGHT-SKY-4, RTTI-WREND-1 |
+| StaticEnvmapEntityData | 68 | 68 | 7 | LEVEL-ENV-1, LEVEL-OBJ-1, LIGHT-ENV-1, LIGHT-ENV-2 (+2) |
+| VehicleConfigData | 68 | 68 | 39 | RTTI-GSR-3, RTTI-PHYS-1, VEH-PHYS-1 |
+| GearboxConfigData | 66 | 66 | 15 | RTTI-GSR-3, RTTI-PHYS-1, VEH-PHYS-1 |
+| WheelConfigData | 66 | 35 | 70 | DATA-VEH-1, RTTI-GSR-3, RTTI-PHYS-1 |
+| BangerEntityData | 64 | 64 | 16 | DSTR-STATE-1, RTTI-FAC-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| StabilizerData | 64 | 64 | 7 | DATA-VEH-1, RTTI-PHYS-1 |
+| PreRoundEntityData | 63 | 62 | 7 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, SQD-TEAM-1 |
+| BigWorldSettingsAsset | 62 | 62 | 3 | RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-7, RTTI-GSR-8 (+1) |
+| AutoTeamEntityData | 61 | 61 | 10 | GAME-LAYER-5, RTTI-GDLL-1, RTTI-GSR-3 |
+| DynamicModelEntityData | 61 | 61 | 13 | DSTR-STATE-1, MAT-TEX-8, RTTI-GDLL-2, RTTI-GSR-3 |
+| VOVehicle | 61 | 1 | 1 | RTTI-GSR-3, RTTI-GSR-5, SGR-VO-1 |
+| KillCounterEntityData | 60 | 15 | 7 | BOT-GS-4, GAME-SDM-1, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
+| LifeCounterEntityData | 60 | 30 | 21 | BOT-GS-4, BOT-GS-8, GAME-RUSH-11, GAME-RUSH-2 (+4) |
+| VOReadinessParam | 60 | 5 | 3 | RTTI-GSR-5, SGR-VO-1 |
+| DebugValueInput | 57 | 17 | 5 | RTTI-AUDIO-1, SGR-NODE-1 |
+| BinkMemoryAsset | 56 | 56 | 4 | BINK-OUT-1, MENU-LOAD-1, RTTI-GSR-2, RTTI-REND-1 (+1) |
+| UIFontData | 56 | 56 | 9 | RTTI-UI-1, TEXT-FONT-1 |
+| UIAsset | 55 | 55 | 6 | MENU-AS-1, RTTI-UI-1 |
+| InfluenceMapData | 54 | 54 | 7 | DATA-ANIM-2, RTTI-ANIM-1, RTTI-GSR-8 |
+| ResultInfluenceMapData | 54 | 54 | 2 | DATA-ANIM-2, RTTI-ANIM-1 |
+| TerrainHeightfieldData | 53 | 30 | 7 | RTTI-TERR-1, TEDIT-HF-2, TEDIT-SRC-1, TERR-HF-9 |
+| ObjectData | 52 | 10 | 10 | BOT-VEH-2, RTTI-GSR-3, RTTI-GSR-8 |
+| UIFontProxyAsset | 52 | 11 | 7 | RTTI-UI-1, TEXT-FONT-1 |
+| UITextureAtlasData | 52 | 52 | 1 | HUD-KILL-1, RTTI-UI-1, TEXT-ATL-1 |
+| MultiCrossfaderGroup | 51 | 23 | 7 | RTTI-AUDIO-1, SGR-NODE-1, SGR-NODE-2 |
+| PersistentSpecialization | 51 | 2 | 15 | PERS-DATA-1, PERS-DATA-3, RTTI-GSR-2, RTTI-GSR-3 (+1) |
+| FollowClosestHumanOrderEntityData | 50 | 10 | 24 | AIO-CLS-1, RTTI-GSR-3 |
+| ScreenFadeEntityData | 50 | 13 | 10 | CAMP-FLOW-2, HUD-FX-1, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
+| ChildMovingBodyData | 49 | 44 | 10 | DATA-VEH-1, RTTI-GSR-8 |
+| OneOptionButtonEditableAction | 49 | 1 | 2 | INP-CFG-1, RTTI-GSR-8 |
+| PropellerEngineConfigData | 49 | 27 | 51 | RTTI-PHYS-1, VEH-PHYS-1 |
+| UnderFireTriggerEntityData | 49 | 9 | 14 | CAMP-TRIG-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| RotorComponentData | 47 | 25 | 14 | RTTI-GSR-3, VEH-ENT-1, VEH-ENT-2 |
+| UIFontAsset | 45 | 45 | 13 | RTTI-UI-1, TEXT-FONT-1 |
+| BangerSpawnImpulseParams | 44 | 33 | 7 | DATA-VEH-1, RTTI-GSR-8 |
+| BehaviourData | 44 | 1 | 4 | BOT-RT-8, RTTI-GSR-5 |
+| Crossfader2Node | 44 | 36 | 5 | RTTI-AUDIO-1, SGR-NODE-1 |
+| TooltipEntityData | 44 | 9 | 7 | HUD-MARK-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| TerrainHeightfieldGridCellInfo | 43 | 29 | 3 | RTTI-TERR-1, TEDIT-SRC-1 |
+| WorldInteractionComponentData | 41 | 41 | 6 | DATA-VEH-2, RTTI-GSR-3 |
+| TerrainQuadDecal | 40 | 7 | 9 | DECAL-SRC-1, RTTI-TERR-1, TEDIT-SRC-1 |
+| MotionDampingData | 39 | 39 | 5 | DATA-VEH-1, RTTI-PHYS-1 |
+| SoldierEntryComponentData | 38 | 26 | 31 | RTTI-GSR-3, VEH-ENT-1, VEH-SEAT-1 |
+| ChangeOrderEntityData | 37 | 8 | 27 | AIO-CLS-1, RTTI-GSR-3 |
+| SquadGhostEntityData | 37 | 10 | 6 | CAMP-WORLD-1, RTTI-GSR-3, SQD-PLAY-1, SQD-SQ-1 |
+| ArtilleryStrikeEntityData | 36 | 3 | 23 | CAMP-FLOW-2, RTTI-GDLL-1, RTTI-GSR-3 |
+| DynamicLensFlareData | 35 | 35 | 14 | RTTI-WEATH-1, WTH-CLS-1 |
+| CrtHudFxData | 33 | 20 | 7 | HUD-FX-1, RTTI-REND-1, SOLD-CAM-2 |
+| LookAtTriggerEntityData | 33 | 10 | 14 | CAMP-TRIG-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| MissileEntityData | 33 | 31 | 40 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, VEH-WPN-1 (+4) |
+| OneOptionAxisEditableAction | 33 | 1 | 3 | INP-CFG-1, RTTI-GSR-8 |
+| VOWeapon | 33 | 2 | 1 | RTTI-GSR-4, RTTI-GSR-5, SGR-VO-1 |
+| InfluenceMapEffectData | 32 | 14 | 2 | ANIM-RIG-1, RTTI-ANIM-1 |
+| MultiCrossfaderNode | 32 | 23 | 7 | RTTI-AUDIO-1, SGR-NODE-1 |
+| RigidModelGroupMemberData | 32 | 26 | 8 | LEVEL-MG-1, RTTI-GSR-7 |
+| TicketCounterEntityData | 32 | 16 | 15 | BOT-GS-4, BOT-GS-6, GAME-TKT-2, RTTI-GDLL-1 (+3) |
+| AnimationData | 31 | 1 | 13 | DATA-ANIM-2, RTTI-GSR-8 |
+| TerrainMaterialMapAsset | 31 | 30 | 4 | RTTI-TERR-1, TERR-MM-4 |
+| WeatherSystemEntityData | 31 | 31 | 6 | RNDR-WTHR-5, RTTI-WEATH-1, WTH-CLS-1 |
+| AeroDynamicPhysicsData | 30 | 30 | 4 | DATA-VEH-1, RTTI-PHYS-1 |
+| CharacterStatePoseInfo | 30 | 2 | 7 | RTTI-PHYS-1, SOLD-PHYS-1 |
+| TerrainData | 30 | 30 | 14 | DECAL-SRC-1, DSTR-TERR-4, RTTI-GSR-3, RTTI-TERR-1 (+2) |
+| WingComponentData | 30 | 8 | 13 | RTTI-GSR-3, VEH-ENT-1 |
+| Curve2D | 29 | 11 | 1 | DATA-VEH-1, RTTI-PHYS-1 |
+| Mat4Parameter | 29 | 29 | 3 | DATA-ANIM-1, RTTI-ANIM-1 |
+| AmbientSoundsAsset | 28 | 28 | 8 | RTTI-GSR-8, SGR-MIX-1 |
+| FireAtAreaOrderEntityData | 28 | 9 | 26 | AIO-CLS-1, RTTI-GSR-3 |
+| LockingControllerData | 28 | 28 | 16 | HUD-FX-1, RTTI-GSR-3, RTTI-GSR-4 |
+| MiddlegrowthModelEntityData | 28 | 28 | 12 | DSTR-STATE-1, RTTI-GSR-3 |
+| VOAsset | 28 | 28 | 3 | RTTI-GSR-5, RTTI-GSR-8, SND-EVT-3, SND-VO-1 |
+| WingPhysicsData | 28 | 8 | 11 | DATA-VEH-1, RTTI-GSR-3, RTTI-PHYS-1 |
+| RadarSweepComponentData | 27 | 27 | 15 | HUD-FX-1, RTTI-GSR-3 |
+| StaticCloudLayerData | 27 | 27 | 5 | RTTI-WEATH-1, WTH-CLS-1 |
+| StaticFogData | 27 | 27 | 3 | RTTI-WEATH-1, WTH-CLS-1 |
+| StaticOutdoorLightData | 27 | 27 | 2 | RTTI-WEATH-1, WTH-CLS-1 |
+| WeatherSystemData | 27 | 27 | 4 | RTTI-WEATH-1, WTH-CLS-1 |
+| WeatherSystemSettings | 27 | 27 | 10 | RNDR-WTHR-1, RTTI-WEATH-1, WTH-CLS-1 |
+| WeatherSystemSetup | 27 | 27 | 10 | RTTI-WEATH-1, WTH-CLS-1 |
+| BoolParameterExpressionData | 26 | 3 | 2 | DATA-ANIM-1, RTTI-ANIM-1 |
+| EdgeModelMeshData | 26 | 26 | 4 | DATA-DSTR-1, RTTI-GSR-2, RTTI-GSR-5 |
+| ReverbSettingsAsset | 26 | 26 | 3 | IR-HDR-1, RTTI-AUDIO-1, RTTI-GSR-8 |
+| RigidModelGroupEntityData | 26 | 26 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
+| VOPerson | 26 | 1 | 1 | RTTI-GSR-3, RTTI-GSR-5, SGR-VO-1 |
+| ArmamentData | 25 | 2 | 3 | BOT-VEH-2, RTTI-GSR-4, RTTI-GSR-8 |
+| PathdataSectorOffsets | 25 | 25 | 4 | DATA-AI-1, RTTI-GSR-5 |
+| SoldierSpawnTemplateData | 25 | 25 | 7 | ANIM-KIT-1, BOT-DIF-3, BOT-PER-1, RTTI-GSR-3 (+1) |
+| CombustionEngineConfigData | 24 | 24 | 12 | RTTI-PHYS-1, VEH-PHYS-1 |
+| ConsumableTriggerEntityData | 24 | 9 | 6 | CAMP-FLOW-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| DynamicWeaponPickupEntityData | 24 | 24 | 22 | ANIM-KIT-3, MAT-TEX-11, RTTI-FAC-1, RTTI-GDLL-1 (+2) |
+| LockingWeaponEffectsData | 24 | 24 | 8 | DATA-VEH-2, RTTI-GSR-4 |
+| UIMovieData | 24 | 24 | 3 | MENU-AS-1, RTTI-UI-1 |
+| ScreenEffectEntityData | 23 | 9 | 12 | HUD-FX-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| UITextDatabase | 23 | 18 | 5 | RTTI-UI-1, TEXT-DB-1 |
+| EdgeModelGenerationSettings | 22 | 22 | 3 | DATA-DSTR-1, RTTI-DBX-2, RTTI-GSR-5 |
+| VehicleWaterEffectData | 22 | 6 | 2 | DATA-VEH-2, RTTI-GSR-3, RTTI-GSR-8 |
+| CrtAnalogLinkHudFxData | 21 | 21 | 8 | HUD-FX-1, RTTI-REND-1, SOLD-CAM-2 |
+| EdgeModelInstances | 21 | 21 | 3 | DATA-DSTR-1, RTTI-GSR-3, RTTI-GSR-5 |
+| TurretData | 21 | 2 | 5 | BOT-VEH-2, RTTI-GSR-4, RTTI-GSR-8 |
+| WeaponEffectsData | 21 | 20 | 4 | DATA-VEH-2, DATA-WPN-1, RTTI-GSR-3, RTTI-GSR-4 (+1) |
+| MatchMakingMap | 20 | 1 | 7 | DATA-MM-1, RTTI-GSR-2, RTTI-GSR-7, RTTI-GSR-8 |
+| TrackComponentData | 20 | 10 | 9 | RTTI-GSR-3, VEH-ENT-1 |
+| WeaponInputRouterComponentData | 19 | 19 | 7 | DATA-VEH-2, RTTI-GSR-3 |
+| EventIfSwitchEntityData | 18 | 3 | 7 | RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-2 |
+| UrgencySetData | 18 | 2 | 2 | AIO-RDY-3, RTTI-GSR-5 |
+| ValueDebugNode | 18 | 17 | 3 | RTTI-AUDIO-1, SGR-NODE-1 |
+| BehaviourTemplateData | 17 | 17 | 46 | BOT-CMB-1, BOT-CMB-2, BOT-CMB-5, BOT-DIF-3 (+5) |
+| RotorParameters | 17 | 17 | 9 | DATA-VEH-1, RTTI-PHYS-1 |
+| SensingTemplateData | 17 | 17 | 19 | BOT-DIF-3, BOT-PER-1, RTTI-DBX-2, RTTI-GSR-5 (+1) |
+| SkinnedMeshComponentData | 17 | 11 | 8 | DATA-VEH-2, RTTI-GSR-3 |
+| DecalTemplateData | 16 | 16 | 9 | DATA-DSTR-1, RTTI-DECAL-1 |
+| UIFontMapAsset | 16 | 16 | 4 | RTTI-UI-1, TEXT-FONT-1 |
+| AIVehicleBehaviourData | 15 | 1 | 6 | BOT-MOV-4, BOT-RT-7, BOT-VEH-1, RTTI-GSR-5 (+1) |
+| SampleTextureData | 15 | 15 | 12 | FX-PROC-2, RTTI-EMIT-1 |
+| AimAtOrderEntityData | 14 | 5 | 25 | AIO-CLS-1, RTTI-GSR-3 |
+| FenceModelEntityData | 14 | 14 | 46 | DSTR-STATE-1, RTTI-DBX-2, RTTI-FAC-1, RTTI-GDLL-1 (+2) |
+| RandomTriggerEntityData | 14 | 9 | 8 | CAMP-TRIG-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| TreeBangerEntityData | 14 | 14 | 17 | DSTR-STATE-1, RTTI-FAC-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| LevelSubtitles | 13 | 13 | 1 | RTTI-GSR-6, TEXT-SUB-1 |
+| RotationVisualTransformModifierData | 13 | 10 | 4 | DATA-LVL-1, RTTI-ENT-1 |
+| SpawnPointManagerData | 13 | 13 | 3 | ONS-LVL-1, RTTI-GSR-8 |
+| StatCategoriesTree | 13 | 13 | 6 | CAMP-FLOW-1, RTTI-GSR-7, RTTI-GSR-8 |
+| VOFacialAnimMapData | 13 | 13 | 1 | RTTI-GSR-5, TEXT-SUB-1 |
+| WaypointAnimationData | 13 | 13 | 3 | CAMP-WORLD-1, RTTI-GSR-5, RTTI-GSR-8 |
+| AwardStarData | 12 | 1 | 21 | PERS-DATA-1, RTTI-GSR-7 |
+| CriteriaStarData | 12 | 1 | 13 | PERS-DATA-1, RTTI-GSR-7 |
+| LinearMovementVisualTransformModifierData | 12 | 9 | 4 | DATA-LVL-1, RTTI-ENT-1 |
+| RadioComponentData | 12 | 12 | 6 | RTTI-GSR-3, SND-VEH-1 |
+| SoundSourceDialogEmitter | 12 | 12 | 13 | RTTI-AUDIO-1, SGR-OUT-1 |
+| StatEventTriggerEntityData | 12 | 9 | 8 | CAMP-FLOW-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| BinkTextureAsset | 11 | 11 | 6 | BINK-OUT-1, RTTI-GSR-3, RTTI-REND-1, RTTI-UI-1 |
+| OrderReadiness | 11 | 1 | 6 | AIO-RDY-1, AIO-RDY-3, RTTI-GSR-5 |
+| SoundState | 11 | 2 | 8 | RTTI-AUDIO-1, SGR-MIX-1 |
+| AnimationEntityData | 10 | 3 | 9 | CAMP-WORLD-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| DetailedTreeBangerEntityData | 10 | 10 | 17 | DSTR-STATE-1, RTTI-FAC-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| GameModeData | 10 | 10 | 19 | GAME-MODE-1, MENU-HUD-1, MENU-HUD-2, MENU-LOAD-2 (+4) |
+| JetEngineConfigData | 10 | 10 | 21 | RTTI-PHYS-1, VEH-PHYS-1 |
+| MobilityData | 10 | 1 | 2 | BOT-VEH-2, RTTI-GSR-8 |
+| TeamData | 10 | 10 | 6 | RTTI-GSR-3, RTTI-GSR-8, SQD-PLAY-2, SQD-TEAM-1 |
+| BoatFloatPhysicsData | 9 | 9 | 20 | DATA-VEH-1, RTTI-PHYS-1 |
+| BonePriority | 9 | 1 | 4 | ANIM-RIG-1, RTTI-ANIM-1 |
+| DebugTextEntityData | 9 | 3 | 8 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, SCR-CMD-1 |
+| AndExpressionData | 8 | 2 | 1 | DATA-ANIM-1, RTTI-ANIM-1 |
+| EntryInputActionMapData | 8 | 8 | 3 | INP-DATA-1, INP-FILE-1, RTTI-GSR-6, RTTI-GSR-8 |
+| EntryInputActionMapsData | 8 | 8 | 5 | INP-DATA-1, RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-8 |
+| ForbiddenAIAreaData | 8 | 2 | 7 | RTTI-FAC-1, RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-2 |
+| LadderEntityData | 8 | 8 | 44 | DSTR-STATE-1, RTTI-DBX-2, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
+| MatchMakingStringPreference | 8 | 1 | 12 | DATA-MM-1, RTTI-GSR-7 |
+| VoiceOverTree | 8 | 8 | 12 | RTTI-AUDIO-1, SGR-VO-1 |
+| WeaponLagSpringEffectData | 8 | 4 | 8 | RTTI-GSR-4, RTTI-GSR-8, SOLD-CAM-1 |
+| AIAimingConstraintsData | 7 | 2 | 4 | BOT-VEH-2, RTTI-GSR-5, RTTI-GSR-8 |
+| DeathAreaTriggerEntityData | 7 | 7 | 8 | CAMP-TRIG-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| GrenadeEntityData | 7 | 7 | 28 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, WPN-CLS-1 (+5) |
+| HaloAimerData | 7 | 1 | 24 | RTTI-GSR-5, RTTI-GSR-8, SOLD-AIM-1 |
+| InputActionMappingsData | 7 | 7 | 1 | INP-DATA-2, RTTI-GSR-3, RTTI-GSR-8 |
+| ParameterFilterLpNode | 7 | 5 | 5 | RTTI-AUDIO-1, SGR-NODE-1 |
+| AntiRollBar | 6 | 3 | 2 | DATA-VEH-1, RTTI-PHYS-1 |
+| DisablePropertyCurve_ManualInput_OrAnimated | 6 | 1 | 1 | DATA-ANIM-1, RTTI-ANIM-1 |
+| FormationData | 6 | 1 | 2 | BOT-MOV-5, RTTI-GSR-3, RTTI-GSR-5 |
+| MatchMakingSession | 6 | 1 | 11 | DATA-MM-1, RTTI-GSR-7, RTTI-GSR-8 |
+| PersistenceWeaponData | 6 | 5 | 3 | PERS-DATA-1, RTTI-GSR-4, RTTI-GSR-7 |
+| SharedSoldierAnimationTreeData | 6 | 6 | 18 | ANIM-RAG-1, ANIM-RIG-1, RTTI-GSR-8 |
+| SimpleCarNode | 6 | 6 | 18 | RTTI-AUDIO-1, SGR-NODE-1 |
+| CompressorSettings | 5 | 1 | 4 | RTTI-AUDIO-1, SGR-MIX-1 |
+| DebugMenuSubMenuEntityData | 5 | 3 | 6 | RTTI-GSR-3, SCR-CMD-1 |
+| EqualizerSettings | 5 | 1 | 5 | RTTI-AUDIO-1, SGR-MIX-1 |
+| IrAsset | 5 | 5 | 12 | IR-HDR-1, RTTI-AUDIO-1 |
+| MeleeWeaponEffectsData | 5 | 5 | 7 | DATA-WPN-1, RTTI-GSR-4 |
+| MixGroup | 5 | 1 | 5 | RTTI-AUDIO-1, SGR-MIX-1 |
+| MonophonicSamplerNode | 5 | 5 | 3 | RTTI-AUDIO-1, SGR-NODE-1 |
+| MotionSensorEntityData | 5 | 5 | 40 | DATA-WPN-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| RigidModelEntityData | 5 | 5 | 13 | DSTR-STATE-1, RTTI-DBX-2, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
+| SoundSystemSettings | 5 | 1 | 10 | RTTI-AUDIO-1, SGR-MIX-1 |
+| VertexShaderFragmentAsset | 5 | 5 | 4 | RTTI-REND-1, SHDB-TYPE-1 |
+| BotPriorityConfigData | 4 | 1 | 7 | BOT-RT-4, RTTI-GSR-5, RTTI-GSR-8 |
+| CharacterPoseData | 4 | 2 | 7 | RTTI-PHYS-1, SOLD-PHYS-1 |
+| CutsceneCameraData | 4 | 2 | 18 | CAMP-CUT-1, RTTI-GSR-8 |
+| DisablePropertyCurve_ManualInput_EndsAbsoluteTime | 4 | 1 | 1 | DATA-ANIM-1, RTTI-ANIM-1 |
+| EntitlementQuery | 4 | 1 | 9 | PERS-DATA-1, RTTI-GSR-7 |
+| FirstPersonCameraData | 4 | 4 | 24 | RTTI-GSR-4, RTTI-GSR-8, SOLD-CAM-1 |
+| MatchMakingPlaylist | 4 | 1 | 5 | DATA-MM-1, RTTI-GSR-7, RTTI-GSR-8 |
+| MonophonicSamplerGroup | 4 | 4 | 15 | RTTI-AUDIO-1, SGR-NODE-1 |
+| OrExpressionData | 4 | 3 | 1 | DATA-ANIM-1, RTTI-ANIM-1 |
+| PersistentDerivedValueTemplateData | 4 | 2 | 9 | PERS-DATA-1, PERS-SCORE-2, RTTI-GSR-7 |
+| PersistentPartition | 4 | 2 | 2 | PERS-DATA-1, RTTI-GSR-7 |
+| PlayVideoEntityData | 4 | 3 | 7 | CAMP-FLOW-2, RTTI-GDLL-1, RTTI-GSR-3 |
+| SoldierBoneCollisionData | 4 | 4 | 1 | RTTI-GSR-8, SOLD-COL-1 |
+| StreamPool | 4 | 1 | 12 | ENG-MEM-1, RTTI-AUDIO-1, SGR-MIX-1 |
+| TraversalConfigData | 4 | 1 | 3 | DATA-AI-1, RTTI-GSR-8 |
+| Vec3Parameter | 4 | 4 | 3 | DATA-ANIM-1, RTTI-ANIM-1 |
+| AwardStarNameData | 3 | 1 | 1 | PERS-DATA-1, RTTI-GSR-7 |
+| ColorTintScopeFilterData | 3 | 3 | 4 | HUD-FX-1, RTTI-REND-1 |
+| CriteriaStarCategoryData | 3 | 1 | 1 | PERS-DATA-1, RTTI-GSR-7 |
+| DetonatedWeaponEffectsData | 3 | 3 | 6 | DATA-WPN-1, RTTI-GSR-4 |
+| DifficultyData | 3 | 1 | 19 | BOT-CMB-1, BOT-DIF-2, BOT-VEH-4, RTTI-GSR-7 (+1) |
+| DisablePropertyCurve_ManualInput_NormalizedTime | 3 | 1 | 1 | DATA-ANIM-1, RTTI-ANIM-1 |
+| DogTagData | 3 | 1 | 8 | PERS-AWD-3, PERS-DATA-1, PERS-RANK-1, RTTI-GSR-7 (+1) |
+| MatchMakingFilter | 3 | 1 | 6 | DATA-MM-1, RTTI-GSR-7 |
+| MortarStrikeFiringEffectsData | 3 | 3 | 8 | DATA-WPN-1, RTTI-GSR-4 |
+| SniperLensScopeFilterData | 3 | 3 | 12 | HUD-FX-1, RTTI-REND-1 |
+| SoldierSoundData | 3 | 3 | 24 | RTTI-GSR-3, RTTI-GSR-8, SOLD-COL-1, SOLD-SPR-1 |
+| SpeedEventGateEntityData | 3 | 3 | 7 | RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-2 |
+| SquadTypeData | 3 | 1 | 4 | BOT-SQD-2, RTTI-GSR-5, SQD-PLAY-1, SQD-SQ-1 |
+| TracerDartEntityData | 3 | 3 | 25 | DATA-WPN-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| UIConfig | 3 | 3 | 2 | MENU-AS-1, RTTI-UI-1 |
+| VehicleProjectileEntityData | 3 | 3 | 18 | RTTI-GDLL-1, RTTI-GSR-3, VEH-WPN-1 |
+| AIStateAnimationData | 2 | 2 | 0 | RTTI-GSR-5, RTTI-GSR-8, SOLD-RAG-1 |
+| AchievementsDataAsset | 2 | 2 | 3 | PERS-DATA-1, RTTI-GSR-7 |
+| AmmoBoxEntityData | 2 | 2 | 35 | DATA-WPN-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| AmmoBoxWeaponEffectsData | 2 | 2 | 4 | DATA-WPN-1, RTTI-GSR-4 |
+| AnimationControlledStateData | 2 | 2 | 2 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| AwardDataTree | 2 | 2 | 7 | PERS-AWD-3, PERS-DATA-1, RTTI-GSR-7 |
+| BinocularsWeaponEffectsData | 2 | 2 | 6 | DATA-WPN-1, RTTI-GSR-4 |
+| CarNode | 2 | 2 | 65 | RTTI-AUDIO-1, SGR-NODE-1 |
+| CharacterPhysicsData | 2 | 2 | 19 | RTTI-GSR-3, RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| CharacterSprintData | 2 | 2 | 3 | RTTI-PHYS-1, SOLD-SPR-1 |
+| ClimbingStateData | 2 | 2 | 7 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| DefibrillatorWeaponEffectsData | 2 | 2 | 5 | DATA-WPN-1, RTTI-GSR-4 |
+| FallingStateData | 2 | 2 | 1 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| GameTipAsset | 2 | 2 | 3 | HUD-MENU-1, RTTI-GSR-6 |
+| HdrSetting | 2 | 2 | 10 | RTTI-AUDIO-1, SGR-MIX-1 |
+| HudConfigAsset | 2 | 2 | 27 | HUD-CFG-1, RTTI-GSR-6 |
+| InAirStateData | 2 | 2 | 2 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| JoinSquadOrderEntityData | 2 | 1 | 25 | AIO-CLS-1, RTTI-GSR-3, SQD-PLAY-1 |
+| JumpStateData | 2 | 2 | 3 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| MatchMakingIntegerPreference | 2 | 1 | 9 | DATA-MM-1, RTTI-GSR-7 |
+| MedicBagEntityData | 2 | 2 | 35 | DATA-WPN-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| MedicBagWeaponEffectsData | 2 | 2 | 4 | DATA-WPN-1, RTTI-GSR-4 |
+| MissionObjectiveHudData | 2 | 1 | 7 | HUD-MARK-1, RTTI-GSR-3, RTTI-GSR-6 |
+| OnGroundStateData | 2 | 2 | 7 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| ParachuteStateData | 2 | 2 | 3 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| PathfindingSettings | 2 | 2 | 33 | AI-START-3, KYG-IN-1, KYG-PAR-2, LVL-RT-1 (+2) |
+| PathfindingType | 2 | 2 | 13 | HPD-USE-1, KYN-WORLD-1, KYRT-CFG-1, RTTI-GSR-5 |
+| PersistenceData | 2 | 2 | 14 | PERS-AWD-7, PERS-DATA-1, PERS-DATA-2, PERS-SCORE-2 (+1) |
+| PowerToolWeaponEffectsData | 2 | 2 | 8 | DATA-WPN-1, RTTI-GSR-4 |
+| RemoteEntryComponentData | 2 | 2 | 27 | DATA-VEH-2, RTTI-GSR-3 |
+| SlidingStateData | 2 | 2 | 3 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| SoldierAutoAimData | 2 | 2 | 1 | RTTI-GSR-3, RTTI-GSR-8, SOLD-AIM-1 |
+| SoldierHeadCollisionData | 2 | 2 | 2 | RTTI-GSR-3, RTTI-GSR-8, SOLD-COL-1 |
+| SoldierParachuteData | 2 | 2 | 13 | RTTI-GSR-3, RTTI-GSR-8, SOLD-PHYS-1 |
+| SoldierSprintSettingsData | 2 | 2 | 8 | RTTI-GSR-3, RTTI-GSR-7, SOLD-FOV-1, SOLD-SPR-1 |
+| SoundStateSettingsAsset | 2 | 2 | 5 | RTTI-AUDIO-1, RTTI-GSR-8, SGR-MIX-1 |
+| SwimmingStateData | 2 | 2 | 2 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
+| TankNode | 2 | 2 | 40 | RTTI-AUDIO-1, SGR-NODE-1 |
+| UIAnimatedTextureData | 2 | 2 | 1 | HUD-MAP-1, RTTI-UI-1 |
+| UIAnimatedTextureManagerAsset | 2 | 2 | 4 | HUD-MAP-1, RTTI-UI-1 |
+| UIHudConfig | 2 | 2 | 15 | HUD-CFG-1, MENU-AS-1, RTTI-UI-1 |
+| AISettingsData | 1 | 1 | 27 | AIO-RDY-4, RTTI-GSR-5 |
+| AIVehicleTypes | 1 | 1 | 5 | DATA-AI-1, RTTI-GSR-5 |
+| AnimatedSoldierRagdollSettingsData | 1 | 1 | 4 | RTTI-GSR-7, RTTI-GSR-8, SOLD-RAG-1 |
+| AnimationMovementAsset | 1 | 1 | 3 | DATA-ANIM-2, RTTI-GSR-8 |
+| AudioMasterSettingsAsset | 1 | 1 | 3 | RTTI-AUDIO-1, SGR-MIX-1 |
+| AudioMaterialDefinitions | 1 | 1 | 4 | RTTI-AUDIO-1, RTTI-GSR-3, SGR-MIX-1 |
+| CSITextData | 1 | 1 | 20 | RTTI-FAC-1, RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-2 |
+| CarControlConstantData | 1 | 1 | 1 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
+| CombatConstantData | 1 | 1 | 28 | BOT-CMB-1, BOT-CMB-2, BOT-MOV-2, RTTI-GSR-5 (+1) |
+| ContinueEntityData | 1 | 1 | 12 | CAMP-FLOW-1, RTTI-GDLL-1, RTTI-GSR-3 |
+| CoverConstantData | 1 | 1 | 45 | BOT-CMB-5, RTTI-GSR-5 |
+| DebugConstantData | 1 | 1 | 7 | BOT-CMB-1, RTTI-GSR-5, RTTI-GSR-6 |
+| DifficultyModesData | 1 | 1 | 3 | CAMP-FLOW-1, RTTI-GSR-7 |
+| EntitlementAsset | 1 | 1 | 1 | PERS-DATA-1, RTTI-GSR-7 |
+| EnvironmentConstantData | 1 | 1 | 1 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
+| FakeAnimatedSoldierCollisionData | 1 | 1 | 7 | RTTI-GSR-3, RTTI-GSR-8, SOLD-COL-1 |
+| FileQueryData | 1 | 1 | 7 | DATA-LVL-1, RTTI-GSR-8 |
+| FollowConstantData | 1 | 1 | 11 | BOT-MOV-3, BOT-MOV-5, RTTI-GSR-5, RTTI-GSR-8 |
+| ForceAreaEntityData | 1 | 1 | 13 | CAMP-FLOW-2, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| FormationHolder | 1 | 1 | 3 | RTTI-GSR-5, SQD-SQ-1 |
+| GameSettingsAsset | 1 | 1 | 3 | RTTI-GSR-7, SET-GS-1 |
+| HelicopterControlConstantData | 1 | 1 | 50 | BOT-VEH-4, RTTI-GSR-5, RTTI-GSR-8 |
+| HudCounterEntityData | 1 | 1 | 12 | HUD-MARK-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
+| InputActionMappingData | 1 | 1 | 0 | DATA-LVL-1, RTTI-GSR-8 |
+| InputConfigurationAsset | 1 | 1 | 12 | INP-CFG-1, RTTI-GSR-8 |
+| IntParameterExpressionData | 1 | 1 | 3 | DATA-ANIM-1, RTTI-ANIM-1 |
+| KynapseConstantData | 1 | 1 | 2 | BOT-VEH-2, RTTI-GSR-5 |
+| LocalizationAsset | 1 | 1 | 5 | RTTI-UI-1, TEXT-DB-1 |
+| LookConstantData | 1 | 1 | 11 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
+| MatchMakerAsset | 1 | 1 | 7 | DATA-MM-1, RTTI-GSR-8 |
+| MenuConfigAsset | 1 | 1 | 16 | HUD-MENU-1, RTTI-GSR-6 |
+| MeshAsset | 1 | 1 | 34 | DATA-DSTR-1, RTTI-EMIT-1, RTTI-GSR-2, RTTI-GSR-3 (+1) |
+| MixerAsset | 1 | 1 | 3 | RTTI-AUDIO-1, SGR-MIX-1 |
+| NavigationConstantData | 1 | 1 | 41 | BOT-MOV-1, BOT-MOV-3, BOT-MOV-4, BOT-VEH-4 (+1) |
+| OrderSettings | 1 | 1 | 3 | AIO-RDY-1, RTTI-GSR-5 |
+| OutdoorLightEntityData | 1 | 1 | 24 | ENG-SCENE-1, RTTI-WREND-1 |
+| PathfindingZoneSettings | 1 | 1 | 3 | DATA-AI-1, RTTI-GSR-5 |
+| PointSystemParamsAsset | 1 | 1 | 105 | PERS-DATA-1, PERS-RANK-1, RTTI-GSR-8 |
+| PositionEvaluationConstantData | 1 | 1 | 6 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
+| RagdollAsset | 1 | 1 | 4 | ANIM-RAG-1, RTTI-GSR-7, RTTI-PHYS-1 |
+| RandomWalkOrderEntityData | 1 | 1 | 25 | AIO-CLS-1, RTTI-GSR-3 |
+| RichPresenceData | 1 | 1 | 7 | CAMP-DESC-1, RTTI-GSR-7 |
+| SceneData | 1 | 1 | 16 | ENG-SCENE-1, RTTI-SCENE-1 |
+| SceneSettings | 1 | 1 | 14 | ENG-SCENE-1, RTTI-SCENE-1 |
+| SearchAndDestroyConstantData | 1 | 1 | 4 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
+| SensingConstantData | 1 | 1 | 27 | BOT-PER-2, RTTI-GSR-5 |
+| SequenceGeneratorNode | 1 | 1 | 8 | RTTI-AUDIO-1, SGR-NODE-1 |
+| SoldierAimingConstraintsData | 1 | 1 | 1 | RTTI-GSR-3, RTTI-GSR-5, SOLD-AIM-1 |
+| SoldierControlConstantData | 1 | 1 | 28 | BOT-CMB-3, BOT-MOV-2, RTTI-GSR-5, RTTI-GSR-8 |
+| SoldierIKData | 1 | 1 | 18 | ANIM-RIG-1, RTTI-ANIM-1 |
+| SoldierProceduralLeaningData | 1 | 1 | 4 | ANIM-RIG-1, RTTI-ANIM-1 |
+| SoldierRagdollSettingsData | 1 | 1 | 11 | RTTI-GSR-3, RTTI-GSR-7, SOLD-RAG-1 |
+| SoundEnvironmentConstantData | 1 | 1 | 3 | BOT-PER-2, RTTI-GSR-5, RTTI-GSR-8 |
+| SquadAsset | 1 | 1 | 3 | RTTI-GSR-5, SQD-PLAY-1, SQD-SQ-1 |
+| StaticLensFlareData | 1 | 1 | 3 | RTTI-WEATH-1, WTH-CLS-1 |
+| StrafePreprocessorData | 1 | 1 | 6 | DATA-ANIM-1, RTTI-ANIM-1 |
+| StreamPools | 1 | 1 | 3 | RTTI-AUDIO-1, SGR-MIX-1 |
+| TankControlConstantData | 1 | 1 | 4 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
+| TargetEvaluationConstantData | 1 | 1 | 6 | BOT-PER-4, BOT-PER-5, RTTI-GSR-5, RTTI-GSR-8 |
+| TimingConstantData | 1 | 1 | 3 | BOT-RT-4, RTTI-GSR-5, RTTI-GSR-8 |
+| TraversalConstantData | 1 | 1 | 4 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
+| TurretControlConstantData | 1 | 1 | 4 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
+| UI3DSystemAsset | 1 | 1 | 5 | HUD-MENU-1, RTTI-UI-1 |
+| UIMenuConfig | 1 | 1 | 1 | MENU-AS-1, RTTI-UI-1 |
+| UIShaderAsset | 1 | 1 | 2 | HUD-MENU-1, RTTI-UI-1 |
+| UISharedConfigAsset | 1 | 1 | 10 | HUD-CFG-1, RTTI-DBX-1, RTTI-GSR-6 |
+| UnlockTokenData | 1 | 1 | 3 | PERS-DATA-1, RTTI-GSR-7 |
+| VOConstantData | 1 | 1 | 16 | RTTI-GSR-5, SGR-VO-1 |
+| VOTypesAsset | 1 | 1 | 5 | RTTI-GSR-5, SGR-VO-1 |
+| VehicleInputTweakData | 1 | 1 | 5 | DATA-VEH-1, RTTI-PHYS-1 |
+| WeaponSwitchingData | 1 | 1 | 2 | RTTI-GSR-3, RTTI-GSR-4, SOLD-AIM-1 |
+| WorldRenderSettings | 1 | 1 | 98 | ENG-SCENE-1, RTTI-SCENE-1, RTTI-WREND-1 |
 
 ## 4. The executable's typeinfo, by module
 
@@ -727,69 +727,31 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 
 | Module | Records | Classes | Value types | Enumerations | Other | Covered | In DICE's DBX |
 |---|---|---|---|---|---|---|---|
-| GameSharedResources | 777 | 464 | 182 | 131 | 0 | 396 | 350 |
-| GameDll | 262 | 262 | 0 | 0 | 0 | 14 | 0 |
-| Render | 128 | 84 | 16 | 28 | 0 | 41 | 18 |
-| Audio | 125 | 103 | 4 | 18 | 0 | 74 | 72 |
-| Animation | 124 | 102 | 15 | 7 | 0 | 40 | 29 |
-| Physics | 85 | 57 | 20 | 8 | 0 | 40 | 37 |
-| Emitter | 76 | 62 | 4 | 10 | 0 | 55 | 44 |
-| Entity | 74 | 56 | 10 | 8 | 0 | 27 | 18 |
-| UI | 45 | 25 | 13 | 7 | 0 | 27 | 23 |
-| Core | 40 | 9 | 10 | 3 | 18 | 22 | 0 |
-| Terrain | 34 | 28 | 4 | 2 | 0 | 20 | 12 |
-| Weather | 31 | 22 | 6 | 3 | 0 | 18 | 15 |
-| WorldRender | 30 | 24 | 2 | 4 | 0 | 6 | 6 |
-| Aidll | 24 | 24 | 0 | 0 | 0 | 7 | 0 |
-| Game | 12 | 10 | 1 | 1 | 0 | 10 | 0 |
-| Decal | 10 | 10 | 0 | 0 | 0 | 3 | 2 |
-| TerrainRender | 8 | 7 | 0 | 1 | 0 | 4 | 0 |
+| GameSharedResources | 777 | 464 | 182 | 131 | 0 | 777 | 350 |
+| GameDll | 262 | 262 | 0 | 0 | 0 | 262 | 0 |
+| Render | 128 | 84 | 16 | 28 | 0 | 128 | 18 |
+| Audio | 125 | 103 | 4 | 18 | 0 | 125 | 72 |
+| Animation | 124 | 102 | 15 | 7 | 0 | 124 | 29 |
+| Physics | 85 | 57 | 20 | 8 | 0 | 85 | 37 |
+| Emitter | 76 | 62 | 4 | 10 | 0 | 76 | 44 |
+| Entity | 74 | 56 | 10 | 8 | 0 | 74 | 18 |
+| UI | 45 | 25 | 13 | 7 | 0 | 45 | 23 |
+| Core | 40 | 9 | 10 | 3 | 18 | 40 | 0 |
+| Terrain | 34 | 28 | 4 | 2 | 0 | 34 | 12 |
+| Weather | 31 | 22 | 6 | 3 | 0 | 31 | 15 |
+| WorldRender | 30 | 24 | 2 | 4 | 0 | 30 | 6 |
+| Aidll | 24 | 24 | 0 | 0 | 0 | 24 | 0 |
+| Game | 12 | 10 | 1 | 1 | 0 | 12 | 0 |
+| Decal | 10 | 10 | 0 | 0 | 0 | 10 | 2 |
+| TerrainRender | 8 | 7 | 0 | 1 | 0 | 8 | 0 |
 | Scene | 5 | 4 | 1 | 0 | 0 | 5 | 2 |
 | EmitterRender | 3 | 3 | 0 | 0 | 0 | 3 | 0 |
-| World | 3 | 2 | 1 | 0 | 0 | 1 | 1 |
+| World | 3 | 2 | 1 | 0 | 0 | 3 | 1 |
 | OvergrowthRender | 2 | 2 | 0 | 0 | 0 | 2 | 0 |
-| Overgrowth | 2 | 2 | 0 | 0 | 0 | 1 | 1 |
+| Overgrowth | 2 | 2 | 0 | 0 | 0 | 2 | 1 |
 
 ## 5. Not covered yet
 
 DBX classes below the gate and typeinfo records no rule names, by module (the next rounds' list).
 
 **DBX classes** (0): none.
-
-**Aidll** (17 of 24): ControlEntry::ControlEntryCreator, IOrderReceiver, IPlan::IPlanCreator, KynapseNavigation, NoNavigation, OrderAimAt, OrderChange, OrderFireAtArea, OrderFollowPlayer, OrderHoldGround, OrderInterlude, OrderMoveTo, OrderPatrol, OrderRandomWalk, OrderSearchAndDestroy, OrderShootAtObject, SquadMember.
-
-**Animation** (84 of 124): AbstractMovementNodeData, AimControlData, AlwaysNodeGroupData, AnimNodePortGroupData, AnimTreeDataAsset, AnimTreeReplacementData, AnimatedPropertyData, AnimationExportQuality, AnimationMotionType, AnimationParamType, AnimationSettings, AutoEndingEnumeratedSwitchNodeData, AutoEndingEnumeratedSwitchNodeGroupData, AutoEndingLoopNodeData, BaseAnimation, BaseAnimationAsset, BaseAnimationControlData, BaseExpressionData, BaseHandsIkNodeData, BaseInfluenceMapData, BaseNodeData, BaseParameter, BasePreprocessorData, BaseSkeletonAsset, BlendShapeAnimationAsset, BlendShapeSkeletonAsset, BoneToBoneIkNodeData, BoolNodeGroupData, BoolValueGroupData, ComparisonType, CompositeExpressionData, CompositeSkeletonAsset, DisablePropertyCurve, DisablePropertyCurve_ManualInput, EnumeratedSwitchNodeData, EnumeratedSwitchNodeGroupData, FloatNodeGroupData, FloatParameterExpressionData, FloatValueGroupData, GenericHandsIkNodeData, GroupNodeData, GroupNodeGroupData, HandIkInfo, HandInfoData, IntNodeGroupData, IntValueGroupData, LegInfoData, LerpNodeData, LimbCount, LodInterval, Movement4WayNodeData, MovementBlendNodeData, MovementBlendNodeGroupData, MovementNodeData, NodeAligmentData, NodeFieldAligmentData, NodesAligmentHelperAsset, NotExpressionData, ParameterTypeGroupData, PingPongNodeData, ProceduralLeaningNodeData, PropertyCurveType, QualityMapData, RagdollNodeData, RandomSelectorGroupData, RandomSelectorMainGroupData, RandomSelectorNodeData, ReplacementAnimationPairData, SelectorByPoseNodeData, SkeletonPoseData, StringSelectorNodeData, StringSelectorNodeGroupData, TimeControllerNodeData, TimeSynchronizationType, TimeSynchronizerNodeData, TimeSynchronizerToParentNodeData, TransitionInfoData, TransitionNodeData, TripleBool, TripleStateNodeData, TurnNodeData, WeaponHandsIkNodeData, WeightFactorNodeData, XorSelectorNodeData.
-
-**Audio** (51 of 125): AudioPortConnection, BusConnection, CharacterNode, ConditionType, DebugEventInput, DebugRenderType, DistanceAttenuationType, EffectId, EventDebugNode, FaderType, FollowEnvelopeNode, FourChannelSamplerGroup, FourChannelSamplerNode, HelicopterNode, IWave, JoypadNode, LinearTransformNode, LoopType, MathOp, MinMaxNode, MixType, OscillatorGroup, OscillatorMode, OscillatorNode, PointEnvelope, PointEnvelopePoint, RandomType, ResamplingQuality, RuntimeDialogLineNode, SceneNode, SoundAreaType, SoundAsset, SoundEntity, SoundNode, SoundNodePortGroup, SoundNodePortType, SoundSourceBypassHdrEmitter, SoundSourceEmitter, TimePair, VehicleInput, VoiceOverChildNode, VoiceOverLeafNode, VoiceOverNodeBase, VoiceOverRootNode, WaveAssetNode, WaveClassification, WaveMetaData, WavePriority, WaveProperty, WaveSegment, WireConnection.
-
-**Core** (18 of 40): AppletBase, ApplicationBase, Asset, AxisAlignedBox, ComponentBase, CoreLogLevel, DataContainer, Editable, Int16, Int32, LanguageFormat, Mat4, Plane, ResourceManagerSettings, ServiceBase, Uint16, Uint32, UndefinedType.
-
-**Decal** (7 of 10): ContainerEntity, DecalSetEntity, DecalSettings, DecalTemplateAsset, SootMaterialData, SootTemplateAsset, SootTemplateData.
-
-**Emitter** (21 of 76): EmitterAsset, EmitterComponentConnection, EmitterComponentData, EmitterConstants, EmitterEntity, EmitterHavokInfo, EmitterShaderAsset, EmitterTextureAsset, EmitterTextureInfo, EvaluatorData, ExpressionCollectionData, ExpressionComponent, ExpressionOperator, MeshEvaluatorData, MultiplyData, PolynomialOperation, ProcessorConnection, ProcessorData, UpdateCollisionData, VertexSemantics, ZRotate2DData.
-
-**Entity** (47 of 74): AimStateOverride, AssemblyDescriptorData, BasicEntityEvent, BasicLogicEntityEvent, BoolPropertyTrackData, ComponentData, ConnectionPair, DataConnection, DataUpdateEvent, EffectEntity, EntityBusData, EntityEvent, EventConnection, EventSpec, FloatPropertyTrackData, GameModeTypes, GameObjectData, GeometryEntityData, GraphGeometryEntityData, IntPropertyTrackData, LogicEntity, MaterialGridAsset, MaterialGridLayerData, MaterialMapAsset, MaterialRelationPropertyData, PropertyKeyData, PropertySpec, PropertyTrackData, PropertyTypeEnum, RoadData, RoadPointData, SequenceEntity, SequenceEventData, SequenceNotificationEvent, SpeedStateOverride, StanceOverride, StateContainer, StateContainerEntry, TreeBase, TreeNodeBase, VectorShapeAttachment, VectorShapeData, VectorShapePointData, VisualTransformModifierData, WorldData, WorldPartData, WorldPartPlatform.
-
-**Game** (2 of 12): GameSootSettings, SelectedRenderer.
-
-**GameDll** (248 of 262): ClientAdvertisementComponent, ClientAmbientModelEntity, ClientAmmoBoxEntity, ClientAmmoCrateEntity, ClientAnimationEntity, ClientArtilleryStrikeFiringEffects, ClientBangerEntity, ClientBangerEntityBase, ClientBinocularsFiringEffects, ClientBulletEntity, ClientCameraComponent, ClientCapturePointEntity, ClientCharacterStateTriggerEntity, ClientChildComponent, ClientCombatAreaTriggerEntity, ClientComponent, ClientControllableEntity, ClientCutsceneCameraEntity, ClientCutsceneEntity, ClientCutsceneObjectEntity, ClientCutsceneObjectEntityBase, ClientCutsceneSoldierEntity, ClientCutsceneVehicleEntity, ClientDebugTextEntity, ClientDefibrillatorFiringEffects, ClientDetonatedFiringEffects, ClientDynamicModelEntity, ClientEffectComponent, ClientEffectEntity, ClientEngineComponent, ClientEntity, ClientEntryComponent, ClientExplosionEntity, ClientExplosionPackEntity, ClientForceAreaEntity, ClientForestEntity, ClientGhostProjectileEntity, ClientGrenadeEntity, ClientGroupEntity, ClientHudCounterEntity, ClientHumanPlayerEntity, ClientInteractionEntity, ClientKillCounterEntity, ClientLadderEntity, ClientLaserDesignatorFiringEffects, ClientLifeCounterEntity, ClientLockingWeaponFiringEffects, ClientMapMarkerEntity, ClientMedicBagEntity, ClientMedkitFiringEffects, ClientMeleeFiringEffects, ClientMiddlegrowthModelGroupEntity, ClientMissileEntity, ClientMissionObjectiveEntity, ClientMortarStrikeFiringEffects, ClientMotionSensorEntity, ClientPartComponent, ClientPhysicsEntity, ClientPickupEntity, ClientPlayerEntryComponent, ClientPowerToolFiringEffects, ClientPreRoundEntity, ClientProjectileEntity, ClientProxyProjectileEntity, ClientRadarSweepComponent, ClientRadioComponent, ClientRemoteEntryComponent, ClientRigidModelEntity, ClientRigidModelGroupEntity, ClientRotorComponent, ClientScreenEffectEntity, ClientScreenFadeEntity, ClientSkinnedMeshComponent, ClientSoldierEntity, ClientSoldierEntryComponent, ClientSoldierGripComponent, ClientSoldierSpawnEntity, ClientSoundEntity, ClientStaticModelEntity, ClientStaticModelGroupEntity, ClientTeamEntity, ClientTerrainEntity, ClientTicketCounterEntity, ClientTracerDartEntity, ClientTrackComponent, ClientTrackWheelComponent, ClientTreeBangerEntity, ClientVehicleComponent, ClientVehicleExitPointComponent, ClientVehicleSpawnEntity, ClientVoiceOverEntity, ClientWeaponComponent, ClientWeaponFiringEffects, ClientWeaponInputRouterComponent, ClientWeatherStateEntity, ClientWheelComponent, ClientWingComponent, Component, GameEntity, ProgressEvent, ServerAdvertisementComponent, ServerAmbientModelEntity, ServerAmmoBoxEntity, ServerAmmoBoxFiringEffects, ServerAmmoCrateEntity, ServerAnimationEntity, ServerAreaTriggerEntity, ServerArmDisarmAwardEntity, ServerArtilleryStrikeEntity, ServerArtilleryStrikeFiringEffects, ServerAutoTeamEntity, ServerBangerEntity, ServerBangerEntityBase, ServerBinocularsFiringEffects, ServerBulletEntity, ServerCSITextEntity, ServerCallbackFiringEffects, ServerCameraComponent, ServerCharacterStateTriggerEntity, ServerChildComponent, ServerClearAreaTriggerEntity, ServerCombatActionTriggerEntity, ServerCombatAreaTriggerEntity, ServerComponent, ServerConsumableTriggerEntity, ServerContinueEntity, ServerControllableEntity, ServerCutsceneCameraEntity, ServerCutsceneEntity, ServerCutsceneObjectEntity, ServerCutsceneObjectEntityBase, ServerCutsceneSoldierEntity, ServerCutsceneVehicleEntity, ServerDamageAreaTriggerEntity, ServerDeathAreaTriggerEntity, ServerDebugTextEntity, ServerDefibrillatorFiringEffects, ServerDelayTriggerEntity, ServerDetonatedFiringEffects, ServerDisableTeamEntity, ServerEffectEntity, ServerEndOfRoundSoldierSpawnEntity, ServerEngineComponent, ServerEntity, ServerEntryComponent, ServerEventGateEntity, ServerEventIfSwitchEntity, ServerEventMemoryEntity, ServerEventSequenceTriggerEntity, ServerEventSplitterEntity, ServerExplosionEntity, ServerExplosionPackEntity, ServerForbiddenAreaEntity, ServerForceAreaEntity, ServerForestEntity, ServerGameTestEntity, ServerGhostProjectileEntity, ServerGrenadeEntity, ServerGroupEntity, ServerHudCounterEntity, ServerHudEntity, ServerHumanPlayerEntity, ServerInputRestrictionEntity, ServerInteractableStaticModelEntity, ServerLadderEntity, ServerLaserDesignatorFiringEffects, ServerLockingWeaponFiringEffects, ServerLogicUtilEntity, ServerLookAtTriggerEntity, ServerMapMarkerEntity, ServerMedicBagEntity, ServerMedicBagFiringEffects, ServerMedkitFiringEffects, ServerMeleeFiringEffects, ServerMenuEntity, ServerMessageEntity, ServerMiddlegrowthModelGroupEntity, ServerMissileEntity, ServerMissionEntity, ServerMortarStrikeFiringEffects, ServerMotionSensorEntity, ServerMultipleTriggerEntity, ServerParameterEvent, ServerPartComponent, ServerPhysicsEntity, ServerPickupEntity, ServerPlayVideoEntity, ServerPlayerEntryComponent, ServerPlayerEvent, ServerPowerToolFiringEffects, ServerPreRoundEntity, ServerPredestructionEntity, ServerProjectileEntity, ServerProjectileImpulseTestEntity, ServerRadarSweepComponent, ServerRadioComponent, ServerRandomTriggerEntity, ServerRemoteEntryComponent, ServerRepairToolFiringEffects, ServerRigidModelEntity, ServerRigidModelGroupEntity, ServerRotorComponent, ServerSaveEntity, ServerScreenEffectEntity, ServerScreenFadeEntity, ServerServerConnectTriggerEntity, ServerSkinnedMeshComponent, ServerSoldierEntity, ServerSoldierEntryComponent, ServerSoldierEvent, ServerSoldierGripComponent, ServerSoldierSpawnEntity, ServerSoundEntity, ServerSpawnEntity, ServerSpeedEventGateEntity, ServerSquadEntity, ServerStatEventTriggerEntity, ServerStaticModelGroupEntity, ServerStaticModelTriggerEntity, ServerTacticalObjectiveEntity, ServerTargetEntity, ServerTeamEntity, ServerTeamFilterEntity, ServerTooltipEntity, ServerTracerDartEntity, ServerTrackComponent, ServerTrackWheelComponent, ServerTreeBangerEntity, ServerTriggerEntity, ServerUnderFireTriggerEntity, ServerVehicleComponent, ServerVehicleEntity, ServerVehicleExitPointComponent, ServerVehicleProjectileEntity, ServerVehicleSpawnEntity, ServerVehicleStateTriggerEntity, ServerVoiceOverEntity, ServerWeaponCallbackEntity, ServerWeaponComponent, ServerWeaponFiringEffects, ServerWeaponInputRouterComponent, ServerWeatherStateEntity, ServerWheelComponent, ServerWingComponent, ServerWorldInteractionComponent, SoundAreaEntity, StaticPositionEntity, WeaponFiringEffects.
-
-**GameSharedResources** (381 of 777): AIMeshTestData, AchievementData, AchievementGroup, ActionSuppressor, AdvertisementComponentData, AdvertisementZoneData, AdvertisementZoneMember, AimOption, AimOrigin, AimingConstraintsData, AimingPoseData, AmbientModelInterpolationType, AmbientModelRotationType, AmbientModelWaypointSplineData, AmmoConfigData, AmmoResupplyData, AnimatedAimingEnum, AnimatedCameraData, AnimatedFireEnum, AnimationSoundCategoryData, AnimationSoundData, AnimationStateData, AntiSpamConfig, AreaOrderType, AreaTriggerInclude, AreaValueTeam, ArtilleryStrikeFiringEffectsData, ArtilleryStrikeType, AutoAimData, AwardGroup, AwardStarNameInstance, AwardableTreeBase, AxesInputActionData, BangerEntityBaseData, BehaviourMappingData, BehaviourSetting, BinarySetting, BlurEffectData, BoltActionData, BoundingBoxAsset, BoundingBoxAssetMetaData, BoundingBoxExportResult, CallbackWeaponEffectsData, CameraData, CameraImpulseCurveData, CameraImpulseShakeData, CameraLeapData, CharacterPoseType, ClearType, CollectibleWeapon, CollectibleWeaponData, ColorTransformData, CombatActionTriggerEntityData, CombatAreaCamera, ContinueWeaponAmmoData, ControllableEntityData, CoverData, CoverEdge, CoverEntityData, CoverManipulationType, CoverModifierData, CoverState, CoverType, CreditsCategory, CreditsData, CreditsEntity, CreditsHeadline, CriteriaAward, CriteriaStarCategoryInstance, CutsceneObjectAnimationData, CutsceneObjectEntityBaseData, DebugMenuItemType, DestructibleLocalPathfindingPart, DestructiblePartId, DisableTeamEntityData, DisableTeamType, DogTagType, DynamicPhysicsEntityData, DynamicWeaponPickupSlotData, EdgeModelBuilderSettings, EdgeModelInstance, EdgeModelLinkData, EdgeModelMultiLinkData, EdgeModelPlacementSettings, EdgeModelType, EdgeModelVolumeAsset, EdgeModelVolumeExportResult, EdgeModelVolumeGroup, EdgeModelVolumeMapItemData, EditableAction, EditableActionMap, EditableActions, EffectComponentTrigger, EffectPriority, EloParameters, EndOfRoundSoldierSpawnEntityData, EnterVehicleRestriction, Entitlement, EntryComponentData, EntryComponentHudData, EntryEnterRestriction, EulaTexture, EventScaleData, EventSendOption, ExpectedFunctionPoint, ExplosionImpulseTestEntityData, ExtraMoviesConfig, FacialSoundMapData, FactionId, FakeAnimatedSoldierCollisionPose, FakeBone, FakeCollisionPoseBlendCurve, FakePoseLimbInfo, FakePoseLimbs, FindNearestMethod, FireEffectData, FireLogicData, FireLogicType, FireState, FiringDispersionData, FloatRange, FloatSetting, FootStepTrigger, FrameEffectBlendMode, FrameEffectState, FunctionPoint, GameModeObjective, GamePhysicsEntityData, GameSettingsCategory, GameSettingsType, GameTestEntityData, GameTipData, GarrisonEntityData, GroupEntityData, GroupMemberData, GroupMemberInstanceSpawnData, GunSwayBaseData, GunSwayBaseMoveData, GunSwayBaseMoveJumpData, GunSwayCrouchProneData, GunSwayDispersionData, GunSwayDispersionModData, GunSwayLagData, GunSwayModifierData, GunSwayRecoilData, GunSwayStanceTransition, GunSwayStanceZoomModifierData, GunSwayStandData, HealerData, HealthVignetteState, HidableSoldierMeshWeaponPart, HoldAndReleaseData, HotItemAsset, HudCounterType, HudEntityData, HudImpactData, ImmortalType, InputActionData, InputActionMapData, InputActionMapPlatform, InputActionMapSlot, InputConceptIdentifiers, InputDeviceAxes, InputDeviceKeys, InputDeviceMouseButtons, InputDevicePOVs, InputDevicePadButtons, InputNodeType, InputSuppressionData, IntSetting, InteractableStaticModelEntityData, InteractionEntityData, IntroMovieData, KillAllEntityData, KitImageData, KitPickupEntityData, LaserDesignatorEffectsData, LevelMemoryUsageData, LevelSaveData, LoadingScreenData, LoadingTimeData, LocalizedSoundFX, LockType, LogicUtilEntityData, LpfStreamingMethod, MPModeData, MapMarkerBlinkType, MapMarkerColorType, MapMarkerType, MatchMakingFitThreshold, MatchMakingMapLink, MatchMakingMatchingOption, MatchMakingPlaylistRule, MatchMakingPoolOverride, MatchMakingPoolPlayerCountThreshold, MatchMakingPreferenceVariant, MatchMakingRule, MatchMakingSessionType, MatchMakingVotingMethod, MaterialBigWorldMapData, MaterialMapData, MaterialPropertyEffectData, MaterialSoundMapData, MedkitWeaponEffectsData, MenuIdEnum, MeshProjectileEntityData, MessageReciever, MovementState, NavigationType, OnlineProviderAsset, OnlineProviderConfiguration, OnlineProviderPlatform, OrderEventSettings, OrientedBoundingBox, OverHeatData, PathdataCollisionModel, PathdataGenerator, PathfindingAccidentDetection, PathfindingDisableType, PathfindingTerrainData, PersistenceGameData, PersistentSpecializationType, PersistentValueNameRemapping, PersistentValueProtection, PersistentValueType, PersistentValueWritePolicy, PersistentWeaponType, PickupEntityData, PickupSettingsData, PoseConstraintsData, PoseRestriction, PrimitiveConfigData, ProceduralLevelCreateDesc, ProjectileEntityData, ProjectileImpulseTestEntityData, RagdollImpulse, ReadinessAnimations, ReadinessLevel, ReadinessLevelCharacteristics, ReadinessRestriction, ReadinessState, RecoilData, ReloadLogic, ReloadType, RepairToolWeaponEffectsData, RichPresenceContextPair, RichPresenceContextType, RichPresenceProperty, RichPresencePropertyPair, RichPresencePropertyType, RotorModelData, RouteType, RpgSkill, RumbleFiringData, ScoreEntry, ScoringBucket, ScoringBucketConfiguration, ScoringBucketConfigurationEntry, ScoringBucketType, ScoringBucketUnlockData, SensingLimits, ServerConnectTriggerEntityData, ShotConfigData, SoldierAnimationPose, SoldierBodyRotationData, SoldierHeadCollisionPoseData, SoldierMeshData, SoldierRole, SoldierSpawnAppearanceTemplateData, SoldierSpawnBaseEntityData, SoldierSpawnInclude, SoldierSpawnKitTemplateData, SoldierWeaponDispersion, SoldierWeaponOverrideData, SoldierWeaponUnlockData, SoundTrigInfo, SpawnCamera, SpawnEntityData, SpawnableMeshComponentData, SpecateMode, SpecateTarget, SquadBaseEntityData, SquadClass, SquadDebugMenuEntityData, StaticBone, StaticJointData, StaticModelPartToBangerParts, StatsCategoryReferencedData, StatsCategoryReferencedObjectData, StatsCategoryReferencedSoldierKitData, StatsCategoryReferencedSoldierRoleData, StreamGroupData, StringSetting, StunAllowState, SubsystemTimingConfigData, SubtitleDataNode, SubtitleDataTree, SubtitleMainDataNode, SubtitleMapAsset, SubtitleTimingFile, SweepSelectionType, TacticalObjectiveEntityData, TargetCameraData, TargetEntityData, TargetPosKnowledgeType, TeamAsset, TeamAssignMode, TeamVehicleAsset, TestEntityData, TextChatGroup, TriggerEntityData, TriggerEventEntityData, TurnEffectData, UIAwardGridData, UIAwardGridEntry, UICollectibleEntry, UICollectiblesData, UIConsoleKeyboardType, UIControlInputTypeInfo, UIFeatureHintData, UIGridHeader, UIGridPosition, UIInputSchemeInfo, UIKillMsgSIDMapping, UIMenuNameTranslation, UIMenuTrackerPage, UIMenuTransitionConfig, UIMenuTransitionData, UISPMissionPresentationConfig, UISubRipAsset, UISubRipEntry, UISubRipLink, UIUnlockEntry, UIUnlocksData, UIVehicleStatEntry, UIVehicleStatsData, UIWeaponData, UIWeaponStatPresentationType, UIWeaponStatsEntry, UIWeaponStatsPresentation, UrgencyModifierData, UrgencyUserData, VOListenerParamType, VOOrderParam, VOParam, VOParamGroup, VOParamGroupType, VOParamType, VOReadiness, VORowData, VOSource, VOTeamParamType, VegetationDensity, VehicleHealthZoneData, VehicleHudData, VehicleHudType, VehicleRumbleData, VersionData, VignetteData, VignetteMode, VoiceChannel, WarnTarget, WeaponAnimBaseSetEnum, WeaponCallbackEntityData, WeaponClassEnum, WeaponLagEffectForceData, WeaponLagEffectSpringData, WeaponLagEffectSpringVector, WeaponOverrideData, WeaponOverrideValue, WeaponOverrideValueType, WeaponPickupData, WeaponSpecializationLink, WeaponStateData, WeaponSwayData, WeaponSwitchingEnum, WeaponSwitchingMapData, WeaponUnlockVisualData, WheelPhysicsType, ZoomLevelLockData, ZoomTypeEnum.
-
-**Overgrowth** (1 of 2): TreeMeshDummyData.
-
-**Physics** (45 of 85): AabbData, AntiRollBars, BaseHavokParams, CharacterEntity, CharacterEntityPoseEnum, CharacterPoseConstraintsData, CharacterRumbleData, CharacterStateData, CompositePhysicsEntity, EndPointData, EngineConfigData, FakePhysicsData, FloatPhysicsData, ForceMagnitudeInputType, HovercraftFloatPhysicsData, HullFloatPhysicsData, ImportShapeType, LinearMovingBodyData, LookConstraintsData, MaterialSet, MaterialSetMapping, MovingBodyData, NodeParameterObject, NodeTreeAsset, NodeTreeNode, NodeTreeRoot, PhysicsEntity, PhysicsEntityBase, PhysicsMaterialMapping, PhysicsMaterialSetAsset, PhysicsReportingAsset, PropellerType, ProximityData, ProximityObjectType, RagdollEntity, RigidBodyData, RotationBodyData, SensitivityAtVelocity, ShapeData, ShapeType, SphereCollisionData, SpringData, VehicleInputData, VehicleInputTweakType, VehicleMode.
-
-**Render** (87 of 128): AlphaResultType, BaseShaderAsset, BlurFilter, CompositeMesh, CrtGhostData, CrtGhostsData, CrtInterpolatedBrightnessData, CrtNoiseData, CrtRollingBarData, CrtScanLinesData, D3DFORMAT, D3DSAMPLERSTATETYPE, Dx10DisplayAdapterInfo, Dx10DisplaySettings, Dx10IndexBuffer, Dx10Texture, Dx10VertexBuffer, Dx11ComputeShader, Dx11DisplayAdapterInfo, Dx11DisplaySettings, Dx11IndexBuffer, Dx11RenderBuffer, Dx11Texture, Dx11VertexBuffer, Dx9DisplayAdapterInfo, Dx9DisplaySettings, Dx9IndexBuffer, Dx9Texture, Dx9VertexBuffer, EnlightenSystem, FogFunctionType, GlobalPostProcessSettings, HeightConversionMethod, HudFxData, IBinkMemory, IBinkTexture, IComputeShader, IIndexBuffer, IPixelShader, IRenderBuffer, IRenderResource, IShaderDatabase, IVertexBuffer, IVertexShader, IndexBufferFormat, IrradianceVolumeSettings, MeshPortalDesc, MeshSectorDesc, MeshSectorizationAsset, MeshSet, MeshStreamingSettings, MeshSurfaceShader, NoiseTextureAsset, NormalMapFilter, NormalMapGenerationParams, OcclusionSettings, PixelShaderAsset, PostProcessDebugMode, ProceduralNoiseType, Ps3MemoryType, RenderMapMode, RenderResourceUsage, RigidMesh, ScopeFilterData, ShaderColorizeMode, ShaderContainerAsset, ShaderContainerElement, ShaderDatabase, ShaderDatabaseAsset, ShaderDatabaseGroup, ShaderGeometrySpace, ShaderInstancingMethod, ShaderRenderMode, ShaderRenderPath, ShaderShadowmapMethod, ShaderShadowmapQuality, ShaderSkinningMethod, ShaderSystemSettings, SkinnedMesh, SootType, StencilMaskState, TextureAssetGamma, TextureBaseAsset, TextureOutputFormat, TextureUsage, VertexShaderAsset, XenonShaderTessellationMode.
-
-**Terrain** (14 of 34): HeightfieldProxy, ITerrain, IWaterMesh, TerrainDecal, TerrainDecalData, TerrainDecalTexCoordParams, TerrainLayerData, TerrainMaskTexture, TerrainMaskTextureType, TerrainQuadDecalConnection, TerrainQuadDecalTemplate, TerrainQuadGeometryData, TerrainSplinePlaneType, WaterData.
-
-**TerrainRender** (4 of 8): IVisualWater, TerrainViewMode, VisualTerrainEntity, VisualTerrainEntityData.
-
-**UI** (18 of 45): ISwfMovie, MinimapData, UI3DCameraAnimation, UI3DCameraSampledFrame, UI3DGeometryAnimation, UI3DGeometrySampledFrame, UICharacterSet, UIFileWrapper, UIHudIcon, UIMinimapConfig, UIMinimapShape, UIMinimapShapeType, UIMinimapZoomConfig, UIMinimapZoomConversion, UIMinimapZoomState, UIMovieViewport, UITaggedVehicleCrosshair, UITextAnchor.
-
-**Weather** (13 of 31): DynamicCloudPlaneLayerData, DynamicCloudVolumeLayerData, DynamicPanoramicCloudLayerData, IWeatherSystem, LensFlareSpriteData, StaticCloudPlaneLayerData, StaticCloudVolumeLayerData, StaticPanoramicCloudLayerData, StaticSkyData, StaticSunData, WeatherSystemEntity, WeatherSystemInstanceData, WeatherstateInterpolationMode.
-
-**World** (2 of 3): StaticCullNode, StaticCullSettings.
-
-**WorldRender** (24 of 30): ActivePart, AnimatedMeshEntity, AnimatedMeshEntityData, AnimationControllerAsset, AnimationGroupData, CompositeMeshEntity, DirLightEntity, DirLightEntityData, EnvmapLightEntity, EnvmapLightEntityData, EnvmapLightType, GroundmapLightEntity, GroundmapLightEntityData, LightEntityData, MipmapFilterMode, OutdoorLightEntity, PointLightEntity, ProjectorLightEntity, ProjectorLightEntityData, ProjectorLightProjection, RigidMeshEntity, StaticEnvmapEntity, VisualWorldState, WorldViewMode.

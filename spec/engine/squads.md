@@ -67,7 +67,45 @@ orders a player gives are the spotting / order path of SOLD-SPOT-1 (`CanSpotAndO
 [exe: BFBC2Game.exe strings joinSquad, leaveSquad, doJoinSquad, autojoinSquad, isSquadLeader, makeSquadLeader, selectSquadSpawn, SetBestSquadSpawner, SquadSpawnRadius, SquadSpawnCamera, TextChatGroup_Squad, VoiceChannel_Squad, SquadReviveScore, SquadAttackOrderScore, SquadDefendOrderScore, StatEvent_SquadSpawn, SquadManagerEntityData, SquadEntityData, JoinSquadOrderEntityData]
 [data: spec/census.json, 2026-11-23: no DBX class for the players' squads: the six Squad classes with instances (SquadAsset, SquadData, SquadTypeData, SquadEntityData, SquadGhostEntityData, JoinSquadOrderEntityData) are the AI's; SquadManagerEntityData is a typeinfo class with no instance in DICE's partitions]
 
+### SQD-PLAY-2: Spawning on a squad mate: the request's checks and the 13 positions
+
+Status: **verified** · Variants: PC
+
+The client's spawn request (read by 0x83A370: two bools, then two player ids of 0 - 0x7FF) is dispatched by
+0x83A3C0: "on a player" to 0x662F20(a, b), the second bool to 0x63AEA0, otherwise a spawn point by index (0x6422C0).
+In the normal form a = b, the squad mate's id. 0x662F20 refuses unless:
+
+- the mate is not the requester and has a soldier;
+- the two are on the same team (+0xA8) and in the same squad (+0xAC), and the squad is not 24 (0x6C9790: squad id 24
+  is `SquadNone`, after `Squad1` - `Squad24` of the `SquadId` enumeration);
+- the mate's soldier is not dying, and a player flag (`[+0xBC8] & 4`) is set;
+- the anti-spam list (0x156F2D0, tested by 0x673FB0) has no running timer for the requester;
+- the mate is inside one of the team's combat areas (0x547760 walks the `ServerCombatAreaTriggerEntity` entities and
+  answers "outside" only when none holds the position; a level with no combat area never refuses).
+
+The placement is `ServerPlayer`'s spawn-on-player 0x572CC0 (profiler labels `ServerPlayer/spawnOnPlayer1`, `2`). It
+refuses a player already alive or spawning (`[+0xC3C]`) or without a kit (`[+0xD24]`). A mate in a vehicle puts the
+requester in the vehicle's first free seat (0x68E7C0), falling back to the on-foot form when the vehicle's health is
+0. On foot it tries 13 offsets (a, b) along the mate's two horizontal axes, in order: (0,-2), (0,-1), (2,0), (-2,0),
+(2,-1), (-2,-1), (2,-2), (-2,-2), (0,-4), (1,1), (-1,1), (0.5,1), (-0.5,1) metres (built 0x572CFB - 0x572E26; the
+loop's bound 13 at 0x5735E9). A candidate is taken when a ray down to -1,000 finds the ground, the line from the
+mate's eye height to it is clear, the height difference is at most 10 m (its square against 100.0), the character
+fits (0xB095B0) and it is not outside the combat area; when all 13 fail the spawn is refused. So a mate in combat
+can be spawned on (no combat test), a mate in a full vehicle only when a free spot on foot is found, and a mate
+outside the combat area not at all.
+
+Neither DICE value the data might seem to set is read on this path: `TeamData.MaxPlayersPerSquad` (+0x1C, 4 in all
+10 of DICE's instances) has no reader traced, and `CapturePointEntityData.SquadSpawnRadius` (+0xB4: 0 in 249 of 332,
+80 - 300 in the rest) is not used by the squad spawn (its reader is not traced). The a != b form (b's vehicle must be
+entered, 10 m horizontally, a 2 s timer at `[player+0xD80]`) is likely spawning into a team vehicle; not decoded.
+
+[test: core/tests/test_spec_probes.py::run_time]
+[data: spec/probes/runtime.py on DICE's partitions, 2026-11-27: TeamData.MaxPlayersPerSquad 4 in 10 of 10]
+[exe: BFBC2Game.exe request reader 0x83A370, handler 0x83A3C0, checks 0x662F20 (squad test 0x6C9790, `cmp eax, 0x18` at 0x6C9796; anti-spam 0x673FB0 over 0x156F2D0; combat areas 0x547760), placement 0x572CC0 (13 candidates, `cmp eax, 0xD` at 0x5735E9; ground ray to -1000.0 at 0x1418B70; height limit 100.0 at 0x14D9638; fit test 0xB095B0; seat 0x68E7C0)]
+
 ## Open questions
 
-- The squad manager's code (squad size, the spawn-on-squad rules: whether a squad mate in combat or a vehicle can be
-  spawned on) is not traced.
+- The squad manager's code beyond the spawn: squad size (`MaxPlayersPerSquad`'s reader), the a != b spawn form, the
+  anti-spam timer's length, the player flag `[+0xBC8] & 4`.
+- Playtests (paused): spawning on a mate prone on a ledge, in a full vehicle, outside the combat area, and twice in
+  a row (SQD-PLAY-2).

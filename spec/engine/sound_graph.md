@@ -191,7 +191,29 @@ categories to sounds per level.
 [test: core/tests/test_spec_probes.py::census]
 [data: spec/census.json, 2026-11-23: the classes above]
 
+### SGR-NODE-2: Each node data class has a factory; the enumerations' numbers
+
+Status: **verified** · Variants: PC
+
+At run time a graph's node is made by a factory per node data class, as the entities are (RTTI-FAC-1): the factory's
+slot 1 returns the data class's class info and its slot 2 allocates and constructs the node object.
+`SimpleTransformNode`'s factory (vtable 0x14B3DA8) returns its class info 0x1C101E4 and makes a 0x20-byte node
+(vtable 0x14B3E70; its +4 - +0x18 cleared, a float at +0x1C). The nodes' data keep only their ports and settings
+(their `Name` is pipeline-only, RTTI-DBX-1), and the numbers the nodes hold are the enumerations' (RTTI-AUDIO-1):
+`SimpleTransformNode.Operation` (+20, `MathOp`): Add 0, Sub 1, Mult 2, Div 3; `ConditionGroup.Condition` (+16,
+`ConditionType`): And 0, Or 1, XOr 2, Equal 3, Less 4, Greater 5, LessOrEqual 6, GreaterOrEqual 7;
+`MultiCrossfaderGroup.FadeType` (+20, `FaderType`): linear 0, cosine 1; `SamplerWaveMapEntry.Loop` (+12,
+`LoopType`): none 0, forward 1, release 2, instant release 3, bounce 4. Two have a single value: `LfoGroup.Mode`
+(`OscillatorMode`: random 0) and `NumberGeneratorNode.NumberType` (`RandomType`: uniform 0), so DICE's LFOs and number
+generators can only be random and uniform. The evaluation (how a node reads its input ports each update, the
+formulas) is not traced: the names give each operation's meaning, the code does not yet prove it.
+
+[test: core/tests/test_spec_probes.py::run_time]
+[test: core/tests/test_spec_probes.py::typeinfo]
+[exe: BFBC2Game.exe SimpleTransformNode's factory vtable 0x14B3DA8: slot 1 0xFE5CC0 `mov eax, 0x1C101E4; ret`, slot 2 0xFEDE70 allocates 0x20 bytes and stores the node vtable 0x14B3E70 (0xFEDE83)]
+
 ## Open questions
 
-- The node types' run-time semantics (the port order a node expects, what each parameter id means).
+- The node types' run-time semantics (the port order a node expects, the evaluation of each node: SGR-NODE-2 has the
+  factories and the enumerations' numbers, not the update functions).
 - How the game sets the graphs' parameters (the names of the ids per entity kind).

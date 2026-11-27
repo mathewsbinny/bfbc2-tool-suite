@@ -200,6 +200,10 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [engine/sound_graph.md](engine/sound_graph.md) | sound graphs (ports, samplers, processing and output nodes), voice-over trees and trigger tables, the mix and the sound system (SPG4) |
 | [engine/internals.md](engine/internals.md) | engine internals: the executable's `typeinfo` records, memory groups, heaps and pools, the job system, the menu background scene (SPG4) |
 | [engine/data_classes.md](engine/data_classes.md) | the remaining DBX classes by system: emitter update processors, tree parameters, vehicle physics components, gadgets, the AI's constants, matchmaking, edge models (SPG4) |
+| [engine/typeinfo/core.md](engine/typeinfo/core.md) | the executable's reflection record by record: how each type is registered, the member descriptors, the run-time members against DICE's DBX fields (the pipeline-only ones), `Core` (SPG4-rest) |
+| [engine/typeinfo/game_shared.md](engine/typeinfo/game_shared.md) | `GameSharedResources`' 777 records: enumerations with their numbers, value types, entity data, weapons, AI, UI, persistence, the rest; every member's run-time offset (SPG4-rest; tables written by `probes/typeinfo.py`) |
+| [engine/typeinfo/gamedll.md](engine/typeinfo/gamedll.md) | `GameDll`'s run-time entities: their hierarchy and sizes, and which data class's factory makes each (SPG4-rest) |
+| [engine/typeinfo/modules.md](engine/typeinfo/modules.md) | the engine's other 19 modules, record by record (SPG4-rest) |
 | **The suite's transformations (layer 4)** | |
 | [transforms/pack.md](transforms/pack.md) | FBRB unpack and pack |
 | [transforms/dbx.md](transforms/dbx.md) | DBX read / write round trips, import, DbxEdit's commands |
@@ -450,3 +454,24 @@ rules verified by game-tier checks, nine of them corrected in place first):
   `GameSharedResources`' value types and enumerations and `GameDll`'s run-time entities), the semantics behind the
   data-side rules (the controller's states, the squad manager, the kill cam, the sound nodes), and the opaque
   insides listed above.
+
+**After round SPG4-rest** (2026-11-27: 1,571 rules in 90 files; 39 new in four new files and eight extended ones;
+ENG-TI-1, HUD-KILL-1, OCC-TRI-1 corrected in place):
+
+- **Every typeinfo record named, with its layout** (`engine/typeinfo/`, `typeinfo.json`, `probes/typeinfo.py`): each
+  of the 1,900 records is registered by a static initialiser (RTTI-REG-1) that gives a class its parent and, for a
+  data class, its member table; a member is a 24-byte descriptor with its run-time offset (RTTI-MEM-1). The tables
+  list every record's parent, size, own members and offsets or values; the quick tier's `spec-typeinfo` keeps them
+  current and the game tier re-reads the executable. The census's typeinfo records went from 816 to 1,900 covered.
+- **DICE's data against the run-time members** (RTTI-DBX-1, 2): 398 classes the same, 230 with pipeline-only fields
+  the game cannot read: the static models' pathfinding switches, the AI's sensing template, the mesh build's
+  settings, the sound nodes' names.
+- **Which run-time class each data class makes** (RTTI-FAC-1): the factories followed to their constructors, 173
+  classes.
+- **The run-time behind SPG4's data side**: the controller's nine states, ids and transitions (SOLD-PHYS-2); the
+  spawn on a squad mate, its checks and 13 positions (SQD-PLAY-2); the kill cam is the spectate entities gated by
+  `Server.KillCam` and hardcore (HUD-KILL-2); the campaign save's `header` and `body` (CAMP-SAVE-1); the sound nodes'
+  factories and enumerations (SGR-NODE-2).
+- **The opaque insides**: the occluder's per-triangle 192-bit part masks (OCC-TRI-1), the soot's declaration flags and
+  part slots (SOOT-FLAG-1, SOOT-SLOT-1), the impulse responses' block-scaled spectra (IR-PART-1).
+- **Left (SPG4-rest2)**: `spec/COVERAGE.md` section 2.

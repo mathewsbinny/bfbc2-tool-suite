@@ -1,5 +1,5 @@
 """The resource kinds and loose files that had no format of their own before round SPG4, measured on DICE's files
-(read-only; spec/formats/occluder.md OCC-*, soot.md SOOT-*, animtree.md ATREE-*, bink.md BINK-*, audio.md WAVE-IR-*,
+(read-only; spec/formats/occluder.md OCC-*, soot.md SOOT-*, animtree.md ATREE-*, bink.md BINK-*, audio.md IR-*,
 havok.md HAVOK-RAG-1, game_folder.md GAME-FILE-*).
 
     python spec/probes/resources.py [--opfor <folder>]
@@ -40,9 +40,14 @@ EXPECTED: dict[str, Any] = {
     'occ_tri_block': {'absent': 39, 'present': 321, 'present, empty': 1},
     'occ_tri_records': {'one a triangle': 253, 'more': 68},
     'occ_w': {'1.0, block': 321, 'k x 12.75, no block': 39},
+    # OCC-TRI-1 (round SPG4-rest): the block at 16, one 192-bit mask a triangle padded to an even count
+    'occ_first16': 361, 'occ_tri_even': 321, 'occ_tri_pad_zero': 321, 'occ_tri_masks': (82, 5812, 22998, 106),
     # SOOT-HDR-1, SOOT-VTX-1, SOOT-TAIL-1
     'soot_layout': 40, 'soot_version': [18], 'soot_stride': {12: 34, 16: 6}, 'soot_boxes': [2, 4, 8, 10, 27],
     'soot_index_ok': 40, 'soot_tail': 40,
+    # SOOT-FLAG-1, SOOT-SLOT-1 (round SPG4-rest)
+    'soot_flags': {'0,1,12': 12, '1,0,16': 6, '1,1,12': 22}, 'soot_slot_words': 40, 'soot_vertex_slots': 40,
+    'soot_vertex_boxes': 40, 'soot_vertex_in_box': 40,
     # ATREE-HDR-1, ATREE-PTR-1
     'atree_version': [6], 'atree_layout': 1926, 'atree_aligned': 1926, 'atree_pointers_inside': 1926,
     # ATREE-BLK-1 - 3
@@ -57,6 +62,9 @@ EXPECTED: dict[str, Any] = {
     'atree_b_lengths': (28254, 0.0333, 182.3333),
     # WAVE-IR-1
     'ir_header': [('irf1', 1, 2, 48000, 1024, 1024, 2048, 1)], 'ir_layout': 5,
+    # IR-PART-1 (round SPG4-rest): two channel blocks a partition, a block-scale head, 1,024 (re, im) bins
+    'ir_block_heads': 518, 'ir_dc_imag_zero': 518,
+    'ir_scales': {1023: 5, 2047: 17, 4095: 44, 8191: 59, 16383: 85, 32767: 308}, 'ir_scaled_full': (210, 210),
     # HAVOK-RAG-1
     'ragdoll': [(16944, True, 'Havok-5.5.0-r1')],
     # BINK-HDR-1, BINK-RES-1
@@ -105,6 +113,8 @@ def occluders(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
     block: Counter[str] = Counter()
     recs: Counter[str] = Counter()
     w: Counter[str] = Counter()
+    first16 = even = padzero = mask_blocks = mask_tris = all_tris = 0
+    top = -1
     for _, d in items:
         mn, mx = struct.unpack_from('<3f', d, 0), struct.unpack_from('<3f', d, 12)
         rest += struct.unpack_from('<I', d, 24)[0] == len(d) - 28
@@ -123,21 +133,34 @@ def occluders(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
         if size:
             recs['one a triangle' if size == 24 * (ni // 3) else
                  'more' if size % 24 == 0 and size > 24 * (ni // 3) else 'other'] += 1
+        first16 += (to or vo) == 16
+        if to and vo > to:
+            nt, nrec = ni // 3, (vo - to) // 24
+            even += nrec == nt + (nt & 1)
+            padzero += not any(d[28 + to + 24 * nt:28 + vo])
+            masks = [d[28 + to + 24 * k:28 + to + 24 * k + 24] for k in range(nt)]
+            hit = [int.from_bytes(m, 'little') for m in masks if any(m)]
+            mask_blocks += bool(hit)
+            mask_tris += len(hit)
+            all_tris += nt
+            top = max([top] + [h.bit_length() - 1 for h in hit])
         ws = {v[3] for v in vs}
         if ws:
             w['1.0, block' if ws == {1.0} and size else
               'k x 12.75, no block' if not to and len(ws) == 1 and (next(iter(ws)) / 12.75).is_integer() else 'other'] += 1
     out.update(occ_layout=layout, occ_rest=rest, occ_in_box=in_box, occ_index_ok=index_ok, occ_empty=empty,
                occ_tri_block=dict(sorted(block.items())), occ_tri_records=dict(sorted(recs.items())),
-               occ_w=dict(sorted(w.items())))
+               occ_w=dict(sorted(w.items())), occ_first16=first16, occ_tri_even=even, occ_tri_pad_zero=padzero,
+               occ_tri_masks=(mask_blocks, mask_tris, all_tris, top))
 
 
 def soots(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
     """SOOT-*: 5 u32 (version, stride, two flags, n boxes), n x 6 f32, 4 u32 {1, vertex bytes, index bytes, 0},
     vertices, u16 indices, 64 u32 tail {0, n, triangles, 60, 60 words}."""
-    layout = index_ok = tail = 0
+    layout = index_ok = tail = slot_words = vslots = vboxes = inside = 0
     versions, boxes = set(), set()
     stride: Counter[int] = Counter()
+    flags: Counter[str] = Counter()
     for _, d in items:
         ver, st, _f1, _f2, n = struct.unpack_from('<5I', d, 0)
         versions.add(ver)
@@ -151,8 +174,26 @@ def soots(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
         index_ok += bool(idx) and max(idx) < vb // st
         t = struct.unpack_from('<4I', d, len(d) - 256)
         tail += t == (0, n, ib // 6, 60)
+        # SOOT-FLAG-1: (per-pixel, half positions, stride); SOOT-SLOT-1: the trailer's slot words and the vertices'
+        # (slot, box) halves of their last u32
+        flags[f'{_f1},{_f2},{st}'] += 1
+        words = struct.unpack_from('<64I', d, len(d) - 256)[4:4 + t[3]]
+        used = [x for x in words if x != 0xFFFFFFFF]
+        k = len(used)
+        slot_words += (all(x == 0xFFFFFFFF for x in words[k:]) and len(set(used)) == k and all(x < 192 for x in used))
+        vo, nv = h + 16, vb // st
+        lo = [struct.unpack_from('<H', d, vo + st * i + st - 4)[0] for i in range(nv)]
+        hi = [struct.unpack_from('<H', d, vo + st * i + st - 2)[0] for i in range(nv)]
+        vslots += set(lo) == set(range(k))
+        vboxes += set(hi) == set(range(n))
+        bx = [struct.unpack_from('<6f', d, 0x14 + 24 * j) for j in range(n)]
+        fmt = '<3f' if st == 16 else '<3e'
+        inside += all(hi[i] < n and all(bx[hi[i]][a] - 1e-2 <= struct.unpack_from(fmt, d, vo + st * i)[a]
+                                        <= bx[hi[i]][3 + a] + 1e-2 for a in range(3)) for i in range(nv))
     out.update(soot_layout=layout, soot_version=sorted(versions), soot_stride=dict(sorted(stride.items())),
-               soot_boxes=sorted(boxes), soot_index_ok=index_ok, soot_tail=tail)
+               soot_boxes=sorted(boxes), soot_index_ok=index_ok, soot_tail=tail,
+               soot_flags=dict(sorted(flags.items())), soot_slot_words=slot_words, soot_vertex_slots=vslots,
+               soot_vertex_boxes=vboxes, soot_vertex_in_box=inside)
 
 
 def anim_trees(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
@@ -300,12 +341,28 @@ def atree_type_names(exe: Path) -> bool | None:
 def impulse_responses(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
     """WAVE-IR-1: big-endian 48-byte header, then ceil(frames / block) blocks of 32 + 4 x FFT-size bytes."""
     heads = set()
-    layout = 0
+    layout = block_heads = dc = big = small = 0
+    scales: Counter[int] = Counter()
     for _, d in items:
         magic, ver, ch, frames, rate, blk, blk2, fft, one = struct.unpack_from('>4s8I', d, 0)
         heads.add((magic.decode('latin-1'), ver, ch, rate, blk, blk2, fft, one))
         layout += 48 + math.ceil(frames / blk) * (32 + 2 * ch * fft) == len(d)
-    out.update(ir_header=sorted(heads), ir_layout=layout)
+        # IR-PART-1: a partition is ch blocks of 16 + fft x 2 bytes: a u16 scale 2^k - 1, 14 zero bytes, fft / 2
+        # big-endian int16 (re, im) pairs
+        bs = 16 + 2 * fft
+        for p in range(math.ceil(frames / blk)):
+            for c in range(ch):
+                o = 48 + p * ch * bs + c * bs
+                sc = struct.unpack_from('>H', d, o)[0]
+                block_heads += sc > 0 and (sc + 1) & sc == 0 and not any(d[o + 2:o + 16])
+                scales[sc] += 1
+                q = struct.unpack_from(f'>{fft}h', d, o + 16)
+                dc += q[1] == 0
+                if sc < 32767:
+                    small += 1
+                    big += max(map(abs, q)) > 16383
+    out.update(ir_header=sorted(heads), ir_layout=layout, ir_block_heads=block_heads, ir_dc_imag_zero=dc,
+               ir_scales=dict(sorted(scales.items())), ir_scaled_full=(big, small))
 
 
 def ragdolls(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
