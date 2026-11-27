@@ -2751,7 +2751,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 173,
+   "lines": 175,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -3531,7 +3531,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 861,
+   "lines": 866,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -4047,7 +4047,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 909,
+   "lines": 911,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4098,6 +4098,18 @@
    "lines": 194,
    "note": "read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier",
    "path": "spec/probes/effects_chain.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 420,
+   "note": "read-only probe for spec/engine/gamemodes.md (game modes, the game mod: data and exe sites); game tier",
+   "path": "spec/probes/gamemodes.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4700,8 +4712,8 @@
  ],
  "totals": {
   "all": {
-   "files": 386,
-   "lines": 114192
+   "files": 387,
+   "lines": 114621
   },
   "by_folder": {
    "(root)": {
@@ -4893,13 +4905,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20429,
-    "live": 764,
+    "lines": 20436,
+    "live": 766,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15326,
+    "test": 15331,
     "twin": 2430
    },
    "design": {
@@ -4915,23 +4927,23 @@
    },
    "rust": {
     "files": 38,
-    "lines": 7831,
+    "lines": 7833,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7564,
+    "stays": 7566,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 22,
-    "lines": 7943,
+    "files": 23,
+    "lines": 8363,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7943,
+    "stays": 8363,
     "test": 0,
     "twin": 0
    },
@@ -4950,7 +4962,7 @@
   "by_status": {
    "live": {
     "files": 17,
-    "lines": 5085
+    "lines": 5087
    },
    "partly": {
     "files": 19,
@@ -4965,12 +4977,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 75,
-    "lines": 16497
+    "files": 76,
+    "lines": 16919
    },
    "test": {
     "files": 192,
-    "lines": 53067
+    "lines": 53072
    },
    "twin": {
     "files": 57,

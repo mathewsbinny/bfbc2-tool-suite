@@ -195,6 +195,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [engine/decals.md](engine/decals.md) | the terrain's baked road and decal strips, DICE's decal sources, impact decals (SPG2) |
 | [engine/animation.md](engine/animation.md) | the soldier skeleton, compiled animation trees and their baked hand IK, zoom rules, kits, skinning kinds, the ragdoll (SPG2) |
 | [engine/module.md](engine/module.md) | OPFOR's game module: every patch point in `BFBC2Game.exe` (221 addresses), how hooks are checked and installed (SPG2) |
+| [engine/gamemodes.md](engine/gamemodes.md) | game modes and eras: GameModeData's readers, the exe's mode-id and game-mod sites, per-era resources, licence checks, authoring a new mode or era (GM0) |
 | [engine/onslaught.md](engine/onslaught.md) | Onslaught: the mode in DICE's data, what the PC engine does with it, Napisal's and OPFOR's console ports (SPG2) |
 | [engine/streaming.md](engine/streaming.md) | the async, streaming and on-demand bundles: mounting, contents, registry, the suite (SPG2) |
 | [engine/settings.md](engine/settings.md) | options and settings: `settings.ini`, `GameSettings.ini` and its defaults partition, the engine settings objects, the command line, the options screens' getters and commands (SPG3) |

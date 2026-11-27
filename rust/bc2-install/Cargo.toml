@@ -37,8 +37,9 @@ windows-sys = { workspace = true, optional = true }
 # installer does not need it
 levelbuild = ["dep:bc2-tools", "dep:bc2-convert", "dep:bc2-menu", "dep:bc2-pyrt", "dep:sha1_smol"]
 # the console Onslaught import (OPFOR's console_onslaught.build / install, round OR5): bc2_native's onslaught_*; the
-# console port's stages (OR9, OR10: stage 7 merges shader databases and reads the mesh index through bc2-convert)
-onslaught = ["dep:bc2-tools", "dep:bc2-pyrt", "dep:thiserror", "dep:bc2-convert"]
+# console port's stages (OR9, OR10: stage 7 merges shader databases and reads the mesh index through bc2-convert;
+# OR12: stage 13's movie edits through bc2-menu's graft)
+onslaught = ["dep:bc2-tools", "dep:bc2-pyrt", "dep:thiserror", "dep:bc2-convert", "dep:bc2-menu"]
 # the map export's install (Project OPFOR's mapedit_install.py, round OR6): `bfbc2 install mapedit` and the map
 # editor's Install dialog
 mapedit = ["dep:bc2-pyrt"]

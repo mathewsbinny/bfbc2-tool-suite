@@ -132,7 +132,8 @@ fields the port strips).
 [code: opfor:src/dll/onslaught_hud.cpp:106-147]
 [code: opfor:src/dll/onslaught_hud_format.h:8-16]
 [code: opfor:src/tools/onslaught/console_hud.py:8-25]
-[test: opfor:src/tools/tests/test_onslaught.py::test_hud_builds_on_the_current_movie_and_never_patches_twice]
+[test: rust/bc2-install/src/onslaught/hud.rs::never_patches_twice]
+[test: opfor:src/tools/tests/test_onslaught.py::test_hud_passes_each_bundles_source_and_writes_the_records_after_the_install]
 
 ### ONS-WAVE-1: Waves are spawners switched on by events
 

@@ -16,7 +16,9 @@
 use std::collections::BTreeMap;
 
 use bc2_install::onslaught::port::StageOut;
-use bc2_install::onslaught::{self, Ctx, Entry, OnsError, Source, linux, loadset, mode, shaders, soldiers, vehicles};
+use bc2_install::onslaught::{
+    self, Ctx, Entry, OnsError, Source, deps, input, linux, loadset, markv, mode, shaders, soldiers, vehicles,
+};
 use pyo3::exceptions::{PyOSError, PySystemExit, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
@@ -165,6 +167,8 @@ pub fn onsport_loadset<'py>(
     stage_out(py, out)
 }
 
+// ------------------------------------------------------------------------------------------------ round OR10
+
 /// `console_vehicles.build(lv)` (and `apply`'s pack) from the ledger's source bundle (stage 5).
 #[pyfunction]
 pub fn onsport_vehicles<'py>(
@@ -238,4 +242,104 @@ pub fn onsport_shaders<'py>(
     };
     let out = py.detach(|| shaders::build(&a)).map_err(err)?;
     stage_out(py, out)
+}
+
+// ------------------------------------------------------------------------------------------------ round OR11
+
+/// `console_markv.install(write)` up to the ledger (stage 8): `src_bundle` the ledger's source bundle, `pre_bundle` the
+/// level before stage 5 (`before_path(bundle, 'vehicles:ons_mp_002')`).
+#[pyfunction]
+pub fn onsport_markv<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    src_bundle: &str,
+    pre_bundle: &str,
+    write: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = markv::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        src_bundle: src_bundle.to_owned(),
+        pre_bundle: pre_bundle.to_owned(),
+        write,
+    };
+    let out = py.detach(|| markv::build(&a)).map_err(err)?;
+    stage_out(py, out)
+}
+
+/// `console_input.build(lv)` / `apply(lv, write)` up to the ledger (stage 9).
+#[pyfunction]
+pub fn onsport_input<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    lv: &str,
+    src_bundle: &str,
+    write: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = input::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        lv: lv.to_lowercase(),
+        src_bundle: src_bundle.to_owned(),
+        write,
+    };
+    let out = py.detach(|| input::build(&a)).map_err(err)?;
+    stage_out(py, out)
+}
+
+/// `console_deps.build(lv)` / `apply(lv, write)` up to the ledger (stage 10).
+#[pyfunction]
+pub fn onsport_deps<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    lv: &str,
+    src_bundle: &str,
+    write: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = deps::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        lv: lv.to_lowercase(),
+        src_bundle: src_bundle.to_owned(),
+        write,
+    };
+    let out = py.detach(|| deps::build(&a)).map_err(err)?;
+    stage_out(py, out)
+}
+
+/// `console_input.role_inputs(t, counterpart_xml)` with the PC gunner mapping: {seat GUID: (concept, mapping)}.
+#[pyfunction]
+#[pyo3(signature = (t, counterpart, gunner))]
+pub fn onsport_role_inputs<'py>(
+    py: Python<'py>,
+    t: &str,
+    counterpart: Option<&str>,
+    gunner: &str,
+) -> PyResult<Bound<'py, PyDict>> {
+    let got = input::role_inputs(t, counterpart, gunner).map_err(err)?;
+    let d = PyDict::new(py);
+    for (g, v) in got {
+        d.set_item(g, v)?;
+    }
+    Ok(d)
+}
+
+/// `console_input.seat_edits(part, t, want, roles)`: (the new XML, the number of edits, the lines for `roles`).
+#[pyfunction]
+pub fn onsport_seat_edits<'py>(
+    py: Python<'py>,
+    part: &str,
+    t: &str,
+    want: &Bound<'py, PyDict>,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let mut w: Vec<(String, input::Input)> = Vec::new();
+    for (k, v) in want.iter() {
+        w.push((k.extract()?, v.extract()?));
+    }
+    let mut roles = Vec::new();
+    let (new, n) = input::seat_edits(part, t, &w, &mut roles).map_err(err)?;
+    (new, n, roles).into_pyobject(py)
 }
