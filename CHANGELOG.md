@@ -31,8 +31,8 @@ landed on `main`.
 ## [0.34.0] - 2026-11-27
 
 Round OR11 retires Project OPFOR's Python of the console Onslaught port's stages 8 - 10: OPFOR now needs this version's
-`bc2_native.onsport_markv` / `onsport_input` / `onsport_deps` (and the seat rules' `onsport_role_inputs` /
-`onsport_seat_edits` / `onsport_gunner_mapping`), so its `SUITE_REQUIRES` moves to 0.34.0 - 0.35.0.
+`bc2_native.onsport_markv` / `onsport_input` / `onsport_deps` (and the seat rules' `onsport_role_inputs` and
+`onsport_seat_edits`), so its `SUITE_REQUIRES` moves to 0.34.0 - 0.35.0.
 
 ### Added
 

@@ -6107,7 +6107,7 @@ suite's Rust. Version 0.34.0 (OPFOR's `SUITE_REQUIRES` 0.34.0 to below 0.35.0). 
 | OPFOR Python (until OR11) | Lines | now | Lines left |
 |---|---|---|---|
 | `console_markv.build` / `install` / `restore_spawn` / `choose` / `console_layouts` / `pc_resource` / `MATERIALS` | 389 | `bc2_install::onslaught::markv` (`bc2_native.onsport_markv`) | 74 (command line, the ledger's check before the build, the level before stage 5, the install, revert, scratch) |
-| `console_input.build` / `apply` / `role_inputs` / `seat_edits` / `seat_input` / `counterpart_xml` | 314 | `bc2_install::onslaught::input` (`onsport_input`; `onsport_role_inputs` / `onsport_seat_edits` / `onsport_gunner_mapping` for the shader audit) | 105 (command line, the audit's two wrappers, the install, revert, scratch) |
+| `console_input.build` / `apply` / `role_inputs` / `seat_edits` / `seat_input` / `counterpart_xml` | 314 | `bc2_install::onslaught::input` (`onsport_input`; `onsport_role_inputs` / `onsport_seat_edits` for the shader audit) | 105 (command line, the audit's two wrappers, the install, revert, scratch) |
 | `console_deps.build` / `apply` / `listing` / `refs_of` | 249 | `bc2_install::onslaught::deps` (`onsport_deps`) | 68 (command line, the install, revert, scratch) |
 
 The tools under them were Rust already and are now called as libraries: the Havok conversion

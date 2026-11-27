@@ -506,9 +506,7 @@ mod bc2_native {
     // round OR11: the console port's stages 8 - 10 (console_markv / console_input / console_deps) and the seat rules
     // the shader audit shares
     #[pymodule_export]
-    use super::onslaught::{
-        onsport_deps, onsport_gunner_mapping, onsport_input, onsport_markv, onsport_role_inputs, onsport_seat_edits,
-    };
+    use super::onslaught::{onsport_deps, onsport_input, onsport_markv, onsport_role_inputs, onsport_seat_edits};
 
     // round OR4: OPFOR's material grid and pictures (physmat, the texture glue, the pictures)
     #[pymodule_export]

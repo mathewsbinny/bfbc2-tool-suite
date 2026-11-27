@@ -262,9 +262,3 @@ pub fn onsport_seat_edits<'py>(
     let (new, n) = input::seat_edits(part, t, &w, &mut roles).map_err(err)?;
     (new, n, roles).into_pyobject(py)
 }
-
-/// The PC T-90 gunner seat's mapping from its partition's XML (`console_input.GUNNER[1]`).
-#[pyfunction]
-pub fn onsport_gunner_mapping(t90: &str) -> PyResult<String> {
-    input::gunner_mapping(t90).map_err(err)
-}
