@@ -41,12 +41,15 @@
 //! - Round PR1b-2-rest2: [`decimate`] (`bfbc2-model-tools/decimate.py`'s edge collapses) and [`shapes`]
 //!   (`shapes.py`'s products, tangents and windings), `OpenBLAS`' products written out as the reference machine's
 //!   kernels compute them.
+//! - Round `OR14`: [`eigh3`] (`numpy.linalg.eigh` of a 3 x 3 matrix: LAPACK `dsyevd` through `OpenBLAS`' kernels,
+//!   step for step), the principal axes [`texwrite`] encodes with.
 #![deny(unsafe_code)]
 
 pub mod audio;
 pub mod dbxcatalogue;
 pub mod dbxport;
 pub mod decimate;
+pub mod eigh3;
 pub mod emitteratlas;
 pub mod granny;
 pub mod granny_edit;

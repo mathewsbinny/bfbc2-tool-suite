@@ -1,6 +1,6 @@
 r"""Round F2a: the model tools in the Rust core against their Python reference - texwrite.py (texture: the levels and
-the DXT1 / DXT1 with 1-bit alpha / DXT5 blocks, dxt1, dxt5, alpha1, alpha5, l8_down; the principal axes stay
-numpy.linalg.eigh's) and skinmesh.py's SkinnedLod (the parts cut out, decode, the winding, replace / add_to /
+the DXT1 / DXT1 with 1-bit alpha / DXT5 blocks, dxt1, dxt5, alpha1, alpha5, l8_down; the principal axes the
+core's since round OR14, numpy.linalg.eigh's to the bit on the oracle's machine) and skinmesh.py's SkinnedLod (the parts cut out, decode, the winding, replace / add_to /
 add_part's encoding, to_bytes, bounds).
 
 Compared both ways (the module's use_native on and off, or the *_reference functions): the bytes, the arrays (dtype,

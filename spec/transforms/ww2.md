@@ -224,6 +224,47 @@ a rebuild output (the oracle leaves `work\ww2\preview` out), so no DICE rule dec
 [test: bfbc2-model-tools/tests/test_pictures_native.py::page]
 [data: round OR4: the attachments page of 13 textures under two titles: the text identical, every texture's pixels identical]
 
+### XWW2-PIC-5: A vehicle's side silhouette is Pillow's polygon fill, equal depths drawn in face order
+
+Status: **verified** · Variants: PC
+
+The HUD silhouettes OPFOR draws from a vehicle mesh (`type95_icon.silhouette`: the Type 95 boat, the Onslaught boats of
+`console_icons`; the Rust core since round OR14: `bc2_convert::pictures::side`) fill each projected triangle as Pillow
+12's `ImageDraw.polygon` on an 8-bit picture: the vertices truncated toward zero (C's `(int)`), the span ends
+`ROUND_UP` / `ROUND_DOWN` of single-precision crossings, an edge's last row counted twice unless it is the scan's
+last, horizontal edges merged and drawn, a degenerate triangle still painting its flat edges. The faces' normals are
+`np.cross` (each product rounded, then subtracted), normalised as `sqrt((x^2 + y^2) + z^2)`; the light term as
+OpenBLAS's `dgemv` gives it (`fma(nz lz, fma(nx lx, ny ly))`; one face: `fma(nz lz, fma(ny ly, nx lx))`); the
+supersampled sums per sub-row, row after row. The faces are drawn far to near by the sum of their three depths;
+**faces of equal sums are drawn in their order in the mesh** (a stable sort). NumPy's default `argsort` (the unstable
+x86-simd-sort on an AVX-512 processor) orders equal keys by processor and NumPy version, so no rule follows from it,
+and DICE drew its own silhouettes by hand: the stable order is the rule. The pictures OPFOR ships - the Type 95 at
+78 x 36, the Mark V and the jet ski - are the same with either order.
+
+[code: rust/bc2-convert/src/pictures/polygon.rs:77-200] [code: rust/bc2-convert/src/pictures/side.rs:62-222]
+[test: rust/bc2-convert/src/pictures/polygon.rs::random_polygons_are_pillows]
+[test: rust/bc2-convert/src/pictures/side.rs::synthetic_meshes_match_the_python]
+[data: round OR14: rust/parity_silhouette.py - 20,000 random polygons identical to Pillow 12.3; 85 game-mesh and 300 synthetic pictures identical to the Python with a stable argsort (67 / 84 differ from the default argsort only in pixels a tie can change); the Type 95, MRKV and JETS identical to the shipped Python]
+
+### XWW2-PIC-6: The DXT encoders' principal axis is LAPACK's dsyevd as the oracle machine computes it
+
+Status: **verified** · Variants: PC
+
+`texwrite`'s DXT1 / DXT5 colour blocks take each block's end colours along the principal axis of its covariance
+(every WW2 texture `texwrite` encodes). The axis is the last eigenvector of `numpy.linalg.eigh` (LAPACK `dsyevd`,
+`UPLO='L'`) as NumPy 2.5 with scipy-openblas 0.3.34 computes it on the oracle machine (OpenBLAS's SkylakeX
+kernels): one Householder reflector (`dsytd2`: `dlarfg`, `dsymv`, `ddot`, `daxpy`, `dsyr2`), `dsteqr`'s QL / QR
+sweeps and sort, the reflector applied back (`dorm2r`, `dlarf1f`); LAPACK's own code rounding each operation in
+source order, the BLAS kernels' `y += a * b` each one fused multiply-add (`dger`'s `alpha * y[j]` and `dsymv`'s
+`alpha * x[j]` rounded first). Since round OR14 the suite's Rust core computes it so (`bc2_convert::eigh3`), the
+same bits on any processor; NumPy's answer on another processor (no FMA, other kernels) may differ in the last bits.
+DICE's textures were encoded by DICE's own tools, so no DICE data decides those bits: the oracle machine's are the
+rule, and they keep every rebuilt texture's bytes.
+
+[code: rust/bc2-convert/src/eigh3.rs:479-640] [code: rust/bc2-convert/src/texwrite.rs:1-20]
+[test: rust/bc2-convert/src/eigh3.rs::numpy_axes_to_the_bit]
+[data: round OR14: rust/parity_texwrite_axes.py - 10,000,000 random covariances, 8,017 degenerate ones and the blocks of 4,495 pictures (111,625,822 blocks) identical to numpy.linalg.eigh's axes; 0 encoded blocks differ]
+
 ## 3. The install
 
 ### XWW2-INS-1: The WW2 install refuses before writing

@@ -1,5 +1,5 @@
-//! `aptgraft.py`'s crosshairs: `crosshair_table`, `timeline_display`, `crosshair_objects` and `add_crosshair` (the
-//! command line's form: no image tiles), as the reference reads and edits `hud_crosshair`.
+//! `aptgraft.py`'s crosshairs: `crosshair_table`, `timeline_display`, `crosshair_objects` and `add_crosshair` (with
+//! the `images` tiles since round OR14: [`add_crosshair_tiles`]), as the reference reads and edits `hud_crosshair`.
 
 #![allow(
     clippy::indexing_slicing,
@@ -12,6 +12,7 @@ use crate::error::{MenuError, MenuResult};
 use bc2_formats::aptmodel::{Arg, Ins, Rid, Val};
 
 use super::edit::arg_text;
+use super::tiles::{Tile, split_image_part};
 use super::{
     APT, CKey, Grafter, Movie, apt_err, ins, int_arg, is_branch, is_one_str, is_pool_byte, latin1_encode, op_display,
     push_ins, signed,
@@ -222,10 +223,15 @@ pub fn crosshair_table(m: &Movie) -> MenuResult<Vec<(Option<String>, Entry)>> {
 
 /// `timeline_display(movie)`: each frame's {depth: the place item showing it}.
 pub fn timeline_display(m: &mut Movie) -> MenuResult<Vec<BTreeMap<i64, Rid>>> {
+    timeline_display_of(m, None)
+}
+
+/// `timeline_display(movie, owner)`: the same for a sprite's timeline (`None`: the movie's).
+pub fn timeline_display_of(m: &mut Movie, owner: Option<Rid>) -> MenuResult<Vec<BTreeMap<i64, Rid>>> {
     let mut out = Vec::new();
     let mut disp: BTreeMap<i64, Rid> = BTreeMap::new();
-    for f in 0..m.frame_count(None)? {
-        for it in m.frame_items(f, None)? {
+    for f in 0..m.frame_count(owner)? {
+        for it in m.frame_items(f, owner)? {
             match m.tag(it)? {
                 "remove" => {
                     disp.remove(&signed(m.num(it, 1)?));
@@ -242,7 +248,7 @@ pub fn timeline_display(m: &mut Movie) -> MenuResult<Vec<BTreeMap<i64, Rid>>> {
 }
 
 /// `crosshair_objects(movie, label, baseline)`.
-fn crosshair_objects(m: &mut Movie, label: &str, baseline: &str) -> MenuResult<Vec<(i64, Rid)>> {
+pub fn crosshair_objects(m: &mut Movie, label: &str, baseline: &str) -> MenuResult<Vec<(i64, Rid)>> {
     let disp = timeline_display(m)?;
     let f = m.label_frame(label, None)?;
     let b = m.label_frame(baseline, None)?;
@@ -286,8 +292,21 @@ pub struct Added {
 }
 
 /// `add_crosshair(dst, src, cid, frame)` (no image tiles, baseline "none").
-#[allow(clippy::too_many_lines, reason = "the reference's one function, step for step")]
 pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<i64>) -> MenuResult<Added> {
+    add_crosshair_tiles(dst, src, cid, frame, &[])
+}
+
+/// `add_crosshair(dst, src, cid, frame, images)` (baseline "none"): `images` = [(src image, its tiles)] in the
+/// dict's order - src's textured parts drawing a listed image are split onto its tiles (`split_image_part`) and no
+/// image character is added for it.
+#[allow(clippy::too_many_lines, reason = "the reference's one function, step for step")]
+pub fn add_crosshair_tiles(
+    dst: &mut Movie,
+    src: &mut Movie,
+    cid: &str,
+    frame: Option<i64>,
+    images: &[(i64, Vec<Tile>)],
+) -> MenuResult<Added> {
     let baseline = "none";
     let table = crosshair_table(src)?;
     let Some(ent) = table
@@ -353,6 +372,12 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
         }
     };
     let mut g = Grafter::new();
+    for (img, tiles) in images {
+        let Some(t0) = tiles.first() else {
+            return Err(apt_err(format!("image {img}: no tiles")));
+        };
+        g.map(*img, t0.image);
+    }
     let mut depths: Vec<(i64, i64)> = Vec::new();
     let mut taken: std::collections::HashSet<i64> = base.keys().copied().collect();
     let mut places = Vec::new();
@@ -386,7 +411,23 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
             let Val::Ref(pn) = p else {
                 return Err(MenuError::Reference);
             };
-            new_parts.push(Val::Ref(*g.memo.get(&pn).ok_or(MenuError::Reference)?));
+            let copy = *g.memo.get(&pn).ok_or(MenuError::Reference)?;
+            let tiled = if matches!(src.tag(pn)?, "geo.part4" | "geo.part5") {
+                let img = src.val(pn, 20)?;
+                images
+                    .iter()
+                    .find(|(k, _)| Val::Num(*k as u32) == img && (0..=i64::from(u32::MAX)).contains(k))
+            } else {
+                None
+            };
+            match tiled {
+                Some((_, part_tiles)) => {
+                    for q in split_image_part(dst, copy, part_tiles)? {
+                        new_parts.push(Val::Ref(q));
+                    }
+                }
+                None => new_parts.push(Val::Ref(copy)),
+            }
         }
         let n = new_parts.len();
         *dst.vals_mut(dparts)? = new_parts;

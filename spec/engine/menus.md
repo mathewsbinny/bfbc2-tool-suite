@@ -628,6 +628,42 @@ cache `work\import\onslaught_mode.png` is compared by its pixels: Pillow's and t
 [test: rust/bc2-menu/src/pil.rs::pillow_answers]
 [data: round OR5, 2026-11-23: rust/parity_menuart.py, 200 random cases of each of 9 operations identical to Pillow / numpy; the menu bundle built from the cache, the user's Xbox 360 package and the fallback identical to onslaught_art.py's]
 
+### MENU-ED-9: The Pacific War mode is main_nav's third mode, built on Vietnam's
+
+Status: **verified** · Variants: PC
+
+OPFOR's Pacific War main-menu mode (`menu_install.py`; its movie edits the Rust core's since round OR14:
+`bc2_menu::pacific`) gives `main_nav` three image characters and textured quads (the background at Vietnam's base's
+bounds, the label beside Vietnam's, the logo at Vietnam's logo's corner), places the background in
+`gameModBackground`'s empty frame `BFBC2143` at depth 1, adds `gameModSelector` a PACIFIC WAR button in frames
+`BFBC2` / `BFBC2Nam` and a new frame `BFBC2143` with buttons to the two other modes (each frame's `buttonPressed`
+sends `changeGameMod 3 / 1 / 0` by the button's name), shows Vietnam's art in `bgBar`'s and the new logo in
+`loggo_mc`'s `BFBC2143` frames, labels every other `BFBC2Nam` frame `BFBC2143`, lets each `if (v == "BFBC2Nam")`
+switch take the alias, and makes `setGameMod`'s empty-label branch pick `BFBC2143` when `extern.opforGameMod` is 3;
+`main_root`'s `getGModStringExtensino` returns `_PW` then. The movie is written in the graft layout (`.apt` / `.geo`
+kept in place, `.const` packed). The Rust makes each node, constant and instruction as the Python did, so the
+movies are the same bytes; a movie of another shape is refused with the Python's words.
+
+[code: rust/bc2-menu/src/pacific.rs:1-60]
+[test: rust/parity_pacific_menu.py]
+[data: round OR14: rust/parity_pacific_menu.py - the menu step's movies at the step's and 40 random label / logo sizes, damaged movies and the dumps identical to menu_install.py's Python on aptgraft.py; menu_install.build old against new: every file and printed line identical]
+
+### MENU-ED-10: The localization file keeps DICE's texts where they were and appends new ones
+
+Status: **verified** · Variants: PC
+
+`language_<lang>_normal.bin` as OPFOR writes it (`names.py`'s WW2 texts; `bc2loc set`; since round OR14 through
+`bc2_native.LocFile`, `bc2_menu::loc`): the header (`0x39000`, size, count, table and strings offsets, the 16-byte
+name), the texts it had kept at their offsets, each new or changed text appended NUL-terminated, the entry table
+sorted by hash (`khash`: `h = h * 33 + c` from `0xFFFFFFFF`). A key is looked up as the PC text `WIN32_<key>` first,
+then the key; a text set takes the `WIN32_` key where the file has one. Only ASCII without NUL is written (bytes
+under 0x80 are themselves in every language's encoding); anything else is refused. Unchanged, the file is written
+as it was read.
+
+[code: rust/bc2-menu/src/loc.rs:30-150]
+[test: rust/parity_pacific_menu.py]
+[data: round OR14: rust/parity_pacific_menu.py - every language of the game copy: names.py's texts set, written and read back, every lookup, damaged files and random keys and texts identical to bc2loc.py's]
+
 ## Open questions
 
 - Which movies load in which order beyond the literal loads of MENU-AS-8 and the roots of MENU-LOAD-2.

@@ -7589,6 +7589,48 @@
    ]
   },
   {
+   "id": "MENU-ED-9",
+   "title": "The Pacific War mode is main_nav's third mode, built on Vietnam's",
+   "file": "spec/engine/menus.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/pacific.rs:1-60"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/parity_pacific_menu.py"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_pacific_menu.py - the menu step's movies at the step's and 40 random label / logo sizes, damaged movies and the dumps identical to menu_install.py's Python on aptgraft.py; menu_install.build old against new: every file and printed line identical"
+    }
+   ]
+  },
+  {
+   "id": "MENU-ED-10",
+   "title": "The localization file keeps DICE's texts where they were and appends new ones",
+   "file": "spec/engine/menus.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/loc.rs:30-150"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/parity_pacific_menu.py"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_pacific_menu.py - every language of the game copy: names.py's texts set, written and read back, every lookup, damaged files and random keys and texts identical to bc2loc.py's"
+    }
+   ]
+  },
+  {
    "id": "MOD-EXE-1",
    "title": "Every address was read on PC client build 795745; only signatures check it at run time",
    "file": "spec/engine/module.md",
@@ -33384,6 +33426,60 @@
     {
      "kind": "data",
      "ref": "round OR4: the attachments page of 13 textures under two titles: the text identical, every texture's pixels identical"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PIC-5",
+   "title": "A vehicle's side silhouette is Pillow's polygon fill, equal depths drawn in face order",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/polygon.rs:77-200"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/side.rs:62-222"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/pictures/polygon.rs::random_polygons_are_pillows"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/pictures/side.rs::synthetic_meshes_match_the_python"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_silhouette.py - 20,000 random polygons identical to Pillow 12.3; 85 game-mesh and 300 synthetic pictures identical to the Python with a stable argsort (67 / 84 differ from the default argsort only in pixels a tie can change); the Type 95, MRKV and JETS identical to the shipped Python"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PIC-6",
+   "title": "The DXT encoders' principal axis is LAPACK's dsyevd as the oracle machine computes it",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/eigh3.rs:479-640"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texwrite.rs:1-20"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/eigh3.rs::numpy_axes_to_the_bit"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_texwrite_axes.py - 10,000,000 random covariances, 8,017 degenerate ones and the blocks of 4,495 pictures (111,625,822 blocks) identical to numpy.linalg.eigh's axes; 0 encoded blocks differ"
     }
    ]
   },

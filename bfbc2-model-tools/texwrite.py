@@ -19,9 +19,12 @@ chooses the lower-error eight-value or six-value palette (the latter reserves ex
 The principal axis is solved from the symmetric covariance matrix, preserving opposing channel variations. Mip levels: 2 x 2 box filter; normal maps renormalised after each step.
 
 The levels, the blocks, the alpha decoders and l8_down run in the suite's Rust core when it is built (round F2a:
-bc2_convert::texwrite, the same bytes and arrays); the principal axes stay numpy.linalg.eigh's (LAPACK through
-OpenBLAS, whose kernels' last bits depend on the processor): the core gives each block's covariance, NumPy solves
-them, the core encodes. The Python is kept as the reference and the fallback (levels, dxt1_reference,
+bc2_convert::texwrite, the same bytes and arrays). The principal axes are the core's too since round OR14
+(bc2_convert::eigh3): numpy.linalg.eigh's path - LAPACK dsyevd through OpenBLAS 0.3.34's SkylakeX kernels, whose
+fused multiply-adds decide the last bits, as on the machine that recorded the WW2 oracle - written out step for step,
+the same axes to the bit (rust\\parity_texwrite_axes.py) and the same on any processor. The Python reference below
+still solves with numpy.linalg.eigh, so its last bits follow the processor's OpenBLAS kernels. The Python is kept as
+the reference and the fallback (levels, dxt1_reference,
 dxt5_reference, alpha1_reference, alpha5_reference, l8_down_reference); BFBC2_PURE_PYTHON=1 or use_native(False)
 runs it only.
 """
@@ -68,14 +71,13 @@ def use_native(on: bool) -> bool:
 
 
 def _encode(levels: list[tuple[int, int, int, bytes]], dxt5_: bool) -> list[bytes] | None:
-    """Each level's blocks in the Rust core, the axes from numpy.linalg.eigh; None where the core leaves it."""
+    """Each level's blocks in the Rust core, the axes included (numpy.linalg.eigh's to the bit, round OR14); None
+    where the core leaves it."""
     nat = _native()
     job = nat.TexWriteJob.prepare(levels, dxt5_) if nat is not None else None
     if job is None:
         return None
-    cov = np.frombuffer(job.covariances(), np.float64).reshape(-1, 3, 3)
-    axes = np.linalg.eigh(cov)[1][:, :, -1]
-    return job.finish(np.ascontiguousarray(axes).tobytes())
+    return job.encode()
 
 
 def _packer() -> Any:

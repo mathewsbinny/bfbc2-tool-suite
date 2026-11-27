@@ -340,13 +340,19 @@ TABLE: tuple[Row, ...] = (
     # --- bfbc2-console-readers
     R('bfbc2-console-readers/apt/apt.py', TOOL, 'twin', 'bc2_menu apt; bfbc2 apt',
       'aptcheck, aptgraft, aptrefslib, menucommon; tests 6', 'PR1c (with aptgraft)',
-      "the command line is Rust; Movie is the menu tools' library (OPFOR reaches it only through aptgraft since OR5)"),
+      "the command line is Rust; Movie is the menu tools' library (aptgraft's and aptcheck's; OPFOR reaches none of "
+      'it since OR14)'),
     R('bfbc2-console-readers/stfs/stfs.py', TOOL, 'twin', 'bc2_formats stfs; bfbc2 stfs',
-      'tests 4', 'proposed: PR1c (delete)',
-      "OPFOR's console_onslaught / onslaught_art moved to bc2_formats::stfs (OR5); only the tests and replays import it"),
+      'record_console_readers_answers, test_cli_errors; bfbc2 stfs (refusals)', 'proposed: PR1c (delete)',
+      "OPFOR's console_onslaught / onslaught_art moved to bc2_formats::stfs (OR5); since OR14 test_console_readers"
+      '(_native) run on its recorded answers (console_readers_answers.json) and import it no more: it can be deleted '
+      '(left: bfbc2 stfs embeds its docstring and hands refusals to it, test_cli_errors runs it)'),
     R('bfbc2-console-readers/xiso/xisolib.py', LIB, 'twin', 'bc2_formats xiso; bfbc2 xiso',
-      'tests 2', 'proposed: PR1b-2 (delete)',
-      'command line retired (RT3); find_partition_reference / walk_reference kept; only tests import it'),
+      'record_console_readers_answers', 'proposed: PR1c (delete)',
+      'command line retired (RT3); since OR14 test_console_readers(_native) run on its recorded answers '
+      '(console_readers_answers.json) and import it no more: it can be deleted'),
+    H('bfbc2-console-readers/tests/record_console_readers_answers.py', 'by hand (while stfs.py / xisolib.py exist)',
+      "records stfs.py's and xisolib.py's answers for test_console_readers(_native); goes with the twins"),
     T('bfbc2-console-readers/tests/test_console_readers.py'),
     T('bfbc2-console-readers/tests/test_console_readers_native.py'),
 
@@ -402,15 +408,15 @@ TABLE: tuple[Row, ...] = (
     R('bfbc2-menu-tools/aptcheck.py', TOOL, 'twin', 'bc2_menu (aptcheck); bfbc2 aptcheck',
       'apt, aptrefslib; tests 5; OPFOR 4', 'PR1c',
       'the command line is Rust; verify / lint still build Code in Python for the two movies'),
-    R('bfbc2-menu-tools/aptgraft.py', TOOL, 'partly', 'bc2_menu aptmodel (E4c); bfbc2 aptgraft',
-      'tests 4; OPFOR 11', "PR1c (OPFOR's WW2 menus first)",
-      "the movie model, the grafts and the command line are Rust (O3, E4c); left: the Python API OPFOR's WW2 menu "
-      'tools edit movies with (Movie, Ref, Str, add_label_alias, add_icon_frame, crosshair_table)'),
+    R('bfbc2-menu-tools/aptgraft.py', TOOL, 'twin', 'bc2_menu graft / pacific (O3, E4c, OR14); bfbc2 aptgraft',
+      'tests 4; rust/parity_menu_movies, parity_pacific_menu', 'PR1c (delete)',
+      "a test reference only since OR14: OPFOR's WW2 and Onslaught menu tools edit movies through bc2_native "
+      '(AptMovie, pacific_main_nav / main_root, apt_dump_text)'),
     R('bfbc2-menu-tools/aptrefslib.py', LIB, 'twin', 'bc2_menu; bfbc2 aptrefs', 'tests 3; rust/bench_apt',
       'proposed: PR1b-2 (delete)', 'command line retired (RT3); refs_many_python reference; only tests import it'),
-    R('bfbc2-menu-tools/bc2loc.py', TOOL, 'twin', 'bc2_menu loc; bfbc2 bc2loc', 'menucommon; tests 6; OPFOR 4',
-      "PR1c (OPFOR's WW2 menus first)",
-      "khash_reference and LocFile's edits kept (Python state OPFOR's WW2 menu tools edit)"),
+    R('bfbc2-menu-tools/bc2loc.py', TOOL, 'twin', 'bc2_menu loc (OR14); bfbc2 bc2loc',
+      'menucommon; tests 6; rust/parity_pacific_menu', 'PR1c (delete)',
+      "a test reference only since OR14: OPFOR's WW2 tools read and write texts through bc2_native.LocFile"),
     R('bfbc2-menu-tools/menucommon.py', LIB, 'twin', 'bc2_menu (bigf, pe, common)',
       'aptcheck, aptrefslib, bc2loc; tests 6', 'PR1c',
       "PEImage over the Rust PE reader, OPFOR's menu patch format (applied by bfbc2 aptpatch since OR5), movie lookup"),
@@ -445,7 +451,7 @@ TABLE: tuple[Row, ...] = (
     R('bfbc2-model-tools/skinmesh.py', LIB, 'twin', 'bc2_convert skinmesh', 'tests 2; OPFOR 3', 'PR1b-2',
       'Rust since F2a; its references kept (OPFOR feeds objects it builds)'),
     R('bfbc2-model-tools/texwrite.py', LIB, 'twin', 'bc2_convert texwrite', 'emitteratlas; tests 7; OPFOR 11',
-      'PR1b-2', 'DXT encoding in Rust; resource / header packing and NumPy eigh still Python; references kept'),
+      'PR1b-2', 'DXT encoding in Rust, its principal axes too since OR14 (bc2_convert::eigh3); references kept'),
     T('bfbc2-model-tools/tests/test_decimate.py'),
     T('bfbc2-model-tools/tests/test_model_f2a_native.py'),
     T('bfbc2-model-tools/tests/test_models.py'),
@@ -681,6 +687,18 @@ TABLE: tuple[Row, ...] = (
       "round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory)"),
     R('rust/parity_menuart.py', BENCH, 'stays', '', 'by hand', 'stays',
       "round OR5's picture operations (bc2_menu::pil / modeart) against Pillow, numpy and OPFOR's retired onslaught_art"),
+    R('rust/parity_menu_movies.py', BENCH, 'stays', '', 'by hand', 'stays',
+      "round OR14's OPFOR movie tools on bc2_native.AptMovie (bc2_menu::graft) against aptgraft.py: written files, "
+      "printed lines, damaged inputs, random cases"),
+    R('rust/parity_pacific_menu.py', BENCH, 'stays', '', 'by hand', 'stays',
+      "round OR14's Pacific War menu edits (bc2_menu::pacific) and texts (bc2_menu::loc) against menu_install.py's "
+      'Python on aptgraft.py and bc2loc.py: movies, damaged movies, the whole menu step, every language file'),
+    R('rust/parity_silhouette.py', BENCH, 'stays', '', 'by hand', 'stays',
+      "round OR14's side silhouettes (bc2_convert::pictures::side, Pillow's polygon fill) against OPFOR's "
+      'type95_icon.silhouette and Pillow: random polygons, synthetic and game meshes'),
+    R('rust/parity_texwrite_axes.py', BENCH, 'stays', '', 'by hand', 'stays',
+      "round OR14's texwrite principal axes (bc2_convert::eigh3) against numpy.linalg.eigh, bit for bit, and the "
+      "encoded blocks"),
     R('rust/parity_navkit_paths.py', BENCH, 'stays', '', 'by hand', 'stays',
       "NavKit's level driver through the command line, the editor in process and the export step (files, lines)"),
     R('rust/python_status.py', DEV, 'stays', '', 'by hand; tests/test_repo.py', 'stays',

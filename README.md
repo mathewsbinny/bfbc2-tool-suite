@@ -203,8 +203,9 @@ headers (`mesh.py`, `meshset.py`), `texture.py`'s layout helpers and PC texture 
 `soot.py`, `mesh.py`'s `console_layouts` / `decode` / `relayout`, `havok.convert_wrapper`, `texture.check`), the model
 tools (`texwrite.py`'s encoders, `skinmesh.py`'s vertex work) and Granny's writing side (`granny.py`'s `to_bytes`,
 `add_tracks`, `shift_position`, `set_orientations`), each beside its Python reference (`*_reference`,
-`use_native(False)`, `BFBC2_PURE_PYTHON=1`); `texwrite.py`'s principal axes stay `numpy.linalg.eigh`'s
-(`rust/BENCHMARKS.md`, "F2a"). Round RT2 (2026-11-20) retired most of those references against their recorded
+`use_native(False)`, `BFBC2_PURE_PYTHON=1`); `texwrite.py`'s principal axes are the core's too since round OR14
+(`bc2_convert::eigh3`: `numpy.linalg.eigh`'s path through OpenBLAS's kernels written out, the same axes to the bit;
+`rust\parity_texwrite_axes.py`). Round RT2 (2026-11-20) retired most of those references against their recorded
 answers (`tests\replay.py`, the `*_replay*.json` files beside the tests): the console converter's (terrain, soot,
 mesh, `meshset.parse`, `havok.classes` / `convert_wrapper`, texture levels / decode / check), `menucommon`'s BIGF
 and PE readers, `navsample.load`, `hpdtool.mesh_layout` / `mesh_coverage`, `audio.py`'s EA framing, and round F2b's

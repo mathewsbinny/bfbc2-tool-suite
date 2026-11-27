@@ -7,8 +7,11 @@
 //! | `ww2_loading.py`: `picture`, `level_picture`, `check`, `level_check` | [`loading`] |
 //! | `weapon_icons.py`: `dxt5_alpha`, `silhouette`, `fit`; `minimap_icons.py`: `box_colours`, `paint` | [`icons`] |
 //! | Pillow's `Image.resize` (`LANCZOS`, `BOX`) for 8-bit pictures, `Image.crop` | [`resample`] |
+//! | `type95_icon.py`: `silhouette` (round OR14; `onslaught/console_icons.py` uses it too) | [`side`] |
+//! | Pillow's `ImageDraw.polygon(xy, fill=ink)` on an 8-bit picture | [`polygon`] |
 //!
-//! The DXT encoding stays the suite's `texwrite` (its principal axes are `numpy.linalg.eigh`'s); the preview sheets
+//! The DXT encoding stays the suite's `texwrite` (its principal axes `numpy.linalg.eigh`'s to the bit, computed in
+//! [`crate::eigh3`] since round OR14); the preview sheets
 //! (Pillow's text) stay OPFOR's Python.
 
 #![allow(
@@ -30,7 +33,9 @@
 
 pub mod icons;
 pub mod loading;
+pub mod polygon;
 pub mod resample;
+pub mod side;
 pub mod weapon;
 
 /// An 8-bit picture: `h` rows of `w` pixels of `ch` channels, row-major (a NumPy `(h, w, ch)` `uint8` array).
