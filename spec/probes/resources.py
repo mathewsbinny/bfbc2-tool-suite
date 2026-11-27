@@ -60,6 +60,13 @@ EXPECTED: dict[str, Any] = {
                           22: 24, 23: 326, 24: 72, 25: 487, 26: 17},
     'atree_nodes_in_order': 1926, 'atree_b_entries': 1926, 'atree_anim_index': 1926,
     'atree_b_lengths': (28254, 0.0333, 182.3333),
+    # ATREE-NODE-2 - 4, ATREE-BLK-5, 6 (round SPG2-rest6)
+    'atree_node_header': 1926, 'atree_child_refs': 1926, 'atree_anim_flags': 1926,
+    'atree_is_cyclic_looping': (332, 332), 'atree_c_curves': 1926,
+    'atree_c_modes': {'0@0x40': 15537, '0@0x44': 26257, '0@0x48': 22237, '0@0x4c': 24787, '0@0x50': 25110,
+                      '1@0x4c': 3, '2@0x40': 445, '2@0x44': 1997, '2@0x48': 6017, '2@0x4c': 3409, '2@0x50': 1040,
+                      '3@0x40': 12272, '3@0x4c': 55, '3@0x50': 949, '4@0x50': 1155},
+    'atree_b_cycle': (700, 0.2083, 5.2213, 96, 45.0, 90.0, 0),
     # WAVE-IR-1
     'ir_header': [('irf1', 1, 2, 48000, 1024, 1024, 2048, 1)], 'ir_layout': 5,
     # IR-PART-1 (round SPG4-rest): two channel blocks a partition, a block-scale head, 1,024 (re, im) bins
@@ -212,6 +219,7 @@ def anim_trees(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
     out.update(atree_version=sorted(versions), atree_layout=layout, atree_aligned=aligned,
                atree_pointers_inside=inside)
     anim_tree_blocks(items, out)
+    anim_tree_fields(items, out)
 
 
 # ATREE-BLK-1 - 3: the loader's relocation walkers (BFBC2Game.exe 0xF598E0 block A, 0xF599F0 block B, 0xF59A30
@@ -316,6 +324,82 @@ def anim_tree_blocks(items: list[tuple[str, bytes]], out: dict[str, Any]) -> Non
                atree_type_counts=dict(sorted(types.items())), atree_nodes_in_order=in_order,
                atree_b_entries=b_entries, atree_anim_index=anim_index,
                atree_b_lengths=(len(lengths), round(min(lengths), 4), round(max(lengths), 4)) if lengths else None)
+
+
+# ATREE-NODE-4 (round SPG2-rest6): the u16 words of each node type that name a child node (a node whose parent,
+# its word +0x16, is this node); True: the word may also be 0xFFFF (no node).
+ATREE_CHILDREN: dict[int, tuple[tuple[int, bool], ...]] = {
+    2: ((0x3C, False), (0x3E, True)), 4: ((0x20, False),), 7: ((0x2C, True),),
+    8: ((0x20, True), (0x22, True), (0x24, True), (0x26, True)), 9: ((0x2C, False),), 10: ((0x20, False),),
+    11: tuple((k, False) for k in range(0x22, 0x2E, 2)), 12: tuple((k, False) for k in range(0x22, 0x2A, 2)),
+    13: ((0x28, True),), 14: ((0x20, False), (0x22, False), (0x24, False)), 15: ((0x20, False), (0x22, True)),
+    16: ((0xC4, False),), 17: ((0xC4, False),), 19: ((0x20, False),), 21: ((0x20, False), (0x22, False)),
+    22: tuple((k, False) for k in range(0x20, 0x28, 2)), 24: ((0x70, False), (0x72, False)), 25: ((0x28, True),)}
+# ATREE-BLK-6: a C record's five property curves: (mode word, curve count word or None for one curve, pointers)
+ATREE_C_CURVES = ((0x4C, 0x10, (0x00, 0x08)), (0x40, 0x24, (0x14, 0x1C)), (0x44, None, (0x28,)),
+                  (0x48, None, (0x30,)), (0x50, None, (0x38,)))
+
+
+def anim_tree_fields(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
+    """ATREE-NODE-2 - 4, ATREE-BLK-5, 6: the node header (index, parent, the enabled byte, the effect pairs), the child
+    references, the animation node's flags, block B's cycle distance and angle, block C's curve modes. Counts only."""
+    header = children = triple = c_ok = 0
+    cyclic = [0, 0]
+    modes: Counter[str] = Counter()
+    dist: list[float] = []
+    angle: list[float] = []
+    fourth = 0
+    for name, d in items:
+        tr = _Tree(d)
+        u = tr.u
+        a, b, c = (size for _s, _l, size in tr.blocks)
+        table, n = u(20), u(24)
+        offs = [tr.at(u(tr.at(table, 0) + 4 * i), 0) for i in range(n)]
+        ends = sorted(offs) + [20 + a]
+        end = {o: ends[ends.index(o) + 1] for o in offs}
+        parent = [u(o + 0x14) >> 16 for o in offs]
+        h_ok = k_ok = t_ok = True
+        for i, o in enumerate(offs):
+            pairs = tr.at(u(o + 4), 0)
+            h_ok &= (u(o + 0x14) & 0xFFFF == i and (parent[i] == 0xFFFF) == (i == 0) and (i == 0 or parent[i] < i)
+                     and d[o + 0x1A] == 1 and d[o + 0x1B] == 0 and u(o + 0x1C) == 0
+                     and u(o + 8) <= 3 and o + 0x20 <= pairs and pairs + 8 * u(o + 8) <= end[o])
+            for k, may_none in ATREE_CHILDREN.get(u(o), ()):
+                v = struct.unpack_from('<H', d, o + k)[0]
+                k_ok &= (may_none and v == 0xFFFF) or (v < n and parent[v] == i)
+            if u(o) == 1:
+                t_ok &= u(o + 0x24) <= 2 and u(o + 0x28) <= 2 and u(o + 0x2C) in (0, 0xFFFFFFFF)
+                if 'looping' in name.lower():
+                    cyclic[0] += u(o + 0x24) == 1
+                    cyclic[1] += 1
+        header += h_ok
+        children += k_ok
+        triple += t_ok
+        good = True
+        if c:
+            r0, rn = tr.at(u(20 + a + b), 2), u(24 + a + b)
+            for k in range(rn):
+                r = r0 + ATREE_C_RECORD * k
+                for mode_at, count_at, ptrs in ATREE_C_CURVES:
+                    m = u(r + mode_at)
+                    modes[f'{m}@{mode_at:#x}'] += 1
+                    curve = m in (3, 4)
+                    cnt_ok = count_at is None or u(r + count_at) == (2 if curve else 0)
+                    good &= m <= 4 and (m != 4 or mode_at == 0x50) and cnt_ok and all(
+                        (u(r + p) != 0) == curve for p in ptrs)
+        c_ok += good
+        for k in range(u(20 + a + 4) if b else 0):
+            e = 20 + a + 16 + 16 * k
+            x, y = struct.unpack_from('<2f', d, e + 4)
+            if x:
+                dist.append(x)
+            if y:
+                angle.append(y)
+            fourth += u(e + 12) != 0
+    out.update(atree_node_header=header, atree_child_refs=children, atree_anim_flags=triple,
+               atree_is_cyclic_looping=tuple(cyclic), atree_c_curves=c_ok, atree_c_modes=dict(sorted(modes.items())),
+               atree_b_cycle=(len(dist), round(min(dist), 4), round(max(dist), 4), len(angle), round(min(angle), 4),
+                              round(max(angle), 4), fourth) if dist and angle else None)
 
 
 def atree_type_names(exe: Path) -> bool | None:

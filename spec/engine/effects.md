@@ -243,13 +243,14 @@ command dispatcher; 0x1363390 and 0x11B31C0 as before), and 0x9AF940 (41 cases) 
 Status: **observed** · Variants: PC
 
 The particle update reads a processor's value through one dispatcher (0xB268E0, called by the processors' update
-functions such as 0xB27BF0). The processor builds a small record for it: its `DefaultValues` (+0x00, a Vec4), its
-`Pre` evaluator (+0x10), the evaluator's component selector (+0x14: 0 - 3 pick x, y, z or w of the value
-vector the processor passes, anything else gives 1.0), the evaluator's type (+0x18) and the processor's
-`EvaluatorInput` (+0x1C, `EfNone` 0x7C when it has none). The dispatcher switches on the type (1 - 0xB through the
-table at 0xB26E98; 0, `EtDefault`, and anything else return nothing) to one function per evaluator: box 0xB23890, mesh
-0xB26830, polynomial 0xB24FD0, polynomial operator 0xB266D0, random 0xB21300, random XYZ 0xB23780, rotate vector
-0xB23500, sample texture 0xB265F0, sphere 0xB25090, constant 0xB23990, colour interpolation from 0xB26D92 on.
+functions: the update 0xB2C1A0, the vertex fill 0xB280C0, the spawn 0xB328D0; FX-PROC-8 - 11). The processor builds a
+small record for it: its `DefaultValues` (+0x00, a Vec4), its `Pre` evaluator (+0x10), the evaluator's component
+selector (+0x14: 0 - 3 pick x, y, z or w of the value vector the processor passes, anything else gives 1.0), the
+evaluator's type (+0x18) and the processor's `EvaluatorInput` (+0x1C, `EfNone` 0x7C when it has none). The dispatcher
+switches on the type (1 - 0xB through the table at 0xB26E98; 0, `EtDefault`, and anything else return nothing) to one
+function per evaluator: box 0xB23890, mesh 0xB26830, polynomial 0xB24FD0, polynomial operator 0xB266D0, random 0xB21300,
+random XYZ 0xB23780, rotate vector 0xB23500, sample texture 0xB265F0, sphere 0xB25090, constant 0xB23990, colour
+interpolation from 0xB26D92 on.
 
 For a polynomial (`PolynomialData`, run-time `PolynomialTempData`: `Coefficients` c at +0x00, `MaxClamp` +0x10,
 `MinClamp` +0x14, `ScaleValue` +0x18, after a 0x20-byte header in the evaluator object), with the input t and the
@@ -284,13 +285,21 @@ draw). "w = 1" means the result's fourth component is forced to 1.
 | 9 sphere | `SphereEvaluatorData` (`Pivot` +0x20, `Scale` +0x30, `Radius` +0x40) | (`Pivot` x R + p) x `Scale` x v, p uniform in the ball of radius R (cube draws, rejected outside); w = 1 |
 | 10 constant | `ConstantEvaluatorData` (`Scale` +0x18) | t x v x `Scale`; w = 1 |
 | 11 colour interpolation | `PolynomialColorInterpData` (`Coefficients` +0x20, `Color1` +0x30, `Color0` +0x40) | s = clamp(c.x t^3 + c.y t^2 + c.z t + c.w, 0, 1) per component (w: 0); (1 - s) x `Color1` + s x `Color0`, times v; w = 1 |
+| 2 mesh | `MeshEvaluatorData` (`DistributionData` +0x24, a list of Vec4) | the entry i = trunc(r' x n) of `DistributionData` (n entries, r' = 0.9999999 r), times v; w = 1. `MeshAsset`, `UniformPointCount`, the iso values and `UseDirectionData` are not read here (presumably the editor's, which bakes the point list from the mesh) |
+| 8 sample texture | `SampleTextureData` (`ColorIntensityMin` +0x20, `ColorIntensityMax` +0x30, `TextureDimensions` +0x40, `GradientData` +0x50, a list of Vec4) | g = `GradientData`[trunc(clamp(t, 0, 0.9999999) x `TextureDimensions`.x)]; ((1 - g.w) x `ColorIntensityMin` + g.w x `ColorIntensityMax`) x g x v per component; w = 1. So a texture row baked into `GradientData` is sampled at t, and its alpha picks the intensity between the two limits; `Texture` and `TextureOriginU` / `V` are not read here |
 
 So the polynomial operator's operands run from the linear term up, the reverse of `PolynomialData`'s (FX-PROC-5);
 DICE's data uses neither the operator nor the constant (FX-PROC-2), but an editor that writes them must keep the two
-orders apart. `ExpressionType` (sine / cosine) and the `Expression*` classes are read by none of these. The mesh
-(0xB26830) and sample-texture (0xB265F0, 15 DICE processors) evaluators were not read.
+orders apart. `ExpressionType` (sine / cosine) and the `Expression*` classes are read by none of these.
+
+DICE's data has no mesh evaluator and 15 sample-texture evaluators, every one the `Pre` of an `UpdateColor` with the
+input `EfNormTime` and a gradient of 512 entries for a `TextureDimensions`.x of 512, so the lookup never runs past the
+list (the gradients' components are multiples of 1/255 from 0 to 0.95). The evaluator does not check the length: a
+writer keeps `GradientData` at least `TextureDimensions`.x entries long.
 
 [exe: BFBC2Game.exe box 0xB23890 (-D at 0xB238AD, three draws 0xB238BF - 0xB23942, Pivot x D 0xB2396A - 0xB23972, w 0xB23979 - 0xB2397D); random 0xB21300; random XYZ 0xB23780; rotate vector 0xB23500 (pi/2 x (RotateWithinPlane == 0) 0xB2350F - 0xB23534, the half-degree factor 0.0087266 0x15165BC, the sine and cosine polynomials 0x145A3AC - 0x145A3C4, the result 0xB23758 - 0xB23770); sphere 0xB25090 (the rejection loop 0xB250E1 - 0xB251A4 against R^2); constant 0xB23990; polynomial operator 0xB266D0 (the powers in the order t, t^2, t^3 at 0xB26732 - 0xB26757, the operation +0x20 at 0xB267A9 - 0xB267EF, the result's clamp 0xB2680E - 0xB2681E); colour interpolation inline at 0xB26DF5 - 0xB26E86; the random number 0x4E45C0 (2^-24 at 0x14112F0); the classes' field descriptors as classes.json of round SPG2-rest5 read them (BoxEvaluatorData 0x1BFAA14, SphereEvaluatorData 0x1BFAA2C, RandomEvaluatorData 0x1BFA9E4, RandomXYZEvaluatorData 0x1BFA9FC, RotateVectorData 0x1BFA99C, ConstantEvaluatorData 0x1BFAA5C, PolynomialOperatorData 0x1BFA96C, PolynomialColorInterpData 0x1BFAA74)]
+[exe: BFBC2Game.exe round SPG2-rest6: mesh 0xB26830 (DistributionData's list through 0x1398E90, this + 0x24; its entries (end - begin) >> 4 at 0xB26850 - 0xB26871; the draw 0x4E45F0 over (0, 0.9999999 at 0x145A4D0) at 0xB2687C; the index 0xB26887 - 0xB268B5; the entry times v 0xB268BC - 0xB268C6; w = 1 0xB268CF - 0xB268D3); sample texture 0xB265F0 (GradientData's list through 0x1398E70, this + 0x50; t clamped to 0 and 0.9999999 (0x142BEF0) at 0xB2660C - 0xB26647; times TextureDimensions.x (+0x40) 0xB2664F; the entry 0xB26690; (1 - g.w) x +0x20 + g.w x +0x30 then x g x v 0xB2669D - 0xB266BA); field descriptors MeshEvaluatorData 0x1BFAA44 (DistributionData +0x24), SampleTextureData 0x1BFA984 (GradientData +0x50, ColorIntensityMin +0x20, ColorIntensityMax +0x30, TextureDimensions +0x40)]
+[data: spec/probes/effects_chain.py, round SPG2-rest6 2026-11-27: sample-texture evaluators 15, all `UpdateColorData Pre EfNormTime: gradient 512 x 512`; mesh evaluators 0; the gradients' 30,720 components each a multiple of 1/255 in 0 - 0.949 (a scratch read)]
 
 ### FX-PROC-7: The evaluator's inputs: the particle's age, and one of four emitter parameters
 
@@ -334,24 +343,107 @@ order (FX-PROC-1) does not decide the order of evaluation. Read so far:
   draws; air resistance: the velocity itself, the factor limited from below so it cannot reverse the velocity);
   `UpdateLinearVelocity` moves the position by velocity x the time step; `UpdateOrientation` rebuilds the axes
   from the velocity's direction when it is long enough; `UpdateRotation` adds value x step x the rotation speed to the
-  rotation; `UpdateSize` scales the spawn size (+0x78) by its value, `UpdateSizeX` / `Y` take the larger of that and
-  their own value x the spawn size.
+  rotation; the forces' vectors are FX-PROC-10. The update also adds the time step to +0x40 each frame, so +0x40 runs
+  in seconds (the texture frame of FX-PROC-9 multiplies it).
+- **Size** (corrected by round SPG2-rest6): `UpdateSize`'s value x the spawn size, and the larger of that and
+  `UpdateSizeX` / `Y`'s value x the spawn size, go to a temporary of the update, not to the record (+0x78 keeps the
+  spawn size): the box of position +- that size goes to the bounds the update gathers. The drawn width and height are
+  the vertex fill's (FX-PROC-9), where `UpdateSizeX` / `Y` replace `UpdateSize`'s value per axis instead of taking the
+  larger.
 
 The colour, transparency, alpha-level, texture-coordinate and clip-scale processors are not evaluated in this CPU
-update (they appear only in small accessors, 0xB24430 - 0xB24510, and the vertex fill 0xB27BF0 / 0xB280C0), presumably
-evaluated per vertex or in the shader; not followed.
+update: the quad vertex fill evaluates them (FX-PROC-9).
 
 [exe: BFBC2Game.exe the update 0xB2C1A0: processor lookups by type byte 0xB2C1B4 (UpdateAge, 1 / Lifetime at 0xB2C1D6 - 0xB2C1E4), 0xB2C6C7 - 0xB2C771 (spawn), 0xB2D664 - 0xB2D791 (update); spawn evaluations 0xB2CE06 (position, then 0x403870), 0xB2CEF3 (speed), 0xB2CF35 (direction, 0x403970 and 0x4182E0; InheritSpeedAndDirectionFromEmitter +0x30 at 0xB2D046), 0xB2D100 (size), 0xB2D146 / 0xB2D186 (animation), 0xB2D214 (rotation), 0xB2D25C (rotation speed); the record written 0xB2D27C - 0xB2D3F5; update evaluations 0xB2DE6B (turbulence after three 0xB20A90 draws), 0xB2DEE6 (gravity), 0xB2DF34 (local force), 0xB2DF82 (air resistance, `maxps` 0xB2DFA9), 0xB2DFD8 (linear velocity), 0xB2DFFD - 0xB2E13C (orientation), 0xB2E172 (rotation), 0xB2E1BD (size), 0xB2E1FF / 0xB2E24C (size x / y)]
+[exe: BFBC2Game.exe round SPG2-rest6: +0x40 loaded 0xB2DD1F, the time step (xmm4, the update's argument broadcast at 0xB2CBAF - 0xB2CBCD) added to its x 0xB2DD9A - 0xB2DDA0, written back 0xB2E29E; the sizes into the temporary [esp+0xA0] 0xB2E1C2 - 0xB2E26F (`maxps` for x / y), then position -+ it at 0xB2E476 - 0xB2E4DE; no store to +0x78 in 0xB2DCA0 - 0xB2E611]
+
+### FX-PROC-9: The quad vertex fill and the processors it evaluates
+
+Status: **observed** · Variants: PC
+
+The quads (`EmittableType` `Quad` 1, `ScreenAlignedQuad` 2, `DirectionAlignedQuad` 3) are drawn from vertices the CPU
+fills each frame (0xB292E0, for each live particle in age order). A set-up per emitter (0xB26FB0) finds the
+processors by type (FX-PROC-8) and keeps each enabled one's `DefaultValues`, evaluator and input; it skips the
+rotation and size processors for `ParticleMesh` (6), whose particles are not quads. Then per particle (0xB280C0),
+each value evaluated at the particle's normalised age with its `Parameters` (FX-PROC-5, 7), x its first component:
+
+| Processor | Vertex value |
+|---|---|
+| `UpdateColor` | the colour (x, y, z of the value); without it (0, 0, 0) |
+| `UpdateTransparency` | a = clamp(value, 0, 1) x clamp(1.25 x d, 0, 1), d the particle's distance in front of the camera's plane: every particle fades out over the last 0.8 m before the camera; without the processor value 1 |
+| `UpdateAlphaLevelScale` / `Min` / `Max` | value x the processor's `Exponent` / `MinLevel` / `MaxLevel`; without them 1 / 0 / 1 |
+| `UpdateTextureCoords` | frame = (+0x40) x (+0x48) x value + (+0x4C), the particle's animation words (FX-PROC-8: +0x40 runs in seconds); without it 0 |
+| `UpdateRotation` | the record's rotation (+0x74) as it is (the processor only changes it in the update) |
+| `UpdateSize` / `UpdateSizeX` / `UpdateSizeY` | width = height = value x the spawn size (+0x78); then `UpdateSizeX` sets the width and `UpdateSizeY` the height to their value x the spawn size; without any, both are the spawn size |
+| `UpdateClipScale` | u = clamp(age, 0, 0.999) x (n - 1) over the n Vec4 of `Lookup`; L = lerp(`Lookup`[floor u], `Lookup`[floor u + 1], u - floor u); the quad's four corners get L.x, L.y, L.z, L.w (one each) |
+
+A particle writes four 0x40-byte vertices, one per corner, all eight half-float Vec4 alike but for the corner: +0x00 the
+colour (its w a per-draw byte the caller passes), +0x08 a vector of the draw's, +0x10 (0, 0, 0,
+`VertexPixelLightingBlendFactor`), +0x18 (frame, rotation, width, height), +0x20 (a, alpha scale, alpha min, alpha max),
++0x28 the velocity with the corner's index 0 - 3 as w, +0x30 and +0x38 the quad's two axes with the corner's clip-scale
+value as w. The axes are the particle's own (its first two rows) for a `Quad`, the camera's for a `ScreenAlignedQuad`,
+and the caller's for the others; the position goes to a separate stream with the height. So the quad's shape, the
+texture lookup and the alpha levels' use are the shaders' (not read). The fill also adds each particle's screen share
+(width x height / distance^2 over a camera factor, at most 1, for particles in the view cone and the distance range)
+times 10,000 to a counter. 0xB27BF0, which sums width x height over the particles (0 for a `ParticleMesh`), has no
+caller or reference in the executable.
+
+In DICE's data all 42,802 quad templates have `UpdateColor`, `UpdateTransparency` and `UpdateSize`, and all but 45
+`UpdateTextureCoords`; no `ParticleMesh` template has any of the colour, transparency, alpha-level, texture-coordinate
+or clip-scale processors. Every clip-scale `Lookup` (38,811) holds 33 Vec4.
+
+[exe: BFBC2Game.exe the batch 0xB292E0 (set-up 0xB29362, per particle 0xB293B4, 0x100 bytes of vertices and 0x10 of position per particle, the screen share x 10,000.0 (0x142F360) by `lock xadd` 0xB29426 - 0xB2943C); set-up 0xB26FB0 (type bytes +0x37 colour, +0x39 transparency, +0x3A texture coordinates, +0x41 - +0x44 alpha min, max, scale, clip scale at 0xB273E3 - 0xB27487; EmittableType 6 skips +0x3C rotation, +0x40 size, +0x3D / +0x3E size x / y at 0xB27480 - 0xB274F1; the records with the `Enable` test +0x2C 0xB274F4 - 0xB27916; (1, Exponent, MinLevel, MaxLevel) at +0x1A0 0xB27783 - 0xB278BC; Lookup's Vec4 count 0xB27937 - 0xB2795C; the camera plane (-axis 2, w) and 1.25 (0x145A4D4) 0xB27ABD - 0xB27B5F; the camera rows for ScreenAlignedQuad 0xB270E9 - 0xB27108; VertexPixelLightingBlendFactor (template +0xD0) as half w 0xB27028 - 0xB270B7); per particle 0xB280C0 (colour 0xB281D4 into +0x190; transparency 0xB2822F, clamp and the plane x 1.25 0xB28253 - 0xB282B1; alpha scale / min / max 0xB282D0 / 0xB2831D / 0xB2836A into y / z / w; texture frame 0xB283DF - 0xB28411; size 0xB28434, x 0xB28478, y 0xB284C7 into z / w; clip scale 0xB2854B - 0xB286E3 (0.999 at 0x1434DE8, floor 0x428B20, the lerp 0xB2860D - 0xB28635, halves into the corners' +0x36 / +0x3E words); the screen share 0xB286EB - 0xB28809; alpha x +0x1A0 0xB28931; the four vertices 0xB28BE5 - 0xB28E12, corner halves +0x1D0 - +0x1D6 (0, 1, 2, 3 from 0xB27332 - 0xB273DB); the axes for EmittableType 1 from the particle's rows 0xB2899E - 0xB28BDD); 0xB27BF0 (EmittableType 6 returns 0 at 0xB27C2F, the sum 0xB27F86 - 0xB27FB5): no call, jump or 4-byte reference anywhere in the file; EmittableType's values from its field records 0x1C1EE38 - 0x1C1EEB0 (Point 0, Quad 1, ScreenAlignedQuad 2, DirectionAlignedQuad 3, Trail 4, ParticleMesh 6)]
+[data: spec/probes/effects_chain.py, round SPG2-rest6 2026-11-27: vertex-fill processors by emittable type (UpdateColorData / UpdateTransparencyData: ScreenAlignedQuad 30,443, DirectionAlignedQuad 7,830, Quad 4,529; UpdateTextureCoordsData 30,443 / 7,785 / 4,529; none on ParticleMesh); clip-scale lookups `{33: 38811}`; UpdateSizeData on every quad template (a scratch read)]
+
+### FX-PROC-10: The force vectors
+
+Status: **observed** · Variants: PC
+
+Before its particle loop the update (FX-PROC-8) builds one vector per force processor from the processor's own field
+and the frame's time step dt; per particle, velocity += value x vector (value the processor's evaluation):
+
+| Processor | Vector |
+|---|---|
+| `Turbulance` | three uniform draws in [-K, K], K = `Intensity` x dt x 30 (per particle, one component from each) |
+| `Gravity` | (0, -`Gravity` x dt, 0): a positive `Gravity` pulls down the world's y |
+| `LocalForce` | -dt x `LocalForce` (x, y, z) |
+| `AirResistance` | the velocity itself times max(-value x `DragFactor` x dt, -1): the velocity shrinks by that fraction and never reverses |
+
+So gravity and air resistance follow the usual signs, and a `LocalForce` vector pushes the particles along its
+negative. DICE's data: `Gravity` positive on 21,616 processors, negative (rising smoke and the like) on 9,465, zero on
+4,408; `LocalForce`'s y zero on 10,867, negative on 902, positive on 406; `DragFactor` 0 - 80, `Intensity` 0 - 15.
+
+[exe: BFBC2Game.exe 0xB2C1A0: dt broadcast into [esp+0x90] 0xB2CBAF - 0xB2CBCD, 30.0 (0x141D840) into [esp+0x580] 0xB2CBE1 - 0xB2CBF5, the zero vector [esp+0xB0] 0xB2C206 and ones [esp+0x110] 0xB2C20E; type bytes +0x2E - +0x32 0xB2D664 - 0xB2D6E9; turbulence Intensity x dt x 30 0xB2D7D5 - 0xB2D7EC, the draws 0xB20A90 (lo + r (hi - lo)) between -K and K 0xB2DDB7 - 0xB2DE4A; gravity (0 - dt) x Gravity into y 0xB2D873 - 0xB2D88D; local force (0 - dt) x LocalForce 0xB2D903 - 0xB2D936; drag (0 - dt) x DragFactor 0xB2D98D - 0xB2D9BA; the per-particle sums 0xB2DEB1 (turbulence), 0xB2DEF7 (gravity), 0xB2DF4D (local force), 0xB2DF96 - 0xB2DFB7 (drag, `maxps` with 0 - 1)]
+[data: spec/probes/effects_chain.py, round SPG2-rest6 2026-11-27: force fields by sign over the template chains]
+
+### FX-PROC-11: The mesh particles' spawn and the emitter's lifetime
+
+Status: **observed** · Variants: PC
+
+0xB328C0, which round SPG2-rest5 took for the mesh particles' update, is a two-instruction wrapper of 0xB32730, the
+emitter's lifetime step for every emittable type: it counts the frames and adds the time step to the emitter's time,
+stops emitting once the time passes the template's `Lifetime` (when not 0) or the frames its `LifetimeFrameCount`
+(when not 0), frees the particle buffer once nothing is emitting or alive, and then queues the emitter for removal.
+
+The mesh particles' own code is the spawn 0xB328D0 (called from 0xB34394 in a loop over emitters, with the time step
+and a count): with a `SpawnCompositeMeshParts` processor it makes one particle per part of the effect's mesh, else the
+count asked; it evaluates the spawn processors as FX-PROC-8 does (position, direction x speed, rotation, rotation
+speed); and a particle with a physics body gives the body its placement, the velocity and an angular velocity (the
+vector at +0x40 x the rotation speed at +0x7C). Whether other emittable types also spawn through 0xB328D0 was not
+settled. After the spawn a mesh particle moves by the update (FX-PROC-8) or, with a body, by the physics.
+
+[exe: BFBC2Game.exe 0xB328C0 (`fld` / `call 0xB32730` / `ret 4`); 0xB32730 (frame counter +0xA8 / +0xAC, time +0xB0 += dt, template +0xC8 Lifetime and +0xC4 LifetimeFrameCount clear flag bit 2 at 0xB32765 - 0xB327B0, the buffer freed 0xB32828 - 0xB32863, 0xB2B230 queues and sets bit 0x40 0xB3289F - 0xB328AB; EmitterTemplateData's field descriptors: Lifetime +0xC8, LifetimeFrameCount +0xC4); 0xB328D0 (UpdateAge +0x2D, SpawnCompositeMeshParts +0x23: the part count (+0xE4 - +0xE0) >> 2 at 0xB32998 - 0xB329C2; SpawnRate +0x21; SpawnSpeed / Position / Direction +0x24 - +0x26, SpawnRotation +0x2A, SpawnRotationSpeed +0x2B at 0xB32B23 - 0xB32B89; evaluations 0xB3313D, 0xB33249, 0xB3339F, 0xB33484, 0xB3353C (rotation speed x into +0x7C, times +0x40); the body 0xB33599 - 0xB33607: 0xAA7B80 (0.1 into body +0x188), vtable +0x48 and +0x9C, 0xAA7C10 / 0xAA7C60 (the body's +0xD0 vtable +0x40 / +0x44: linear and angular velocity))]
 
 ## Open questions
 
 - **The effect instance cap** (FX-CLS-3, LIGHT-PT-7).
 - **Appending images to a target's own atlas** (FX-ATL-4) instead of a merge: room in DICE's atlases is not measured
   (the merged Wake atlas is 82 % full).
-- **The processor chain's semantics** (FX-PROC-5 - 8): the evaluators but mesh and sample texture are read, and the
-  CPU update's spawn and force processors. Left: the mesh (0xB26830) and sample-texture (0xB265F0) evaluators; the
-  colour, transparency, alpha-level, texture-coordinate and clip-scale processors (the vertex fill 0xB27BF0 /
-  0xB280C0 and the shaders); the mesh particles' update 0xB328C0; the exact force vectors (gravity's and local
-  force's set-up before the loop, 0xB2D7C6 - 0xB2DBA2); what game code sets the emitter parameters.
+- **The processor chain's semantics** (FX-PROC-5 - 11): every evaluator, the spawn and force processors, the vertex
+  fill and the force vectors are read (round SPG2-rest6). Left: the particle shaders (how the quad is built from the
+  corner index and the axes, the texture frame's lookup, the alpha levels' formula, the clip scale's use); which
+  emittable types spawn through 0xB328D0; the turbulence draws' component order; `LocalForce`'s sign against an
+  effect that uses it (a playtest: a DICE effect with a positive y should sink); what game code sets the emitter
+  parameters; the caller's per-draw byte and vector in the vertex (+0x00 w, +0x08).
 - **The 1,092 `BaseEmitterData` outside any chain** and the documents whose root starts there.
 - **Cost** of camera-proximity grids and of many lights: a playtest.

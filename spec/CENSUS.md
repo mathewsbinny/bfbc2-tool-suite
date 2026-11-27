@@ -31,13 +31,13 @@ DICE's files of the game folder by kind (a `.opfor-orig` backup counts as DICE's
 | aerial height map (Output/win32/levels/*/aerialheightmap.res) | 1 | 524,316 | GFILE-AHM-1 |
 | binkw32.dll (RAD Bink) | 1 | 175,616 | BINK-DLL-1, BINK-HDR-1, GFILE-DFE-1 |
 | bundle (.fbrb) | 1,022 | 6,225,186,692 | FBRB-HDR-1 |
-| bundle registry: bundleManifest | 1 | 58,296 | B43-BNDL-1, CSUM-CHK-1, ONS-REG-1, REG-BM-1, REG-BM-2, REG-NEW-1 (+18) |
-| bundle registry: package.mft | 1 | 136,251 | AI-NEED-3, B43-BNDL-1, BNDL-KIND-1, BNDL-LOC-1, BNDL-LOC-3, CSUM-CHK-1 (+28) |
+| bundle registry: bundleManifest | 1 | 58,296 | B43-BNDL-1, CSUM-CHK-1, ONS-REG-1, REG-BM-1, REG-BM-2, REG-NEW-1 (+19) |
+| bundle registry: package.mft | 1 | 136,251 | AI-NEED-3, B43-BNDL-1, BNDL-KIND-1, BNDL-LOC-1, BNDL-LOC-3, CSUM-CHK-1 (+29) |
 | database.dbmanifest | 1 | 1,868 | GFILE-DBM-1, RES-NAME-2 |
 | dfe | 1 | 1,000 | GFILE-DFE-1 |
 | dialoglogo128x128.jpg | 1 | 21,369 | GFILE-LOGO-1 |
 | movie (Output/win32/movies/**.res) | 33 | 293,728,468 | BINK-OUT-1, RES-WRAP-2 |
-| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-HDR-1, ENG-REND-1, ENG-TI-1, HUD-KILL-1, IR-HDR-1, OCC-HDR-1 (+35) |
+| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-BLK-6, ATREE-HDR-1, ATREE-NODE-3, ENG-REND-1, ENG-TI-1, HUD-KILL-1 (+37) |
 | winui.dll | 1 | 262,144 | out of scope: an MFC 8 dialog library (resource-only UI helpers: rich edit, HTML help); no file of the game folder names it (not imported by BFBC2Game.exe or binkw32.dll), so it belongs to the installer / support tools |
 
 ## 2. Bundle entry types
@@ -74,14 +74,14 @@ Every entry type of DICE's bundles (`**/*.fbrb`, live entries; names: distinct e
 | `SkinnedMeshSet` | 793 | 326 | MESH-HDR-2, RTTI-REND-1, XDEP-RES-2 |
 | `SootMesh` | 90 | 40 | DSTR-MESH-4, RTTI-DECAL-1, SOOT-HDR-1, TERR-SOOT-1 |
 | `SwfMovie` | 876 | 55 | APT-RES-1, APT-WR-1, BIGF-DAT-1, MENU-AS-1, RTTI-UI-1, XDEP-RES-2 |
-| `Terrain` | 42 | 30 | COLL-MG-2, COLL-MG-3, COLL-TERR-1, DSTR-TERR-4, LEVEL-MG-3, LEVEL-OBJ-3 (+18) |
+| `Terrain` | 42 | 30 | COLL-MG-2, COLL-MG-3, COLL-TERR-1, DSTR-TERR-4, LEVEL-MG-3, LEVEL-OBJ-3 (+19) |
 | `TerrainHeightfield` | 450 | 318 | COLL-TERR-1, RTTI-TERR-1, TERR-NAME-1 |
 | `TerrainMaterialMap` | 42 | 30 | RTTI-TERR-1, TEDIT-MM-1, TERR-NAME-1 |
 | `TreeMeshSet` | 164 | 92 | MESH-HDR-2, RTTI-REND-1, VEG-TREE-1, XDEP-RES-2 |
 | `VisualTerrain` | 83 | 30 | DSTR-TERR-1, RTTI-TERR-1, SCR-EVT-3, SET-CLI-2, TERR-NAME-1, TGEN-OUT-5 (+3) |
 | `VisualWater` | 42 | 30 | RNDR-WATER-1, RTTI-TERR-1, TERR-NAME-1, WATER-VIS-4, XDEP-RES-2 |
 | `WaterMesh` | 42 | 30 | COLL-WATER-1, RTTI-TERR-1, TERR-NAME-1, WATER-MESH-3, WATER-VIS-4 |
-| `Wave` | 212,482 | 45,117 | RES-WRAP-2, RTTI-AUDIO-1, SGR-NODE-1, SND-WAVE-1, STRM-CNT-1, WAVE-HDR-1 (+7) |
+| `Wave` | 212,482 | 45,117 | RES-WRAP-2, RTTI-AUDIO-1, SGR-NODE-1, SND-WAVE-1, STRM-CNT-1, WAVE-HDR-1 (+8) |
 | `WeatherSystem` | 39 | 27 | RNDR-WTHR-1, RNDR-WTHR-5, RNDR-WTHR-8, RTTI-WEATH-1, WTH-RES-1 |
 
 ## 3. DBX instance classes
@@ -98,23 +98,23 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | MaterialRelationEffectData | 70,241 | 74 | 2 | MAT-GRID-5, RTTI-GSR-8 |
 | SoundNodePort | 59,593 | 1,312 | 3 | RTTI-AUDIO-1, SGR-WIRE-1 |
 | EmitterDocument | 58,899 | 58,899 | 7 | FX-CLS-1, RTTI-EMIT-1 |
-| EmitterTemplateData | 58,899 | 58,899 | 44 | FX-CLS-1, LIGHT-PT-2, RTTI-EMIT-1 |
+| EmitterTemplateData | 58,899 | 58,899 | 44 | FX-CLS-1, FX-PROC-11, LIGHT-PT-2, RTTI-EMIT-1 |
 | UpdateAgeData | 58,899 | 58,899 | 11 | FX-PROC-1, RTTI-EMIT-1 |
 | UpdateBoundingBoxData | 58,899 | 58,899 | 11 | FX-PROC-1, RTTI-EMIT-1 |
 | SpawnRateData | 58,590 | 58,590 | 15 | FX-PROC-1, RTTI-EMIT-1 |
 | MaterialRelationSoundData | 57,871 | 74 | 4 | MAT-GRID-5, RTTI-GSR-8 |
 | SpawnSizeData | 55,272 | 55,272 | 11 | FX-PROC-1, RTTI-EMIT-1 |
 | SpawnDirectionData | 54,850 | 54,850 | 12 | FX-PROC-1, RTTI-EMIT-1 |
-| UpdateSizeData | 54,775 | 54,775 | 11 | DATA-FX-1, RTTI-EMIT-1 |
+| UpdateSizeData | 54,775 | 54,775 | 11 | DATA-FX-1, FX-PROC-9, RTTI-EMIT-1 |
 | SpawnSpeedData | 54,560 | 54,560 | 11 | FX-PROC-1, RTTI-EMIT-1 |
 | SpawnRotationData | 52,393 | 52,393 | 11 | FX-PROC-1, RTTI-EMIT-1 |
 | SpawnRotationSpeedData | 51,542 | 51,542 | 11 | FX-PROC-1, RTTI-EMIT-1 |
 | UpdateLinearVelocityData | 51,467 | 51,467 | 11 | DATA-FX-1, RTTI-EMIT-1 |
 | SpawnPositionData | 48,584 | 48,584 | 11 | FX-CLS-1, FX-CLS-2, FX-PROC-1, RTTI-EMIT-1 |
 | UpdateRotationData | 48,123 | 48,123 | 11 | DATA-FX-1, RTTI-EMIT-1 |
-| UpdateColorData | 46,982 | 46,982 | 11 | DATA-FX-1, RTTI-EMIT-1 |
-| UpdateTransparencyData | 46,982 | 46,982 | 11 | DATA-FX-1, RTTI-EMIT-1 |
-| UpdateTextureCoordsData | 46,937 | 46,937 | 12 | FX-ATL-2, RTTI-EMIT-1 |
+| UpdateColorData | 46,982 | 46,982 | 11 | DATA-FX-1, FX-PROC-6, FX-PROC-9, RTTI-EMIT-1 |
+| UpdateTransparencyData | 46,982 | 46,982 | 11 | DATA-FX-1, FX-PROC-9, RTTI-EMIT-1 |
+| UpdateTextureCoordsData | 46,937 | 46,937 | 12 | FX-ATL-2, FX-PROC-9, RTTI-EMIT-1 |
 | TerrainSplinePlanePointData | 44,132 | 74 | 8 | DECAL-SRC-2, LEVEL-OBJ-1, RTTI-TERR-1 |
 | UpdateClipScaleData | 42,618 | 42,618 | 11 | DATA-FX-1, RTTI-EMIT-1 |
 | UpdateOrientationData | 41,803 | 41,803 | 11 | DATA-FX-1, RTTI-EMIT-1 |
@@ -147,14 +147,14 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | HealthStateData | 8,578 | 727 | 10 | DSTR-STATE-1, RTTI-GSR-3, RTTI-GSR-8, VEH-HP-4 |
 | InfluenceMapBoneData | 8,559 | 54 | 2 | DATA-ANIM-2, RTTI-ANIM-1 |
 | BaseEmitterData | 7,496 | 7,496 | 11 | FX-PROC-1, RTTI-EMIT-1 |
-| FloatParameter | 6,833 | 1,690 | 3 | DATA-ANIM-1, RTTI-ANIM-1 |
+| FloatParameter | 6,833 | 1,690 | 3 | ATREE-NODE-3, DATA-ANIM-1, RTTI-ANIM-1 |
 | UpdateAlphaLevelMinData | 6,268 | 6,268 | 11 | DATA-FX-1, RTTI-EMIT-1 |
 | MaterialData | 5,746 | 74 | 9 | MAT-GRID-1, MAT-GRID-2, MAT-GRID-3, RTTI-ENT-1 (+2) |
 | VoiceOverLineAsset | 5,221 | 74 | 3 | RTTI-GSR-3, RTTI-GSR-8, SGR-VO-1 |
 | AnimationAsset | 4,794 | 4,794 | 16 | ANIM-TREE-1, RTTI-ANIM-1, RTTI-GSR-2, RTTI-GSR-3 (+3) |
 | VoiceOverEntityData | 4,578 | 74 | 14 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, SCR-EVT-1 |
 | PartComponentData | 4,196 | 716 | 12 | DSTR-STATE-1, RTTI-GSR-3, VEH-ENT-1, VEH-HP-4 |
-| WaveAsset | 4,161 | 4,161 | 11 | FX-CLS-1, RTTI-AUDIO-1, RTTI-GSR-2, RTTI-GSR-3 (+4) |
+| WaveAsset | 4,161 | 4,161 | 11 | FX-CLS-1, RTTI-AUDIO-1, RTTI-GSR-2, RTTI-GSR-3 (+5) |
 | MaterialRelationVehicleData | 3,467 | 74 | 5 | MAT-FX-2, MAT-GRID-5, RTTI-GSR-8 |
 | ObjectSet | 3,466 | 213 | 6 | LEVEL-OBJ-1, RTTI-ENT-1, RTTI-GSR-3 |
 | MaterialRelationTerrainDestructionData | 3,454 | 74 | 3 | DECAL-IMP-1, DSTR-TERR-3, MAT-GRID-5, RTTI-GSR-8 |
@@ -203,7 +203,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | MessageEntityData | 1,340 | 48 | 10 | GAME-AS-1, RTTI-GDLL-1, RTTI-GSR-3 |
 | OutputNode | 1,312 | 1,312 | 9 | RTTI-AUDIO-1, SGR-OUT-1 |
 | SoundSource | 1,312 | 1,312 | 2 | RTTI-AUDIO-1, SGR-OUT-1 |
-| SoundTemplate | 1,312 | 1,312 | 26 | CAMP-CUT-1, FX-CLS-1, RTTI-AUDIO-1, RTTI-GSR-3 (+2) |
+| SoundTemplate | 1,312 | 1,312 | 26 | CAMP-CUT-1, FX-CLS-1, RTTI-AUDIO-1, RTTI-GSR-3 (+3) |
 | EffectAsset | 1,302 | 1,302 | 7 | FX-CLS-1, RTTI-ENT-1, RTTI-GSR-2, RTTI-GSR-3 (+2) |
 | EffectEntityData | 1,302 | 1,302 | 14 | FX-CLS-1, FX-CLS-3, LIGHT-PT-7, RTTI-AUDIO-1 (+3) |
 | DamageAreaTriggerEntityData | 1,283 | 53 | 13 | DSTR-MG-4, GAME-DMG-1, RTTI-GDLL-1, RTTI-GSR-3 |
@@ -387,7 +387,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | DeltaGroup | 74 | 44 | 2 | RTTI-AUDIO-1, SGR-NODE-1 |
 | DeltaNode | 74 | 44 | 3 | RTTI-AUDIO-1, SGR-NODE-1 |
 | EmitterSystemAsset | 74 | 74 | 4 | DATA-FX-1, RTTI-EMIT-1 |
-| ForestEntityData | 74 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+2) |
+| ForestEntityData | 74 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+3) |
 | HumanPlayerEntityData | 74 | 74 | 8 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, SQD-TEAM-1 |
 | LevelData | 74 | 74 | 49 | AI-START-3, BOT-CMB-5, COLL-MG-3, CULL-LVL-1 (+30) |
 | LevelDescriptionAsset | 74 | 74 | 4 | CAMP-DESC-1, RTTI-GSR-8 |
@@ -514,7 +514,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | DecalTemplateData | 16 | 16 | 9 | DATA-DSTR-1, RTTI-DECAL-1 |
 | UIFontMapAsset | 16 | 16 | 4 | RTTI-UI-1, TEXT-FONT-1 |
 | AIVehicleBehaviourData | 15 | 1 | 6 | BOT-MOV-4, BOT-RT-7, BOT-VEH-1, RTTI-GSR-5 (+1) |
-| SampleTextureData | 15 | 15 | 12 | FX-PROC-2, RTTI-EMIT-1 |
+| SampleTextureData | 15 | 15 | 12 | FX-PROC-2, FX-PROC-6, RTTI-EMIT-1 |
 | AimAtOrderEntityData | 14 | 5 | 25 | AIO-CLS-1, RTTI-GSR-3 |
 | FenceModelEntityData | 14 | 14 | 46 | DSTR-STATE-1, RTTI-DBX-2, RTTI-FAC-1, RTTI-GDLL-1 (+2) |
 | RandomTriggerEntityData | 14 | 9 | 8 | CAMP-TRIG-1, RTTI-GDLL-1, RTTI-GSR-3 |
@@ -679,7 +679,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | LookConstantData | 1 | 1 | 11 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
 | MatchMakerAsset | 1 | 1 | 7 | DATA-MM-1, RTTI-GSR-8 |
 | MenuConfigAsset | 1 | 1 | 16 | HUD-MENU-1, RTTI-GSR-6 |
-| MeshAsset | 1 | 1 | 34 | DATA-DSTR-1, RTTI-EMIT-1, RTTI-GSR-2, RTTI-GSR-3 (+1) |
+| MeshAsset | 1 | 1 | 34 | DATA-DSTR-1, FX-PROC-6, RTTI-EMIT-1, RTTI-GSR-2 (+2) |
 | MixerAsset | 1 | 1 | 3 | RTTI-AUDIO-1, SGR-MIX-1 |
 | NavigationConstantData | 1 | 1 | 41 | BOT-MOV-1, BOT-MOV-3, BOT-MOV-4, BOT-VEH-4 (+1) |
 | OrderSettings | 1 | 1 | 3 | AIO-RDY-1, RTTI-GSR-5 |

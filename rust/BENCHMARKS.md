@@ -5769,3 +5769,61 @@ catalogue are the caller's (`dbxport._native_rules`, `_native_catalogue`), so OP
 
 - `wake_vo.waves` (`convert_waves` over `audio.convert_many`) still converts the voice-over in Python threads.
 - The Type 95 silhouette, the DXT encoders' axes and the preview tools (OR4's list; OR14 has the first).
+
+## SPG2-rest6: reverse engineering for the specification (2026-11-27, branch `spg2r6`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745), read only: capstone over a scratch copy of the executable (as in
+rounds SPG2-rest3 - rest5; REA timed out on it before), with rest5's scratch map of the classes' field descriptors.
+The undergrowth's vertex programs were read from DICE's Dx11 shader databases in memory with D3DCompiler's
+disassembler; nothing of them is kept. DICE's data was read through the suite's readers. Nothing was run in the game,
+and nothing was written to `game\`.
+
+| Item | Found | Rules |
+|---|---|---|
+| `windParams` in the shaders (VEG-UG-9) | the 25 distinct Dx11 programs whose parameter block names `windParams` (register 9, 21 or 25; 780 programs in 74 databases, and 74 Dx9 / 74 Dx10 databases hold such programs) all add s = sin(((x + y + z) x 1000 + w.x) x w.y) x max(y, 0) x w.z to x and z in mesh space: `WindScale` metres of sway per metre of height, `UndergrowthWindSpeed` the angular frequency | VEG-UG-10 new (verified) |
+| `UndergrowthMaxHeight` (VEG-UG-8) | the job 0xA0EB10 keeps each cell's lowest and highest instance base (0xA0EC12 - 0xA0EC44, the generator's 8th / 9th arguments 0xA0E7C6 - 0xA0E823) and writes the cell's box with top = highest + this (0xA0ED08 - 0xA0ED25); the draw's frustum test and distance (0xA1EB9A - 0xA1EC77); the generator never reads it | VEG-UG-11 new |
+| mesh / sample-texture evaluators | mesh 0xB26830: `DistributionData`[trunc(r x n)] x v; sample texture 0xB265F0: one texel of the row baked in `GradientData`, scaled by the colour intensities; DICE: no mesh evaluators, 15 sample-texture ones, all 512 entries for 512 | FX-PROC-6 updated |
+| the vertex fill (0xB27BF0 / 0xB280C0) | the batch 0xB292E0 with set-up 0xB26FB0 and per particle 0xB280C0, quads only: transparency x clamp(1.25 x depth) (a 0.8 m near fade), alpha levels, texture frame, size, the 33-entry clip-scale lookup, four 0x40-byte half-float vertices; 0xB27BF0 has no caller | FX-PROC-9 new |
+| force vectors | 0xB2D7C6 - 0xB2D9BA: turbulence ±`Intensity` x dt x 30, gravity (0, -`Gravity` x dt, 0), local force -dt x `LocalForce`, air resistance v x max(-value x `DragFactor` x dt, -1) | FX-PROC-10 new |
+| 0xB328C0 | the lifetime step of every emitter (0xB32730: `Lifetime` / `LifetimeFrameCount`, then removal); the mesh particles' own code is the spawn 0xB328D0 (`SpawnCompositeMeshParts`, physics bodies) | FX-PROC-11 new, FX-PROC-8 corrected (the update's sizes are the bounds') |
+| FSCommand cases (MENU-RT-7) | each case of the four handlers: a message to the server (client 0x15713D8 +0x58, queue 0xC0A390), a job for the client's dispatcher, a level load (0x75DF60 / 0x956E10 / 0x75EAB0) or a UI manager field (0x19A4CA8) | MENU-RT-8 new |
+| criterion objects | the listener's set-up 0x866DC0 -> per award 0x863DB0 -> the factory 0x8430E0 (0x24-byte objects, seven classes by `CriteriaType` and award ownership), armed by 0x861B90; only all-time criteria write the stats | PERS-AWD-8 new (verified) |
+| event 0x51 | `StatEvent_Suicide` (the enum's 105 values; the kill handler 0x86DC90 pushes 0, 0xB, 2, 0xD, 1, 0xC, 3, 0xE, 0x51) | PERS-AWD-6 updated |
+| node records | the 0x20-byte header (pairs, blend times, index, parent, weight parameter, active byte), the animation node (evaluator 0xF59F90), all 26 types' fields from their evaluators (state vtables 0x14AB8B4 - 0x14AB95C, builder 0xF69140), children as u16 indices | ATREE-NODE-2, 3, 4 new (verified) |
+| blocks B and C | B: the cycle's distance (700 entries, 0.21 - 5.22) and angle (96, 45 - 90), read by 0xF492B0; C: five `PropertyCurveType` curves, each a mode word, a pointer and an interval count (0xF50720 -> 0xF59460 -> 0xF534C0 / 0xF53580, ramp 0xF507D0) | ATREE-BLK-5 new, ATREE-BLK-6 new (verified) |
+
+Probes and checks (game tier; counts, shapes and identifiers only, nothing of EA's kept):
+
+- `spec/probes/terrain.py`: the undergrowth programs per database and the sway's instruction shape (7.9 s);
+  `core/tests/test_spec_probes.py::undergrowth_sway` checks it.
+- `spec/probes/effects_chain.py`: the sample-texture gradients against `TextureDimensions`, the mesh evaluators, the
+  clip-scale lookups' lengths, the fill processors by emittable type, the force fields by sign (54 s for the probe).
+- `spec/probes/persistence.py`: the `StatEvent` enum and the kill handler's event numbers, the criterion factory's
+  type tests and vtable stores (0.1 s).
+- `spec/probes/resources.py`: 7 new checks on the node header, child references, animation flags, block C's curves
+  and block B's cycle values over 1,926 trees (67 of 67 checks, 6.3 s).
+
+Rules went from 1,587 to 1,599 (by status: verified 969, implemented 151, observed 417, inferred 62). `spec/rules.json`
+is 977,029 bytes committed (LF), 23 KB under the repository's 1,000,000-byte limit.
+
+### Playtests still pending (in-game tests are paused)
+
+- `transforms/terrain_edit.md` section 5 (E5 / E7); ONS-CAP-3's patch; MAT-TEX-20's RenderDoc capture; BOT-GS-5;
+  bot_ai.md's plan with the kill probe.
+- After OPFOR's PERS-SCORE-2 fix: a round with kills whose save keeps them; a save with an award (PERS-AWD-5, 7); a
+  burst of one menu event (MENU-EVT-5); `-VisualTerrain.Undergrowth*` overrides (VEG-UG-8, SET-CLI-1).
+- New: a suicide and a team kill with the award log (PERS-AWD-6: the 0x51 test's +0xA8, the per-life reset); a
+  settings dump for the default `UndergrowthWindSpeed` / `UndergrowthMaxHeight`, a `WindScale` 0 type standing still
+  and a mesh taller than `UndergrowthMaxHeight` culled while its top is on screen (VEG-UG-10, 11); `LocalForce`'s sign
+  on a DICE effect (FX-PROC-10).
+
+### What is left (SPG2-rest7)
+
+- The Dx9 undergrowth programs' sway (counted, not read).
+- The particle shaders; other emittable types through the mesh spawn; the turbulence draws' axes; the caller's
+  per-draw byte and vector; who sets the emitter parameters.
+- The server message ids' names and the dispatcher's job numbers (MENU-RT-8).
+- The criterion factory's callers 0x8617B0 / 0x8489A0; the 0x51 test's +0xA8.
+- The anim-tree array elements of types 2, 3, 6, 7, 13, 23, the Selector's group order, the If node's expression
+  record, block C's curve names, the header's pairs.
+- OPFOR's fix for PERS-SCORE-2, as an OPFOR round.
