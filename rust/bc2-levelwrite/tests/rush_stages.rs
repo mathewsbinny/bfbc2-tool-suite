@@ -383,7 +383,7 @@ fn stages_added_and_taken_out_on_a_synthetic_level() {
     .unwrap();
     p.push(s.op, "Add Rush stage 4");
     assert_eq!(p.reader_needed(), 10, "a stage added needs version 10 (round E4-rest)");
-    assert!(VERSION >= 10, "this build reads version 10");
+    const { assert!(VERSION >= 10, "this build reads version 10") };
     let w = round_trip(&bc2_levelwrite::apply(&base, &p.operations, &schema).unwrap().bytes);
     assert_eq!(modelayer::rush_play(&w).0.len(), 4);
     let m = w.transform(&s.mcoms[0]).unwrap()[3];

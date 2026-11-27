@@ -45,6 +45,31 @@ landed on `main`.
 - **XVAL-EDIT-5** (round E5-rest) no longer refuses every visual paint: the export writes it, and refuses only a paint
   it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
 
+## [0.27.0] - 2026-11-27
+
+Round OR5 ("OPFOR in Rust", stage 5) adds commands and bindings Project OPFOR's menu build, Onslaught import and test
+run now need, so OPFOR's `SUITE_REQUIRES` moves to 0.27.0 - 0.28.0.
+
+### Added
+- **`bfbc2 aptpatch <in.res> <file.patch> <out.res>`** (round OR5): Project OPFOR's menu patch files applied, the
+  port of OPFOR's `AptTool.cs patch` (retired): every expected byte checked, appended strings and `@label` offsets,
+  the BIGF archive rebuilt as AptTool rebuilt it. OPFOR's 12 patch files give AptTool's movies byte for byte; a
+  malformed line, a label defined twice, a member named twice and a cut archive are refused (spec MENU-ED-7).
+- **`bfbc2 menuart onslaught <unpacked mainmenu> [--xbox DIR] [--refresh] [--cache FILE]`** (round OR5): the Offline
+  Matches panel's ONSLAUGHT mode picture, the port of OPFOR's `onslaught_art.py` (retired) - from the cache, the
+  user's own Xbox 360 Update #3 package or the PC atlas, with Pillow's pixels (`bc2_menu::pil`: Lanczos resizing,
+  paste, alpha_composite, DXT5) and numpy's float32 cut-out; OPFOR's menu bundle is the Python build's byte for byte
+  from each of the three sources (spec MENU-ED-8). `bc2_native.menuart_atlas_infos` / `menuart_dxt5_decode` /
+  `menuart_dxt5_encode` give OPFOR's Pacific War menu step the same pieces.
+- **The console Onslaught import in Rust** (round OR5): `bc2_install::onslaught` (feature `onslaught`),
+  `bc2_native.onslaught_build` / `onslaught_install_plan` - `console_onslaught.py`'s build (the package read by
+  `bc2_formats::stfs`, the world swap, re-pointed and dropped objects, the shared closure, the description) and its
+  install's bundles and writes; OPFOR keeps the command line and the ledger commit. On the user's Update #3 package
+  the work folder and the writes are the Python's byte for byte (spec XCONS-ONS-1).
+- **The test run's logic in Rust** (round OR5): `bc2_harness::testrun`, `bc2_native.testrun_ini_set` / `_get` /
+  `_unset` / `_restore` (opfor.ini's edits) and `testrun_watch` (the log's notes while the game runs); OPFOR's
+  `testrun.py` keeps starting, watching and closing the game.
+
 ## [0.26.0] - 2026-11-23
 
 Round OR2 retires the suite's `terrain._Walk` and `ROAD_VERTEX` (a Python API Project OPFOR used) and the

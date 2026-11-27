@@ -4679,6 +4679,79 @@ Still Python in `wake_install.py`: the shader glue (stage 3: `shader_dbs`, `auto
 
 - Stage 3c (OR3c, in parallel) and the shader glue named above; stages 4 and 5.
 - `meshport`'s renames, donors and poses (OPFOR's soldier and kit builds: stage 4).
+
+## OR5: OPFOR in Rust, stage 5 - Onslaught, menus, testrun (2026-11-27, branch `or5`, with Project OPFOR's `or5`)
+
+Version 0.27.0 (OPFOR's `SUITE_REQUIRES` 0.27.0 to below 0.28.0).
+
+### Inventory
+
+| OPFOR / suite Python | Lines | What it did | Before OR5 | OR5 |
+|---|---|---|---|---|
+| `src\tools\apt\AptTool.cs` (C#, built by build_menus.bat) | 412 | the menu patch files applied; a disassembler | `menucommon.parse_patch` / `apply_patch` had Rust twins (aptcheck lint) | `bfbc2 aptpatch` (`bc2_menu::aptpatch`); retired (the dump is `bfbc2 apt dump`) |
+| `src\tools\menus\onslaught_art.py` | 507 | the ONSLAUGHT mode picture (numpy, Pillow) | stfs / APT readers in Rust (F0, E3n) | `bfbc2 menuart onslaught` (`bc2_menu::modeart`, `bc2_menu::pil`); retired; `menuart.py` (48 lines) keeps the Pacific War step's atlas pieces on `bc2_native.menuart_*` |
+| `src\tools\onslaught\console_onslaught.py` | 532 | the console Onslaught import (stage 1 of `console_port.py`) | stfs in Rust; DbxEdit / FbrbTool in process | build and install preparation in `bc2_install::onslaught`; 106 lines left (the command line, the ledger commit) |
+| `src\tools\testrun\testrun.py` | 493 | starts a level, watches the log, restores opfor.ini | - | opfor.ini's edits and the log's notes in `bc2_harness::testrun`; the process handling stays Python (below) |
+| `src\tools\testrun\playtest.py` | 783 | a scenario driver (game input, screenshots, log checks) | - | stays Python (below) |
+| `console_onslaught`'s other stages (`console_*.py`, `apply_*.py`) | ~5,000 | `console_port.py`'s stages 2-14 and the Napisal-level fixes | they run DbxEdit / FbrbTool / culltree / aptgraft in Rust already | left (below) |
+| `bfbc2-console-readers` (`apt.py`, `stfs.py`, `xisolib.py`) | ~840 | the Xbox 360 readers | Rust twins (F0) | OPFOR no longer imports them; aptgraft / aptcheck keep `apt.py`, the tests `stfs.py` / `xisolib.py` |
+| `bfbc2-menu-tools` (aptgraft, bc2loc, aptcheck, menucommon) | ~4,400 | the menu tools | command lines Rust (O2 / O3), models Rust (E4c) | unchanged: their Python API is what OPFOR's WW2 menu tools (OR4's area) edit movies and texts with |
+
+About 1,400 lines of OPFOR's code retired (AptTool.cs, onslaught_art.py, most of console_onslaught.py (532 -> 106 lines), testrun's ini
+and log code).
+
+**Why the test run's process handling stays Python.** `testrun.py` starts `OPFOR BFBC2.exe`, polls `tasklist`, closes
+the game with `taskkill` and runs the crash reader; `playtest.py` sends the game keyboard and pad input and matches the
+user's scenario regexes (Python's `re`, which the scenario files are written in). None of it can be proven without
+launching the game, which the rounds may not do, and moving the regexes to Rust would change what a scenario means.
+The logic that can be proven - opfor.ini's edits and the log's notes - is Rust.
+
+### Decided against the Python (spec MENU-ED-7, MENU-ED-8, XCONS-ONS-1)
+
+- `aptpatch` refuses what AptTool let through: a malformed line, a label defined twice, a member named twice in the
+  archive, and an archive cut short (the readers' slice would shorten the member silently; AptTool failed on it too).
+- The mode picture's cache is compared by its pixels: Pillow's and the png crate's PNG bytes differ.
+- The import copies the shared files in name order and searches the campaign bundles in CAMPAIGN's order (the Python
+  followed a set's and a dict's order; no output depended on them).
+- Kept for parity, named in the spec: the cut-out's float32 luminance is numpy's (OpenBLAS sums green first, then red
+  and blue each fused); a stripped bundle's printed marker count is the Python's (it subtracts the renamed copies).
+
+### Proof
+
+- **Menus** (`scratchpad\or5\menus_parity.py`: DICE's pristine main menu bundle unpacked into scratch; AptTool.exe
+  compiled from OPFOR 169944d's AptTool.cs and `onslaught_art.py` from 169944d against this branch's `bfbc2.exe`):
+  **12 of 12 patched movies identical**; the mode picture from the cache, from the user's Xbox 360 Update #3 package and
+  from the fallback composition: **every file identical**, the cache's pixels identical; the whole bundle (cache
+  source, then console_hud's loading screen step, packed) **byte for byte the same** (sha256 d544869c...). The Pacific
+  War menu step, unchanged code, was left out (it reads OPFOR main's work folder).
+- **Damaged patches and movies** (`aptpatch_damaged.py`, 400 cases: changed expected bytes and offsets, broken arrows,
+  repeated, dropped and swapped lines, movies cut short): 145 written identically, 255 refused by both, 0 different.
+- **Picture operations** (`rust\parity_menuart.py`, 200 random cases each): resize, cut-out, fit, paste and composite,
+  flip, crop, DXT5 decode, DXT5 encode, Xbox 360 untiling: **1,800 of 1,800 identical** to Pillow 12.3 / numpy 2.5 and
+  the retired script; `bc2_menu::pil`'s unit tests hold recorded digests of the same operations.
+- **The Onslaught import** (`scratchpad\or5\ons_parity.py`: the retired `console_onslaught.py` with the ledger commit
+  captured, against `bc2_native.onslaught_build` / `onslaught_install_plan`; the user's Update #3 package, OPFOR
+  main's `game\` read only, scratch work folders): **ONS_MP_008 / MP_008: 94,645 of 94,645 work files identical**, the
+  added files, the 13 writes (paths, order, bytes) and the printed lines identical (`level.cmd` differs only in the
+  scratch work folder's own name in its graft lines); **ONS_MP_002 / MP_002: 95,949 of 95,949** the same way. Python
+  84-85 s, Rust 83 s a level (the unpacks and DbxEdit's XML, Rust in both, are most of it). A package cut short stops
+  both at the same unpack with the same message. `game\`'s registration files unchanged.
+- **testrun** (`testrun_parity.py`: random, damaged and built opfor.ini texts - CRLF / LF / CR, case, Unicode
+  whitespace and separators, empty and repeated sections; random log lines): ini_set, ini_get, ini_unset, ini_restore
+  20,000 of 20,000 each, the log notes 5,000 of 5,000.
+- No WW2 rebuild: nothing the rebuild runs changed (`bc2-menu`'s existing code, which `levelbuild` uses, is untouched:
+  OR5 only adds modules; `menu_install.py`, whose import line changed, is not run by `rebuild_all`).
+
+### What is left
+
+- `console_port.py`'s stages 2-14 (`console_linux_base`, `console_mode`, `console_loadset`, `console_vehicles`,
+  `console_soldiers`, `console_shaders`, `console_markv`, `console_input`, `console_deps`, `console_cull`,
+  `console_loading`, `console_hud`, `console_icons`) and the Napisal-level fixes (`apply_*.py`): about 5,000 lines,
+  their tools already Rust; next: a round per two or three stages, each against the Python's work files.
+- `playtest.py` and testrun's process handling (above).
+- `bfbc2-menu-tools`' and `bfbc2-console-readers`' Python: retired when OPFOR's WW2 menu tools move off aptgraft's
+  and bc2loc's Python API (PR1c), and `stfs.py` / `xisolib.py` with their tests on recorded answers.
+
 ## E5-rest: the terrain's other layers (2026-11-27, branch `e5r`)
 
 What round E5 left ("E5", "Left"): the visual paint layers, the colour / occlusion paint and its re-shade, widening the

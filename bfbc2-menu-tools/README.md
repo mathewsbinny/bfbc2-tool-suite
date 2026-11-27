@@ -11,6 +11,11 @@ never write into it. There is no menu viewer here.
 | `bc2loc.py` | the game's localized texts: look up a key, search the texts, the keys a movie uses; write texts |
 | `aptgraft.py` | writing APT movies (round trip, the other byte order) and grafting between movies: a character with what it uses, the Onslaught HUD timer, mode cases and aliases, frame-label aliases, crosshairs; its commands and model are in its docstring (`python aptgraft.py` prints them) |
 
+Project OPFOR's menu build steps are `bfbc2.exe` commands with no Python (round OR5): `bfbc2 aptpatch <in.res>
+<file.patch> <out.res>` applies one of OPFOR's patch files (the format `aptcheck lint` reads; OPFOR's AptTool.cs gave
+the same bytes) and `bfbc2 menuart onslaught <unpacked mainmenu> [--xbox DIR] [--refresh] [--cache FILE]` adds the
+Offline Matches panel's ONSLAUGHT mode picture (OPFOR's onslaught_art.py gave the same bytes; spec MENU-ED-7, -8).
+
 Python 3.12 or newer (the suite's; numpy is not needed); with the suite's Rust core built, the movies are decoded and
 the rules and scans run in Rust (rounds E3n, E4c), the same answers. Without Python: `bin\bfbc2.exe <tool> ...`
 (`aptcheck`, `aptrefs`, `bc2loc`, `aptgraft`; the suite's `bin\`, rounds O2 / O3) takes the same arguments and gives the same output, files and
@@ -36,7 +41,7 @@ python aptcheck.py check main_root
 ```
 
 - **`lint <file.patch>...`** reads OPFOR's patch format (`<member> <hex offset> <expected bytes> -> <new bytes> # note`
-  and `append <member> <label> "text"`, as `src\tools\apt\AptTool.cs` applies them): syntax, the size kept, lines
+  and `append <member> <label> "text"`, as `bfbc2 aptpatch` applies them; OPFOR's AptTool.cs until round OR5): syntax, the size kept, lines
   overlapping, labels, a comment on the line or just above it. It then applies the file to the source movie (default
   `pristine:<file name>`) with every expected byte checked, and verifies the result. `--installed` also says whether
   the game's installed movie is that result (if not, the build is stale - or, for main_nav, `onslaught_art.py` added
