@@ -32,7 +32,7 @@ landed on `main`.
 
 Round OR11 retires Project OPFOR's Python of the console Onslaught port's stages 8 - 10: OPFOR now needs this version's
 `bc2_native.onsport_markv` / `onsport_input` / `onsport_deps` (and the seat rules' `onsport_role_inputs` and
-`onsport_seat_edits`), so its `SUITE_REQUIRES` moves to 0.34.0 - 0.35.0.
+`onsport_seat_edits`), so its `SUITE_REQUIRES` moves to 0.34.0 - 0.35.0. Round GM0, merged before it unreleased, is in this version too.
 
 ### Added
 
@@ -48,6 +48,13 @@ Round OR11 retires Project OPFOR's Python of the console Onslaught port's stages
 - `bc2_convert::havok::convert` / `classes_of` (a console Havok resource as the PC's, the executable's hkClass rows as
   the converter's classes), `bc2_convert::meshconv::pair_by_kind` public, `bc2_formats::shaderdb::merge::ArenaStore`
   (a merge store that owns its arena).
+- `spec/engine/gamemodes.md` (round GM0, research): how game modes and eras are authored - every reader of
+  `GameModeData`'s fields and of the game mod in `BFBC2Game.exe` (33 + 8 instructions, the 26 mode-id compares, the
+  mode-kind object, the catalogue keyed by ModeID), each era's resources and licence checks, and a design for a new
+  mode and a new era with the patch set each needs (24 rules GMD-* / ERA-*).
+- `spec/probes/gamemodes.py` (game tier, read only): DICE's game modes, descriptions, matchmaking data and per-era
+  shared config, and the executable's game-mod and literal sites; `core/tests/test_spec_probes.py::game_modes` checks
+  its 19 answers.
 
 ### Fixed
 
@@ -55,6 +62,9 @@ Round OR11 retires Project OPFOR's Python of the console Onslaught port's stages
   `opfor-<name>-installed.json`): the Mark V's missing textures and the referenced partitions come from the stock PC
   bundles only, and a redo of either stage builds on the bundle the install ledger hands it, not on the game copy
   holding its own earlier output (spec XCONS-ONS-8, -10).
+- Spec GAME-MODE-6: the game mod is parsed from the loaded level's `MatchmakingModID` at the loading screen and the
+  HUD's start, not from a stored setting (ERA-MOD-2); GAME-MODE-4 / -5 name the `singleplayer` category and the nine
+  `conquest` compares.
 
 ## [0.33.0] - 2026-11-27
 

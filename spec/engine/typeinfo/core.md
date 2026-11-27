@@ -79,7 +79,8 @@ bookkeeping (`MemoryReportGroup` on 116 classes, `Deprecated` / `Post` 40, `IsOb
 LOD count, `SootVoxelSize`, `OccluderMeshNode` ...), the sound graph nodes' `Name` (37 classes), and the wave and
 impulse-response import settings (`Normalize`, `RemixToQuad`, `FrequencyCut`, `Classification`). The two that differ:
 `SubtitleWaveHashPair` is `WaveName` in the data and `OriginalHashedWaveName` at run time, and `UISharedConfigAsset`
-has two members DICE's data does not set, `UnlocksDataVietnam` and `WeaponDataVietnam`.
+has two members DICE's data does not set, `UnlocksDataVietnam` and `WeaponDataVietnam` (in this corpus: the Vietnam
+patch's startup bundle, which OPFOR's installers replaced, sets both, ERA-RES-2).
 
 [test: core/tests/test_spec_probes.py::typeinfo]
 [data: spec/probes/typeinfo.py --dbx against spec/census.json (DICE's partitions), 2026-11-27: 630 classes: the same 398, DBX more 230, differ 2; 118 DBX-only names]
