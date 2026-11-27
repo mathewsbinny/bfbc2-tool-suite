@@ -278,5 +278,7 @@ uses most for that mesh (MP_004 uses one block in all 40 of its grass's patch gr
   tiles) and what the per-entry shader name changes.
 - The undergrowth cache: the generator (VEG-UG-7) runs per cell from the terrain's jobs; whether its output is kept in
   the `Terrain/Undergrowth/Cache` resource between frames was not followed.
-- Density per level: the forest and middlegrowth totals are counted, not yet per level (E6's defaults).
+- Density per level: measured per multiplayer terrain and biome by round TG4 (transforms/terrain_gen.md TGEN-VEG-2:
+  density by distance outside the playable area, clustering, slope and height preferences, poses); E6's defaults
+  for a placement brush can start from them.
 - Trees shot down: `PartsToBangerParts` and the banger blueprints (DSTR) for trees are not decoded here.

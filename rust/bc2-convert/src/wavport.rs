@@ -147,28 +147,70 @@ fn decode_xas(st: &Stream) -> Option<Vec<i16>> {
 /// (`streams.get(i)`).
 #[must_use]
 pub fn convert(b: &[u8], source: &str, streams: &[Option<&[u8]>; 3], word14: u32) -> Option<Vec<u8>> {
-    let source = if source == "bfbc2" { "bfbc2-xbox" } else { source };
-    if !matches!(source, "bfbc2-xbox" | "bf1943") {
-        return None;
+    convert_checked(b, source, streams, word14).ok()
+}
+
+/// The EA codec names (`audio.CODECS`).
+fn codec_name(c: u32) -> &'static str {
+    match c {
+        2 => "PCM16BE",
+        3 => "EA-XMA",
+        4 => "EA-XAS",
+        5 => "EALayer3 v1",
+        6 => "EALayer3 v2 PCM",
+        7 => "EALayer3 v2 Spike",
+        _ => "?",
     }
-    let src = source_of(source)?;
-    let w = wave::read_wave(b, src).ok()?;
+}
+
+/// [`convert`], or why the Wave does not convert (round OR8: the sound porter's report; the Python's `AudioError`
+/// texts where they say the same).
+///
+/// # Errors
+/// A Wave that does not read, a segment that is not EA-XMA, has another channel count than the Wave or does not
+/// decode, a converted segment that does not fit the PC Wave.
+pub fn convert_checked(b: &[u8], source: &str, streams: &[Option<&[u8]>; 3], word14: u32) -> Result<Vec<u8>, String> {
+    let source = if source == "bfbc2" { "bfbc2-xbox" } else { source };
+    let src = match source {
+        "bfbc2-xbox" | "bf1943" => source_of(source).ok_or_else(|| format!("convert: source '{source}'"))?,
+        _ => return Err(format!("convert: source '{source}' (bfbc2 or bf1943)")),
+    };
+    let w = wave::read_wave(b, src).map_err(|e| e.to_string())?;
     let mut segs: Vec<Option<Vec<u8>>> = Vec::new();
     for i in 0..3 {
-        if w.segments.get(i)?.is_none() {
+        if w.segments
+            .get(i)
+            .ok_or("the Wave has fewer than three segments")?
+            .is_none()
+        {
             segs.push(None);
             continue;
         }
-        let st = segment_stream(&w, src, i, streams)?;
-        if st.codec != 3 || st.channels != w.channels {
-            return None;
+        let st = segment_stream(&w, src, i, streams)
+            .ok_or_else(|| format!("segment {i}: its EA stream does not read (or its streamed part is missing)"))?;
+        if st.codec != 3 {
+            return Err(format!(
+                "segment {i}: codec {} ({}), not EA-XMA",
+                st.codec,
+                codec_name(st.codec)
+            ));
         }
-        let pcm = decode_xma(&st)?;
+        if st.channels != w.channels {
+            return Err(format!(
+                "segment {i}: {} channels, the Wave says {}",
+                st.channels, w.channels
+            ));
+        }
+        let pcm = decode_xma(&st).ok_or_else(|| format!("segment {i}: the EA-XMA stream does not decode"))?;
         let ch = st.channels as usize;
-        let frames = xas::encode(&pcm, ch).ok()?;
-        let blocks = audioframe::xas_blocks(&frames, u64::from(st.samples), ch as u64, st.rate).ok()?;
+        let frames = xas::encode(&pcm, ch).map_err(|e| format!("segment {i}: {e}"))?;
+        let blocks = audioframe::xas_blocks(&frames, u64::from(st.samples), ch as u64, st.rate)
+            .map_err(|e| format!("segment {i}: {e}"))?;
         if st.rate >= 1 << 18 || st.channels == 0 || st.channels > 64 || st.samples >= 1 << 30 {
-            return None;
+            return Err(format!(
+                "segment {i}: {} channels at {} Hz, {} samples: not an EA-XAS header",
+                st.channels, st.rate, st.samples
+            ));
         }
         let header = (
             1u32 << 28 | 4 << 24 | (st.channels - 1) << 18 | st.rate,
@@ -178,14 +220,16 @@ pub fn convert(b: &[u8], source: &str, streams: &[Option<&[u8]>; 3], word14: u32
             .iter()
             .map(|(k, d)| u32::try_from(*k).map(|k| (k, *d)))
             .collect::<Result<_, _>>()
-            .ok()?;
-        segs.push(Some(wave::write_sps(header, &views).ok()?));
+            .map_err(|_| format!("segment {i}: a block past 4 GB"))?;
+        segs.push(Some(
+            wave::write_sps(header, &views).map_err(|e| format!("segment {i}: {e}"))?,
+        ));
     }
     let word14 = if source == "bfbc2-xbox" { w.word14 } else { word14 };
-    let outro = u32::try_from(w.outro).ok()?;
+    let outro = u32::try_from(w.outro).map_err(|_| "the Wave's outro does not fit".to_owned())?;
     let words = [w.flags_id, w.total, w.intro, w.channels, outro, word14];
     let view = |i: usize| segs.get(i).and_then(Option::as_ref).map(|s| (s.as_slice(), &[][..]));
-    wave::write_wave_pc(&words, &[view(0), view(1), view(2)]).ok()
+    wave::write_wave_pc(&words, &[view(0), view(1), view(2)]).map_err(|e| e.to_string())
 }
 
 /// `audio.decode(b, source, streams)`: `(samples interleaved, channels, rate)`.

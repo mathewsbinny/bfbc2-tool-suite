@@ -7,7 +7,7 @@ r"""Round E3g (rust/BENCHMARKS.md, "E3g"): the BF1943 model / physics / effect p
     otherwise on purpose (an input the Python took or refused in another way, now a ConvertError saying why), the new
     answer is under "now", case by case; every other case must give the recorded answer;
   - meshport.Porter.pc_layout (cached signatures, donor lists, fallback choices) against pc_layout_reference;
-  - effectport.templates (EmitterIndex, its disk cache) against templates_reference.
+  - effectport.templates (the Rust core's emitter index, its disk cache) against the search's rule written out.
 
   python test_ports_native.py           quick: built inputs only - 400 seeded console meshes (strips, shared and
                                         windowed regions, re-ordered and dropped elements, damaged ones), every value
@@ -17,11 +17,10 @@ r"""Round E3g (rust/BENCHMARKS.md, "E3g"): the BF1943 model / physics / effect p
                                         bundles (cold, from disk, after a bundle changed, a damaged document)
   python test_ports_native.py --game    + every mesh set (273) and HavokPhysicsData (202) of the user's BF1943 copy
                                         ported as Project OPFOR ports them (against the recording, and with E3g's
-                                        indexes against meshport's / effectport's references), every effect (157)
-                                        through effectport.port_many, every console MeshData / HavokPhysicsData of
+                                        indexes against meshport's reference), every effect (157) through
+                                        effectport.port_many (the Rust core), every console MeshData / HavokPhysicsData of
                                         OPFOR's Onslaught builds (work\onslaught\build_*\con_*, read only) against the
-                                        recording, and EmitterIndex's rows against dbx.parse on all of BFBC2's emitter
-                                        documents
+                                        recording
   python test_ports_native.py --record [--game]
                                         write the "now" answers from the current code where they differ from the
                                         recording: only after a deliberate change to the conversions, proven on the
@@ -484,54 +483,82 @@ class _BundleIx:
         return None if hit is None else fbrb.read(hit[0], [hit[1]])[hit[1]]
 
 
+def greedy(ix, need):
+    """The search's rule written out (the oracle since round OR8 retired effectport's Python): TEMPLATES first, then
+    each emitter document in name order that names a needed type in its bytes and holds it joins the pool, until no
+    type is needed; (pool, the types still needed, sorted), or ('ValueError',) when a document it tests does not
+    parse."""
+    pool = list(effectport.TEMPLATES)
+    have = {i.attr('type') for i in dbx.parse(ix.read(pool[0] + '.dbx')).instances}
+    need = set(need) - have
+    for n in sorted(k for k in ix.where if '/emitters/' in k and k.endswith('.dbx')):
+        if not need:
+            break
+        b = ix.read(n)
+        if not any(t.encode() in b for t in need):
+            continue
+        try:
+            got = {i.attr('type') for i in dbx.parse(b).instances} & need
+        except ValueError:
+            return ('ValueError',)
+        if got:
+            pool.append(n[:-4])
+            need -= got
+    return pool, sorted(need)
+
+
 def quick_templates():
     rnd = random.Random(3)
     types = [f'Emitter.T{i}Data' for i in range(40)]
+    m = effectport._rust()
+    rules = effectport._tables(None)[0]
     with tempfile.TemporaryDirectory() as tmp:
         os.environ['BFBC2_EFFECTPORT_CACHE'] = os.path.join(tmp, 'cache')
-        old_batch = effectport.EMITTER_BATCH
-        effectport.EMITTER_BATCH = 50                            # several batches from a few hundred documents
         try:
             bundles = {'b0.fbrb': [(effectport.TEMPLATES[0] + '.dbx', _doc('10000000', ['Emitter.EmitterEntityData',
                                                                                     'Entity.EffectEntityData']))]}
             for b in range(1, 6):
-                bundles[f'b{b}.fbrb'] = [(f'fx/emitters/e{b}_{i:03d}.dbx', _doc(f'{b}{i:07d}', rnd.sample(types[:39], rnd.randint(1, 3))))
+                bundles[f'b{b}.fbrb'] = [(f'fx/emitters/e{b}_{i:03d}.dbx',
+                                          _doc(f'{b}{i:07d}', rnd.sample(types[:39], rnd.randint(1, 3))))
                                          for i in range(60)]
-            # a damaged document naming a type: the reference tests its bytes, then parse raises
+            # a damaged document naming a type: its bytes are tested, then it does not parse
             bundles['b6.fbrb'] = [('fx/emitters/zz_damaged.dbx', b'not a dbx ' + types[39].encode())]
             ix = _BundleIx(tmp, bundles)
+
+            def rust(need):
+                try:
+                    return effectport.templates(ix, need)
+                except ValueError:
+                    return ('ValueError',)
             n = same = 0
             for k in range(60):
-                need = set(rnd.sample(types[:39], rnd.randint(1, 8))) | ({'Emitter.EmitterEntityData'} if k % 5 == 0 else set())                     | ({'Emitter.NoDocumentData'} if k % 7 == 0 else set())     # a full scan: the index written
+                need = set(rnd.sample(types[:39], rnd.randint(1, 8)))
+                need |= {'Emitter.EmitterEntityData'} if k % 5 == 0 else set()
+                need |= {'Emitter.NoDocumentData'} if k % 7 == 0 else set()     # a full scan: the index written
                 for attempt in range(2):                         # cold (or from memory), then from disk (a new index)
-                    effectport.EmitterIndex._of[:] = [None, None]
+                    m.effectport_forget()
                     if attempt == 0 and k == 0:
                         assert not os.path.isdir(os.environ['BFBC2_EFFECTPORT_CACHE'])
-                    a = outcome(lambda need=need: effectport.templates_reference(ix, need)[1:])
-                    b = outcome(lambda need=need: effectport.templates(ix, need)[1:])
                     n += 1
-                    same += a == b
-            check(same == n, f'emitter templates: {same} of {n} searches as the reference (cold, then from disk)')
-            idx = effectport.EmitterIndex.of_index(ix)
-            check(idx.stats['from_disk'] and len(idx.rows) == 301, f'the index read back from disk '
-                  f'({len(idx.rows)} rows)')
+                    same += greedy(ix, need) == rust(need)
+            check(same == n, f'emitter templates: {same} of {n} searches as the rule (cold, then from disk)')
+            m.effectport_forget()
+            _, _, (docs, read, from_disk) = m.effectport_templates(ix, ['Emitter.NoDocumentData'], rules)
+            check(from_disk and read == 0 and docs == 301,
+                  f'the index read back from disk ({docs} documents, {read} batches read)')
             damaged = {types[39]}
-            a = outcome(lambda: effectport.templates_reference(ix, damaged)[1:])
-            b = outcome(lambda: effectport.templates(ix, damaged)[1:])
-            check(a == b and isinstance(a, tuple), f'a damaged document naming a needed type: the same error ({a})')
+            check(greedy(ix, damaged) == rust(damaged) == ('ValueError',),
+                  'a damaged document naming a needed type: a ValueError')
             # a bundle changed: its key changes, the index is read again
             with open(os.path.join(tmp, 'b3.fbrb'), 'wb') as fh:
                 fh.write(fbrb.build([(n2, 'dbx', _doc('99999999', [types[0]])) for n2, _ in bundles['b3.fbrb']]))
-            ix.where = dict(ix.where)
-            effectport.EmitterIndex._of[:] = [None, None]
             need = {types[0], types[5]}
-            a = outcome(lambda: effectport.templates_reference(ix, need)[1:])
-            b = outcome(lambda: effectport.templates(ix, need)[1:])
-            check(a == b and not effectport.EmitterIndex.of_index(ix).stats['from_disk'],
-                  'a changed bundle: the index read again, the search as the reference')
+            m.effectport_forget()
+            _, _, (_, read, from_disk) = m.effectport_templates(ix, sorted(need), rules)
+            check(greedy(ix, need) == rust(need) and not from_disk and read > 0,
+                  'a changed bundle: the index read again, the search as the rule')
         finally:
-            effectport.EMITTER_BATCH = old_batch
-            effectport.EmitterIndex._of[:] = [None, None]
+            m.effectport_forget()
             del os.environ['BFBC2_EFFECTPORT_CACHE']
 
 
@@ -554,22 +581,20 @@ def game():
     runs = {}
     for side in ('reference', 'rust'):
         set_side(side == 'rust')
-        effectport.EmitterIndex._of[:] = [None, None]
         out: dict[str, str] = {}
         t = time.perf_counter()
         bp.run_mesh(src, ix, bp.mesh_names(src), out)
         bp.run_havok(src, ix, bp.havok_names(src), out, exe)
-        bp.run_effects(src, ix, bp.effect_names(src), out)
         runs[side] = out
         print(f'     {side}: {len(out)} outputs in {time.perf_counter() - t:.1f} s', flush=True)
     a, b = runs['reference'], runs['rust']
-    for kind in ('mesh', 'havok', 'effect'):
+    for kind in ('mesh', 'havok'):
         keys = sorted(k for k in set(a) | set(b) if k.startswith(kind + ':'))
         same = sum(a.get(k) == b.get(k) for k in keys)
         bad = [k for k in keys if a.get(k) != b.get(k)]
         errs = sum(1 for k in keys if str(a.get(k)).startswith('error'))
         check(same == len(keys) and len(keys) > 100, f'BF1943 {kind} ports: {same} of {len(keys)} outputs identical '
-              f'with E3g\'s indexes and with meshport\'s / effectport\'s reference searches ({errs} errors on both '
+              f'with E3g\'s indexes and with meshport\'s reference search ({errs} errors on both '
               'sides)', ', '.join(bad[:3]))
     # the mesh and physics ports' outputs against the recording (made with the retired Python conversions)
     for kind in ('mesh', 'havok'):
@@ -579,35 +604,17 @@ def game():
                 v = run[k]
                 rec(k[len(kind) + 1:], ['error', v[len('error '):]] if v.startswith('error ') else ['ok', v])
         rec.report(f'BF1943 {kind} ports (both runs)', 200)
-    # EmitterIndex's rows against dbx.parse on every BFBC2 emitter document
-    idx = effectport.EmitterIndex(ix)
-    for i in range(0, len(idx.cands), effectport.EMITTER_BATCH):
-        idx.batch(i)
-    data_rows = good = 0
-    for i in range(0, len(idx.cands), effectport.EMITTER_BATCH):
-        names = idx.cands[i:i + effectport.EMITTER_BATCH]
-        data = effectport._read_many(ix, names)
-        for n in names:
-            if n not in data:
-                good += n not in idx.rows
-                continue
-            data_rows += 1
-            try:
-                types = {x.attr('type') for x in dbx.parse(data[n]).instances}
-            except ValueError:
-                good += idx.rows.get(n) == 'error'
-                continue
-            row = idx.rows.get(n)
-            good += row != 'error' and row is not None and set(row[0]) == types and \
-                set(row[1]) == {t for t in types if isinstance(t, str) and t.encode() in data[n]}
-    check(good == len(idx.cands) and data_rows > 10000, f'emitter index: {good} of {len(idx.cands)} BFBC2 emitter '
-          'documents\' rows as dbx.parse reads them')
+    # every effect through the Rust effect port (its Python retired in round OR8, proven then: rust/BENCHMARKS.md
+    # "OR8"): no effect fails
+    out = {}
+    bp.run_effects(src, ix, bp.effect_names(src), out)
+    check(len(out) > 100, f'BF1943 effects: {len(out) - 1} files ported')
     onslaught(exe)
 
 
 def set_side(rust: bool) -> None:
     """The ports' searches: E3g's indexes (rust) or meshport's / effectport's reference searches."""
-    meshport.REFERENCE = effectport.REFERENCE = not rust
+    meshport.REFERENCE = not rust
 
 
 def onslaught(exe):

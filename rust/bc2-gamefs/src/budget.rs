@@ -134,7 +134,7 @@ pub const SPECS: &[Spec] = &[
     suite(
         "effectport",
         "BFBC2_EFFECTPORT_CACHE",
-        &[".pkl"],
+        &[".json", ".pkl"],
         "BFBC2_EFFECTPORT_CACHE_MB",
         MB,
         256.0,

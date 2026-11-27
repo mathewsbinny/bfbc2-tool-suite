@@ -265,6 +265,63 @@ rule, and they keep every rebuilt texture's bytes.
 [test: rust/bc2-convert/src/eigh3.rs::numpy_axes_to_the_bit]
 [data: round OR14: rust/parity_texwrite_axes.py - 10,000,000 random covariances, 8,017 degenerate ones and the blocks of 4,495 pictures (111,625,822 blocks) identical to numpy.linalg.eigh's axes; 0 encoded blocks differ]
 
+### XWW2-FX-1: An effect's emitters are its level's copies, its templates the first BFBC2 documents naming a type
+
+Status: **verified** · Variants: BF1943
+
+BF1943 keeps an effect's emitter documents per level (`levels/<level>/emitters/...` and the fx folders'
+`emitter_<size>/` folders alike); the port takes the level's own copy, else the first other level's in name order
+(BF1943's Wake lacks the tree destruction's three emitters, which Guadalcanal, Iwo Jima and Coral Sea have). The
+templates are DICE's small generic detonation, then each BFBC2 emitter document in name order that names a type still
+needed in its bytes and holds it. Since round OR8 both are the Rust core's (`bc2_convert::effectport`); every effect
+set the WW2 builds port gave the retired Python's files, report lines and records.
+
+[code: rust/bc2-convert/src/effectport.rs:229-243] [code: rust/bc2-convert/src/effectport.rs:880-965]
+[test: rust/bc2-convert/src/effectport.rs::level_copies_the_levels_own_else_the_first_other]
+[test: bfbc2-bf1943-import/tests/test_ports_native.py::quick_templates]
+[data: round OR8: bf1943_fx's 29 effects, the 4 material grids' 44 / 47 / 47 / 38, the 3 level builds' effects, the vehicles' 2: 1,361 files, every report line and record identical to the Python twin; 50 walks at 2 levels identical]
+
+### XWW2-FX-2: A template partition the game copy lacks is named
+
+Status: **implemented** · Variants: PC
+
+The effect port's first template (`fx/explostions/detonations/generic/fx_detonation_s`) missing from the game copy
+stops the port with `dbxport.MissingTemplate` naming it. The retired Python raised the reader's `DeletedEntry` for the
+empty read (an accident of `dbx.parse(None)`): no DICE data decides an error's wording, the name of what is missing is
+the rule. Every other damaged input (cut, emptied and flipped partitions and textures, a dropped partition, a cut
+template, 300 cut emitter documents) gives the Python's outcome.
+
+[code: rust/bc2-convert/src/effectport.rs:880-965]
+[data: round OR8: 20 damaged effect inputs, 19 the Python's outcome (the exception's type and message, or the same files), the missing template decided here]
+
+### XWW2-SND-1: The fields BFBC2's sound classes add are set as DICE set them
+
+Status: **verified** · Variants: BF1943
+
+A ported sound instance whose BF1943 version lacks a field BFBC2's class has gets DICE's value from its conversions of
+BF1943's sounds (the 1,081 sound partitions both games ship, compared by guid): `SoundTemplate`'s
+`PreventDuplicateSpawnFrameCount` 15 where BF1943's `SkipDuplicateSpawns` is true, else 3, and
+`PreventDuplicateSpawnDistance` 10; every sound emitter's `HFDampingOcclusion` 1. Fields BF1943 has, and instances
+without a BF1943 version, keep the template's.
+
+[code: rust/bc2-convert/src/soundport.rs:93-108] [code: rust/bc2-convert/src/soundport.rs:139-158]
+[test: rust/bc2-convert/src/soundport.rs::skip_duplicates_decides_the_frame_count]
+[test: opfor:src/tools/tests/test_ww2_sound_fills.py::test_fills_rederived_from_dices_conversions]
+
+### XWW2-SND-2: A wave whose audio the port puts in memory is not streaming
+
+Status: **verified** · Variants: BF1943
+
+The sound port converts every wave's audio into the PC Wave in memory (a streamed BF1943 wave's from its
+`_waveDataSns_` entries), so the wave's `WaveAsset.IsStreaming` is written false: in DICE's data the flag is true
+exactly when the audio is streamed (all 75 stock waves in Wake's bundle, all 793 shared pairs). A wave that does not
+convert is reported (`FAILED`) with the Rust converter's reason, where the retired Python gave its `AudioError`'s; its
+partition stays as ported.
+
+[code: rust/bc2-convert/src/soundport.rs:212-238] [code: rust/bc2-convert/src/wavport.rs:172-233]
+[test: rust/bc2-convert/src/soundport.rs::streamed_waves_in_memory]
+[data: round OR8: the five sound ports of the WW2 builds (bf1943_fx, Wake's grid, Wake's level, the menu music, the stings): 566 files, logs and returns identical to the Python twin]
+
 ## 3. The install
 
 ### XWW2-INS-1: The WW2 install refuses before writing

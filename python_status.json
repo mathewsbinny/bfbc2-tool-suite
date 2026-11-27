@@ -1027,16 +1027,16 @@
    "status": "twin"
   },
   {
-   "callers": "tests 3; rust/bench_ports; OPFOR 5",
+   "callers": "tests 3; rust/bench_ports; OPFOR 9 (wake_level.port_sounds among them)",
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "library",
-   "lines": 447,
-   "note": "BF1943 effects with their emitters and textures; no Rust port (its *_reference is a faster Python algorithm)",
+   "lines": 140,
+   "note": "BF1943 effects with their emitters and textures, and the sound porter (OPFOR's port_sounds): a wrapper over the Rust core since OR8, the Python twin retired after the parity proof (rust/BENCHMARKS.md \"OR8\")",
    "path": "bfbc2-bf1943-import/effectport.py",
-   "retiring": "proposed: OPFOR in Rust stage 2 (its only users are OPFOR's WW2 steps)",
-   "rust": "",
-   "status": "live"
+   "retiring": "OR8 (done)",
+   "rust": "bc2_convert::effectport, bc2_convert::soundport (bc2_native.effectport_*, soundport_port)",
+   "status": "ported"
   },
   {
    "callers": "texqa, texwrite; tests 3; OPFOR 3",
@@ -1187,7 +1187,7 @@
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "test",
-   "lines": 645,
+   "lines": 640,
    "note": "dbxport's rules on crafted partitions (quick tier: no game data).",
    "path": "bfbc2-bf1943-import/tests/test_dbxport_rules.py",
    "retiring": "Tests in Rust",
@@ -1295,7 +1295,7 @@
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "test",
-   "lines": 607,
+   "lines": 611,
    "note": "Round E3g (rust/BENCHMARKS.md, \"E3g\"): the BF1943 model / physics / effect ports' faster paths.",
    "path": "bfbc2-bf1943-import/tests/test_ports_native.py",
    "retiring": "Tests in Rust",
@@ -2703,7 +2703,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "tool entry point",
-   "lines": 946,
+   "lines": 947,
    "note": "the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate",
    "path": "core/bfbc2core/caches.py",
    "retiring": "PR1b-2",
@@ -2751,7 +2751,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 172,
+   "lines": 173,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -3807,7 +3807,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
-   "lines": 189,
+   "lines": 190,
    "note": "E3g timings",
    "path": "rust/bench_ports.py",
    "retiring": "stays",
@@ -4011,7 +4011,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
-   "lines": 436,
+   "lines": 462,
    "note": "round OR14's Pacific War menu edits (bc2_menu::pacific) and texts (bc2_menu::loc) against menu_install.py's Python on aptgraft.py and bc2loc.py: movies, damaged movies, the whole menu step, every language file",
    "path": "rust/parity_pacific_menu.py",
    "retiring": "stays",
@@ -4047,7 +4047,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 907,
+   "lines": 908,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4701,7 +4701,7 @@
  "totals": {
   "all": {
    "files": 386,
-   "lines": 114129
+   "lines": 113851
   },
   "by_folder": {
    "(root)": {
@@ -4750,13 +4750,13 @@
    },
    "bfbc2-bf1943-import": {
     "files": 27,
-    "lines": 10636,
-    "live": 546,
+    "lines": 10328,
+    "live": 99,
     "partly": 1540,
-    "ported": 56,
+    "ported": 196,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5221,
+    "test": 5220,
     "twin": 3273
    },
    "bfbc2-console-convert": {
@@ -4893,14 +4893,14 @@
    },
    "core": {
     "files": 76,
-    "lines": 20412,
-    "live": 763,
+    "lines": 20414,
+    "live": 764,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
     "test": 15311,
-    "twin": 2429
+    "twin": 2430
    },
    "design": {
     "files": 1,
@@ -4915,12 +4915,12 @@
    },
    "rust": {
     "files": 38,
-    "lines": 7802,
+    "lines": 7830,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7535,
+    "stays": 7563,
     "test": 267,
     "twin": 0
    },
@@ -4949,16 +4949,16 @@
   },
   "by_status": {
    "live": {
-    "files": 18,
-    "lines": 5531
+    "files": 17,
+    "lines": 5085
    },
    "partly": {
     "files": 19,
     "lines": 13587
    },
    "ported": {
-    "files": 22,
-    "lines": 2890
+    "files": 23,
+    "lines": 3030
    },
    "retired-pending": {
     "files": 3,
@@ -4966,15 +4966,15 @@
    },
    "stays": {
     "files": 75,
-    "lines": 16160
+    "lines": 16188
    },
    "test": {
     "files": 192,
-    "lines": 53036
+    "lines": 53035
    },
    "twin": {
     "files": 57,
-    "lines": 22615
+    "lines": 22616
    }
   }
  }

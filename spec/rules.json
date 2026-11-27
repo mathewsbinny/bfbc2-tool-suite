@@ -30687,6 +30687,39 @@
    ]
   },
   {
+   "id": "TEDIT-NEW-4",
+   "title": "A new terrain is sculpted and painted as the base's is, under the base's names",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::a_version_13_create_levels_strokes_stay_on_the_base"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/newterrain_view.rs::a_new_terrain_replaces_the_scenes_under_the_bases_names"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1417-1565"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:1277-1342"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/newterrain_view.rs:1-68"
+    }
+   ]
+  },
+  {
    "id": "TGEN-REQ-1",
    "title": "A level's terrain is eight kinds of data, most of them in the terrain bundle",
    "file": "spec/transforms/terrain_gen.md",
@@ -31304,15 +31337,115 @@
    ]
   },
   {
-   "id": "TGEN-VEG-1",
-   "title": "Vegetation and props are placed as the level's model groups",
+   "id": "TGEN-MAT-3",
+   "title": "The donor's tiled layers are laid on new ground as the donor lays them",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "inferred",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:889-1276"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:842-885"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-1",
+   "title": "Vegetation and props are placed as the level's model groups",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vegetation.rs:23-45"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vegetation.rs:378-590"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1566-1624"
+    },
+    {
      "kind": "inferred",
-     "ref": "VEG-CLS-1 / -2, VEG-UG-1 / -3, COLL-MG-2, XCULL-RES-1; the per-biome instance counts of TGEN-BIOME-2"
+     "ref": "VEG-CLS-1 / -2, LEVEL-MG-7, XLOG-MEM-2, COLL-MG-2, XCULL-RES-1"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-2",
+   "title": "DICE's vegetation per biome: dense in the playable area, clustered, by slope and height",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::dice_biome_statistics"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/vegetation.rs:490-690"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs on the game copy, 2026-11-27: 19 terrains (arid 3, jungle 3, snow 4, temperate 4, vietnam 5), each kind's statistics per terrain and the medians as tabled; rust/BENCHMARKS.md TG4"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-3",
+   "title": "The placement falls on its biome's statistics",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/vegetation.rs::every_biome_falls_on_dices_statistics"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/vegetation.rs::a_placement_is_its_seeds"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/vegetation.rs:692-1230"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-4",
+   "title": "DICE's model groups written again through the member writer are DICE's bytes",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::dice_groups_round_trip_through_the_member_writer"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:420-560"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs on the game copy, 2026-11-27: 17 of 17 groups of MP_005, MP_009CQ, MP_007, MP_004 and NAM_MP_003CQ byte for byte (group file, partition, physics), 15,499 members added again, in 200 s"
     }
    ]
   },
@@ -33480,6 +33613,102 @@
     {
      "kind": "data",
      "ref": "round OR14: rust/parity_texwrite_axes.py - 10,000,000 random covariances, 8,017 degenerate ones and the blocks of 4,495 pictures (111,625,822 blocks) identical to numpy.linalg.eigh's axes; 0 encoded blocks differ"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-FX-1",
+   "title": "An effect's emitters are its level's copies, its templates the first BFBC2 documents naming a type",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:229-243"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:880-965"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/effectport.rs::level_copies_the_levels_own_else_the_first_other"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::quick_templates"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: bf1943_fx's 29 effects, the 4 material grids' 44 / 47 / 47 / 38, the 3 level builds' effects, the vehicles' 2: 1,361 files, every report line and record identical to the Python twin; 50 walks at 2 levels identical"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-FX-2",
+   "title": "A template partition the game copy lacks is named",
+   "file": "spec/transforms/ww2.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:880-965"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: 20 damaged effect inputs, 19 the Python's outcome (the exception's type and message, or the same files), the missing template decided here"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-SND-1",
+   "title": "The fields BFBC2's sound classes add are set as DICE set them",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:93-108"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:139-158"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/soundport.rs::skip_duplicates_decides_the_frame_count"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_sound_fills.py::test_fills_rederived_from_dices_conversions"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-SND-2",
+   "title": "A wave whose audio the port puts in memory is not streaming",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:212-238"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/wavport.rs:172-233"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/soundport.rs::streamed_waves_in_memory"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: the five sound ports of the WW2 builds (bf1943_fx, Wake's grid, Wake's level, the menu music, the stings): 566 files, logs and returns identical to the Python twin"
     }
    ]
   },

@@ -20,7 +20,7 @@ use pyo3::types::{PyBytes, PyBytesMethods, PyDict, PyFrozenSet, PyList, PySet, P
 use rayon::prelude::*;
 
 #[expect(clippy::needless_pass_by_value, reason = "map_err passes the error by value")]
-fn poisoned<T>(e: PoisonError<T>) -> PyErr {
+pub(crate) fn poisoned<T>(e: PoisonError<T>) -> PyErr {
     PyValueError::new_err(format!("dbxport: a lock poisoned ({e})"))
 }
 
@@ -29,7 +29,7 @@ fn poisoned<T>(e: PoisonError<T>) -> PyErr {
 /// these, not built-in copies (a caller changes them: Project OPFOR's planes' gear input).
 #[pyclass(frozen)]
 pub struct DbxRules {
-    rules: Rules,
+    pub(crate) rules: Rules,
 }
 
 /// A table keyed by (type, field), as rows.
@@ -196,8 +196,8 @@ fn element(ar: &mut Arena, e: &Bound<'_, PyAny>) -> PyResult<Id> {
 /// copied in then.
 #[pyclass(frozen)]
 pub struct DbxCatalogue {
-    tables: Catalogue,
-    els: RwLock<Arena>,
+    pub(crate) tables: Catalogue,
+    pub(crate) els: RwLock<Arena>,
     ids: Mutex<HashMap<usize, Id>>,
     keep: Mutex<Vec<Py<PyAny>>>,
 }
@@ -220,7 +220,11 @@ impl DbxCatalogue {
 
     /// `{type: (partition, node)}` of a `defaults` dict, for the types asked (the only ones a port can look up:
     /// its instances' types, as they are and as `TYPE_AS` writes them).
-    fn defaults(&self, d: &Bound<'_, PyDict>, types: &HashSet<String>) -> PyResult<HashMap<String, (String, Id)>> {
+    pub(crate) fn defaults(
+        &self,
+        d: &Bound<'_, PyDict>,
+        types: &HashSet<String>,
+    ) -> PyResult<HashMap<String, (String, Id)>> {
         let mut out = HashMap::with_capacity(types.len());
         #[allow(clippy::iter_over_hash_type, reason = "collected into a map keyed by type")]
         for t in types {

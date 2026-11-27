@@ -721,6 +721,14 @@ fn base_rows(
                 });
             buttons.push(("Base level".into(), r.response.rect));
             ui.end_row();
+            // round TG4: the base's vegetation placed again on the new ground (TGEN-VEG-1 - 3)
+            ui.label(RichText::new("Vegetation").color(p.ink_muted));
+            let v = ui.checkbox(
+                &mut s.vegetation,
+                "Place the base's trees, bushes, rocks and natural props on the new ground",
+            );
+            buttons.push(("Vegetation".into(), v.rect));
+            ui.end_row();
             if heightmap {
                 ui.label(RichText::new("Materials").color(p.ink_muted));
                 ui.horizontal_wrapped(|ui| {
