@@ -9,6 +9,8 @@ mod bc2loc;
 // menucommon's twin: the library crate bc2-menu (round O3)
 use bc2_menu::common;
 mod json;
+// round OR5: Project OPFOR's menu build steps (aptpatch, menuart)
+pub mod opfor;
 
 /// `MenuToolError(msg)` as the command lines raise it (the library's [`bc2_menu::error::MenuError::Menu`], as the
 /// Python's exception).

@@ -81,6 +81,7 @@ mod harness;
 mod importer;
 mod kymesh;
 mod loc;
+mod menuart;
 mod meshdata;
 mod meshindex;
 mod navapply;
@@ -94,6 +95,7 @@ mod navstage;
 mod navtools;
 mod navtrace;
 mod navwalk;
+mod onslaught;
 mod pathdata;
 mod pefile;
 mod physmat;
@@ -106,6 +108,7 @@ mod shaderdb_open;
 mod shaders;
 mod shadertranslate;
 mod stockmp;
+mod testrun;
 mod texcheck;
 mod wave;
 mod window;
@@ -453,6 +456,13 @@ mod bc2_native {
     #[pymodule_export]
     use super::shaderdb_levels::{shadercover_levels, shaderdb_level_scan, shaderdb_retexture};
 
+    // round OR5: OPFOR's console Onslaught import (console_onslaught.build / install, bc2_install::onslaught)
+    #[pymodule_export]
+    use super::menuart::{menuart_atlas_infos, menuart_dxt5_decode, menuart_dxt5_encode};
+    #[pymodule_export]
+    use super::onslaught::{onslaught_build, onslaught_install_plan};
+    #[pymodule_export]
+    use super::testrun::{testrun_ini_get, testrun_ini_restore, testrun_ini_set, testrun_ini_unset, testrun_watch};
     // round OR2: OPFOR's WW2 level build (wake_install.build's parts, bc2_install::levelbuild)
     #[pymodule_export]
     use super::shaderdb_merge::ShaderMerger;

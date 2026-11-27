@@ -24,14 +24,14 @@ rounds NK4 and NK5.
 
 | Status | Files | Lines |
 |---|---:|---:|
-| live | 18 | 5,284 |
+| live | 18 | 5,287 |
 | partly | 20 | 16,518 |
 | twin | 56 | 19,670 |
 | ported | 22 | 2,890 |
 | retired-pending | 3 | 310 |
-| stays | 67 | 13,249 |
+| stays | 68 | 13,356 |
 | test | 191 | 52,486 |
-| **all** | **377** | **110,407** |
+| **all** | **378** | **110,517** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -52,9 +52,9 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 18 | 11,171 | 1,430 | 3,775 | 984 | 126 |  |  | 4,856 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 20,378 | 757 |  | 2,429 | 1,909 |  |  | 15,283 |
+| `core` | 76 | 20,381 | 760 |  | 2,429 | 1,909 |  |  | 15,283 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 33 | 6,035 |  |  |  |  |  | 5,768 | 267 |
+| `rust` | 34 | 6,142 |  |  |  |  |  | 5,875 | 267 |
 | `spec` | 19 | 6,491 |  |  |  |  |  | 6,491 |  |
 | `tests` | 29 | 7,622 |  |  |  |  |  |  | 7,622 |
 
@@ -240,8 +240,8 @@ Lines by status in the folder table.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-console-readers/apt/apt.py` | 500 | tool entry point | twin | bc2_menu apt; bfbc2 apt; embedded | aptcheck, aptgraft, aptrefslib, menucommon; tests 6; OPFOR 2 | OPFOR in Rust stage 5 | the command line is Rust; Movie is a library of the menu tools and OPFOR |
-| `bfbc2-console-readers/stfs/stfs.py` | 213 | tool entry point | twin | bc2_formats stfs; bfbc2 stfs; embedded | hub; tests 4; OPFOR 2 (onslaught) | OPFOR in Rust stage 5 | its Python kept as OPFOR's library (RT3) |
+| `bfbc2-console-readers/apt/apt.py` | 500 | tool entry point | twin | bc2_menu apt; bfbc2 apt; embedded | aptcheck, aptgraft, aptrefslib, menucommon; tests 6 | PR1c (with aptgraft) | the command line is Rust; Movie is the menu tools' library (OPFOR reaches it only through aptgraft since OR5) |
+| `bfbc2-console-readers/stfs/stfs.py` | 213 | tool entry point | twin | bc2_formats stfs; bfbc2 stfs; embedded | tests 4 | proposed: PR1c (delete) | OPFOR's console_onslaught / onslaught_art moved to bc2_formats::stfs (OR5); only the tests and replays import it |
 | `bfbc2-console-readers/xiso/xisolib.py` | 122 | library | twin | bc2_formats xiso; bfbc2 xiso | tests 2 | proposed: PR1b-2 (delete) | command line retired (RT3); find_partition_reference / walk_reference kept; only tests import it |
 | `bfbc2-console-readers/tests/test_console_readers.py` | 386 | test | test |  | run_tests.py | Tests in Rust | The console readers on images built here: - xisolib.py and `bfbc2 xiso` (round RT3 retired xiso.py's comman... |
 | `bfbc2-console-readers/tests/test_console_readers_native.py` | 228 | test | test |  | run_tests.py | Tests in Rust | Round F0: the console containers in the Rust core - STFS packages (stfs.Package: bc2_native.stfs_open / Stf... |
@@ -306,11 +306,11 @@ Lines by status in the folder table.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-menu-tools/aptgraft.py` | 2941 | tool entry point | partly | bc2_menu aptmodel (E4c); bfbc2 aptgraft; embedded | tests 4; OPFOR 11 | OPFOR in Rust stage 5 | the movie model and the command line are Rust; left: the grafting operations (Grafter, aliases, crosshair) |
-| `bfbc2-menu-tools/aptcheck.py` | 437 | tool entry point | twin | bc2_menu (aptcheck); bfbc2 aptcheck; embedded | apt, aptrefslib; tests 5; OPFOR 4 | OPFOR in Rust stage 5 | the command line is Rust; verify / lint still build Code in Python for the two movies |
+| `bfbc2-menu-tools/aptgraft.py` | 2941 | tool entry point | partly | bc2_menu aptmodel (E4c); bfbc2 aptgraft; embedded | tests 4; OPFOR 11 | PR1c (OPFOR's WW2 menus first) | the movie model, the grafts and the command line are Rust (O3, E4c); left: the Python API OPFOR's WW2 menu tools edit movies with (Movie, Ref, Str, add_label_alias, add_icon_frame, crosshair_table) |
+| `bfbc2-menu-tools/aptcheck.py` | 437 | tool entry point | twin | bc2_menu (aptcheck); bfbc2 aptcheck; embedded | apt, aptrefslib; tests 5; OPFOR 4 | PR1c | the command line is Rust; verify / lint still build Code in Python for the two movies |
 | `bfbc2-menu-tools/aptrefslib.py` | 296 | library | twin | bc2_menu; bfbc2 aptrefs | tests 3; rust/bench_apt | proposed: PR1b-2 (delete) | command line retired (RT3); refs_many_python reference; only tests import it |
-| `bfbc2-menu-tools/bc2loc.py` | 387 | tool entry point | twin | bc2_menu loc; bfbc2 bc2loc; embedded | menucommon; tests 6; OPFOR 4 | OPFOR in Rust stage 5 | khash_reference and LocFile's edits kept (Python state OPFOR edits) |
-| `bfbc2-menu-tools/menucommon.py` | 346 | library | twin | bc2_menu (bigf, pe, common) | aptcheck, aptrefslib, bc2loc; tests 6 | OPFOR in Rust stage 5 | PEImage over the Rust PE reader, OPFOR's menu patch format, movie lookup |
+| `bfbc2-menu-tools/bc2loc.py` | 387 | tool entry point | twin | bc2_menu loc; bfbc2 bc2loc; embedded | menucommon; tests 6; OPFOR 4 | PR1c (OPFOR's WW2 menus first) | khash_reference and LocFile's edits kept (Python state OPFOR's WW2 menu tools edit) |
+| `bfbc2-menu-tools/menucommon.py` | 346 | library | twin | bc2_menu (bigf, pe, common) | aptcheck, aptrefslib, bc2loc; tests 6 | PR1c | PEImage over the Rust PE reader, OPFOR's menu patch format (applied by bfbc2 aptpatch since OR5), movie lookup |
 | `bfbc2-menu-tools/tests/test_apt_e3n.py` | 403 | test | test |  | run_tests.py | Tests in Rust | Round E3n (rust/BENCHMARKS.md "E3n") against its references: - apt.py's decoder in the Rust core (bc2_forma... |
 | `bfbc2-menu-tools/tests/test_apt_e4c.py` | 281 | test | test |  | run_tests.py | Tests in Rust | Round E4c (rust/BENCHMARKS.md "E4c") against its references, both ways in one process: - aptgraft's model i... |
 | `bfbc2-menu-tools/tests/test_aptgraft.py` | 529 | test | test |  | run_tests.py | Tests in Rust | aptgraft.py (the APT movie writer and character grafter) on movies built here (quick), and with --game on P... |
@@ -400,12 +400,12 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 20,378 lines.
+76 files, 20,381 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `core/bfbc2core/__init__.py` | 25 | library | live |  | every Python tool; OPFOR | the last Python | the package; __version__ from VERSION |
-| `core/bfbc2core/envvars.py` | 166 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
+| `core/bfbc2core/envvars.py` | 169 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
 | `core/bfbc2core/native.py` | 566 | library | live | bc2-cli pyproc (RETIRED list mirrored) | 63 suite modules, CI workflows; tests 53; OPFOR 11 | PR1b-2 (one registry), then the last Python | finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI |
 | `core/bfbc2core/appicon.py` | 35 | library | twin | rust/app_icon.rs, bc2-editor appicon | hub (.pyw); tests 1 | proposed: with the hub | the icon lookup the Rust builds also make |
 | `core/bfbc2core/atomicio.py` | 150 | library | twin | bc2_formats' one whole-file writer (PR1a) | 17 suite modules; tests 5 | PR1b-2 | atomic whole-file writes for the Python tools |
@@ -491,7 +491,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-33 files, 6,035 lines.
+34 files, 6,142 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -519,13 +519,14 @@ Lines by status in the folder table.
 | `rust/hang_stacks.py` | 163 | build or dev script | stays |  | bc2-editor's test hang guard (tests/main.rs); tests 1 | stays | a hung process's thread stacks (HG1) |
 | `rust/native_census.py` | 132 | build or dev script | stays |  | by hand | PR1b-2 (made a check) | who calls each bc2_native export (AU5 ARC-12) |
 | `rust/parity_e3o_nav.py` | 106 | benchmark or parity script | stays |  | by hand; tests 2 | stays | kymesh Rust reader against parse_mesh_reference |
+| `rust/parity_menuart.py` | 102 | benchmark or parity script | stays |  | by hand | stays | round OR5's picture operations (bc2_menu::pil / modeart) against Pillow, numpy and OPFOR's retired onslaught_art |
 | `rust/parity_navkit_paths.py` | 336 | benchmark or parity script | stays |  | by hand | stays | NavKit's level driver through the command line, the editor in process and the export step (files, lines) |
 | `rust/parity_nk1_apply.py` | 114 | benchmark or parity script | stays |  | by hand | stays | NK1 parity against a pre-NK1 checkout |
 | `rust/parity_nk2_file.py` | 305 | benchmark or parity script | stays |  | by hand | stays | NK2 parity against a pre-NK2 checkout (both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk3_detail.py` | 512 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py) |
 | `rust/parity_nk4_walk.py` | 181 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk5_build.py` | 109 | benchmark or parity script | stays |  | by hand | stays | round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory) |
-| `rust/python_status.py` | 878 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 883 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 

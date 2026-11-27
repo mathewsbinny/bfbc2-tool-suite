@@ -1591,30 +1591,30 @@
    "status": "twin"
   },
   {
-   "callers": "aptcheck, aptgraft, aptrefslib, menucommon; tests 6; OPFOR 2",
+   "callers": "aptcheck, aptgraft, aptrefslib, menucommon; tests 6",
    "embedded_by": [
     "rust/bc2-cli/src/readers/apt.rs"
    ],
    "folder": "bfbc2-console-readers",
    "kind": "tool entry point",
    "lines": 500,
-   "note": "the command line is Rust; Movie is a library of the menu tools and OPFOR",
+   "note": "the command line is Rust; Movie is the menu tools' library (OPFOR reaches it only through aptgraft since OR5)",
    "path": "bfbc2-console-readers/apt/apt.py",
-   "retiring": "OPFOR in Rust stage 5",
+   "retiring": "PR1c (with aptgraft)",
    "rust": "bc2_menu apt; bfbc2 apt",
    "status": "twin"
   },
   {
-   "callers": "hub; tests 4; OPFOR 2 (onslaught)",
+   "callers": "tests 4",
    "embedded_by": [
     "rust/bc2-cli/src/readers/stfs.rs"
    ],
    "folder": "bfbc2-console-readers",
    "kind": "tool entry point",
    "lines": 213,
-   "note": "its Python kept as OPFOR's library (RT3)",
+   "note": "OPFOR's console_onslaught / onslaught_art moved to bc2_formats::stfs (OR5); only the tests and replays import it",
    "path": "bfbc2-console-readers/stfs/stfs.py",
-   "retiring": "OPFOR in Rust stage 5",
+   "retiring": "proposed: PR1c (delete)",
    "rust": "bc2_formats stfs; bfbc2 stfs",
    "status": "twin"
   },
@@ -1978,7 +1978,7 @@
    "lines": 437,
    "note": "the command line is Rust; verify / lint still build Code in Python for the two movies",
    "path": "bfbc2-menu-tools/aptcheck.py",
-   "retiring": "OPFOR in Rust stage 5",
+   "retiring": "PR1c",
    "rust": "bc2_menu (aptcheck); bfbc2 aptcheck",
    "status": "twin"
   },
@@ -1990,9 +1990,9 @@
    "folder": "bfbc2-menu-tools",
    "kind": "tool entry point",
    "lines": 2941,
-   "note": "the movie model and the command line are Rust; left: the grafting operations (Grafter, aliases, crosshair)",
+   "note": "the movie model, the grafts and the command line are Rust (O3, E4c); left: the Python API OPFOR's WW2 menu tools edit movies with (Movie, Ref, Str, add_label_alias, add_icon_frame, crosshair_table)",
    "path": "bfbc2-menu-tools/aptgraft.py",
-   "retiring": "OPFOR in Rust stage 5",
+   "retiring": "PR1c (OPFOR's WW2 menus first)",
    "rust": "bc2_menu aptmodel (E4c); bfbc2 aptgraft",
    "status": "partly"
   },
@@ -2016,9 +2016,9 @@
    "folder": "bfbc2-menu-tools",
    "kind": "tool entry point",
    "lines": 387,
-   "note": "khash_reference and LocFile's edits kept (Python state OPFOR edits)",
+   "note": "khash_reference and LocFile's edits kept (Python state OPFOR's WW2 menu tools edit)",
    "path": "bfbc2-menu-tools/bc2loc.py",
-   "retiring": "OPFOR in Rust stage 5",
+   "retiring": "PR1c (OPFOR's WW2 menus first)",
    "rust": "bc2_menu loc; bfbc2 bc2loc",
    "status": "twin"
   },
@@ -2028,9 +2028,9 @@
    "folder": "bfbc2-menu-tools",
    "kind": "library",
    "lines": 346,
-   "note": "PEImage over the Rust PE reader, OPFOR's menu patch format, movie lookup",
+   "note": "PEImage over the Rust PE reader, OPFOR's menu patch format (applied by bfbc2 aptpatch since OR5), movie lookup",
    "path": "bfbc2-menu-tools/menucommon.py",
-   "retiring": "OPFOR in Rust stage 5",
+   "retiring": "PR1c",
    "rust": "bc2_menu (bigf, pe, common)",
    "status": "twin"
   },
@@ -2739,7 +2739,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 166,
+   "lines": 169,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -3903,6 +3903,18 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
+   "lines": 102,
+   "note": "round OR5's picture operations (bc2_menu::pil / modeart) against Pillow, numpy and OPFOR's retired onslaught_art",
+   "path": "rust/parity_menuart.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
    "lines": 336,
    "note": "NavKit's level driver through the command line, the editor in process and the export step (files, lines)",
    "path": "rust/parity_navkit_paths.py",
@@ -3975,7 +3987,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 878,
+   "lines": 883,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4592,8 +4604,8 @@
  ],
  "totals": {
   "all": {
-   "files": 377,
-   "lines": 110407
+   "files": 378,
+   "lines": 110517
   },
   "by_folder": {
    "(root)": {
@@ -4785,8 +4797,8 @@
    },
    "core": {
     "files": 76,
-    "lines": 20378,
-    "live": 757,
+    "lines": 20381,
+    "live": 760,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
@@ -4806,13 +4818,13 @@
     "twin": 0
    },
    "rust": {
-    "files": 33,
-    "lines": 6035,
+    "files": 34,
+    "lines": 6142,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5768,
+    "stays": 5875,
     "test": 267,
     "twin": 0
    },
@@ -4842,7 +4854,7 @@
   "by_status": {
    "live": {
     "files": 18,
-    "lines": 5284
+    "lines": 5287
    },
    "partly": {
     "files": 20,
@@ -4857,8 +4869,8 @@
     "lines": 310
    },
    "stays": {
-    "files": 67,
-    "lines": 13249
+    "files": 68,
+    "lines": 13356
    },
    "test": {
     "files": 191,
