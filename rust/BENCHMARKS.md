@@ -6392,3 +6392,54 @@ bundle manifests and `startup-00` untouched).
 - The private copies of OR10's `port.rs` helpers in `cull.rs` / `loading.rs` / `hud.rs`, once OR10 is on main.
 - The in-process FbrbTool / DbxEdit commands still write no tool log ("details: (no log file)", as OR9).
 - **Unproven until a playtest**: nothing new in game - the bundles are the Python's byte for byte.
+
+## GM4: N native eras - every limit on the era count, and a host era table (2026-11-27, branch `gm4`)
+
+GM1 settled four native eras (0 BFBC2, 1 Vietnam, 2 Pacific War, 3 BFBC1). GM4 asked what stops a fifth, and how GM2's
+patch set can serve any number of eras from a host-owned table.
+
+**Method.** Static only:
+
+- capstone over a scratch copy of `BFBC2Game.exe` (PC build 795745);
+- `bfbc2 apt dump` of DICE's 22 Package main-menu movies (OPFOR's `work/aptgraft` copy) and OPFOR's hudlayer_shared /
+  mp_objectives dumps;
+- `bfbc2 aptrefs` for extern ids and cases.
+
+Nothing was run, launched or built. Nothing was written to `game\`. DC0's database answered only a name lookup: its
+caller and pseudo-C queries failed while it re-exported, so callers came from a scan of the image for `call` / `jmp` /
+pointer targets.
+
+| Question | Found | Rules |
+|---|---|---|
+| the field | +0xC8C8C / +0xC8C90 are dwords (11 `mov dword` stores); no array indexed by the value; only two imm8 sites would carry N (the tracker bound, GM1's label test), so N <= 125 | ERA-N-1, ERA-N-4 |
+| every limit | the parser (2 tags), the setter's labels (2), the gate, the 20 `== 1` sites, `UISharedConfigAsset`'s two slot pairs, the weapon maps and unlock grid (2 each), the tag builders (3 / 7 bytes), the menu tracker (4 pages), the launcher pipe (0 / 1), the online strings, the movies (2 - 4 frames) | ERA-N-1 |
+| the new-item tracker (GM1's open question) | the key is a `UIMenuTrackerPage`: Awards 0, MenuUnlocks 1, MenuUnlocksVietnam 2, Store 3, Count 4. The writer is 0x9573F0 (pages 0 / 1 / 2 only); the loader 0x957140 reads pages 0 - 3 (`cmp eax, 4` at 0x9573D1); the saver 0x932CB0 writes the `GstMenuTracker` profile entries. GM1's "era + 1" would put era 2 on the Store page and era 3 on a page never read back; the rule is page k + 2 | ERA-N-2 |
+| tag lengths | the builders allocate 4 / 8 and copy 3 / 7 by immediates; a 3- or 7-character tag needs a pointer only, any other length a builder cave (0x942266 - 0x942320) | ERA-N-5 |
+| a third setter caller | UI message 0x38 comes from the launcher pipe `\\.\pipe\rome_snowroller`: `expansion` = `bfbc2vietnam` -> 1, else 0 (0x5B5108) | ERA-N-6 |
+| dead ends | the tag helper 0x9201A0 (no caller), `extern.seenMenu` (a page parameter, no movie), `extern.fillColor` (constant orange), the `BFBC2` compare at 0x662409 (an entitlement group) | ERA-N-7 |
+| the design | a host table, one row per era (tag, label, the four names, shared config, weapon map, tracker page, sign-in and redeem policy); GM2's thunks index it; online search left DICE's | ERA-N-8, ERA-N-9, ERA-N-13 |
+| era 4's cost | on a table-built GM2: one row, N = 5 (tracker bound 7), the era's GM3-style data set and the menu frames; on a hard-coded GM2: about 15 sites change | ERA-N-10 |
+| labels | the engine never parses a label back (the only references are the setter's pushes; `setGameMod` is ActionScript only); the movies match it as frame labels, in three `"BFBC2Nam"` compares and in the empty-label fallback; no string operation on it, so no prefix or length matters; a label is a key, renaming the visible name is art and text | ERA-N-11 |
+| a fifth frame | 17 sprites carry era frames (main_nav 9, hudlayer_shared 4, sharedGraphics 2, weaponicon 2); only bgBar 466 / loggo_mc 477 have four; a missing label leaves the previous era's art. The selector 443 is a two-state toggle sending `"0"` / `"1"` | ERA-N-12 |
+
+**Probe and checks** (game tier; addresses and digests only, nothing of EA's kept). `spec/probes/gamemodes.py` gained
+`N_SITES`: 9 ranges with sha256 prefixes, the boundary check and the overlap check against the kept Vietnam ranges.
+It also reads the tracker's page bound (4). The whole probe takes 7.3 s, and `core/tests/test_spec_probes.py::game_modes`
+now checks 28 answers.
+
+**Rules** went from 1,657 on main to 1,670: eras_n.md has 13 (2 verified, 6 observed, 5 inferred). eras.md's ERA-SITE-5
+and ERA-SITE-4 carry the corrections. These pass: `spec/trace.py --check`, `spec/probes/census.py --check`
+(CENSUS.md rewritten) and the game_modes step.
+
+### Playtests still pending (in-game tests are paused)
+
+- ERA-N-2: a page above 3 saved to GameSettings.bin and read back by the patched loader.
+- ERA-N-11: APT's `gotoAndStop` with an unknown or numeric-looking label.
+- ERA-N-12: a fifth era's frames in each of the four movies, and the load-time picks after a level.
+- ERA-N-13: the in-process server's level list with an era tag in +0xB8.
+
+### What is left (GM4)
+
+- Whether battlefield-opfor's launcher uses the `rome_snowroller` pipe. Only OPFOR's source was searched.
+- The Store page's writer on PC (none found), and the page-0 source 0x9484A0 as the award list (inferred).
+- GM1's open questions stand: 0x9381F0's Vietnam map keys, the server strings' writers, a missing asset's handle.

@@ -15,7 +15,9 @@ run): every instruction whose displacement is the UI manager's game mod (+0xC8C8
 how each uses it, and the instructions that push (or load into esi / edi) the mode-id, matchmaking-id, game-mod tag and
 persistence-template strings. Since round GM1 (spec/engine/eras.md) also a digest of each instruction range round GM2
 patches for native eras 2 and 3 and of each Vietnam ownership check no patch may touch, that each range ends on an
-instruction boundary, and that no patch range overlaps a kept one.
+instruction boundary, and that no patch range overlaps a kept one. Since round GM4 (spec/engine/eras_n.md) also the
+further ranges an N-era table needs (the setter's whole label branch, the offline list's tag builder, the menu
+tracker's page bound, writer and four page tests, the launcher's `expansion` test) and the tracker's page count.
 
 Prints identifiers and counts only (mode ids, field names, addresses; no text, no bytes). `checks(game)` recomputes
 the stable answers the rules cite for core/tests/test_spec_probes.py.
@@ -80,6 +82,14 @@ KEEP_SITES = (
     ('applyLicenses.a', 0x8528E3, 5), ('applyLicenses.b', 0x852904, 5), ('levelLicence', 0x951A83, 5),
     ('weaponLicence.a', 0x6523A7, 5), ('weaponLicence.b', 0x6523C8, 5), ('weaponLicence.c', 0x6524EC, 5),
     ('signIn', 0x920C00, 0x62),
+)
+# Round GM4 (spec/engine/eras_n.md): the further ranges an N-era table needs (ERA-N-3). 'setter.labels' and
+# 'maps.builder' replace GM1's narrower label and tag ranges when the host takes that path (they overlap them).
+N_SITES = (
+    ('setter.labels', 0x75FDA4, 29), ('maps.builder', 0x942266, 186),
+    ('tracker.bound', 0x9573D1, 3), ('tracker.writer', 0x957631, 6),
+    ('seen.a.key', 0x920D24, 13), ('seen.b.key', 0x920E77, 13), ('seen.c.key', 0x920FB4, 13),
+    ('seen.d.key', 0x921107, 13), ('launcher.expansion', 0x5B5104, 25),
 )
 
 
@@ -306,6 +316,13 @@ def exe_side(game: Path, got: dict[str, Any]) -> None:
     got['keep_sites'], got['keep_ragged'] = ranges(KEEP_SITES)
     got['patch_keep_overlap'] = sorted(f'{p}/{k}' for p, pa, pn in PATCH_SITES for k, ka, kn in KEEP_SITES
                                        if pa < ka + kn and ka < pa + pn)
+    got['n_sites'], got['n_ragged'] = ranges(N_SITES)
+    got['n_keep_overlap'] = sorted(f'{p}/{k}' for p, pa, pn in N_SITES for k, ka, kn in KEEP_SITES
+                                   if pa < ka + kn and ka < pa + pn)
+    # ERA-N-2: the menu tracker's loader reads pages 0 .. 3 (UIMenuTrackerPage_Count); its writer fills 0, 1, 2
+    at = next(ra + 0x9573D1 - sva for sva, size, ra, _c in x.secs if sva <= 0x9573D1 < sva + size)
+    bound = x.b[at:at + 3]
+    got['tracker_pages'] = bound[2] if bound[:2] == b'\x83\xf8' else None
 
 
 def analyse(game: Path) -> dict[str, Any]:
@@ -400,6 +417,21 @@ EXPECTED: dict[str, Any] = {
     },
     'keep_ragged': [],
     'patch_keep_overlap': [],
+    # round GM4: the N-era table's further ranges, and the menu tracker's page count
+    'n_sites': {
+        'setter.labels': '0x75fda4+29 f442e82c440b3731',
+        'maps.builder': '0x942266+186 247317599241bc72',
+        'tracker.bound': '0x9573d1+3 ec9d1a6c95187ab3',
+        'tracker.writer': '0x957631+6 6276656afb30851f',
+        'seen.a.key': '0x920d24+13 9376c5308ef30473',
+        'seen.b.key': '0x920e77+13 4f6a8c3f48b373d8',
+        'seen.c.key': '0x920fb4+13 9376c5308ef30473',
+        'seen.d.key': '0x921107+13 4f6a8c3f48b373d8',
+        'launcher.expansion': '0x5b5104+25 877ee9d2ec587389',
+    },
+    'n_ragged': [],
+    'n_keep_overlap': [],
+    'tracker_pages': 4,
 }
 
 # The rules each recorded answer backs.
@@ -413,6 +445,7 @@ RULES: dict[str, str] = {
     'absent_strings': 'ERA-MOD-3, GMD-PERS-1',
     'patch_sites': 'ERA-SITE-1', 'patch_ragged': 'ERA-SITE-1', 'keep_sites': 'ERA-LIC-2', 'keep_ragged': 'ERA-LIC-2',
     'patch_keep_overlap': 'ERA-LIC-2',
+    'n_sites': 'ERA-N-3', 'n_ragged': 'ERA-N-3', 'n_keep_overlap': 'ERA-N-3, ERA-LIC-2', 'tracker_pages': 'ERA-N-2',
 }
 
 
@@ -445,6 +478,10 @@ def report(got: dict[str, Any]) -> None:
         print(f'native-era patch ranges: {len(got["patch_sites"])} (not on an instruction boundary: '
               f'{got["patch_ragged"]}); Vietnam check ranges kept: {len(got["keep_sites"])} (ragged '
               f'{got["keep_ragged"]}); overlaps {got["patch_keep_overlap"]}')
+        print(f'N-era ranges: {len(got["n_sites"])} (ragged {got["n_ragged"]}; overlapping a kept range '
+              f'{got["n_keep_overlap"]}); menu tracker pages loaded: {got["tracker_pages"]}')
+        for name, v in got['n_sites'].items():
+            print(f'  {name}: {v}')
     elif 'build' in got:
         print(f'exe: build stamp {got["build"]:#x} is not 795745\'s; exe side skipped')
     print('checks:')

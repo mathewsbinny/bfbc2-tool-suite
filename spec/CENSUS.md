@@ -37,7 +37,7 @@ DICE's files of the game folder by kind (a `.opfor-orig` backup counts as DICE's
 | dfe | 1 | 1,000 | GFILE-DFE-1 |
 | dialoglogo128x128.jpg | 1 | 21,369 | GFILE-LOGO-1 |
 | movie (Output/win32/movies/**.res) | 33 | 293,728,468 | BINK-OUT-1, RES-WRAP-2 |
-| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-BLK-6, ATREE-HDR-1, ATREE-NODE-3, ENG-REND-1, ENG-TI-1, ERA-RES-1 (+39) |
+| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-BLK-6, ATREE-HDR-1, ATREE-NODE-3, ENG-REND-1, ENG-TI-1, ERA-N-2 (+40) |
 | winui.dll | 1 | 262,144 | out of scope: an MFC 8 dialog library (resource-only UI helpers: rich edit, HTML help); no file of the game folder names it (not imported by BFBC2Game.exe or binkw32.dll), so it belongs to the installer / support tools |
 
 ## 2. Bundle entry types
@@ -713,7 +713,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | UI3DSystemAsset | 1 | 1 | 5 | HUD-MENU-1, RTTI-UI-1 |
 | UIMenuConfig | 1 | 1 | 1 | MENU-AS-1, RTTI-UI-1 |
 | UIShaderAsset | 1 | 1 | 2 | HUD-MENU-1, RTTI-UI-1 |
-| UISharedConfigAsset | 1 | 1 | 10 | ERA-MOD-1, ERA-RES-1, ERA-RES-2, ERA-RISK-5 (+4) |
+| UISharedConfigAsset | 1 | 1 | 10 | ERA-MOD-1, ERA-N-1, ERA-N-10, ERA-N-8 (+7) |
 | UnlockTokenData | 1 | 1 | 3 | PERS-DATA-1, RTTI-GSR-7 |
 | VOConstantData | 1 | 1 | 16 | RTTI-GSR-5, SGR-VO-1 |
 | VOTypesAsset | 1 | 1 | 5 | RTTI-GSR-5, SGR-VO-1 |
