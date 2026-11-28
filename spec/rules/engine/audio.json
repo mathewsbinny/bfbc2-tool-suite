@@ -331,6 +331,31 @@
   {
    "evidence": [
     {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe base constructor 0x633330; server subclass vtable 0x1416910 (slot 1 0x66AD20), built in 0x567DF0 (a 0x60-byte object, stored into the server context +0x54); client vtable 0x1431578 (slot 1 0x8C4EF0), built in 0x829B00; sink 0x636C80 (player +0x154); server soldier line set 0x6B93C0 (`cmp ebp, [esi+0x33C"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0063.c:5458-5549"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/008B.c:11853-12145"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/008A.c:10458-10562"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-EVT-5",
+   "status": "observed",
+   "title": "A server line is played through the speaking soldier's ghost",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
      "kind": "data",
      "ref": "DICE's stock vehicles (the M151, the Mi-24) and BF1943's: the same fields in both games; DICE's sp_01 Type 97: three null engine fields"
     },

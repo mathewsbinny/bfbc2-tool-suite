@@ -401,8 +401,8 @@ SDK code shipped with the game, not a LAN browser of BFBC2's own. The menus have
 
 - Whether a remote join (transport 2) and a dedicated server (the Linux build) need anything of the level that the
   in-process host does not; only the in-process path has been run.
-- What the stats service's commit path does offline beyond the unanswered request (where in-round results accumulate
-  before the commit).
+- The stats commit offline: where the round's results accumulate and when they are handed over is settled
+  statically (PERS-SCORE-2, PERS-SAVE-2, round DQ7); a full-round test with the kill probe confirms it.
 - Why the in-process server never listened with the socket transport (2026-10-12): whether the server's network start
   (NET-SRV-1) ran, with which mode and loopback flag, and which ports `Network.ServerPort` / `Network.ClientPort` hold
   by default (the run saw 127.0.0.1:1001 sending to :1003). One run with OPFOR's net trace would answer it.

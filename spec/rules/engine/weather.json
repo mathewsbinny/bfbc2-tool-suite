@@ -148,6 +148,47 @@
   {
    "evidence": [
     {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x101B8D0 (the settings named `WeatherSystem` 0x1432A28); 0x1015310 (settings +0x28, +0x20); ServerWeatherStateEntity: constructor 0x6FE140, init 0x67B250 (+0x8B, data +0x8C), event 0x67B290 (`cmp [...+0xC"
+    },
+    {
+     "kind": "inferred",
+     "ref": "0xDEC1A06A is `StartTransition` under the hash h = h * 33 ^ c from 5381, the hash that gives CAMP-SAVE-1's `Save` 0x7C8A0784"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0101.c:8037-8131"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0067.c:4471-4527"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0067.c:9241-9271"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/006F.c:11471-11509"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/008D.c:2933-2980"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/008D.c:10336-10351"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-STATE-6",
+   "status": "observed",
+   "title": "The engine starts in ActiveState; a switch fades from it, set on the server, applied by the client",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
      "kind": "data",
      "ref": "research round WX0: the weather effects per level (A.5)"
     },
