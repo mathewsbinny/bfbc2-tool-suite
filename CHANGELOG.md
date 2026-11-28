@@ -63,8 +63,27 @@ landed on `main`.
   not touch. For each range it records the address, length and digest, and checks that the range ends on an
   instruction boundary and that no patch range overlaps a kept one. `core/tests/test_spec_probes.py::game_modes`
   checks 24 answers.
+- `spec/engine/eras_n.md` (round GM4, research): what bounds the era count, and a host era table for N eras. It covers:
+  - every limit (the parser, the setter's labels, the 20 `== 1` sites, `UISharedConfigAsset`'s two slot pairs, the
+    weapon maps and unlock grid, the 3- / 7-byte tag builders, the menu tracker, the launcher pipe, the online
+    strings, the movies);
+  - the menu tracker's four pages (`UIMenuTrackerPage`: Awards, MenuUnlocks, MenuUnlocksVietnam, Store), their writer
+    0x9573F0, loader bound 0x9573D1 and `GstMenuTracker` save, with an era's page k + 2;
+  - the launcher pipe `\\.\pipe\rome_snowroller`, whose `expansion` = `bfbc2vietnam` sets era 1 (UI message 0x38);
+  - the host era table, GM2's patch set read from it, and what era 4 costs on top of GM2;
+  - the labels' contract (a key the movies match, never parsed back; renaming), and the 17 era-labelled sprites a
+    fifth era needs frames in;
+  - what the online and saved paths get for an era they do not know.
+
+  13 rules: ERA-N-1 - ERA-N-13.
+- `spec/probes/gamemodes.py` also checks nine further ranges by digest (ERA-N-3) and the tracker's page bound;
+  `core/tests/test_spec_probes.py::game_modes` checks 28 answers.
 
 ### Fixed
+
+- `spec/engine/eras.md` ERA-SITE-5 (round GM4): the tracker's tag is a page, and page 3 is the Store. Era 2 cannot take
+  "era + 1" = 3. ERA-N-2 gives era k >= 2 page k + 2. ERA-SITE-4's online `search.*` patches are dropped (ERA-N-13):
+  unpatched, eras other than 1 send `BC2`.
 
 - `spec/engine/gamemodes.md` ERA-MOD-1: the unlock-tree reader 0x93D14F is in 0x93D120, which `extern.playerStats`
   reaches through 0x944D50. It is not in 0x93CF40.
