@@ -6648,3 +6648,100 @@ and ERA-SITE-4 carry the corrections. These pass: `spec/trace.py --check`, `spec
 - Whether battlefield-opfor's launcher uses the `rome_snowroller` pipe. Only OPFOR's source was searched.
 - The Store page's writer on PC (none found), and the page-0 source 0x9484A0 as the award list (inferred).
 - GM1's open questions stand: 0x9381F0's Vietnam map keys, the server strings' writers, a missing asset's handle.
+
+## OR10: OPFOR in Rust - the Onslaught console port, stages 5 - 7 (2026-11-27, branch `or10`, with Project OPFOR's `or10`)
+
+The plan's second round ("OR9", "The plan"): `console_port.py`'s stages 5 `console_vehicles`, 6 `console_soldiers` and
+7 `console_shaders` (135 + 376 + 248 = 759 lines of OPFOR Python). Version 0.36.0 (OPFOR's `SUITE_REQUIRES` 0.36.0 to
+below 0.37.0; OR14, OR11 and OR12 merged first with 0.33.0 - 0.35.0). Nothing was written to OPFOR's `game\`; the game never launched.
+
+### What moved
+
+| OPFOR Python (until OR10) | Lines | now | Lines left |
+|---|---|---|---|
+| `console_vehicles.build` / `apply` (spawns of console-only vehicles dropped, the vehicle's own partitions with them) | 135 | `bc2_install::onslaught::vehicles` (`bc2_native.onsport_vehicles`) | 65 (command line, the install, revert, scratch) |
+| `console_soldiers.build` / `apply` / `blueprint` / `copy_console` / `repoint` (the console soldier classes as OPFOR blueprints) | 376 | `bc2_install::onslaught::soldiers` (`onsport_soldiers`) | 91 (command line, the experiments' switches, the install, revert, scratch) |
+| `console_shaders.plan` / `apply` / `spawned_meshes` (the needs, the merge from the PC donors, the bundle) | 248 | `bc2_install::onslaught::shaders` (`onsport_shaders`) | 76 (command line, the install, revert, scratch) |
+| `shaderdb.py needs` / `merge` as `bfbc2.exe shaderdb` ran them (`load`, `level_meshes`, `read_need`, `check`, `verify_merge`, the report) | - | `bc2_convert::shadercmd` (a library; `bfbc2.exe shaderdb` keeps its command line over it, the same output) | - |
+
+Shared helpers for OR11 and OR12 in `onslaught::port`: `xml_of`, `xml_cached`, `drop_xml`, `write_manifest`,
+`manifest_lines`, `set_sizes`, `under`; `partition_of` and `res_files` are `pub(crate)`; `bc2-install`'s `onslaught`
+feature depends on `bc2-convert` (stage 7's merge and the mesh index).
+
+After merging main (OR11, OR12): the private copies of these helpers went - OR11's `xml_of`, `under`,
+`manifest_lines`, `write_manifest` and `drop_xml` in `onslaught/files.rs` (which keeps only `opfor_installed` and
+`glob_fbrb`), OR12's `xml_of` in `loading.rs` and OR9's in `mode.rs`; every stage imports them from `onslaught::port`.
+
+### Decided (spec XCONS-ONS-5 - 7)
+
+- **Stage 6's class map** is `bc2_install::onslaught::SOLDIERS`, stage 1's own. The Python read the map out of
+  `console_onslaught.py`'s source text; OR5 moved that file's map into Rust, and since then stage 6 stopped at once
+  (`ValueError: substring not found`). The proof's Python twin is therefore given the pre-OR5 `console_onslaught.py`
+  (OPFOR f3a201e~1) to read its map from - the same map.
+- **A player kit's console fields** are set per type in the console blueprint's instance order; the Python went through
+  a set, so its printed notes' order changed from run to run. No written file depends on it.
+- **Stage 7 translates nothing**: the merge copies DICE's compiled programs from the PC donor levels' databases, so the
+  Xenos translator and its recent forward-jump change (XSH-CF-1) play no part, and no console program translates
+  differently.
+- **The mesh index follows junctions** (`bc2_convert::meshview::cache`'s walk), as Python's `os.walk` does (junctions
+  are not links to `os.path.islink`). Before, a game copy whose level folders are junctions (a round's checkout, the
+  proof's scratch game) lost those levels' bundles from the index. The walk now follows every folder link; a directory
+  symbolic link (which Python would not follow) needs administrator rights and none is made by the suite or OPFOR.
+
+### Proof
+
+`scratchpad\or10\stages_parity.py` as in OR9: one scratch OPFOR root per run at the same path
+(`C:\Programming\Projects\_rounds\or10\s\<level>`), the Python first, its files recorded as digests and the tree
+deleted, then the Rust at the same path (disk: one tree at a time). `game\` is junctions into OPFOR main's `game\`
+(read only) with the level's folder and `package.mft` real copies; stage 5's input is the level's legacy marker
+`level-00.fbrb.opfor-vehicles-orig` (stage 4's output) or, where stage 5 dropped nothing on the user's install,
+`.opfor-soldiers-orig`; `work\` holds hard links of OPFOR main's stage 1 output (`con_level`, `con_mp2`, `pc`) and
+`work\console_shaders\shared`. Stages 5, 6 and 7 run chained and install into the scratch game through OPFOR's
+ledger. The Python twins: OPFOR 5f6fdac's three scripts, loaded by path.
+
+| Level | Stage 5 input | Files compared (work and game) | Written or changed by the stages | Identical | Python / Rust, stages 5 - 7 |
+|---|---|---|---|---|---|
+| ONS_MP_002 | `.opfor-vehicles-orig` | 97,152 | 1,676 | **97,152** | 53 s / 49 s |
+| ONS_MP_004 | `.opfor-soldiers-orig` | 98,203 | 2,016 | **98,203** (stage 7 refuses on both sides: below) | 32 s / 39 s |
+| ONS_MP_005 | `.opfor-soldiers-orig` | 99,877 | 3,034 | **99,877** | 61 s / 46 s |
+| ONS_MP_008 | `.opfor-soldiers-orig` | 110,870 | 2,777 | **110,870** | 51 s / 37 s |
+
+The files: every work file of the three stages (the unpacks, the XML the stages leave, the new soldier partitions,
+`needs.txt`, the merged Dx9 / Dx10 / Dx11 databases and their `.merge.txt` reports, the packed bundles) and the
+scratch game's real files (`level-00.fbrb` as each stage installed it, `package.mft`); the inputs still hard-linked
+count as unchanged. Each stage's printed lines are the same, in the same order. The table is the re-check on the
+merged build (main with OR11 and OR12, the helpers' single copy); before the merge the four levels gave the same
+counts, identical too.
+
+**ONS_MP_004's stage 7 refuses on both sides**: the Dx9 merge (donors `mp_004sdm`, `mp_012cq`,
+...) fails its read-back check, `the merged file does not read back consistently: 32 programs in no entry
+group`, with the same files written up to it. The Python twin merges through `shaderdb.py merge`, which since OR3a
+runs the suite's Rust `ShaderMerger` too, so the two sides are not independent here. The user's installed ONS_MP_004
+(merged on 2026-10-30, before the read-back check of 2026-10-31 and the Rust merger of OR3a) reads back consistent;
+every DICE database involved does too. So the merger now leaves 32 programs that no entry group owns: suspected the
+OR3a self-clone accident (PY1, `rust/BENCHMARKS.md` "OR3c", "What is left"). Not decided here: a follow-up against
+DICE's databases.
+
+**Damaged inputs** (ONS_MP_002, on the merged build): 8 of 8 cases end alike, the same files written:
+
+| Case | Both sides |
+|---|---|
+| the level bundle cut to half / to 99.5 %, one byte changed | stage 5 refuses at the unpack with FbrbTool's message (the same command and text) |
+| the console level partition missing | stage 6 refuses naming the missing `ONS_MP_002.xml` (the Python's `FileNotFoundError`, the Rust's `OSError` with the OS's words) |
+| no console shared data (`con_mp2`) | stage 6 refuses: `objects/soldiers/ons_ru_ai/ai_ru_assault: no PC soldier ... or no console blueprint`, the same line |
+| no PC map unpacks | stages 5 - 7 succeed alike (41,339 files) |
+| `work\console_shaders\shared` missing (unpacked again from the game) | stages 5 - 7 succeed alike (105,062 files, 38,844 written) |
+| a vehicle mesh cut short in the PC map's unpack | stages 5 - 7 succeed alike (97,152 files) |
+
+The differences in the printed lines: a failing tool's "details:" line names the day's tool log under the Python and
+"(no log file)" under the Rust (OR9's), and the missing-partition refusal's exception name and OS wording. Neither
+side wrote to `game\`; OPFOR's `game\` was only read through junctions.
+
+### What is left
+
+- Stages 8 - 14, the shader audit, the Napisal-level fixes and the driver: OR11 - OR13 (the plan, "OR9").
+- ONS_MP_004's stage 7: the merger's 32 programs in no entry group (above), against DICE's databases and the user's
+  October install.
+- The in-process DbxEdit / FbrbTool commands still write no tool log ("OR9", "What is left").
+- **Unproven until a playtest**: nothing new in game - the bundles are the Python's byte for byte, so the levels play
+  as they did with the Python stages.

@@ -18,7 +18,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use super::port::{StageOut, find, read_text_utf8, write_text_utf8};
+use super::port::{StageOut, find, read_text_utf8, write_text_utf8, xml_of};
 use super::{OnsError, R, Source, copy, dbx, fbrb, join, joins, pack, read, rmtree, stem4, write};
 
 /// The console levels (`console_common.LEVELS`).
@@ -64,12 +64,6 @@ pub struct Setup {
     pub movie: String,
     /// The console loader bundle (stage 1's extract of the user's Xbox package).
     pub console_loader: String,
-}
-
-/// `xml_of(dbx)`: DbxEdit's XML of a .dbx (written beside it), read as text.
-fn xml_of(path: &str) -> R<String> {
-    dbx(&["xml", path])?;
-    read_text_utf8(&format!("{}.xml", stem4(path)))
 }
 
 fn need<'t>(c: Option<regex::Captures<'t>>, what: &str) -> R<regex::Captures<'t>> {

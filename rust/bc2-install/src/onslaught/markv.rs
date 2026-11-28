@@ -24,8 +24,8 @@ use bc2_formats::shaderdb::{self, ShaderDb, query};
 use bc2_pyrt::py::OMap;
 use regex::Regex;
 
-use super::files::{drop_xml, glob_fbrb, manifest_lines, opfor_installed, under, write_manifest, xml_of};
-use super::port::{StageOut, find, write_text_utf8};
+use super::files::{glob_fbrb, opfor_installed};
+use super::port::{StageOut, drop_xml, find, manifest_lines, under, write_manifest, write_text_utf8, xml_of};
 use super::{OnsError, R, Source, dbx, fbrb, join, joins, pack, read, rmtree, size, write};
 
 /// The level the Mark V is Valparaiso's.

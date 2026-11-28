@@ -2344,10 +2344,10 @@
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
    "lines": 1634,
-   "note": "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; left: path glue, level_meshes (DBX reading)",
+   "note": "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; the needs and merge commands are also a library (OR10: bc2_convert::shadercmd, from bfbc2 shaderdb, for OPFOR's console port stage 7, which no longer runs this script); left: path glue, level_meshes (DBX reading)",
    "path": "bfbc2-shader-tools/shaderdb.py",
    "retiring": "OPFOR in Rust stage 3",
-   "rust": "bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
+   "rust": "bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate, shadercmd; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
    "status": "partly"
   },
   {
@@ -2751,7 +2751,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 175,
+   "lines": 177,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -3531,7 +3531,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 866,
+   "lines": 867,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -4047,7 +4047,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 921,
+   "lines": 922,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4107,7 +4107,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 420,
+   "lines": 457,
    "note": "read-only probe for spec/engine/gamemodes.md (game modes, the game mod: data and exe sites); game tier",
    "path": "spec/probes/gamemodes.py",
    "retiring": "stays",
@@ -4785,7 +4785,7 @@
  "totals": {
   "all": {
    "files": 393,
-   "lines": 115574
+   "lines": 115615
   },
   "by_folder": {
    "(root)": {
@@ -4977,13 +4977,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20436,
-    "live": 766,
+    "lines": 20439,
+    "live": 768,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15331,
+    "test": 15332,
     "twin": 2430
    },
    "design": {
@@ -4999,23 +4999,23 @@
    },
    "rust": {
     "files": 38,
-    "lines": 7843,
+    "lines": 7844,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7576,
+    "stays": 7577,
     "test": 267,
     "twin": 0
    },
    "spec": {
     "files": 23,
-    "lines": 8363,
+    "lines": 8400,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 8363,
+    "stays": 8400,
     "test": 0,
     "twin": 0
    },
@@ -5045,7 +5045,7 @@
   "by_status": {
    "live": {
     "files": 17,
-    "lines": 5087
+    "lines": 5089
    },
    "partly": {
     "files": 19,
@@ -5061,11 +5061,11 @@
    },
    "stays": {
     "files": 81,
-    "lines": 17741
+    "lines": 17779
    },
    "test": {
     "files": 193,
-    "lines": 53203
+    "lines": 53204
    },
    "twin": {
     "files": 57,

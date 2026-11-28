@@ -24,8 +24,9 @@ use std::sync::LazyLock;
 use bc2_pyrt::py::OMap;
 use regex::Regex;
 
-use super::files::{drop_xml, manifest_lines, under, write_manifest};
-use super::port::{StageOut, read_text_utf8, walk_all, write_text_utf8};
+use super::port::{
+    StageOut, drop_xml, manifest_lines, read_text_utf8, under, walk_all, write_manifest, write_text_utf8,
+};
 use super::{OnsError, R, Source, dbx, fbrb, join, joins, pack, read_text, rel, rmtree, size, slash, stem4};
 
 /// The PC soldier input (concepts, mapping).

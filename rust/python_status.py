@@ -473,13 +473,14 @@ TABLE: tuple[Row, ...] = (
       'meshview, xdiff; tests 7; OPFOR 6', 'OPFOR in Rust stage 3',
       'left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets'),
     R('bfbc2-shader-tools/shaderdb.py', TOOL, 'partly',
-      'bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb',
+      'bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate, shadercmd; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb',
       '33 suite modules; tests 37; OPFOR 54', 'OPFOR in Rust stage 3',
       "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, "
       "OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: "
       "bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: "
       "bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; "
-      "left: path glue, level_meshes (DBX reading)"),
+      "the needs and merge commands are also a library (OR10: bc2_convert::shadercmd, from bfbc2 shaderdb, for OPFOR's "
+      "console port stage 7, which no longer runs this script); left: path glue, level_meshes (DBX reading)"),
     R('bfbc2-shader-tools/xdiff.py', TOOL, 'live', 'bfbc2 xdiff (argparse, errors only)',
       'tests 5; OPFOR 4 (xdiff.main in process)', 'OPFOR in Rust stage 3',
       "the translator's differential test (xenos_exec, WARP draws)"),

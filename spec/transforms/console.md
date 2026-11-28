@@ -213,6 +213,61 @@ order. Not ported: `mp2_only`, a diagnostic nothing called; a level without a fo
 [test: rust/bc2-install/src/onslaught/loadset.rs::manifest_blocks]
 [data: round OR9, 2026-11-27: the user's four levels, also with the manifest from before a loadset run (146 mp2_common targets) and damaged inputs, every work and game file of the Rust stage identical to the Python's]
 
+### XCONS-ONS-5: The vehicles stage gives the retired Python's work files
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 5 (`console_vehicles.py`'s build and apply, `bc2_install::onslaught::vehicles` since round OR10) gives the
+retired Python's work files byte for byte: each `VehicleSpawnEntityData` whose vehicle partition is in the level's
+bundle with every `Asset` reference null (a console-only mesh and physics, which crashed the game at 0x5A5A61:
+XCONS-STG-2) is dropped with DbxEdit's `drop`; then the vehicle's own partitions go - those named like it, and what
+they reach that bears the name's first word once no partition left names it - with their manifest lines; the level's
+manifest size is set again and the XML deleted. A vehicle another bundle holds (a PC vehicle) is kept. On the user's
+levels only ONS_MP_002's Mark V is dropped (five partitions with it); the other three levels pack nothing.
+
+[code: rust/bc2-install/src/onslaught/vehicles.rs:52-90] [code: rust/bc2-install/src/onslaught/vehicles.rs:94-150] [code: opfor:src/tools/onslaught/console_vehicles.py:30-40]
+[test: rust/bc2-install/src/onslaught/vehicles.rs::gone_follows_the_vehicle_name]
+[data: round OR10, 2026-11-27: the user's ONS_MP_002 / 004 / 005 / 008, stages 5 - 7 chained, every work and game file of the Rust stages identical to the Python's (rust/BENCHMARKS.md "OR10")]
+
+### XCONS-ONS-6: The soldiers stage gives the retired Python's work files; its class map and notes' order
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 6 (`console_soldiers.py`'s build and apply, `bc2_install::onslaught::soldiers` since round OR10) gives the
+retired Python's work files byte for byte: per console class a spawner or the Onslaught team names, a copy of the PC
+soldier stage 1 swapped it for, under `Objects/Soldiers/OPFOR_ONS_RU_AI|OPFOR_ONS_US/<class>`, with the console's kit,
+kit class, spotted times and head collision (player kits also DICE's co-op tuning), the dropped weapon's entries the
+console's with the PC entry's ammo per weapon slot, new GUIDs `uuid5(URL, 'opfor-soldier:<new partition>:<old>')`;
+the console data it reaches copied in (refused when it has resources); the spawners and team re-pointed at the
+`SoldierAsset`; the new manifest lines ahead of the level's. Two Python accidents, decided: the class map is the
+suite's `bc2_install::onslaught::SOLDIERS` (stage 1's own) - the Python read it from `console_onslaught.py`'s text,
+which round OR5 moved to Rust, so since OR5 the stage stopped at once with `ValueError: substring not found`; and a
+player kit's console fields are set per type in the console blueprint's instance order, where the Python went through
+a set (its notes' order changed from run to run; the partition does not depend on it).
+
+[code: rust/bc2-install/src/onslaught/soldiers.rs:132-245] [code: rust/bc2-install/src/onslaught/soldiers.rs:355-420] [code: rust/bc2-install/src/onslaught.rs:79-144] [code: opfor:src/tools/onslaught/console_soldiers.py:45-60]
+[test: rust/bc2-install/src/onslaught/soldiers.rs::blueprint_takes_the_console_kit]
+[data: round OR10, 2026-11-27: the user's four levels (the Python twin given the pre-OR5 class map), every work and game file of the Rust stage identical to the Python's]
+
+### XCONS-ONS-7: The shaders stage merges as shaderdb.py does and translates nothing
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 7 (`console_shaders.py`'s plan and apply, `bc2_install::onslaught::shaders` since round OR10) gives the retired
+Python's work files byte for byte: `needs.txt` (every mesh the level's partitions name, then the shared-bundle meshes,
+the whole entry names of the house and barrack pairs, and every mesh partition the level's vehicle spawns reach with
+the entries of the shader set each spawn draws), and the level's Dx9, Dx10 and Dx11 databases merged from the PC
+map's other modes, then `mp_012cq`, `mp_001`, `sp_005_b`, `sp_04`, `sp_02`, `mp_012gr`, `sp_005` and `mp_008cq` (a name
+two donors have comes from the first), with their `.merge.txt` reports. The merge is `shaderdb.py merge`'s
+(`bc2_convert::shadercmd`, moved there from `bfbc2.exe shaderdb`): it copies DICE's compiled programs and translates
+no console program, so the Xenos translator (XSH-CF-1) has no part in it. The partitions are read as the Python read
+them: XML beside an unpacked partition (a folder with none converted whole; a partition without one reads as missing),
+then the game copy's mesh index.
+
+[code: rust/bc2-install/src/onslaught/shaders.rs:94-120] [code: rust/bc2-install/src/onslaught/shaders.rs:240-330] [code: rust/bc2-convert/src/shadercmd.rs:560-700] [code: opfor:src/tools/onslaught/console_shaders.py:38-55]
+[test: rust/bc2-install/src/onslaught/shaders.rs::patterns_and_donors] [test: rust/bc2-convert/src/shadercmd.rs::needs_from_a_file]
+[data: round OR10, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's, the merged databases among them; on ONS_MP_004 both sides refuse the Dx9 merge alike (32 programs in no entry group: the shared Rust merger, an open question below)]
+
 ### XCONS-ONS-8: The Mark V stage gives the retired Python's work files; its base and its texture check
 
 Status: **verified** · Variants: Xbox 360
@@ -240,7 +295,7 @@ the Python, where it was an accident of the code and not DICE data:
   build's reader (a damaged bundle's `ValueError`) instead of in the ledger's refusal. Either way nothing is written
   to `game\` and the work folder is dropped.
 
-[code: rust/bc2-install/src/onslaught/markv.rs:489-520] [code: rust/bc2-install/src/onslaught/markv.rs:640-680] [code: rust/bc2-install/src/onslaught/files.rs:44-56] [code: opfor:src/tools/onslaught/console_markv.py:37-48]
+[code: rust/bc2-install/src/onslaught/markv.rs:489-520] [code: rust/bc2-install/src/onslaught/markv.rs:640-680] [code: rust/bc2-install/src/onslaught/files.rs:9-21] [code: opfor:src/tools/onslaught/console_markv.py:37-48]
 [test: rust/bc2-install/src/onslaught/markv.rs::restore_spawn_grafts_and_copies_the_fields_that_named_it] [test: rust/bc2-install/src/onslaught/markv.rs::console_layouts_find_the_record_after_its_guid]
 [data: round OR11, 2026-11-27: the user's ONS_MP_002 (Valparaiso), stages 8 - 10 chained, every work and game file of the Rust stages identical to the Python's (rust/BENCHMARKS.md "OR11")]
 
@@ -281,7 +336,7 @@ and the manifest's lines for them. Decided against the Python:
   copy already holds the copies this stage made, so the Python found nothing missing and its rebuilt bundle (from
   the ledger's source) lost them.
 
-[code: rust/bc2-install/src/onslaught/deps.rs:181-200] [code: rust/bc2-install/src/onslaught/deps.rs:218-232] [code: rust/bc2-install/src/onslaught/files.rs:44-56] [code: opfor:src/tools/onslaught/console_deps.py:31-39]
+[code: rust/bc2-install/src/onslaught/deps.rs:181-200] [code: rust/bc2-install/src/onslaught/deps.rs:218-232] [code: rust/bc2-install/src/onslaught/files.rs:9-21] [code: opfor:src/tools/onslaught/console_deps.py:31-39]
 [test: rust/bc2-install/src/onslaught/deps.rs::the_first_name_with_a_prefix_in_insertion_order]
 [data: round OR11, 2026-11-27: the user's four levels on the stock install, every work and game file of the Rust stage identical to the Python's (rust/BENCHMARKS.md "OR11")]
 ### XCONS-ONS-11: The cull stage gives the retired Python's work files; culltree runs as its own command
@@ -344,5 +399,8 @@ test reference (OR14: OPFOR's movie tools are `bc2_native.AptMovie`). A failing 
 
 ## Open questions
 
+- ONS_MP_004's shader merge (XCONS-ONS-7): the merger since OR3a leaves 32 Dx9 programs that no entry group owns,
+  which its read-back check refuses; the user's October merge of the same level read back consistent. Decide against
+  DICE's databases (suspected: OR3a's self-clone accident, PY1).
 - 0x98BD6E on ONS_MP_004's console road / stop signs: which vertex layout or program the renderer lacks (layer 3,
   rendering).

@@ -31,6 +31,8 @@
 //!   [`skinmesh`] (`skinmesh.py`'s vertex work) and [`granny_edit`] (`granny.py`'s writing side).
 //! - Round `OR3b`: [`shaderlevels`] (`shaderdb.py`'s level cover index and its cache, `level_scan`): the game copy's
 //!   level shader databases read as a whole.
+//! - Round `OR10`: [`shadercmd`] (`shaderdb.py`'s `needs` and `merge`, moved from `bfbc2.exe shaderdb`): Project OPFOR's console
+//!   port stage 7 merges in process.
 //! - Round `OR3c`: [`shadertranslate`] (Project OPFOR's BF1943 shader translation driver: `translate_db`'s plan,
 //!   the entries made for missing and foreign materials, the soldier glue).
 //! - Round `OR4`: [`physmat`] (Project OPFOR's `physmat.py`: part and face materials) and [`pictures`] (its picture
@@ -68,6 +70,7 @@ pub mod mopp;
 pub mod physmat;
 pub mod pictures;
 pub mod pyfmt;
+pub mod shadercmd;
 pub mod shaderlevels;
 pub mod shadertranslate;
 pub mod shapes;

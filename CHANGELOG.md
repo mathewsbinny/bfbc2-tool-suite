@@ -28,8 +28,39 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-11-27
+
+Round OR10 retires Project OPFOR's Python of the console Onslaught port's stages 5 - 7: OPFOR now needs this
+version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`, so its `SUITE_REQUIRES` moves to
+0.36.0 - 0.37.0. Rounds GM1, DC0 and GM4, merged before it unreleased, are in this version too.
+
 ### Added
 
+- **The console port's stages 5 - 7 in Rust** (round OR10, `rust/BENCHMARKS.md` "OR10"; spec XCONS-ONS-5 - 7):
+  `bc2_install::onslaught::vehicles` (vehicle spawns whose vehicle is console-only dropped, with the vehicle's own
+  partitions), `soldiers` (the console's soldier classes and player kits as OPFOR blueprints on the PC soldiers) and
+  `shaders` (the level's shader databases merged to cover every mesh it draws), through `bc2_native.onsport_*`;
+  Project OPFOR's `console_vehicles.py`, `console_soldiers.py` and `console_shaders.py` keep their command lines, the
+  install ledger's parts and the scratch clean-up. On the user's four console levels, stages 5 - 7 chained, every
+  work and game file is the retired Python's byte for byte.
+- **`bc2_convert::shadercmd`**: `shaderdb.py`'s `needs` and `merge` (with `load`, `level_meshes`, `read_need`,
+  `check`, `verify_merge` and the report) as a library, moved from `bfbc2.exe shaderdb` (which keeps its command line
+  over it, the same output), so OPFOR's stage 7 merges in process instead of running `shaderdb.py`.
+- `spec/engine/eras.md` (round GM1, research): native eras for Project OPFOR. The four values are 0 BFBC2, 1 Vietnam,
+  2 BF1943 / Pacific War (tag `PACIFIC`, label `BFBC2143`) and 3 BFBC1 (tag `BC1`, label `BFBC2Beach`). The file covers:
+  - a decision (as 0, as 1, or the era's own resource), the reason and round GM2's patch for each of the game mod's
+    41 instructions and the values derived from them;
+  - the parser and setter changes (era 1's sign-in path unchanged; no gate for eras 2 / 3);
+  - a `UISharedConfigAsset` per era, chosen at the unlock and weapon slot reads;
+  - DICE's four-era main_nav, every movie's `extern.gameMod` test and the menus' contract for UI0 - UI7;
+  - Vietnam's ownership checks kept byte for byte;
+  - the risks, and what battlefield-opfor and OPFOR must change.
+
+  21 rules: ERA-NAT-*, ERA-SITE-*, ERA-UI-*, ERA-LIC-2 / 3, ERA-RISK-*.
+- `spec/probes/gamemodes.py` now also checks the 45 byte ranges GM2 will patch and the 10 Vietnam check ranges it must
+  not touch. For each range it records the address, length and digest, and checks that the range ends on an
+  instruction boundary and that no patch range overlaps a kept one. `core/tests/test_spec_probes.py::game_modes`
+  checks 24 answers.
 - **A decompiled database of BFBC2Game.exe, and the tools that build and query it** (round DC0, `tools/decomp/`,
   `rust/BENCHMARKS.md` "DC0"). The database is a Ghidra 12.1.4 headless analysis of the PC exe (build 795745). It
   has MSVC RTTI plus Frostbite's own reflection: 1,891 vtables, with functions placed in their classes. The spec's
@@ -79,8 +110,24 @@ landed on `main`.
 - `spec/probes/gamemodes.py` also checks nine further ranges by digest (ERA-N-3) and the tracker's page bound;
   `core/tests/test_spec_probes.py::game_modes` checks 28 answers.
 
+### Changed
+
+- **One copy of the console port's file helpers** (round OR10, after merging OR11 and OR12): `xml_of`, `under`,
+  `manifest_lines`, `write_manifest` and `drop_xml` live in `bc2_install::onslaught::port` only; the private copies
+  in `onslaught/files.rs` (OR11), `loading.rs` (OR12) and `mode.rs` (OR9) are gone. No output changes.
+
 ### Fixed
 
+- **OPFOR's console port stage 6 ran again**: `console_soldiers.py` read its class map from `console_onslaught.py`'s
+  text, which round OR5 moved into Rust; since then the stage stopped at once (`ValueError: substring not found`). The
+  stage now takes `bc2_install::onslaught::SOLDIERS`, stage 1's own map (XCONS-ONS-6).
+- **The mesh index follows junctions** as `meshview._bundles` (Python's `os.walk`) does: a game copy whose level
+  folders are junctions (a round's checkout, a test's stand-in) had those levels' bundles missing from the index
+  `bfbc2.exe meshview`, the map editor and OPFOR's tools share.
+- `spec/engine/gamemodes.md` ERA-MOD-1: the unlock-tree reader 0x93D14F is in 0x93D120, which `extern.playerStats`
+  reaches through 0x944D50. It is not in 0x93CF40.
+- `bc2-install`'s level-build tests read the process-wide stock index one at a time: two tests replaced each other's
+  kept index between two reads (`stock_bundles_index_and_our_files` failed now and then, "kept for the process").
 - `spec/engine/eras.md` ERA-SITE-5 (round GM4): the tracker's tag is a page, and page 3 is the Store. Era 2 cannot take
   "era + 1" = 3. ERA-N-2 gives era k >= 2 page k + 2. ERA-SITE-4's online `search.*` patches are dropped (ERA-N-13):
   unpatched, eras other than 1 send `BC2`.

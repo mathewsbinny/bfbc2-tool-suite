@@ -19,8 +19,8 @@ use std::sync::LazyLock;
 use bc2_pyrt::py::OMap;
 use regex::Regex;
 
-use super::files::{drop_xml, manifest_lines, opfor_installed, under, write_manifest};
-use super::port::{StageOut, walk_all};
+use super::files::opfor_installed;
+use super::port::{StageOut, drop_xml, manifest_lines, under, walk_all, write_manifest};
 use super::{OnsError, R, Source, dbx, fbrb, join, joins, pack, read_text, rmtree, stem4, write};
 
 /// The console levels and the PC maps they are built on (`console_common.PC_MAP`).

@@ -472,6 +472,9 @@ mod bc2_native {
     // round OR9: the console port's stages 2 - 4 (console_linux_base / console_mode / console_loadset)
     #[pymodule_export]
     use super::onslaught::{onsport_linux, onsport_loadset, onsport_mode};
+    // round OR10: stages 5 - 7 (console_vehicles / console_soldiers / console_shaders)
+    #[pymodule_export]
+    use super::onslaught::{onsport_shaders, onsport_soldiers, onsport_vehicles};
     #[pymodule_export]
     use super::testrun::{testrun_ini_get, testrun_ini_restore, testrun_ini_set, testrun_ini_unset, testrun_watch};
     // round OR7: OPFOR's WW2 rebuild as a step graph (rebuild_all's runner, stepstamps' decisions: bc2_install::rebuild)

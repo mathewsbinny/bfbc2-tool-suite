@@ -27,6 +27,14 @@ use bc2_install::levelbuild::closure::{self, ClosureSpec, Src, Take};
 use bc2_install::levelbuild::index::{self, OursSpec};
 use bc2_install::levelbuild::{OMap, describe, gates, levelfiles, stage};
 
+/// The stock index is kept once per process (`index::stock_index`): the tests that read it or forget it run one at a
+/// time, or one test's index replaces another's between its two reads.
+static INDEX_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn index_lock() -> std::sync::MutexGuard<'static, ()> {
+    INDEX_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 const G1: &str = "11111111-1111-1111-1111-111111111111";
 const G2: &str = "22222222-2222-2222-2222-222222222222";
 const G3: &str = "33333333-3333-3333-3333-333333333333";
@@ -80,6 +88,7 @@ fn names(v: &[String]) -> Vec<&str> {
 
 #[test]
 fn stock_bundles_index_and_our_files() {
+    let _index = index_lock();
     let d = tmp("index");
     let g = d.join("game");
     let p = |r: &str| g.join(r.replace('/', "\\"));
@@ -169,6 +178,7 @@ fn stock_bundles_index_and_our_files() {
 
 #[test]
 fn closure_walks_ours_stock_and_loaded() {
+    let _index = index_lock();
     let d = tmp("closure");
     let g = d.join("game");
     let w = d.join("work");

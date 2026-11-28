@@ -20,8 +20,8 @@ use std::sync::LazyLock;
 
 use regex::{NoExpand, Regex};
 
-use super::port::{StageOut, find, read_text_utf8, walk_all, write_text_utf8};
-use super::{OnsError, R, Source, dbx, fbrb, join, joins, pack, read, rmtree, size, stem4, write};
+use super::port::{StageOut, find, read_text_utf8, walk_all, write_text_utf8, xml_of};
+use super::{OnsError, R, Source, dbx, fbrb, join, joins, pack, read, rmtree, size, write};
 
 /// `LevelData` values set back to the PC map's, per level.
 pub const PC_VALUES: [(&str, &[(&str, &str)]); 1] = [(
@@ -75,12 +75,6 @@ fn field(body: &str, name: &str, value: &str) -> String {
     let r = re(&format!(r#"(<field name="{}">)[^<]*(</field>)"#, regex::escape(name)));
     r.replacen(body, 1, |c: &regex::Captures<'_>| format!("{}{value}{}", &c[1], &c[2]))
         .into_owned()
-}
-
-/// `xml_of(dbx)`: DbxEdit's XML of a .dbx (written beside it), read as text.
-fn xml_of(path: &str) -> R<String> {
-    dbx(&["xml", path])?;
-    read_text_utf8(&format!("{}.xml", stem4(path)))
 }
 
 /// `tree_info(text)[0]`: a cull tree's `EnumOffset`.

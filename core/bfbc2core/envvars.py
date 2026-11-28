@@ -164,6 +164,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
 # Quoted names in the code that are not environment variables (test_envvars.py skips them).
 NOT_VARIABLES = {
     'OPFOR_TEST_NEW_KEY': 'a localization key bc2loc writes in its test',
+    'OPFOR_ONS_RU_AI': "a folder of the console port's soldier blueprints (Objects/Soldiers/OPFOR_ONS_RU_AI)",
+    'OPFOR_ONS_US': "a folder of the console port's player-kit blueprints (Objects/Soldiers/OPFOR_ONS_US)",
 }
 
 
