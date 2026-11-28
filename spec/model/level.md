@@ -99,7 +99,7 @@ loads: `GameMode` (a reference to `gamemodes/<mode>/<guid>`), `FactionTeam1` / `
 `Name` loc key. Without the description partition the load crashes in session state 13; without its two
 `LevelListQuery` items (`<lv>.dbx`, `<lv>_description.dbx`) the level is in no menu.
 
-[exe: state 13 crash, _stricmp in the name table FUN_00BD2D30 (OPFOR BFBC2_NAPISAL_RESEARCH.md (private research notes))]
+[exe: state 13 crash, _stricmp in the name table 0xBD2D30 (OPFOR BFBC2_NAPISAL_RESEARCH.md (private research notes))]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:823-827] [code: rust/bc2-levelwrite/src/export.rs:49-50]
 
 ### LEVEL-DESC-2: A GameMode that does not resolve crashes
@@ -132,9 +132,9 @@ reached through the listed ones.
 Status: **verified**
 
 Every `Objects` item must name an instance of the partition. The game reads the list without a check
-(FUN_006EFBC0): a `null` item, or one naming no instance, crashes it at 0x006EFF8A.
+(Md5Buffer, 0x6EFBC0): a `null` item, or one naming no instance, crashes it at 0x006EFF8A.
 
-[exe: BFBC2Game.exe FUN_006EFBC0, fault at 0x006EFF8A]
+[exe: BFBC2Game.exe 0x6EFBC0 (Md5Buffer), fault at 0x006EFF8A]
 [code: rust/bc2-formats/src/dbxedit/check.rs:317-343] [test: core/tests/test_dbxedit.py::cases]
 [doc: bfbc2-dbx-tools/FORMAT.md:165-166]
 

@@ -1,9 +1,9 @@
-# Xenos shader container + microcode, as implemented in `xenos.py`
+# Xenos shader container + microcode, as implemented in `xenos.py` and `rust/bc2-shader` (`bc2_shader::xenos`)
 
 Sources: Xenia `src/xenia/gpu/ucode.h`, `ucode.cc`, `shader_translator.cc`, `shader_translator_disasm.cc`
-(BSD-3, reference copies in `xenia_ref/`), hedge-dev XenosRecomp `shader.h` (MIT, field names for the container,
-copy in `xenosrecomp_ref/`), and the 735 VS + 815 PS of BF1943 Wake `Single.res` (every claim below marked
-"verified" holds for all of them; `run_all.py` re-checks it, results in `summary.txt`).
+(BSD-3; the reference copies were the porting session's, not kept in the repository), hedge-dev XenosRecomp `shader.h`
+(MIT, field names for the container), and the 735 VS + 815 PS of BF1943 Wake `Single.res` (every claim below marked
+"verified" held for all of them when written; `tests/test_xenos_native.py --game` keeps the decoder's answers on them).
 **UNCERTAIN** marks anything not proven.
 
 All words are big-endian u32. "Slot" = one 3-dword (12-byte) microcode unit.

@@ -207,7 +207,7 @@ encryption of this layer was found: the only "encrypted" flags in the executable
 
 Status: **observed** · Variants: PC
 
-The settings registry (`FUN_004F4C40`, the engine settings of `private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` section 3) holds the
+The settings registry (`0x4F4C40`, the engine settings of `private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` section 3) holds the
 network's knobs under four groups. Network: ServerPort, ClientPort, TitleId, ProtocolVersion, Version, MaxClientCount,
 MaxGhostCount, MaxServerFrameSize, MaxClientFrameSize, MaxQueriesPerSecond, QueryPortOffset, UseFrameManager.
 Client: ServerIp, SecondaryServerIp (NET-SRV-3), IsMultiplayer, Level, IncomingFrequency and the timeouts. Server:
@@ -225,7 +225,7 @@ statically; a run-time read is the way to get them.
 
 Status: **observed** · Variants: PC
 
-`FUN_004F4CF0(name, default, ...)` returns the value of a named start-up option from a list of 12-byte entries
+`0x4F4CF0(name, default, ...)` returns the value of a named start-up option from a list of 12-byte entries
 (0x155D008-0x155D00C), and 41 call sites ask for one. The network ones: `listen` (the server's address, NET-SRV-1),
 `dedicated` (NET-SRV-2), `port`, `pingInterval`, `heartBeatInterval`, `maxQueriesPerSecond`, `queryPortOffset`,
 `networkProtocolId` (NET-VER-1), `loginToken` (five sites), `requestState` / `requestStateParams` (the online client's

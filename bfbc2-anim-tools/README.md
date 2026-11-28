@@ -54,7 +54,7 @@ M1911's undeploy, and - when extracted into
 OPFOR's `work\bf1943\skeleton` - BF1943's skeleton against the PC one) and `tests\test_granny_port.py` (quick: the
 bone tables; `--game`: the Xbox corpus and BF1943).
 
-**The Rust core** (rounds E3i, PR1b-2-rest3, `rust/BENCHMARKS.md`). With the suite's Rust core built, `Granny(b)` is
+**The Rust core** (rounds E3i, PR1b-2-rest3: `rust/BENCHMARKS_ARCHIVE_1.md` "E3i", `rust/BENCHMARKS.md` "PR1b-2-rest3"). With the suite's Rust core built, `Granny(b)` is
 the Rust core's object (`bc2_native.Granny` over `bc2_formats::granny`): the resource's bytes, its tables, `root()` /
 `read()` (the same trees - every value and type, every dict's key order - as the Python reader), `field` /
 `array_at`, and the writes `put` / `to_bytes` (`shift`, `set_orientations`). `GrannyReference`, the Python reader

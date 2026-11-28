@@ -4,6 +4,16 @@ What changed for the suite's users, version by version. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): each version lists what was **Added**, **Changed**,
 **Fixed** and **Removed**, newest first.
 
+**Only what a user notices** (round TK0, 2026-11-28). The other records each have one home:
+- which rounds ran, when, and in which version: the task registry, `tasks/registry.toml`, and `ROADMAP.md`'s Done
+  list generated from it;
+- the measurements and proofs: `rust/BENCHMARKS.md`;
+- how the work was done: the commit messages.
+
+A round does not edit this file on its branch. Its entries are a fragment, `tasks/changes/<task id>.md`, and
+`python tasks\build.py merge <code>` adds them under **Unreleased** at the merge (`RELEASING.md`). The entries of
+versions up to 0.37.0 were written before this rule, and are kept as they were.
+
 **Versions.** The suite uses [Semantic Versioning](https://semver.org/) and is before 1.0, so a version is
 `0.MINOR.PATCH`:
 
@@ -13,10 +23,11 @@ What changed for the suite's users, version by version. The format follows
 - **PATCH** goes up for fixes only.
 - **A merge that removes something bumps MINOR at once** (round QW2, audit AU3 AR-9): a command line, a subcommand
   or option, a Python function or module another project imports (Project OPFOR's), a Rust public API, or a file
-  format or folder a tool reads or writes. The merge itself writes the new `VERSION` and turns **Unreleased** into
-  that version (`RELEASING.md`, "A merge that removes something"), so Project OPFOR's version pin
-  (`opforcore.paths.SUITE_REQUIRES`, at least one version and below the next minor) sees every breaking change.
-- 1.0 is the full suite release (`ROADMAP.md`, priority 8).
+  format or folder a tool reads or writes. The merge's `python tasks\build.py merge` writes the new `VERSION` and
+  turns **Unreleased** into that version (`RELEASING.md`, "At the merge: the version is assigned"), so Project
+  OPFOR's version pin (`opforcore.paths.SUITE_REQUIRES`, at least one version and below the next minor) sees every
+  breaking change. A branch never numbers its own version.
+- 1.0 is the full suite release (the task `Release`, the last priority group in `ROADMAP.md`).
 
 The version lives in one place, the `VERSION` file at the repository's root. `bfbc2core.__version__`,
 `bfbc2.exe --version`, `bfbc2-editor --version`, the editor's Help window and the hub's title all read it. How to

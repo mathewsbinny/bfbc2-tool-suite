@@ -6,7 +6,7 @@ saying what goes wrong in the game and what to do, the specification rules it re
 
 - **live in the editor** (`bc2_levelwrite::validate`, the Problems panel; `mapexport validate <project> --game
   <game>`): on the project as edited, after every change - the log's own problems, the mode, the names, the objects
-  the edits moved or made, the partition's own consistency (DbxEditGUI's Level > Check), and DICE's placement
+  the edits moved or made, the partition's own consistency (the DBX inspector's Level > Check, once DbxEditGUI's), and DICE's placement
   tendencies (section 3);
 - **by `mapexport build`** before it writes: a broken rule is a refusal whose words start with the rule's code;
 - **by `mapexport check`** on the staged level: every check line carries its rule's code;

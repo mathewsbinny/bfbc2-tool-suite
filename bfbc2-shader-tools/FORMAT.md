@@ -1,10 +1,10 @@
 # BC2 shader databases (Dx9_Single.res, Dx10_Single.res, Dx11_Single.res)
 
-The format of Battlefield: Bad Company 2's per-level compiled shader databases (PC build 795745), as `shaderdb.py`
-reads and writes it. Every level bundle has three, one per renderer: `Levels/<LV>/Shaders/Dx9_Single.res`,
-`Dx10_Single.res`, `Dx11_Single.res` (FbrbTool types `Dx9ShaderDatabase`, `Dx10ShaderDatabase`,
-`Dx11ShaderDatabase`). The level's `Levels/<LV>/shaders.dbx` (a `Render.ShaderDatabaseCollection`) names them, one
-group per database with its render path (`ShaderRenderPath_Dx9` / `_Dx10` / `_Dx11`).
+The format of Battlefield: Bad Company 2's per-level compiled shader databases (PC build 795745), as the shader tools
+read and write it (normative rules: `spec/formats/shaderdb.md`; this file is their evidence record, cited by line:
+edit it line-neutrally). Every level bundle has three, one per renderer: `Levels/<LV>/Shaders/Dx9_Single.res`,
+`Dx10_Single.res`, `Dx11_Single.res` (bundle types `Dx9ShaderDatabase`, `Dx10ShaderDatabase`, `Dx11ShaderDatabase`).
+The level's `Levels/<LV>/shaders.dbx` (a `Render.ShaderDatabaseCollection`) names them, one group per database with its render path (`ShaderRenderPath_Dx9` / `_Dx10` / `_Dx11`).
 
 How it was found: the loaders in `BFBC2Game.exe` were read with short, targeted disassembly (exeref.py), then the
 layout was checked on data. Every database in the game copy's level bundles (270: 81 of each kind, plus copies in
@@ -14,7 +14,7 @@ big-endian, with a few differences (section 8).
 
 | | Dx9 | Dx10 | Dx11 |
 |---|---|---|---|
-| loader (vtable slot 4 / called by the factory) | `FUN_009d4250` | `FUN_009d3fd0` | `FUN_009d4110` |
+| loader (vtable slot 4 / called by the factory) | `0x9D4250` | `0x9D3FD0` | `0x9D4110` |
 | section readers 1-8 | 009cf190, 009cd690, 009cd730, 009d1660, 009d1960, 009cf230, 009d2db0, 009d3d70 | 009cd7d0, 009cd690, 009cd730, 009d3080, 009cd8a0, 009cda90, 009d2cb0, 009d3d70 | 009ce4a0, 009cd690, 009cd730, 009d3460, 009ce570, 009ce760, 009d2d30, 009d3d70 |
 
 ## 1. Primitives
@@ -41,7 +41,7 @@ section 8  names: entries, fragments, mesh parts; entry groups
 ### Section 1: parameter blocks
 
 `u32 n`, then n x { `u32 size` (counting itself), `size - 4` bytes }. The loader keeps each block as one piece of
-memory (size in its first word) and then prepares it in place (`FUN_009bc7d0` for Dx9, `FUN_009bb4b0` for Dx10).
+memory (size in its first word) and then prepares it in place (`0x9BC7D0` for Dx9, `0x9BB4B0` for Dx10).
 The offset-like fields inside (0x20 ...) count from the block's start, and the blocks used by one entry are
 byte-identical in different levels' files, so a block can be copied unchanged. Blocks hold the shader's
 parameters, among them texture names in fixed 0x80-byte fields (`Characters/US/US_Textures/Holster_Beretta_Nm`).
@@ -155,7 +155,7 @@ register table }.
 
 | offset | |
 |---|---|
-| 0x00 | guid: program id. Programs are sorted by it (byte order) in every file; the loader inserts them into a sorted vector map (`FUN_009cc520`), so an id must not repeat (a repeat would be dropped) |
+| 0x00 | guid: program id. Programs are sorted by it (byte order) in every file; the loader inserts them into a sorted vector map (`0x9CC520`), so an id must not repeat (a repeat would be dropped) |
 | 0x10, 0x14 | u32, u32: the render state - the state word and the alpha-test reference ("Render state" below) |
 | 0x18 | u32: overwritten while loading with a checksum of the program's key (the stored value does not matter) |
 | 0x1c | u32 (0) |
@@ -222,7 +222,7 @@ parts).
 
 ### Section 8: names and entry groups
 
-Three name lists with the same shape, `u32 n`, then n x { `cstr name`, `guid` } (`FUN_009d3830`, each loaded into
+Three name lists with the same shape, `u32 n`, then n x { `cstr name`, `guid` } (`0x9D3830`, each loaded into
 a map keyed by name):
 
 1. **entries**: `<mesh asset Name>/<shader asset Name>`, e.g.
@@ -237,7 +237,7 @@ a map keyed by name):
    `StreamInstancingFloat` ...; a few names stand alone (`Decal`, `Emitter`, `OvergrowthBillboard`). The same
    part name has the same layout guid in every level.
 
-Then the **entry groups** (`FUN_009d3a30`, a map keyed by guid): `u32 n`, then n x { `guid` (an entry's), `u32 k`,
+Then the **entry groups** (`0x9D3A30`, a map keyed by guid): `u32 n`, then n x { `guid` (an entry's), `u32 k`,
 k x `u16` program index }. Sorted by guid, each list ascending; one group per entry; every program in exactly one
 group, the one whose guid its key names.
 
@@ -310,7 +310,7 @@ the result draws with exactly what it drew with in its source file.
 ## 8. Xbox 360 databases (BFBC2's Xbox levels, Battlefield 1943)
 
 BFBC2's Xbox levels have one database each, `Levels/<LV>/Shaders/Single.res`; Battlefield 1943 (Xbox only) the same
-(`Levels/Wake_island_s/Shaders/Single.res`, 4,019,811 bytes). FbrbTool lists both as `Dx9ShaderDatabase`. Found by
+(`Levels/Wake_island_s/Shaders/Single.res`, 4,019,811 bytes). Bundle listings show both as `Dx9ShaderDatabase`. Found by
 reading BFBC2's Xbox and PC databases of the same levels side by side (no console code was disassembled). Every
 BFBC2 Xbox level database (20) and BF1943 Wake's parse to their last byte, write back to the same bytes and pass
 section 4's checks (`test_shaderdb.py --xbox`).

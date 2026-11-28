@@ -75,7 +75,7 @@ the mode partition goes into the startup patch whenever an installed level runs 
 
 Status: **observed** · Variants: PC
 
-The level checksum is computed by FUN_006EFBC0 (`Md5Buffer` in OPFOR's records): a loop over the level partition's
+The level checksum is computed by 0x6EFBC0 (`Md5Buffer` in OPFOR's records): a loop over the level partition's
 `LevelData.Objects` that reads each entry and, for a placement, its blueprint. It reads both without a check, so the
 two data defects that reach it each have their own fault address: an `Objects` entry that is null or names no
 instance faults at 0x6EFF8A (LEVEL-OBJ-2), and a placement whose blueprint was not created (a `ReferencedObject` that
@@ -83,7 +83,7 @@ resolves nowhere, or to something that is not an `ObjectBlueprint`) faults at 0x
 were hit at a level's first load: ONS_MP_008 (a console Objects item naming an envmap the file did not hold) and
 Wake Island (BF1943's effects placed as `ReferenceObjectData` naming the effect asset itself).
 
-[exe: BFBC2Game.exe FUN_006EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h] and count at [esp+50h] name the entry]
+[exe: BFBC2Game.exe 0x6EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h] and count at [esp+50h] name the entry]
 [doc: opfor:src/dll/levelfix.cpp:513-521] [doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:275-277]
 [doc: opfor:src/tools/ww2/wake_ambience.py:209-212] [doc: bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:21-22]
 
@@ -91,9 +91,9 @@ Wake Island (BF1943's effects placed as `ReferenceObjectData` naming the effect 
 
 Status: **verified**
 
-The checksum's two faults are data the suite can see offline: `DbxEdit check` refuses a null or dangling `Objects`
-item (LEVEL-OBJ-2), and the map export's check refuses a reference into another partition that names no instance of
-a partition the level loads. The crash reader names the 0x6EFF8A site and gives that hint.
+The checksum's two faults are data the suite can see offline: `bfbc2.exe dbxedit check` refuses a null or dangling
+`Objects` item (LEVEL-OBJ-2), and the map export's check refuses a reference into another partition that names no
+instance of a partition the level loads. The crash reader names the 0x6EFF8A site and gives that hint.
 
 [code: rust/bc2-formats/src/dbxedit/check.rs:317-343] [test: core/tests/test_dbxedit.py::cases]
 [test: bfbc2-automated-map-and-bot-test-harness/crash-reader/tests/test_crashreader.py::main]

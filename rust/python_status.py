@@ -10,7 +10,7 @@ are found at each run; everything else is in the table. tests/test_repo.py fails
 or the table names a file that is gone, so a new or deleted Python file needs its row here (then run this script).
 Line counts change with every edit, so no check compares them: regenerate when the table changes.
 
-The statuses (ROADMAP.md "Python left"):
+The statuses (the rounds that retire them are the Python exit's, PX1-PX7, in tasks/registry.toml):
     live             only Python does this job
     partly           part of its job is ported; the note names what is left
     twin             a Python twin of Rust code, kept for parity, as a fallback where the Rust refuses, or for callers
@@ -50,7 +50,7 @@ class Row(NamedTuple):
     status: str
     rust: str           # the Rust counterpart: crate::module or a bfbc2.exe command ('' if none)
     callers: str        # who imports or runs it (suite, tests, Project OPFOR's src)
-    retiring: str       # ROADMAP's round, or "proposed: ..." where the ROADMAP names none
+    retiring: str       # the round planned before the Python exit (history; px_round() maps it to PX1-PX7)
     note: str           # one line ('' for a test: its docstring's first sentence is used)
 
 
@@ -705,6 +705,8 @@ TABLE: tuple[Row, ...] = (
       "NavKit's level driver through the command line, the editor in process and the export step (files, lines)"),
     R('rust/python_status.py', DEV, 'stays', '', 'by hand; tests/test_repo.py', 'stays',
       'this inventory'),
+    R('tasks/build.py', DEV, 'stays', '', 'by hand; run_tests.py (tasks-registry)', 'PX6',
+      "the task registry's generator and check: ROADMAP.md, tasks/board.json, battlefield-opfor's TASKS.md"),
 
     # --- spec
     R('spec/probes/destruction.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
@@ -888,6 +890,41 @@ EXCEPTIONS: tuple[Exception_, ...] = (
 )
 
 
+# The Python exit (the user, 2026-11-27; tasks/registry.toml PX1-PX7): the round that retires each file. PX1 is
+# OR16-rest (its files named), PX3 reverses the "stays Python by decision" exceptions, PX6 is the plumbing, the shims
+# and every file left; the rest follows the status: partly -> PX2, twin -> PX4 (PY1), test -> PX5 (Tests in Rust).
+PX1_FILES = ('bfbc2-auto-navkit/tools/navregress.py', 'bfbc2-auto-navkit/tools/navboundary.py',
+             'bfbc2-auto-navkit/tools/navwater.py', 'bfbc2-auto-navkit/tools/navwater_mesh.py',
+             'bfbc2-auto-navkit/tools/navsample.py', 'bfbc2-auto-navkit/tools/detailed.py',
+             'bfbc2-auto-navkit/tools/hpdview.py', 'bfbc2-bf1943-import/dbxparitylib.py',
+             'bfbc2-automated-map-and-bot-test-harness/harness.py',
+             'bfbc2-automated-map-and-bot-test-harness/testharness/classify.py',
+             'bfbc2-automated-map-and-bot-test-harness/testharness/levelchecks.py',
+             'bfbc2-automated-map-and-bot-test-harness/testharness/levelinfo.py')
+PX3_FILES = ('bfbc2-shader-tools/xenos_exec.py', 'bfbc2-auto-navkit/tools/sample_all.py')
+PX_WHAT = (
+    ('PX1', "OR16-rest: navregress, the harness's run and libraries, dbxparitylib, the NavKit diagnostics, hpdview"),
+    ('PX2', 'every "partly" file finished'),
+    ('PX3', 'the "stays Python by decision" files reversed (the HLSL compiles, xdiff / xenos_exec, the previews, '
+            'the game launches)'),
+    ('PX4', 'PY1: the twins retired, bc2-pyrt deleted'),
+    ('PX5', 'Tests in Rust, on the synthetic corpus'),
+    ('PX6', 'the plumbing, the shims, the "stays" scripts as Rust benches; then every .py deleted'),
+    ('PX7', 'the baselines (retires no file)'),
+)
+
+
+def px_round(r: Row) -> str:
+    """The Python exit's round that retires the file (PX1-PX7); a row whose retiring is already a PX code keeps it."""
+    if r.retiring.startswith('PX'):
+        return r.retiring.split()[0]
+    if r.path in PX1_FILES:
+        return 'PX1'
+    if r.path in PX3_FILES or r.retiring == 'stays by decision (OR15)':
+        return 'PX3'
+    return {'partly': 'PX2', 'twin': 'PX4', 'test': 'PX5'}.get(r.status, 'PX6')
+
+
 def folder_of(path: str) -> str:
     return path.split('/', 1)[0] if '/' in path else '(root)'
 
@@ -899,7 +936,8 @@ def collect(root: str = SUITE) -> list[dict[str, object]]:
         full = os.path.join(root, r.path)
         rows.append({
             'path': r.path, 'folder': folder_of(r.path), 'lines': non_blank_lines(full), 'kind': r.kind,
-            'status': r.status, 'rust': r.rust, 'callers': r.callers, 'retiring': r.retiring,
+            'status': r.status, 'rust': r.rust, 'callers': r.callers, 'retiring': px_round(r),
+            'retiring_before_px': r.retiring,
             'note': r.note or (first_sentence(full) if r.status == 'test' else ''),
             'embedded_by': emb.get(r.path, []),
         })
@@ -936,7 +974,9 @@ def markdown(rows: list[dict[str, object]], tot: dict[str, object]) -> str:
         '',
         'Every Python file of the suite, what it does for the port to Rust and the round that retires it. Generated by',
         '`python rust\\python_status.py` from its table (do not edit this file: edit the table and run it again);',
-        'the same data as `python_status.json`. The folders and their rounds are ROADMAP.md\'s "Python left";',
+        'the same data as `python_status.json`. "Retiring" is the Python exit\'s round (PX1-PX7, the user\'s goal of',
+        '2026-11-27; each a task in `tasks/registry.toml`); the round planned before it is the JSON\'s',
+        '`retiring_before_px`. This page is the one list of the Python that is left (ROADMAP.md keeps none);',
         'retired tools are in RETIRED.md, retired twins in `rust/BENCHMARKS.md` and CHANGELOG.md. A new or deleted',
         '`.py` file fails `tests/test_repo.py` until its row is in the table.',
         '',
@@ -952,8 +992,7 @@ def markdown(rows: list[dict[str, object]], tot: dict[str, object]) -> str:
         'Lines are non-blank lines, counted when this file was generated. "Embedded" marks a file a Rust source',
         'includes with `include_str!` (bfbc2.exe prints its usage from it or keys a cache by its hash): editing or',
         'deleting it changes the binary. Callers: imports and runs in the suite and in Project OPFOR BFBC2\'s tracked',
-        'files ("OPFOR N": its files); "tests N": the suite\'s test files. `bfbc2-auto-navkit` is being changed by',
-        'rounds NK4 and NK5.',
+        'files ("OPFOR N": its files); "tests N": the suite\'s test files.',
         '',
         '## Totals',
         '',
@@ -969,9 +1008,15 @@ def markdown(rows: list[dict[str, object]], tot: dict[str, object]) -> str:
     for folder, v in by_folder.items():
         out.append(f'| `{folder}` | {v["files"]} | {v["lines"]:,} | '
                    + ' | '.join(f'{v[s]:,}' if v[s] else '' for s in STATUSES) + ' |')
-    out += ['', 'Lines by status in the folder table.', '', '## Stays Python by decision', '',
+    out += ['', 'Lines by status in the folder table.', '', '## By retiring round', '',
+            '| Round | What it retires | Files | Lines |', '|---|---|---:|---:|']
+    for px, what in PX_WHAT:
+        mine = [r for r in rows if r['retiring'] == px]
+        out.append(f'| {px} | {what} | {len(mine)} | {sum(int(str(r["lines"])) for r in mine):,} |')
+    out += ['', '## Stays Python by decision (reversed by PX3)', '',
             'The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exceptions rather than port '
-            'work.', '(`opfor:` paths are Project OPFOR BFBC2\'s files.)', '', '| What | Files | Why |', '|---|---|---|']
+            'work; the Python exit (the user, 2026-11-27) reverses them in PX3.',
+            '(`opfor:` paths are Project OPFOR BFBC2\'s files.)', '', '| What | Files | Why |', '|---|---|---|']
     for e in EXCEPTIONS:
         out.append(f'| {cell(e.what)} | {", ".join(f"`{f}`" for f in e.files)} | {cell(e.why)} |')
     out.append('')
@@ -980,7 +1025,7 @@ def markdown(rows: list[dict[str, object]], tot: dict[str, object]) -> str:
         mine = sorted((r for r in rows if r['folder'] == folder), key=lambda r: (order[str(r['status'])], r['path']))
         v = by_folder[folder]
         out += [f'## `{folder}`', '', f'{v["files"]} files, {v["lines"]:,} lines.', '',
-                '| File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |',
+                '| File | Lines | Kind | Status | Rust counterpart | Callers | Retiring (PX) | Note |',
                 '|---|---:|---|---|---|---|---|---|']
         for r in mine:
             rust = cell(r['rust'])

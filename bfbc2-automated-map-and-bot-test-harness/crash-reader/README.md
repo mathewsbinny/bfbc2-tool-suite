@@ -9,15 +9,16 @@ addresses and the CPU registers. This tool turns that into something you can act
 - **the call stack**, each step with its function and the call instruction that led to it. Values on the
   stack that aren't code addresses are marked.
 - **hints for known crashes**, for example a level with an empty entry in its object list:
-  "run `DbxEdit check`";
+  "run `DbxEdit check`" (DbxEdit's commands are `bfbc2.exe dbxedit` since round R4: `bfbc2 dbxedit check <level.dbx>`);
 - **the log lines just before the crash**, if you use Project OPFOR BFBC2.
 
 It only reads the report and the exe; nothing is sent anywhere.
 
 ## Setup
 
-Python 3.12 or newer (the suite's). For the code view, also run `pip install pefile capstone`. Without them (and
-without the Rust core, below) you still get the names, the stack and the hints.
+Python 3.12 or newer (the suite's), for `exeref.py` and the Python fallbacks. The code view's pefile and capstone are
+in the suite's `requirements.txt`; without them (and without the Rust core, below) you still get the names, the stack
+and the hints.
 
 Without Python: `bin\bfbc2.exe crashreader ...` and `bin\bfbc2.exe exeref ...` (the suite's `bin\`, round O2) take the
 same arguments and print the same. Round RT3 retired the crash reader's Python command line (`crashreader.py`; its
@@ -42,7 +43,11 @@ bfbc2 crashreader path\to\crashreport.xml
 bfbc2 crashreader --exe "C:\Games\Battlefield Bad Company 2\BFBC2Game.exe"
 bfbc2 crashreader --symbols my_names.txt      add your own function names and hints
 bfbc2 crashreader --log path\to\opfor.log
+bfbc2 crashreader --no-code                   names, stack and hints without the code view
 ```
+
+Without a path it reads the newest `crashreport.xml` in `Documents\Project OPFOR\BFBC2` or `Documents\BFBC2`
+(OneDrive Documents too).
 
 It finds `BFBC2Game.exe` in Project OPFOR BFBC2's game copy (`OPFOR_ROOT`, or a `project-opfor-bfbc2` folder next to one of
 the folders it sits in).

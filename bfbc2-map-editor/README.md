@@ -10,12 +10,15 @@ This folder holds the editor's documents; its code is in the suite's `rust\` wor
 
 | File or folder | What |
 |---|---|
-| [EDITOR_ARCHITECTURE.md](EDITOR_ARCHITECTURE.md) | the design document: rulings, architecture (3.1 - 3.12), order of work (section 5), the older GUIs folded in (section 9: the Map Inspector, the Navigation Studio, the mesh viewer, DbxEditGUI, LevelDiff), the planned AI workspaces (section 10: tactical authoring, the bot AI debugger, the AI behaviour simulator) |
+| [EDITOR_ARCHITECTURE.md](EDITOR_ARCHITECTURE.md) | the design record: rulings (sections 1 and 6), the architecture as each round built it (3.1 - 3.12), the 2026-11-16 plan's order of work (section 5, kept as written), known risks (8), the older GUIs folded in (section 9: the Map Inspector, the Navigation Studio, the mesh viewer, DbxEditGUI, LevelDiff), the planned AI workspaces (section 10: tactical authoring, the bot AI debugger, the AI behaviour simulator) |
+| [placement/](placement/README.md) | round L1's measurements of DICE's gameplay layouts: the rules the Problems panel checks and the auto layout's input |
 | `..\rust\bc2-editor` | the application, binary `bfbc2-editor.exe`: the window, the views, the workspaces, Help, the Export window |
 | `..\rust\bc2-levelwrite` | the level writer and the map project (`<name>.mapedit.json` and its operation log), the export, and the `mapexport.exe` command line |
 | `..\rust\bc2-render` | the game-accurate view: DICE's own Direct3D 11 shaders, textures and light |
 | `..\rust\bc2-scene` | the scene the views draw and edit: entities, collision, terrain and water, picking |
 | `..\rust\bc2-formats` | the game's file formats the editor reads (DBX, FBRB, terrain, water, collision ...) |
+| `..\rust\bc2-install` | the export's install and uninstall (`bc2_install::mapedit`, `bfbc2.exe install mapedit`) |
+| `..\rust\bc2-terragen` | the terrain generator behind Create level's Generate |
 
 The editor grew out of the Python **Map Inspector**, retired in round GR1 (2026-11-20); the **Navigation Studio**
 became its AI workspace in round GR2 (2026-11-20). What each had and where it went: EDITOR_ARCHITECTURE.md 9.1 and
@@ -47,6 +50,8 @@ suite README's "Where Rust builds") and copies them to the suite's `bin\`. Then:
 | `--opfor <folder>` | Project OPFOR BFBC2's folder (else `OPFOR_ROOT`, or a `project-opfor-bfbc2` folder beside or above the suite) |
 | `--theme dark\|light` | the theme for this run |
 | `--version` | prints the version |
+| `--source-hash` | prints the Rust sources' fingerprint it was built from |
+| `-h`, `--help` | prints the usage |
 
 From the hub (`BFBC2 Tool Suite.pyw`): Levels > **Open in Map Editor** (or double-click a level), Levels > **Open
 navigation** (`--navmesh`), or More tools > **Open Map Editor**.
@@ -76,12 +81,16 @@ The export's own commands:
 
     bin\mapexport.exe build   <project.mapedit.json> <export.json> --game <game folder> --out <stage folder>
     bin\mapexport.exe check   <stage folder> --game <game folder>
+    bin\mapexport.exe validate <project.mapedit.json> --game <game folder>
+    bin\mapexport.exe rules
     bin\mapexport.exe names   <export.json> --game <game folder> [--project <project.mapedit.json>]
     bin\mapexport.exe startup <startup-00.fbrb> --out <file> --work <temp folder> [--add <LEVEL> <description.dbx>]... [--remove <LEVEL>]...
     bin\mapexport.exe overlay <overlay-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]... [--remove <LEVEL>]...
     bin\mapexport.exe awards  <ondemand_awards-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]... [--remove <LEVEL>]...
 
-Exit code 0, or 1 with the reason on standard error (a failed check: 1, the checks printed).
+`validate` prints the Problems panel's list for a project (round V1), `rules` every rule of the export's registry
+with its code and severity. Exit code 0, or 1 with the reason on standard error (a failed check: 1, the checks
+printed).
 
 ## What it does
 
@@ -92,15 +101,22 @@ any era and mode, with Install and Uninstall through Project OPFOR; GR1 (2026-11
 retired: Properties' *All fields* (every field of an object, nested, with its type), the *Links* panel (references,
 referenced by and event connections, both ways; K draws them in the views) and Measure (M); GR2 (2026-11-20) the
 Navigation Studio folded into the AI workspace and retired; EX1 (2026-11-20) every name of an export, its preview
-beside the original, and the Diff panel (LevelDiff folded in and retired). The editor's exports are built and checked offline; none
-has been tested in the game yet (the user paused in-game tests on 2026-11-20).
+beside the original, and the Diff panel (LevelDiff folded in and retired); GR4 (2026-11-21) DbxEditGUI folded in as
+the DBX inspector and retired; V1 and A1 (2026-11-21) the Problems panel's rules and the auto layout; A2 (2026-11-22)
+the auto layout's vehicles; E4 - E4-rest2 (2026-11-22 / 27) the gameplay tools and whole Rush stages; E5 (2026-11-23)
+and E5-rest (2026-11-27) terrain sculpt and paint; E7-TG3 and TG4 (2026-11-27) Create level's new terrain, from a
+height map or generated, with its vegetation; OR6 (2026-11-27) the install in Rust. The editor's exports are built and
+checked offline; none has been tested in the game yet (the user paused in-game tests on 2026-11-20).
 
 **The start screen (round G4).** Three paths: **Open project** (a `.mapedit.json`; the recent projects are listed),
 **Edit existing level** (the four sets - BFBC1, BFBC2, Vietnam, WW2 - as cards, then that set's multiplayer maps:
 **Open** views one read-only, **New project** starts a project on it) and **Create level** (from any existing level,
 campaign levels included, whose campaign parts the export's checklist strips; or from a height map - a 16-bit PNG or
 RAW of 1024 / 2048 samples a side, or 1025 / 2049, its size, height range, water level and the set its content
-comes from, recorded in the project; the terrain itself is generated in a later round, E7). **Back** goes up a step.
+comes from - or **Generate**, the terrain generator's settings (biome, size, seed, water, relief); either way on a
+base level whose terrain it replaces, with the base's vegetation placed again on the new ground. The project opens on
+the new terrain and the export writes it as the level's own (rounds E7-TG3 and TG4, EDITOR_ARCHITECTURE.md 3.10, "Done
+in round G4"). **Back** goes up a step.
 
 **Editing a map (rounds E2, E2b).**
 
@@ -109,8 +125,9 @@ comes from, recorded in the project; the terrain itself is generated in a later 
   map first. The workspaces: View, Objects, Gameplay (flags, spawns, vehicle spawns, objectives and areas only),
   AI (orders, AI spawns and area points; the navmesh view), Terrain (round E5: raise, lower, smooth, flatten, noise
   and ramp brushes with a radius, strength and falloff, and the Material brush for the terrain's physics material;
-  each stroke one undoable step, exported into the level's terrain bundle) and Vegetation (its brushes greyed until
-  its round). Round E2b added context menus per workspace, edit modes, sinking an object into the surface with
+  since round E5-rest also Paint layer, Shade, strokes over the sub-terrain ring, a widened height range and new
+  material names; each stroke one undoable step, exported into the level's terrain bundle) and Vegetation (its
+  brushes greyed until its round, E6). Round E2b added context menus per workspace, edit modes, sinking an object into the surface with
   Alt+wheel, deep duplicate (what an object owns comes with it), copy and paste, polygon selection, and the
   **asset browser** over the whole content set with its Spawners and Objectives modes. The project is data only - the base level, its partition's sha1, the content profile and the operation log (each
   operation with who and when, new objects named by UUIDv5 guids) - never game files; the base map is never changed.
@@ -175,8 +192,9 @@ Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.
 
 **The game-accurate view (rounds R5 - R5c).** "Game-accurate view" (command palette) draws the 3D view as the game
 draws it: DICE's own Direct3D 11 shaders, textures and the level's light, pixel for pixel against the C++ render
-harness. Since R5c it is interactive and editable: edits show at once and picking works in it. Its known gaps (Wake
-Island's black terrain cells, the sky pass, game LODs ...) are round R5d (`ROADMAP.md`).
+harness. Since R5c it is interactive and editable: edits show at once and picking works in it. Round R5d
+(2026-11-21) closed its visual gaps (Wake Island's black terrain cells, the sky pass, levels of detail) and R5e the
+WW2 open sea; what is left, with reasons, is in `rust/BENCHMARKS.md` "R5d" (EDITOR_ARCHITECTURE.md 3.11).
 
 **Exporting a map (rounds E3 - E3d).** "Export as a multiplayer level" (command palette) opens the Export window:
 
@@ -231,7 +249,8 @@ edges, traversals, notes) are operations of the project's log, saved with it and
 (`navtune.json`); **Build with these edits** runs NavKit's apply in the editor itself (the code `bfbc2.exe navkit
 apply` runs: the same files and lines, shown as they come, with **Cancel the build**), and **Install into the game** /
 **Restore DICE's original** show what they write in the game copy's AI path data before they run. Placing AI
-spawners and orders, routes and the cross-domain links come later (EDITOR_ARCHITECTURE.md 3.4a, step E5a); the
+spawners and orders, routes and the cross-domain links come later (EDITOR_ARCHITECTURE.md 3.4a, the old plan's step
+E5a; the export's AI layer is ROADMAP.md's A2-rest); the
 tactical authoring, bot AI debugger and AI behaviour simulator workspaces after that (section 10).
 
 **Viewing a map (rounds G1 and G2).**
@@ -285,7 +304,7 @@ tactical authoring, bot AI debugger and AI behaviour simulator workspaces after 
 - **The window:** docked panels (drag a tab to dock, tab or float it; **Reset layout** puts them back): the Outliner
   (the map by kind and group, searchable, Hide / Show per group), the views, Properties (the selection's type, GUID,
   team, blueprint, source partition and element, transform), Problems, and with a project History and Layers. The
-  top bar has the workspace switcher (View; with a project Objects, Gameplay, AI, and Terrain and Vegetation greyed),
+  top bar has the workspace switcher (View; with a project Objects, Gameplay, AI, Terrain, and Vegetation greyed),
   the level or project and its content profile
   badge, Save / Undo / Redo, Help and the commands; the theme (Dark or Light) follows
   the suite's design language (`design/project/tokens.json`, IBM Plex fonts). The 3D view draws with its own tokens
