@@ -55,7 +55,7 @@ kept sorted as DICE keeps them). A tool that adds a level patches this bundle: t
 description and its two list items and leaves every other entry as it was.
 
 [code: rust/bc2-levelwrite/src/export.rs:351-358] [code: rust/bc2-levelwrite/src/export.rs:3111-3470]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1057-1061] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:864-868]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1135-1139] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:917-921]
 
 ### LOAD-START-2: A game mode the description names must be in the startup bundle
 

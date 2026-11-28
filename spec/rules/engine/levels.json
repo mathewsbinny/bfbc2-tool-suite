@@ -38,7 +38,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1477-1479"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1549-1551"
     }
    ],
    "file": "spec/engine/levels.md",
@@ -55,11 +55,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1050-1054"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1128-1132"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1441-1449"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1512-1520"
     }
    ],
    "file": "spec/engine/levels.md",
@@ -101,7 +101,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1308-1310"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1307-1313"
     }
    ],
    "file": "spec/engine/levels.md",
@@ -126,11 +126,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1255-1261"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1326-1332"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1594"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1862"
     }
    ],
    "file": "spec/engine/levels.md",

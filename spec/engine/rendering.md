@@ -28,7 +28,7 @@ name (PART-NAME-3). A level made under a new name needs its own copy of the coll
 for a mesh the database has no entry for cannot be drawn (RNDR-DRAW-6).
 
 [code: rust/bc2-render/src/world.rs:217] [test: rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:805-808] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1050-1054]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:858-861] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1128-1132]
 
 ### RNDR-DB-2: The databases hold compiled code only
 
@@ -41,7 +41,7 @@ reflection (`RDEF`): its `$Globals` variables, textures and samplers by name and
 
 [data: MP_005 Dx11_Single.res: 1,714 entries, 12,850 programs, 1,527 vertex and 2,166 pixel shaders, all vs_5_0 / ps_5_0 from that compiler, 2,112 parameter blocks, 114 vertex layouts, 31 render-state words]
 [data: Wake Island's built Dx9_Single.res: 1,723 vertex and 4,668 pixel shaders, all vs_3_0 / ps_3_0]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:805-821] [doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:30-36]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:858-874] [doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:30-36]
 
 ### RNDR-DB-3: Dx9 limits what a program may use
 
@@ -70,7 +70,7 @@ textures, the pixel shader's sampler states) and the render state.
 
 [code: rust/bc2-render/src/material.rs:503-528] [code: rust/bc2-render/src/material.rs:674-695]
 [test: rust/bc2-render/tests/warehouse.rs::warehouse_as_the_harness_draws_it]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:819-825]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:872-878]
 
 ### RNDR-DRAW-2: A placement may choose another shader set
 
@@ -82,7 +82,7 @@ set lists; the draw then uses that set's shaders (a container's colour plates, a
 
 [code: rust/bc2-render/src/placement.rs:84-155] [test: rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness]
 [data: MP_005: 554 of 3,915 drawn objects and members with an override (31 concrete blocks, 193 fences among the group members)]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:928-932]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:981-985]
 
 ### RNDR-DRAW-3: Constants by name, material values by register
 
@@ -96,7 +96,7 @@ constants from the program's second parameter block by register (SHDB-PB-1). Tex
 tables (SHDB-REG-1).
 
 [code: rust/bc2-render/src/frame.rs:192-228] [test: rust/bc2-render/src/frame.rs::cbuffer_places_values_by_name_and_material_by_register]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:876-884]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:863-871]
 
 ### RNDR-DRAW-4: Engine values written over block placeholders
 
@@ -117,7 +117,7 @@ Programs of bone-transformed and skinned meshes (trees and other kind-1 meshes a
 times the bone at rest. Drawn with only the rest bones, such a mesh stands at the origin.
 
 [code: rust/bc2-render/src/frame.rs:286-305] [test: rust/bc2-render/src/frame.rs::bones_are_placed_by_the_world_matrix]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:933-934]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:986-987]
 
 ### RNDR-DRAW-6: A part with no program for its layout crashes the renderer (0x98BD6E)
 
@@ -139,7 +139,7 @@ for any layout. An export therefore adds the entries of every mesh it brings in 
 [exe: BFBC2Game.exe 0x98BD6E, renderer; 0x98BCE0-0x98BD7B: `mov edx,[ebx+8]` ... `movups xmm0,[edx+8]`]
 [data: OPFOR: the WallWooden port (fixed by giving its parts a same-stride layout and its instanced variant); ONS_MP_004's road / stop signs (open)]
 [doc: opfor:src/tools/ww2/wake_install.py:1416-1429] [doc: private:opfor-research/DEVELOPMENT_NOTES.md:1350] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:586]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1593]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1861]
 
 ### RNDR-DRAW-7: A mesh set's LOD settings must resolve (0x8D59FB)
 
@@ -198,7 +198,7 @@ suite's pictures stop matching.
 [code: rust/bc2-render/src/frame.rs:400-401] [code: rust/bc2-render/src/live.rs:613]
 [test: rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness]
 [test: rust/bc2-render/tests/live.rs::mp_005_live_list_is_the_frame_edits_and_picks]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:960-972]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1013-1025]
 
 ### RNDR-ORD-3: The depth buffer holds view distances, made before its first reader
 
@@ -211,7 +211,7 @@ with `g_depthScaleFactors` and subtracts (its thickness).
 
 [code: rust/bc2-render/src/live.rs:648-649] [code: rust/bc2-render/src/water.rs:36-48]
 [test: rust/bc2-render/src/water.rs::depth_factors_invert_the_projection]
-[doc: rust/bc2-render/src/post.rs:10-12] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:935-946]
+[doc: rust/bc2-render/src/post.rs:10-12] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:988-999]
 
 ### RNDR-ORD-4: Frustum culling changes nothing drawn
 
@@ -237,7 +237,7 @@ tiles. The patches meet without seams.
 
 [code: rust/bc2-render/src/terrain.rs:164-299] [test: rust/bc2-render/tests/whole_terrain.rs::the_whole_terrain_is_drawn]
 [test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:833-849]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:886-902]
 
 ### RNDR-TERR-2: Height from the height map in the vertex shader
 
@@ -266,8 +266,8 @@ placeholder height scale (RNDR-TERR-5), the lagoon's water did not read the heig
 floor's `Wake_Grey` layer is black by design under at least 11.6 m of water.
 
 [data: MP_005 patch map header (66, 1, 15, 7, 128); Wake Island in R5c: tiled-mask cells black, everything else drawn]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:836-841] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3672-3680]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1519]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:889-894] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3672-3680]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1785]
 
 ### RNDR-TERR-4: Roads and decals are baked strips; undergrowth has its own entries
 
@@ -277,7 +277,7 @@ Roads and terrain decals are strips baked into the visual terrain (TERR-VT-2), d
 patches; undergrowth is drawn from the `UgMaskShaders` entries a patch shader names.
 
 [code: rust/bc2-render/src/world.rs:286-289] [test: rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:848-849]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:901-902]
 
 ### RNDR-TERR-5: The height map's world scale is the height field's range
 
@@ -308,7 +308,7 @@ matrix. The water is blended (state `0x585`, `0x581` for wakes), reads `DepthBuf
 waves.
 
 [code: rust/bc2-render/src/water.rs:50-116] [test: rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness]
-[doc: rust/bc2-render/src/water.rs:1-22] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:851-853]
+[doc: rust/bc2-render/src/water.rs:1-22] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:904-906]
 
 ### RNDR-WATER-2: Water that reads the height map takes the terrain's world scale and offset
 
@@ -358,7 +358,7 @@ but that is a naming habit, not the rule (OPFOR's Guadalcanal: `weather/wake_isl
 
 [code: rust/bc2-render/src/weather.rs:231-265] [test: rust/bc2-render/src/weather.rs::fields_and_refs_read_as_renderqa_does]
 [test: rust/bc2-render/tests/warehouse.rs::warehouse_as_the_harness_draws_it]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:855-858]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:908-911]
 
 ### RNDR-WTHR-2: Light colours are colour times intensity
 
@@ -381,7 +381,7 @@ since round R5d (RNDR-SKY-1); the haze over the scene (`EnvironmentHalfResMain` 
 yet.
 
 [data: MP_005's Dx11 database: no main-pass program's reflection names a fog variable; EnvironmentMain's reflection: the twelve g_* constants, the depth buffer and mp05_Skydome]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:858-862] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3678-3679]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:911-915] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3678-3679]
 
 ### RNDR-WTHR-4: The sun's direction is the engine's
 
@@ -392,7 +392,7 @@ block holds it. OPFOR's formula measured on Wake Island does not carry over (it 
 states), so the mapping is open.
 
 [data: MP_005's states: no stored light direction; the Wake formula gives a direction below the horizon]
-[doc: rust/bc2-render/src/weather.rs:6-9] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:880-886]
+[doc: rust/bc2-render/src/weather.rs:6-9] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:933-939]
 
 ### RNDR-WTHR-5: The weather is found through the level's weather entity, by reference
 
@@ -496,7 +496,7 @@ Enlighten's entries (`Systems/Enlighten/DirectIllumination`, `DiffuseDuster`). T
 `StaticEnvmapEntityData` (`outdoorLightReflectionEnvmap`; MP_005 radius 5,000 m).
 
 [data: MP_005's 587 textures by DICE's suffixes; 19 IrradianceVolume resources in mp_common; MP_005's EnlightenSkyColorIntensity 0]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:823-831] [doc: rust/bc2-render/src/placement.rs:14-15]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:876-884] [doc: rust/bc2-render/src/placement.rs:14-15]
 
 ### RNDR-SKY-1: The sky is EnvironmentMain on a dome at 0.9 of the view distance
 
@@ -556,7 +556,7 @@ level.
 
 [code: rust/bc2-render/src/post.rs:104-143]
 [data: Dist startup-00: 112 Dx11PixelShader and 14 Dx11VertexShader resources, among them psFilmicTonemap and its variants, HorizonBasedAO / HorizonBasedAOBlur, psDrawParticleVertexShadows*, psDrawEnlightenShadows]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:864-870]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:917-923]
 
 ### RNDR-POST-2: The chain: luminance, exposure, bloom, filmic tonemap
 
@@ -583,7 +583,7 @@ settings (`HsaoRadius`, `HsaoAngleBias`, `HsaoAttenuation`, step and direction c
 level data. Depth of field and film grain are off in the stock states.
 
 [exe: BFBC2Game.exe: the Hsao* setting names and defaults]
-[doc: rust/bc2-render/src/post.rs:30-32] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:867-868]
+[doc: rust/bc2-render/src/post.rs:30-32] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:920-921]
 
 ### RNDR-SHAD-1: Three shadow cascades drawn with the depth-only programs
 
@@ -595,7 +595,7 @@ outside the databases. DICE's objects sample them with four taps around the shad
 comparison).
 
 [data: MP_005's binding tables: outdoorLightShadowTransform0..2; entries' depth-only programs; Dx9 objects: four texldp taps averaged]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:868-870] [doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:43]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:921-923] [doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:43]
 
 ### RNDR-LOD-1: A mesh's levels of detail switch at its LOD settings' distances
 

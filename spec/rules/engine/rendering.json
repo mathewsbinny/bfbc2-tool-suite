@@ -13,11 +13,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:805-808"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:858-861"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1050-1054"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1128-1132"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -38,7 +38,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:805-821"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:858-874"
     },
     {
      "kind": "doc",
@@ -88,7 +88,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:819-825"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:872-878"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -113,7 +113,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:928-932"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:981-985"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -134,7 +134,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:876-884"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:863-871"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -172,7 +172,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:933-934"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:986-987"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -205,7 +205,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1593"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1861"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -309,7 +309,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:960-972"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1013-1025"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -338,7 +338,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:935-946"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:988-999"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -384,7 +384,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:833-849"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:886-902"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -422,7 +422,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:836-841"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:889-894"
     },
     {
      "kind": "doc",
@@ -430,7 +430,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1519"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1785"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -451,7 +451,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:848-849"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:901-902"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -505,7 +505,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:851-853"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:904-906"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -576,7 +576,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:855-858"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:908-911"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -610,7 +610,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:858-862"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:911-915"
     },
     {
      "kind": "doc",
@@ -635,7 +635,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:880-886"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:933-939"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -789,7 +789,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:823-831"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:876-884"
     },
     {
      "kind": "doc",
@@ -869,7 +869,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:864-870"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:917-923"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -919,7 +919,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:867-868"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:920-921"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -936,7 +936,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:868-870"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:921-923"
     },
     {
      "kind": "doc",

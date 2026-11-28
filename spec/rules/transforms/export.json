@@ -113,7 +113,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1427-1450"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1498-1521"
     }
    ],
    "file": "spec/transforms/export.md",
@@ -141,7 +141,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1340-1361"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1411-1432"
     }
    ],
    "file": "spec/transforms/export.md",
@@ -221,7 +221,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1199-1201"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1275-1277"
     }
    ],
    "file": "spec/transforms/export.md",

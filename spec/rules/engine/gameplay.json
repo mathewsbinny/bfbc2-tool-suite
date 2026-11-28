@@ -33,7 +33,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1373-1386"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1444-1457"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -149,7 +149,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1383-1386"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1454-1457"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -201,7 +201,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1403-1411"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1474-1482"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -217,7 +217,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1027-1038"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1105-1116"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -622,7 +622,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1413-1415"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1484-1486"
     }
    ],
    "file": "spec/engine/gameplay.md",
