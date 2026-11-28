@@ -7070,7 +7070,13 @@ levels' stage 7 now reads back consistent.
   `test_onslaught_qa` keep the gate's verdict, the levels given pictures and the AI seats; the moved behaviour's tests
   are the suite's); ruff and mypy clean on `src\tools\onslaught` and the changed tests.
 - `spec/trace.py --emit` then `--check`: 1,680 rules (SHDB-MRG-1, XCONS-ONS-14 - 17 new).
-- RESULT_QUICK
+- `python run_tests.py quick -j 2` (on the branch merged with main, TK0 included; `OPFOR_ROOT` OPFOR's main checkout):
+  139 of 140 passed in 874 s; the one failure is `native-census`, which reads OPFOR's main checkout for the callers
+  of the 14 new `onsport_*` exports: against Project OPFOR's `or13` (their callers) it passes, 430 exports, 0 without
+  a caller, and on main once OPFOR's `or13` is merged. `shaderdb-queries` needs a game copy (`OPFOR_ROOT`): in a
+  round's `_rounds` layout without it, it stops at `level:mp_008cq`.
+- After the merges with main (OR15, DOC1, TK0): clippy, the 19 groups, cargo fmt and the three crates' tests again,
+  all clean; OPFOR's tests 376 of 376.
 
 ### What is left
 
