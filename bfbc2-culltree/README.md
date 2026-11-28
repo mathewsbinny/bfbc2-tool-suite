@@ -3,8 +3,8 @@
 `bfbc2 culltree` (`bin\bfbc2.exe`; the library is `culltreelib.py`, the command line `culltree.py` was retired in round RT3) reads Battlefield: Bad Company 2's static cull trees (`World.StaticCullTreeData`), checks them
 against a level's placed objects, and **adds placed objects that have no slot** - objects with `Enumeration` 0
 that the game draws see-through and treats as indestructible because they are not in the level's cull tree.
-It writes everything it does not change byte for byte. It needs Python 3.12+ and the suite's Rust core (its element
-reader runs there since round F1a: `python rust\build_native.py --download`).
+It writes everything it does not change byte for byte. The library needs Python 3.12+ and the suite's Rust core (its
+element reader runs there since round F1a: `python rust\build_native.py --download`).
 
 Without Python: `bin\bfbc2.exe culltree info|verify|add ...` (the suite's `bin\`, round O3) takes the same arguments
 and writes the same files, output and exit codes; a damaged tree or level is handed to the Python (the suite's
@@ -33,13 +33,13 @@ bfbc2 culltree add <tree.dbx> <level.dbx> (--objects <guid,... | @file> | --auto
 What a reference level gives (its slotted instances' leaves, in the blueprint's own space) is kept in
 `%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree`, one file per reference level, used while the level file, its
 tree and `culltreelib.py` are unchanged (size and modification time): a second `add` or `verify` against the same
-`--ref-dir` folders reads no reference level again (round E3m, `rust/BENCHMARKS.md`). `BFBC2_CULLTREE_CACHE` names
+`--ref-dir` folders reads no reference level again (round E3m, `rust/BENCHMARKS_ARCHIVE_1.md`). `BFBC2_CULLTREE_CACHE` names
 another folder (`0`: no cache); `BFBC2_CULLTREE_REFERENCE=1` reads every reference level each run, as before: the
 reference the cache is tested against (`tests\test_culltree_e3m.py`). `bfbc2.exe culltree` reads and writes the same
 cache entries (round CT1: either side's warmed cache serves both) and prunes it within the cache budget (the suite's
 README, "Caches").
 
-The test (`tests\test_culltree.py`, in `run_tests.py quick`) builds trees and levels itself and needs no game data.
+The tests (`tests\test_culltree.py`, `test_culltree_e3m.py`, `test_culltree_native.py`; `run_tests.py quick`) build trees and levels themselves; `test_culltree_native.py --game` adds the game copy's.
 
 ## Example: Nelson Bay Onslaught (ONS_MP_008)
 

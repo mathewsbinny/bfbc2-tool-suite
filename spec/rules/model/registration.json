@@ -301,7 +301,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_PORT_PLAN.md:49-55"
+     "ref": "bfo:docs/plans/opfor/WW2_PORT_PLAN.md:51-57"
     }
    ],
    "file": "spec/model/registration.md",
@@ -317,7 +317,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PYTHON_CODE_AUDIT.md:30"
+     "ref": "bfo:docs/research/opfor/PYTHON_CODE_AUDIT.md:32"
     },
     {
      "kind": "doc",

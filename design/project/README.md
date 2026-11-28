@@ -204,7 +204,8 @@ setting.
 `tokens.json` is the one source. **Since round G2 (2026-11-18) the copy in this repository is the authoritative
 one:** it gained `unowned` and the `view-*` and `scene-*` tokens here, so the design-system artifact it was first
 exported from is behind and needs a sync from this file, not the other way round. Each GUI stack gets its theme
-generated from it rather than hand-copied: the map
-editor's Rust interface (egui), the Python 3D tools (imgui-bundle) and the Tk launcher. A new GUI takes its colours,
-type and sizes from these tokens by name, never as literal values. The component previews here show how the parts
+generated from it rather than hand-copied. Today one stack reads it: the map editor's Rust interface (egui,
+`rust/bc2-editor/src/theme.rs`). The Python 3D tools' stack (imgui-bundle), once meant to read it too, was retired in
+round RT3 (`RETIRED.md`). The Tk launcher (`BFBC2 Tool Suite.pyw`) and NavKit's window do not read it yet. A new GUI takes
+its colours, type and sizes from these tokens by name, never as literal values. The component previews here show how the parts
 should look; each stack builds them from its own widgets.

@@ -3,8 +3,13 @@
 Round DC0 (2026-11-27). A Ghidra database of `BFBC2Game.exe` (PC, build 795745, 32-bit x86, 19,322,816 bytes),
 with the spec's types and names applied, every function decompiled to pseudo-C, and an index to query it.
 
-**The database is private and EA-derived.** It lives outside every repo, in
-`C:\Programming\Projects\bfbc2-decomp-private\` (or `BFBC2_DECOMP_DB`): the Ghidra project, the pseudo-C, the index.
+**The database is private and EA-derived.** It lives outside every repo, in `BFBC2_DECOMP_DB` when set, else the
+first `battlefield-decomp-work\bfbc2-decomp\` in the folder holding the suite or any folder above it
+(`bfbc2core.paths.decomp_root`; `bfbc2-decomp-private` until round DOC1): the
+Ghidra project, the pseudo-C, the index. That folder is the private git repository (no remote, ever):
+the database folders stay untracked by its .gitignore, and `opfor-research\` holds Project OPFOR BFBC2's
+decompiler-derived research (moved there in round DOC1; the spec cites it as `private:`). `run_dc.py` writes
+into no other git checkout.
 Only the scripts in this folder are committed. Never copy pseudo-C, strings or Ghidra output into a repo; cite
 **addresses** and rule ids instead (spec/README.md, "The decompiled database").
 
@@ -12,7 +17,7 @@ Only the scripts in this folder are committed. Never copy pseudo-C, strings or G
 
 ```
 python tools\decomp\decomp.py 0x5B33C0            the function containing the address: facts, then its pseudo-C
-python tools\decomp\decomp.py Session::setState   a function by name (also FUN_00557150)
+python tools\decomp\decomp.py Session::setState   a function by name (also by its Ghidra name)
 python tools\decomp\decomp.py --info 5B33C0       facts only: range, signature, class, callers, callees, strings, citing rules
 python tools\decomp\decomp.py --callers 5B33C0    callers (--callees: callees), one per line
 python tools\decomp\decomp.py --name Soldier      functions whose name or class contains the text

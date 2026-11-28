@@ -15,7 +15,8 @@ playtest**, below; the user paused in-game tests on 2026-11-20).
 - In-game level runs are done by Project OPFOR BFBC2's `testrun.bat` (start a level offline, watch its log,
   report: in game, crashed, timed out), which uses the crash reader. Campaign levels often stall on a black
   screen through its developer trigger; play-test those from the campaign menu, with OPFOR's probes
-  logging (Project OPFOR BFBC2 `DEVELOPMENT_NOTES.md`, "NavKit play tests of sp_004_b").
+  logging (the private research notes, `private:opfor-research/DEVELOPMENT_NOTES.md`, "NavKit play tests of
+  sp_004_b").
 
 ## Use
 
@@ -24,7 +25,7 @@ python harness.py run nightly --levels sp_004_b,sp_009         test two levels, 
 python harness.py run after_fix --levels sp_004_b --reference nightly
                                                                 the same, then compared with "nightly"
 python harness.py compare nightly after_fix                     what got worse or better (exit code 1 on a regression)
-python harness.py show nightly                                  a saved run as text
+python harness.py show nightly [--details 3]                    a saved run as text
 python harness.py list                                          the saved runs
 python harness.py import-log nightly --level ons_mp_002         the in-game checks from your last session in opfor.log
 python harness.py ingame mp_005                                 what the in-game tests will do (on hold)
@@ -136,7 +137,8 @@ The NavKit column is NavKit's build before route-island pruning. With it (`navis
 NavKit README "Route islands") ONS_MP_004's spawn -> target battery routes 100 % of DICE's pairs (was 67 %);
 ONS_MP_002's stays at 98.0 %.
 
-Level checks (`testharness/levelchecks.py`; Project OPFOR BFBC2 `STOCK_MP_AI_PLAN.md` 6.3 and `MP_APPLICATION_LOG.md`):
+Level checks (`testharness/levelchecks.py`; battlefield-opfor's `bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md` 6.3 and
+`bfo:docs/research/opfor/MP_APPLICATION_LOG.md`):
 `has-ai` (LevelData.HasAI), `ai-spawners` (PlayerType SSAiPlayer), `ai-templates` (a real AI template - not the
 DefaultSoldier placeholder, whose AI aim and never fire; not null), `templates-loaded` (each template partition,
 and the partitions it refers to - Sensing, Behaviour - in a bundle of the level's load set, its `package.mft`
@@ -172,7 +174,7 @@ numbers (the game-tier test checks that).
 | Tier | What | Time |
 |---|---|---|
 | quick | `tests\test_harness.py`: the point classes, every test kind, the level checks, the bundle reader, opfor.log sessions, saved runs, the comparison and the command line, on data built in the test | seconds |
-| game | `tests\test_harness.py --game`: a run on sp_009 and sp_004_b, the same run again without a regression, a damaged copy of sp_009's path data flagged; ONS_MP_004's vehicle, other-map, base and water points counted and every infantry target reached on DICE's file; ONS_MP_005GR's level partition read from its Package bundle; the bundle reader against FbrbTool | about two minutes with the caches filled, a few more without |
+| game | `tests\test_harness.py --game`: a run on sp_009 and sp_004_b, the same run again without a regression, a damaged copy of sp_009's path data flagged; ONS_MP_004's vehicle, other-map, base and water points counted and every infantry target reached on DICE's file; ONS_MP_005GR's level partition read from its Package bundle; the bundle reader against FbrbTool's `list` (in process, `bfbc2core.fbrbtool`) | about two minutes with the caches filled, a few more without |
 | by hand | `harness.py run <name>` over every level with DICE path data, before and after a NavKit change, then `compare` | over an hour the first time (parity of each NavKit build), then minutes |
 
 Both test tiers are part of the suite's runner (`python ..\run_tests.py quick | game`).

@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:294-332"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:294-332"
     },
     {
      "kind": "doc",
@@ -209,7 +209,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "the size call in 0x011AD550 (0x011AD634: the in-place mesh +0x5B4, `FUN_0134EDA0(0, sizes)`); the serialiser 0x0134EDA0 (`sizes[k"
+     "ref": "the size call in 0x011AD550 (0x011AD634: the in-place mesh +0x5B4, a call of 0x0134EDA0 with (0, sizes)); the serialiser 0x0134EDA0 (`sizes[k"
     },
     {
      "kind": "data",

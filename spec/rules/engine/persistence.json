@@ -5,7 +5,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "FUN_00865D70 join; FUN_0085F7B0 stats defaults; 0x7E9960 stats constructor; 0x8639D0 Unlocks::compute"
+     "ref": "0x865D70 join; 0x85F7B0 stats defaults; 0x7E9960 stats constructor; 0x8639D0 Unlocks::compute"
     },
     {
      "kind": "code",
@@ -26,7 +26,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "FUN_0086BEB0 stats handler; Unlocks manager +0x12F8 buckets, +0x1324 / +0x1328 rank table"
+     "ref": "0x86BEB0 stats handler; Unlocks manager +0x12F8 buckets, +0x1324 / +0x1328 rank table"
     },
     {
      "kind": "code",
@@ -64,7 +64,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "FUN_0084CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20"
+     "ref": "0x84CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20"
     },
     {
      "kind": "code",
@@ -140,7 +140,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:170-179"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:172-181"
     }
    ],
    "file": "spec/engine/persistence.md",
@@ -208,7 +208,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:189-211"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:191-213"
     }
    ],
    "file": "spec/engine/persistence.md",
@@ -242,7 +242,7 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:270-290"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:272-292"
     },
     {
      "kind": "data",
@@ -356,7 +356,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:371-377"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:373-379"
     }
    ],
    "file": "spec/engine/persistence.md",
@@ -415,7 +415,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:129-148"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:131-150"
     }
    ],
    "file": "spec/engine/persistence.md",
@@ -449,7 +449,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:62-63"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:64-65"
     }
    ],
    "file": "spec/engine/persistence.md",

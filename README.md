@@ -3,9 +3,9 @@
 Tools for building and debugging AI on Battlefield: Bad Company 2 maps, in one repository. The 3D tools
 share one core: level loading, a 3D view, picking and the game's data formats.
 
-Version: see `VERSION` and `CHANGELOG.md`. What is being worked on and what comes next: `ROADMAP.md`. How changes
-are merged and versions released: `RELEASING.md`. Which Python is left and what retires it, file by file:
-`PYTHON_STATUS.md` (ROADMAP.md, "Python left").
+Version: see `VERSION` and `CHANGELOG.md`. What is being worked on and what comes next: `ROADMAP.md`, generated from
+the task registry `tasks/registry.toml` (`tasks/README.md`). How changes are merged and versions released:
+`RELEASING.md`. Which Python is left and what retires it (PX1-PX7), file by file: `PYTHON_STATUS.md`.
 
 **Licence.** The suite is under the MIT licence (`LICENSE`), with one exception: `rust/bc2-xma`, the XMA2 sound
 decoder, is a translation of FFmpeg's decoder and is under FFmpeg's licence, the GNU Lesser General Public License

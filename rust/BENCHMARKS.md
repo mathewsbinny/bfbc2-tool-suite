@@ -1,4 +1,19 @@
-# Rust core: baseline timings
+# Measurements and proofs, round by round
+
+This file holds measurements and proofs only: timings, parity runs, oracle results and what a round left. It has
+one section per round, headed `## <round code>: <subject> (<date>, branch ...)`. Sections are in the order they were
+written, not sorted by date. A new round appends its section at the end and names it in its task's `benchmarks`
+field in `tasks/registry.toml`. The registry is the index of which round has which section, and `ROADMAP.md`'s Done
+list links each section from its round's line. The older sections are in `BENCHMARKS_ARCHIVE_1.md`; the spec
+cites that file by line, so edit it line-neutrally. Other records live elsewhere:
+- what a round changed for users: `CHANGELOG.md`;
+- its status and dates: the registry;
+- how it was done: its commit messages.
+
+A section does not repeat any of them. (The file was "Rust core: baseline timings" until round TK0: E0's first
+measurement, below, is still its opening section.)
+
+## E0: the DBX reader in Python and in Rust (2026-11-16)
 
 Milestone E0 (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.8, "measured, not assumed"): the DBX reader in Python
 (`core/bfbc2core/dbx.py`) and in Rust (`rust/bc2-formats`), on the same files on the same machine.
@@ -6404,8 +6419,8 @@ DC0 builds a Ghidra database of `BFBC2Game.exe`: PC build 795745, 32-bit x86, 19
 - every function decompiled to pseudo-C;
 - an SQLite index and a lookup tool.
 
-**The database is EA-derived and private.** It is in `C:\Programming\Projects\bfbc2-decomp-private\` (or
-`BFBC2_DECOMP_DB`), outside every repo; `run_dc.py` refuses a folder inside a git checkout. Only `tools/decomp/` is
+**The database is EA-derived and private.** It is in `C:\Programming\Projects\bfbc2-decomp-private\` (since round DOC1
+`C:\Programming\Projects\battlefield-decomp-work\bfbc2-decomp\`, the private repository; or `BFBC2_DECOMP_DB`), outside every public repo; `run_dc.py` refuses a folder inside a git checkout. Only `tools/decomp/` is
 committed: the scripts, generators and lookup, with no decompiled code, strings or Ghidra output. Use is documented
 in `tools/decomp/README.md`; how rules cite it is in `spec/README.md`, "The decompiled database".
 
@@ -6449,7 +6464,7 @@ in `tools/decomp/README.md`; how rules cite it is in `spec/README.md`, "The deco
   | Source | Citations |
   |---|---|
   | the spec's markdown, each with its rule id | 5,057 |
-  | OPFOR's `research\BFBC2_DECOMP_RESEARCH.md` | 176 |
+  | OPFOR's `research\BFBC2_DECOMP_RESEARCH.md` (private research notes) | 176 |
   | the hook tables (OPFOR's `src\dll\bc2.h`, battlefield-opfor's `bc2_795745` constants) | 53 |
   | the crash reader's `symbols_795745.txt` | 44 |
   | OPFOR's old `research\ghidra_project` | 3 |
@@ -6879,3 +6894,34 @@ a loaded PC**, not an idle one - the other rounds held their builds, but the edi
 ran (about 9.3 GB in use at the start). The ports steps: `wake_install.py --ports` 24.8 s, peak 609 MB (after
 `grime.py --apply` and `material_grid.py`); each level's `--ports-only` 18 - 21 s, about 610 MB. The sum of all step
 times 1,202 s; 13.1 min wall.
+
+## DOC1: Project OPFOR BFBC2's documents superseded, its private research moved (2026-11-27)
+
+No Rust changed; this section records the checks.
+
+**Verification of the moved documents.** Each of the 65 `moved` / `merged into an article` rows of battlefield-opfor's
+`docs/research/opfor/MIGRATION.md` was compared with its original on OPFOR main (f3a70ec, the commit KB0 took):
+the text line by line after normalising links, code spans and paths. Of the 61 moved files (CREDITS.md and
+README.md aside), 41 were identical apart from the origin line; 20 differed only in KB0's documented rewrites (image
+embeds and links into OPFOR's untracked `work\` as code spans, absolute paths as placeholders, two recorded wording
+edits, two added blank lines) - and six of those, whose originals are Windows-1252, in 18 characters (em dashes,
+multiplication and en-dash signs) that KB0's move had turned into U+FFFD: restored from the originals in
+battlefield-opfor's doc1 branch. The two merged rows were checked for their facts:
+`README_UNLOCKS.md` is in `docs/PROMO_UNLOCKS.md` (codes, the offline redemption, the scope), `research/README.md`'s
+index is `docs/research/opfor/README.md` and its private workspace section went to the private repository with the
+files it documents. 62 originals deleted (`CREDITS.md` kept for the shipped WW2 attribution, `README.md` rewritten).
+
+**The private research.** 267 files (research/notes 256, Probe.java, probe.ps1, the eight left-out documents and
+research/README.md) copied from OPFOR main c3ffc8f into the private repository's `opfor-research/`: all 267 git blob
+ids equal OPFOR's. 266 left OPFOR; `DEVELOPMENT_NOTES.md` stays there until the OR13 branch, which edits it, merges.
+
+**Citations.** 127 `opfor:` citations of moved documents became `bfo:docs/...`; their line ranges were remapped
+through a line alignment of original and KB copy, and each cited range was checked to hold the same normalised text
+(one whole-file citation, HAVOK_AABB_W 1-60 -> 1-62, grew by the origin line). 120 citations of the private files
+became `private:opfor-research/...` with the same lines. `trace.py --check`: 1,675 rules pass with the private
+repository present (every `private:` range checked) and with `BFBC2_DECOMP_DB` pointed at an empty folder (`note
+120 private: citation(s) not checked`); `--emit` writes the same shards either way.
+
+**Left as they were.** Help texts pinned by the CLI goldens keep bare document names (stockmp's `STOCK_MP_AI_PLAN.md`,
+aptcheck / aptgraft / aptrefs / apt.py's `DEVELOPMENT_NOTES`): the names still find the documents, in the KB or the
+private repository. Historical CHANGELOG / BENCHMARKS rows keep their paths, marked with the new place where useful.

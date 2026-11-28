@@ -12,7 +12,7 @@ SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 FOLDERS = ['bfbc2-auto-navkit', 'bfbc2-automated-map-and-bot-test-harness', 'bfbc2-console-readers', 'bfbc2-culltree',
            'bfbc2-menu-tools', 'bfbc2-mesh-viewer',
            'bfbc2-navigation-studio', 'bfbc2-stockmp-ai', 'tests', 'core', 'bfbc2-bf1943-import',
-           'bfbc2-console-convert', 'bfbc2-shader-tools', 'bfbc2-anim-tools', 'bfbc2-model-tools', 'rust', 'spec', 'tools']
+           'bfbc2-console-convert', 'bfbc2-shader-tools', 'bfbc2-anim-tools', 'bfbc2-model-tools', 'rust', 'spec', 'tasks', 'tools']
 
 
 def main(argv: list[str]) -> int:

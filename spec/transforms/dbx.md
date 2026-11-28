@@ -3,7 +3,7 @@
 The suite reads a binary partition into a tree (`dbx::parse`), prints it as XML (`dbx::to_xml`, DbxEdit's `xml`),
 writes a tree back (`dbx::write`, the editable tree `dbx::edit::EditDbx`, DbxEdit's model `dbxedit::file`), turns
 XML back into binary against a reference (DbxEdit's `import`), and edits partitions in place with DbxEdit's
-commands (`edit <in> <out> drop=... replace=... graft=...`, `dbxedit::cli::run`, `bfbc2core.dbxedit`).
+commands (`edit <in> <out> drop=... replace=... graft=...`, `bc2_tools::dbxedit::run`, `bfbc2core.dbxedit`).
 
 The format is layer 1's (`formats/dbx.md`: DBX-WR-1, DBX-WR-2, DBX-IMP-1, DBX-IMP-2, DBX-XML-4); this file states
 the transformations' contracts and the parity they are held to. The reference answers are those of the retired
@@ -82,7 +82,7 @@ kinds, number sizes or tiny floats (DBX-XML-4), so a tool that needs exact value
 
 Status: **verified**
 
-`dbxedit::cli::run` (the `bfbc2-cli dbxedit` command and `bfbc2core.dbxedit`) answers every command as DbxEdit.exe
+`bc2_tools::dbxedit::run` (the `bfbc2.exe dbxedit` command and `bfbc2core.dbxedit`) answers every command as DbxEdit.exe
 did: the same files written byte for byte, the same messages and exit codes, for DbxEdit's own unit-test cases, the
 usage, option and damaged-file errors, every edit fingerprint of the 795745 corpus and a recorded sample of 2,000
 corpus files through `xml`, `roundtrip`, `import` and an edit battery.

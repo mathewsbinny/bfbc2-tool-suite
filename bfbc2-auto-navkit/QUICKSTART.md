@@ -13,7 +13,7 @@ To learn how it works inside, read [README.md](README.md) and the
 |---|---|
 | The 13 campaign levels (`sp_*`) | Yes. NavKit's files are checked against DICE's. |
 | Onslaught maps (`ons_mp_*`) | Yes. They have AI, so they can be measured. These are Napisal's co-op Rush levels. Napisal's files lack the asset that tells the game how the path data is numbered; OPFOR's `import_onslaught.bat` adds it (since 2026-10-21), and Prepare reads it. On a level imported before then, set OPFOR's `[dev] sector_offsets` in game (ONS_MP_002: `-3,-7`) or many AI route requests fail. |
-| Stock multiplayer maps (`mp_*`) | **Not from the window yet.** The window and `navkit.py` measure a level while its AI is running, and stock multiplayer maps start without AI. Since 2026-10-26 `tools\navsample_offline.py stockmp` measures and builds them without the game (README, "Standalone sampling"); bots on them also need an AI layer (the suite's `bfbc2-stockmp-ai`). Not play-tested. |
+| Stock multiplayer maps (`mp_*`) | **Not from the window yet.** The window and `navkit.py` measure a level while its AI is running, and stock multiplayer maps start without AI. They can be measured without the game: `..\bin\bfbc2.exe navkit sample <level> --offline` (the Rust core's sampler), or `tools\navsample_offline.py stockmp` for the whole batch (README, "Standalone sampling"); bots on them also need an AI layer (the suite's `bfbc2-stockmp-ai`). Not play-tested. |
 
 The GUI and `navkit.py levels` mark the levels you can use today as *samplable*.
 
@@ -28,17 +28,17 @@ You need:
    run `python rust\build_native.py --download` (or build it: the suite's README, "The Rust core"). It also fetches
    `bin\bfbc2.exe`, which the window uses for its steps when it is there (the same steps, faster to start).
 3. **Where OPFOR is.** NavKit looks for a `project-opfor-bfbc2` folder next to one of the folders it sits in (for example
-   `C:\Programming\Projects\project-opfor-bfbc2` next to `C:\Programming\Projects\bfbc2-tool-suite`). If yours is elsewhere, set the
+   `C:\Mods\project-opfor-bfbc2` next to `C:\Mods\bfbc2-tool-suite`). If yours is elsewhere, set the
    environment variable `OPFOR_ROOT` to it, or add `--opfor <folder>` to every command.
 4. **Python 3.12 or newer** from [python.org](https://www.python.org/). When you install it, tick
-   "Add python.exe to PATH".
-5. **numpy.** Open a command prompt and run:
+   "Add python.exe to PATH". The window and the in-game sampling run in Python.
+5. **The suite's libraries.** Open a command prompt in the suite folder and run:
 
    ```
-   pip install numpy matplotlib
+   python -m pip install -r requirements.txt
    ```
 
-   `matplotlib` is only needed for NavKit's picture tools, not for building.
+   (numpy and matplotlib among them; `matplotlib` is only needed for NavKit's picture tools, not for building.)
 
 Close the game before you use NavKit. Two steps start and close the game on their own.
 
@@ -90,8 +90,8 @@ python navkit.py compare sp_01     the original against NavKit's file; --referen
 ```
 
 `..\bin\bfbc2.exe navkit <the same arguments>` runs the same commands without Python when the suite's `bin\bfbc2.exe`
-is there (`prepare`, `check`, `compare` and `status` in Rust; `build`, `sample`, `all` and `apply` are handed to
-`navkit.py`): the same output and files.
+is there: the same output and files. Every command runs in Rust except `sample` in game, which starts the game and
+is handed to `navkit.py` (`all` runs it that way too); `sample <level> --offline` measures without the game.
 
 ## Reading the check
 
@@ -127,7 +127,8 @@ sectors 126 / 154; nodes 30305 / 31789; edges 82602 / 165744
 
 `compare` takes any two files with `--reference <file>` and `--candidate <file>`, for example two NavKit
 builds, to see whether a change helped. The same comparison runs without the driver:
-`python tools\navcompare.py <level.xml> <reference.hpd> <candidate.hpd> [--json]`.
+`..\bin\bfbc2.exe navcompare <level.xml> <reference.hpd> <candidate.hpd> [--json]` (or `python tools\navcompare.py`
+with the same arguments).
 
 For a level without an original file, check does a **self-check**: how many pairs of positions on
 walkable ground NavKit's routes connect.
@@ -152,7 +153,7 @@ through the mission on NavKit's file (play test 2026-10-20), and leaving a level
 Measured against DICE's files on 15 levels, NavKit's files have 98 % of DICE's walkable ground and allow 98 %
 of the routes DICE's allow. The changes since 2026-10-22 (closed area boundaries, floors at the M-COMs, D lines
 and F cells, fewer small route islands) are measured offline but not yet play-tested. Some places still differ
-(see README.md), so the AI may still stop somewhere. Project OPFOR BFBC2's `DEVELOPMENT_NOTES.md` has the details.
+(see README.md), so the AI may still stop somewhere. README.md's "Plan and status" has the details.
 
 Tip: to start a mission your campaign save is not on, set `level=Levels/<LEVEL>` under `[dev]` in
 `game\opfor.ini` (for example `level=Levels/SP_004_B`), start OPFOR and press **F9** in the main menu. Put

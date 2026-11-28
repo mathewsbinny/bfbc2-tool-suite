@@ -131,11 +131,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/EMITTER_ATLAS.md:23-45"
+     "ref": "bfo:docs/research/opfor/EMITTER_ATLAS.md:25-47"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/EMITTER_ATLAS.md:132-150"
+     "ref": "bfo:docs/research/opfor/EMITTER_ATLAS.md:134-152"
     }
    ],
    "file": "spec/engine/effects.md",

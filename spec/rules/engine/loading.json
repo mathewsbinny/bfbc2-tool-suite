@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:102-106"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:102-106"
     },
     {
      "kind": "doc",
@@ -30,7 +30,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:99"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:99"
     },
     {
      "kind": "doc",
@@ -79,7 +79,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_PORT_PLAN.md:418-420"
+     "ref": "bfo:docs/plans/opfor/WW2_PORT_PLAN.md:420-422"
     }
    ],
    "file": "spec/engine/loading.md",
@@ -92,7 +92,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe FUN_006EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h"
+     "ref": "BFBC2Game.exe 0x6EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h"
     },
     {
      "kind": "doc",
@@ -100,7 +100,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:275-277"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:275-277"
     },
     {
      "kind": "doc",
@@ -174,11 +174,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:575-576"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:575-576"
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1270"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1270"
     }
    ],
    "file": "spec/engine/loading.md",
@@ -199,7 +199,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:186-191"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:186-191"
     },
     {
      "kind": "doc",
@@ -228,11 +228,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:577-578"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:577-578"
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:336-338"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:336-338"
     }
    ],
    "file": "spec/engine/loading.md",
@@ -287,7 +287,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:278-280"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:278-280"
     },
     {
      "kind": "doc",
@@ -295,7 +295,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1535-1537"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1535-1537"
     }
    ],
    "file": "spec/engine/loading.md",

@@ -137,7 +137,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:43-45"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:45-47"
     }
    ],
    "file": "spec/engine/weapons.md",
@@ -201,7 +201,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:25-34"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:27-36"
     }
    ],
    "file": "spec/engine/weapons.md",
@@ -435,7 +435,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:12-23"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:14-25"
     }
    ],
    "file": "spec/engine/weapons.md",
@@ -456,7 +456,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:23-36"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:25-38"
     }
    ],
    "file": "spec/engine/weapons.md",
@@ -535,7 +535,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:40-52"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:42-54"
     }
    ],
    "file": "spec/engine/weapons.md",

@@ -5,7 +5,7 @@ archives: the game's levels, menus and shared data).
 
 ## Use
 
-FbrbTool's commands run in the suite's Rust core (`bfbc2core.fbrbtool`, `rust/bc2-formats/src/fbrb/tool.rs`): get it
+FbrbTool's commands run in the suite's Rust core (`bfbc2core.fbrbtool`, `rust/bc2-tools/src/fbrbtool.rs` on `bc2_formats::fbrb`): get it
 with `python rust\build_native.py --download` (or build it: the suite's README, "The Rust core"). Then:
 
 ```

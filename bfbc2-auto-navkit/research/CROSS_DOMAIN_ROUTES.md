@@ -1,9 +1,12 @@
 # Boats and routes across domains: research and design (2026-10-26)
 
-Companion to `KYNAPSE_SPEC.md` §2.1 and Project OPFOR BFBC2's `STOCK_MP_AI_PLAN.md` §11. The research below was done
-offline: level and common data, DICE's path data and string tables of the executable. Nothing was run in the game.
-Tools: `tools\navwater_mesh.py` (boat meshes), `tools\navdomains.py` (domain graph and planner). Tests:
-`tests\test_navwater_mesh.py` and `tests\test_navdomains.py`.
+Companion to `KYNAPSE_SPEC.md` §2.1 and battlefield-opfor's `bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md` §11 (the WW2
+follow-up: `bfo:docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). The research below was done offline: level
+and common data, DICE's path data and string tables of the executable. Nothing was run in the game. Tools (both
+prototypes, no other tool calls them): `tools\navwater_mesh.py` (boat meshes), `tools\navdomains.py` (domain graph and
+planner; its Dijkstra in the Rust core since round E4e, `bc2_navbuild::domains`, the Python as fallback). Tests:
+`tests\test_navwater_mesh.py` and `tests\test_navdomains.py`. Status (suite 0.37.0): the findings and design are as of 2026-10-26; later rounds only moved the tools' inner loops
+to Rust (E4e, NK5-rest) with the same answers.
 
 ## 1. Findings: water and boats in BC2's AI
 

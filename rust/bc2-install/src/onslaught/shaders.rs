@@ -3,7 +3,7 @@
 //! so they cover every mesh the level draws: its own database plus the entries of other PC levels ([`donors`], in
 //! order: a name two donors have comes from the first) for the meshes it lacks.
 //!
-//! Why (Project OPFOR's DEVELOPMENT_NOTES.md section 4, "Nelson Bay"): a level's compiled shader databases hold
+//! Why (Project OPFOR's DEVELOPMENT_NOTES.md (private research notes) section 4, "Nelson Bay"): a level's compiled shader databases hold
 //! entries only for the meshes that level places, and a mesh with no entry draws invisibly. The needs are every mesh
 //! the level's own partitions name (`shaderdb.py needs`), [`EXTRA`] (meshes reached through shared bundles: the flags,
 //! the AI's shotgun, the Onslaught vehicles, the XM307, and [`PAIRS`]' whole entry names) and the meshes the level's

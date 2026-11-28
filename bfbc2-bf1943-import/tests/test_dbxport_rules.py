@@ -1,5 +1,6 @@
 r"""dbxport's rules on crafted partitions (quick tier: no game data). The 19 edge cases of the deep analysis
-(research DBXPORT_DEEP_AUDIT.md, its synth.py) with the expectations the rewrite meets, and a test per rule:
+(battlefield-opfor's docs/research/opfor/DBXPORT_DEEP_AUDIT.md, its synth.py) with the expectations the rewrite meets,
+and a test per rule:
 ranked templates, the reference resolver, drop_untemplated, the schema gate and its converters, the value passes
 (EIA spellings, bones, DICE's conventions), empty arrays as TEXT, structured reports.
 

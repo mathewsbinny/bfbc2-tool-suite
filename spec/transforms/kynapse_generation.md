@@ -33,7 +33,7 @@ reads per-type settings (`PathfindingSettings`: pitch, step, hole, slope, entity
 sectors", "Generating seeds", "Generating maps", "Linking meshes", "Linking graphs", "Building hierarchical database".
 
 [exe: build driver 0x00F299A0 (no caller), step classes created by 0x00F194F0, map-builder callbacks installed by 0x00F13570 (+0x868 point 0x00EFE7F0, +0x870 ray 0x00EFE840, +0x874 capsule 0x00EFE920 or box 0x00EFE980)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:294-332] [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:140-166]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:294-332] [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:140-166]
 
 NavKit today: samples the same queries in game (`[dev] navsample`) or offline from the level's Havok and height field
 (`formats/navsample.md`); `navparity:ground` 98.22 %.
@@ -301,7 +301,7 @@ coarse cut groups from uncut areas only in part. Grouping the cut pieces by thei
 tile's midline), 807 of 872 coarse cut groups reach 8,192 bytes merged back (the pieces summed, less 100 per extra
 piece and 28 per portal segment between them; median 15.2 KB) against 1,211 of 115,713 uncut areas (p99 8.3 KB).
 
-[exe: the size call in 0x011AD550 (0x011AD634: the in-place mesh +0x5B4, `FUN_0134EDA0(0, sizes)`); the serialiser 0x0134EDA0 (`sizes[k] = (offset after - offset before) + 100`; points 0x0134CD60 / 0x0134EAB0 at 12 bytes, links 0x0134D040, C entries 0x0134CE70 at 28); the record built by 0x011AB300 from the chain lists (+0x34 type 3, +0x44 type 4: portals; +0x54 type 1, +0x64 type 2: D and E lines; +0x74: F) filed by 0x011B1F70; the simplification 0x011ACE20 (0x011AA3A0 / 0x011AC9E0 on D / E, 0x011A9D20 on the portals) before 0x011AB300 and the test in 0x011B2160]
+[exe: the size call in 0x011AD550 (0x011AD634: the in-place mesh +0x5B4, a call of 0x0134EDA0 with (0, sizes)); the serialiser 0x0134EDA0 (`sizes[k] = (offset after - offset before) + 100`; points 0x0134CD60 / 0x0134EAB0 at 12 bytes, links 0x0134D040, C entries 0x0134CE70 at 28); the record built by 0x011AB300 from the chain lists (+0x34 type 3, +0x44 type 4: portals; +0x54 type 1, +0x64 type 2: D and E lines; +0x74: F) filed by 0x011B1F70; the simplification 0x011ACE20 (0x011AA3A0 / 0x011AC9E0 on D / E, 0x011A9D20 on the portals) before 0x011AB300 and the test in 0x011B2160]
 [data: round NKS-deep E, `cargo run --release -p bc2-formats --example kynapse_cut` over the 35 files (C portals not counted; groups by the union's box midline): coarse uncut 115,713 (max 14,428, p99 8,292, 1,211 at or over 8,192), cut groups 872 (p10 9,524, p50 15,184, 65 under 8,192); grouped by the tile midline instead (KYG-AREA-2's groups) 311 of 1,064 coarse cut groups stay under 8,192; detailed uncut 50,624 (p99 7,716, 379 over), box-midline groups 227 (p50 2,536, 199 under); vehicle uncut 15,352 (max 8,396, 2 over), groups 1,022 (p50 1,540, 1,009 under): in the detailed and vehicle files the straight portals on a union's box midline are mostly not size cuts]
 
 NavKit (round NKS-deep E): the cut built (`Switches::midline_cut`, `stage::stage_cut`: the stage built again while
@@ -876,7 +876,7 @@ explains in DICE's data.
 
 Status: **verified**
 
-DICE's build chain (`FUN_00F194F0`) writes the map builder's configuration as name / value pairs in a fixed order:
+DICE's build chain (0xF194F0) writes the map builder's configuration as name / value pairs in a fixed order:
 StepMax, StepLength, HoleMax, GroundSlopeMax, GroundSlopeMin, MaxDeltaHeight, Pitch, VerticalPitch (only when
 not negative), **GraphAccuracy**, NbSectors, EdgeRadius, OverConnectionRatio, ForbidCollidingEdge, DistEdgeMax,
 UseOldPolylineSimplification (one generator kind only), CollisionModel, **EntityRadius**, EntityHeight,

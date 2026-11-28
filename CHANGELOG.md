@@ -4,6 +4,16 @@ What changed for the suite's users, version by version. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): each version lists what was **Added**, **Changed**,
 **Fixed** and **Removed**, newest first.
 
+**Only what a user notices** (round TK0, 2026-11-28). The other records each have one home:
+- which rounds ran, when, and in which version: the task registry, `tasks/registry.toml`, and `ROADMAP.md`'s Done
+  list generated from it;
+- the measurements and proofs: `rust/BENCHMARKS.md`;
+- how the work was done: the commit messages.
+
+A round does not edit this file on its branch. Its entries are a fragment, `tasks/changes/<task id>.md`, and
+`python tasks\build.py merge <code>` adds them under **Unreleased** at the merge (`RELEASING.md`). The entries of
+versions up to 0.37.0 were written before this rule, and are kept as they were.
+
 **Versions.** The suite uses [Semantic Versioning](https://semver.org/) and is before 1.0, so a version is
 `0.MINOR.PATCH`:
 
@@ -13,10 +23,11 @@ What changed for the suite's users, version by version. The format follows
 - **PATCH** goes up for fixes only.
 - **A merge that removes something bumps MINOR at once** (round QW2, audit AU3 AR-9): a command line, a subcommand
   or option, a Python function or module another project imports (Project OPFOR's), a Rust public API, or a file
-  format or folder a tool reads or writes. The merge itself writes the new `VERSION` and turns **Unreleased** into
-  that version (`RELEASING.md`, "A merge that removes something"), so Project OPFOR's version pin
-  (`opforcore.paths.SUITE_REQUIRES`, at least one version and below the next minor) sees every breaking change.
-- 1.0 is the full suite release (`ROADMAP.md`, priority 8).
+  format or folder a tool reads or writes. The merge's `python tasks\build.py merge` writes the new `VERSION` and
+  turns **Unreleased** into that version (`RELEASING.md`, "At the merge: the version is assigned"), so Project
+  OPFOR's version pin (`opforcore.paths.SUITE_REQUIRES`, at least one version and below the next minor) sees every
+  breaking change. A branch never numbers its own version.
+- 1.0 is the full suite release (the task `Release`, the last priority group in `ROADMAP.md`).
 
 The version lives in one place, the `VERSION` file at the repository's root. `bfbc2core.__version__`,
 `bfbc2.exe --version`, `bfbc2-editor --version`, the editor's Help window and the hub's title all read it. How to
@@ -27,6 +38,22 @@ Versions 0.1.0 to 0.8.0 were assigned afterwards (round P1, 2026-11-19), from th
 landed on `main`.
 
 ## [Unreleased]
+
+Round DOC1: Project OPFOR BFBC2's documents left it. The ones battlefield-opfor's knowledge base superseded (62)
+are cited there, and its decompiler-derived research (research/notes, the Ghidra probe scripts, the left-out RE
+documents) is cited in the private decompilation repository:
+- `spec/trace.py` resolves two new source prefixes: `bfo:` (the battlefield-opfor checkout:
+  `bfbc2core.paths.bfo_root`, `BFBC2_BFO_ROOT`, else beside the suite) and `private:` (the private repository:
+  `bfbc2core.paths.decomp_root`, `BFBC2_DECOMP_DB`, else `battlefield-decomp-work\bfbc2-decomp` beside or above
+  the suite). Without the private repository `--check` skips its citations with a counted note.
+- 127 spec citations of moved documents repointed to `bfo:docs/...` (the same text; line ranges remapped past the
+  KB's origin lines) and 120 of the private research to `private:opfor-research/...` (the same lines: the files
+  are byte-identical); the prose, READMEs and code comments that named them repointed too.
+- The private repository moved from `bfbc2-decomp-private` to `battlefield-decomp-work\bfbc2-decomp` and is now a
+  git repository without a remote: `tools/decomp`'s default database follows it, `run_dc.py` accepts that one
+  checkout (its root, no remote, the written folders ignored; new test `test_private_repo`), and
+  `extract_names.py` reads OPFOR's `BFBC2_DECOMP_RESEARCH.md` there (`--private`).
+- New environment variable `BFBC2_BFO_ROOT`; `BFBC2_DECOMP_DB` also names where `private:` citations resolve.
 
 ## [0.37.0] - 2026-11-27
 
@@ -126,7 +153,8 @@ version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`
   decompiled to pseudo-C, 98,130 of them, with an SQLite index. Each function is marked by how it was found:
   analysis, orphan code, or a prologue scan. The prologue scan's functions are kept apart until a reference confirms
   them. The database is EA-derived and stays private, in
-  `bfbc2-decomp-private` beside the checkouts (`BFBC2_DECOMP_DB`), never in a repo. Only the scripts are committed:
+  `bfbc2-decomp-private` beside the checkouts (`BFBC2_DECOMP_DB`; since round DOC1 `battlefield-decomp-work\bfbc2-decomp`), never in a
+  public repo. Only the scripts are committed:
   - `extract_names.py`: the names;
   - `gen_types.py`: the type plan;
   - the Ghidra scripts `ApplyTypes`, `ApplyNames`, `DiscoverFunctions`, `ConfirmFunctions`, `ExportDb` and

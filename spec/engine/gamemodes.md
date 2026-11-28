@@ -7,7 +7,9 @@ BFBC2 has two meanings of "mode", and this file covers both:
   (`engine/gameplay.md`, GAME-MODE-1 - GAME-LAYER-5);
 - an **era**, the engine's *game mod*: BFBC2 (0) or Vietnam (1), held by the UI manager, with its own menus, music,
   HUD configuration, icon set, unlock tree, weapon presentation and licence checks. Project OPFOR BFBC2's further
-  eras (the WW2 / BF1943 "Pacific War", later BFBC1) ride on these two values today (MOD-MODE-1).
+  eras (the WW2 / BF1943 "Pacific War", later BFBC1) ride on these two values today (MOD-MODE-1); the user's ruling
+  of 2026-11-27 makes them native eras 2 and 3 instead (`engine/eras.md`, `engine/eras_n.md`; the patch set is round
+  GM2's, not yet built).
 
 For each field and each value it says what reads it in `BFBC2Game.exe` (PC build 795745, image base 0x400000), what
 DICE's data holds, which parts are pure data, and what needs code. Sections 4 and 5 turn this into a design for
@@ -264,7 +266,7 @@ re-apply 0x94EB3F and a UI message 0x964E4A.
 [test: core/tests/test_spec_probes.py::game_modes]
 [data: spec/probes/gamemodes.py, 2026-11-27: +0xC8C8C 33 instructions (cmp 1: 20, cmp reg: 1, load 7, store 5), +0xC8C90 8; the 33 addresses listed]
 [exe: BFBC2Game.exe every address in the table; extern names from the getters' jump tables (bfbc2-menu-tools/aptrefslib.py GETTERS, the HUD getter 0x777B30's table 0x77BAB8 / 0x77B880)]
-[doc: opfor:research/WW2_THIRD_MODE.md:59-97]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:61-99]
 
 ### ERA-MOD-2: The game mod follows the level's MatchmakingModID; the exe keeps no setting
 
@@ -405,7 +407,7 @@ A new multiplayer mode is data, in this order:
 5. **The rules of play**: the level's mode layer (GAME-LAYER-2): teams, ticket / life / kill counters, capture points,
    objectives, combat areas, spawns, messages and voice-over, built from stock entity classes. No class outside
    BFBC2's catalogue can be loaded (Air Superiority's DMZ, repair stations and hot zones are the module's:
-   `opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md` section 3.B).
+   `bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md` section 3.B).
 6. **Text**: the `Description` and loading strings in the localisation table OPFOR patches.
 
 What stays shared and cannot be per mode: the persistence template and career (GMD-PERS-1), the award tree, the stats
@@ -464,7 +466,7 @@ ERA-NEW-2 is the layered design those rounds compare against; round GM1's decisi
 `engine/eras.md` (ERA-NAT-1 - ERA-RISK-5).
 
 [inferred: from ERA-MOD-1 - ERA-MOD-3, ERA-RES-1, ERA-RES-2, ERA-LIC-1, GMD-PERS-1]
-[doc: opfor:research/WW2_THIRD_MODE.md:257-311]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:259-313]
 
 ### ERA-NEW-2: An era as a host layer over 0 / 1 with per-site own content
 
@@ -489,7 +491,7 @@ The design that keeps every engine reader valid:
   slots.
 
 [inferred: from ERA-NEW-1; OPFOR's module implements (1) - (4) for the Pacific War except the HUD configuration and icon set]
-[doc: opfor:research/WW2_THIRD_MODE.md:125-174]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:127-176]
 
 ### ERA-OPF-1: OPFOR today, and its gaps
 

@@ -14,12 +14,14 @@ format is the same on PC and Xbox 360.
 | `DbxEdit roundtrip` | read and rewrite files, report any that would change |
 | `bfbc2-editor --dbx <file>` | all of this in a window: the map editor's DBX inspector |
 
-Anything DbxEdit doesn't change is written back byte for byte. [FORMAT.md](FORMAT.md) describes the format
-and everything DbxEdit does; the code is written from it.
+Anything DbxEdit doesn't change is written back byte for byte. The normative format and DbxEdit's behaviour are
+the spec's [formats/dbx.md](../spec/formats/dbx.md) and [transforms/dbx.md](../spec/transforms/dbx.md);
+[FORMAT.md](FORMAT.md) is the older description the code was written from, kept as their evidence.
 
 ## Run
 
-**The commands** run in the suite's Rust core (`bfbc2core.dbxedit`, `rust/bc2-formats/src/dbxedit`): get it with
+**The commands** run in the suite's Rust core (`bfbc2core.dbxedit`; the format and edits in
+`rust/bc2-formats/src/dbxedit`, the command line in `rust/bc2-tools/src/dbxedit.rs`): get it with
 `python rust\build_native.py --download` (or build it: the suite's README, "The Rust core"). `DbxEdit <command>`
 below is `python dbxedit.py <command>` from this folder, or without Python `bin\bfbc2.exe dbxedit <command>` (the
 suite's `bin\`, round O1: the same arguments, files, output and exit codes; the suite's README, "bfbc2.exe"); Python
@@ -33,7 +35,7 @@ against (the same files, messages and exit codes); its answers are recorded in `
 **DbxEditGUI was retired** (round GR4, 2026-11-21; `RETIRED.md`), and with it `DbxEdit.cs`, the C# DBX classes it
 was built on, its `build.bat` and its tests (`DbxTests.cs`, `run_tests.bat`): the suite has no C# left. Its window is
 the map editor's **DBX inspector** (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.4), proven to give DbxEditGUI's own
-answers on 19 real files (`rust/BENCHMARKS.md`, "GR4").
+answers on 19 real files (`rust/BENCHMARKS_ARCHIVE_1.md`, "GR4").
 
 ## The window: the map editor's DBX inspector
 
@@ -56,7 +58,7 @@ project's level partition.
 - **Level menu:** check the level, check its cull slots against another level, fix cull slots. The results appear
   in the bottom pane; double-click a line to go to its instance.
 - **Files:** Save (the first save keeps the original as `<name>.dbx.bak`), Save as, Save into bundle (a copy of
-  the bundle the entry came from, every other entry as it was: FbrbTool's unpack and pack), Export XML, Import XML,
+  the bundle the entry came from, every other entry as it was: `fbrbtool`'s unpack and pack), Export XML, Import XML,
   and **Save edit script**, which writes your edits as DbxEdit commands to replay on another file with
   `bfbc2.exe dbxedit edit <in.dbx> <out.dbx> @<script>`.
 - **The project's partition:** a field edit goes into the project as an operation (History, Ctrl+Z, saved with the
@@ -182,7 +184,7 @@ cargo test -p bc2-editor --test editor dbxedit_parity:: -- --ignored   against D
   Find, every menu command, graft, copy field, the level check, fix slots, XML export and import, the edit script -
   replayed on the inspector, every step identical; and every unique `.dbx` of the prepared levels (31,037) written
   back and through XML and import byte for byte.
-- **With game folders** (FbrbTool-unpacked bundles), every binary file must:
+- **With game folders** (bundles unpacked with `bfbc2.exe fbrbtool unpack`), every binary file must:
   - round-trip byte for byte;
   - come back exactly through `xml`, then `import`;
   - take simulated edits exactly, with every type kept;

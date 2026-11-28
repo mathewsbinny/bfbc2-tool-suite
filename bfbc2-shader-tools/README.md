@@ -2,7 +2,9 @@
 
 `shaderdb.py` reads, checks, lists and merges Battlefield: Bad Company 2's per-level compiled shader databases:
 `Levels/<LV>/Shaders/Dx9_Single.res`, `Dx10_Single.res` and `Dx11_Single.res` in each level bundle (FbrbTool types
-`Dx9ShaderDatabase`, `Dx10ShaderDatabase`, `Dx11ShaderDatabase`). The format is in [FORMAT.md](FORMAT.md).
+`Dx9ShaderDatabase`, `Dx10ShaderDatabase`, `Dx11ShaderDatabase`). The normative format is the spec's
+[formats/shaderdb.md](../spec/formats/shaderdb.md); [FORMAT.md](FORMAT.md) is the tool's own description and its
+evidence (its section numbers are cited below).
 
 It also **reads Xbox 360 databases** - BFBC2's Xbox levels' `Levels/<LV>/Shaders/Single.res` and Battlefield 1943's
 (`Levels/Wake_island_s/Shaders/Single.res`; both listed as `Dx9ShaderDatabase`): the same layout big-endian, with
@@ -19,7 +21,7 @@ levels have for the meshes it lacks.
 Python 3.12 or newer (the suite's) and the suite's Rust core (`python rust\build_native.py --download`): the bundles
 are read through it, and since rounds E4b and SD1 a database's opening and its queries run there, the Python kept as
 the reference and the fallback (`use_native(False)`, `BFBC2_PURE_PYTHON=1`). It reads your own game copy (straight
-from its bundles, or files you unpacked with FbrbTool) and writes only the file you name; it never writes into the
+from its bundles, or files you unpacked with `bfbc2.exe fbrbtool unpack`) and writes only the file you name; it never writes into the
 game folder.
 
 Without Python: `bin\bfbc2.exe shaderdb <command> ...` (the suite's `bin\`, round O5) takes the same arguments and
@@ -58,7 +60,7 @@ A database (`<db>`, base, donor) is given as:
 
 | You give | Read from |
 |---|---|
-| a path to a `.res` | that file (unpacked with `FbrbTool unpack`) |
+| a path to a `.res` | that file (unpacked with `bfbc2.exe fbrbtool unpack`) |
 | `level:mp_008cq` | the game copy's `levels\mp_008cq\level-00.fbrb` (Package over Dist), its own `Levels/MP_008CQ/Shaders/` database |
 | `<bundle.fbrb>[:<entry>]` | any bundle; name the entry when it has several databases of the kind |
 
@@ -158,8 +160,9 @@ texture names' suffixes (DICE's naming) tell color, normal, specular and gloss m
 
 ### Putting a merged database into the game
 
-Not done by the tool. Copy the level bundle out of the game folder, `FbrbTool unpack` it, replace the three
-`Levels/<LV>/Shaders/Dx*_Single.res`, `FbrbTool pack` it and install it the way OPFOR installs bundles. Build all
+Not done by the tool. Copy the level bundle out of the game folder, unpack it (`bfbc2.exe fbrbtool unpack`), replace
+the three `Levels/<LV>/Shaders/Dx*_Single.res`, pack it (`bfbc2.exe fbrbtool pack`) and install it the way OPFOR
+installs bundles. Build all
 three kinds from the same donors so every renderer has the same entries.
 
 Things the tool cannot check (FORMAT.md section 7): engine limits other than the 65,535 programs an entry group can
@@ -238,6 +241,12 @@ Cube fetches also retain their instruction's LOD bias. Explicit gradients and un
 refused rather than silently translated with different semantics. General sampler overrides and implicit point-fetch
 mip selection remain limited by the existing sampler/point-load policy.
 
+BFBC2 PC shadow compatibility: `xenos_hlsl.Interface(pc_shadow_atlas=True)` adapts BF1943 shadow lookups to the native
+PC three-cascade atlas. The raw third fetch component carries the normalized cascade centre (1/6, 1/2, 5/6); PC object
+shaders place these cascades in the top-left, top-right and bottom-left quadrants, with a 255/256 guard scale. The same
+transformed coordinates feed depth taps and interpolation weights. The option defaults to false so the console
+microcode differential tests keep their reference behaviour; Wake's production converter enables it.
+
 ### The translator's differential test (xdiff.py, xenos_exec.py)
 
 ```
@@ -303,7 +312,7 @@ python renderqa.py patches --db <db> [--stage <folder>]... [--only <text>]... [-
 | `strips` | a VisualTerrain's baked road and decal strips (`terrain.road_strips`; `--terrain` a file or resource, default `terrains/<name>/<name>.visual.res` for `level:<name>`), each drawn alone with its entry's program for the strip layout, from above and at three-quarters, with estimated terrain constants (`strip_values`: a flat height map, an empty dynamic mask). Each covered pixel's depth is taken back to the world: a strip drawn more than 0.5 m + 2 % of its size outside its own vertices' box is `out-of-bounds` (the sheets across the sky of a shader built for another vertex layout); also `no-program`, `nothing-drawn`, `nan`, `foreign-texture` (a `Terrains/<other level>/` texture). Exit code 1 when a strip fails. DICE's own strips with their level's database pass (mp_006 QuadDecal, sp_01 Oil_puddle, mp_005 RoadTracks: within 2 mm) |
 
 `<db>` is what `shaderdb.py` takes (a `Dx11_Single.res` / `Dx10_Single.res`, `level:<name>`, `<bundle>:<entry>`).
-`--stage` adds a folder of FbrbTool-unpacked bundles, each with its `fbrb.manifest`; these are read before the game
+`--stage` adds a folder of unpacked bundles (`bfbc2.exe fbrbtool unpack`), each with its `fbrb.manifest`; these are read before the game
 copy. `--list <file>` reads mesh names from a file; `--find` treats the arguments as parts of names. Output goes to
 `-o`: `results.json`, `summary.txt`, `sheet_NN.png` (14 meshes a sheet, worst first) and one PNG per mesh.
 
@@ -386,14 +395,4 @@ job's time: ~340 ms on the GPU and ~55 ms on WARP for a 10 ms draw. Threads call
 each; a server whose device fails (exit code 3 / 4) is replaced, and a shaderview too old for `-serve` is run once per
 job as before. `BFBC2_SHADERVIEW_SERVE=0` runs one process per job (the reference). `xdiff.py` runs its shaders on
 worker threads (`--workers`, `BFBC2_XDIFF_WORKERS`, default 4); the results, files and printed lines are the same as
-one at a time. Timings: `rust/BENCHMARKS.md`, "E3l".
-
-
-BFBC2 PC shadow compatibility: `xenos_hlsl.Interface(pc_shadow_atlas=True)`
-adapts BF1943 shadow lookups to the native PC three-cascade atlas. The raw
-third fetch component carries the normalized cascade centre (1/6, 1/2,
-5/6); PC object shaders place these cascades in the top-left, top-right,
-and bottom-left quadrants, with a 255/256 guard scale. The same transformed
-coordinates feed depth taps and interpolation weights. The option defaults
-to false so console microcode differential tests retain their reference
-behavior; Wake's production converter enables it.
+one at a time. Timings: `rust/BENCHMARKS_ARCHIVE_1.md`, "E3l".

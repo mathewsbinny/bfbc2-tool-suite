@@ -55,6 +55,12 @@ GAME_DIR = 'game'                          # the game copy, <OPFOR>\game
 GAME_EXE = 'BFBC2Game.exe'
 BF1943_SUITE = 'bf1943-tool-suite'         # the BF1943 tool suite (its bundle reader: bf1943-fbrb-tool\fbrb1943.py)
 BF1943_WORKSPACE = 'operation-rising-sun'  # Project Rising Sun: BF1943's extracted bundles (work\extracted\dist\xenon)
+BFO_DIR = 'battlefield-opfor'              # battlefield-opfor: its knowledge base (docs\) holds OPFOR's moved documents
+BFO_ENV = 'BFBC2_BFO_ROOT'                 # names the battlefield-opfor checkout
+# the private decompilation repository (no remote, ever): battlefield-decomp-work holds one per game as siblings
+DECOMP_WORK = 'battlefield-decomp-work'
+DECOMP_DIR = os.path.join(DECOMP_WORK, 'bfbc2-decomp')
+DECOMP_ENV = 'BFBC2_DECOMP_DB'             # names it (tools/decomp's database; OPFOR's private research since DOC1)
 
 SUITE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # core\bfbc2core\paths.py
 
@@ -159,6 +165,28 @@ def sibling(name: str, *sub: str, env: str | None = None, suite: str | None = No
         if v:
             return v
     return os.path.join(os.path.dirname(suite or SUITE), name, *sub)
+
+
+def bfo_root(suite: str | None = None) -> str:
+    """The battlefield-opfor checkout: BFBC2_BFO_ROOT when set (unchecked), else the battlefield-opfor folder beside
+    the suite (whether it exists or not). spec/trace.py resolves `bfo:` citations against it (round DOC1)."""
+    return sibling(BFO_DIR, env=BFO_ENV, suite=suite)
+
+
+def decomp_root(suite: str | None = None) -> str:
+    r"""The private decompilation repository of BFBC2Game.exe: BFBC2_DECOMP_DB when set (unchecked), else the first
+    battlefield-decomp-work\bfbc2-decomp that exists in the folder holding the suite or any folder above it (a round
+    worktree in _rounds\<round>\ finds the one in Projects\), else the one beside the suite (whether it exists or
+    not). It holds tools/decomp's database (untracked there) and, under opfor-research\, Project OPFOR BFBC2's
+    private research (round DOC1): spec/trace.py resolves `private:` citations against it."""
+    v = os.environ.get(DECOMP_ENV)
+    if v:
+        return v
+    start = os.path.dirname(os.path.abspath(suite or SUITE))
+    for p in walk_up(start, DECOMP_DIR):
+        if os.path.isdir(p):
+            return p
+    return os.path.join(start, DECOMP_DIR)
 
 
 def find_sibling(name: str, *sub: str, marker: str, env: str | None = None, env_first: bool = False,

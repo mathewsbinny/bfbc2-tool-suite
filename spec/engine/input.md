@@ -8,7 +8,7 @@ bot module (BOT-CTL-2 - BOT-CTL-4) sit in the chain. The game settings the contr
 
 **Sources.** Round SPG3 (2026-11-23): `BFBC2Game.exe` (PC build 795745) read statically on a scratch copy; DICE's
 `Input/*` partitions of the startup bundle and of `mp_common`'s level bundle through `spec/probes/options.py`;
-Project OPFOR BFBC2's controller research (`CONTROLLER_PLAN.md` section 2, `research/BFBC2_DECOMP_RESEARCH.md`
+Project OPFOR BFBC2's controller research (`bfo:docs/plans/opfor/CONTROLLER_PLAN.md` section 2, `private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md`
 section 10); the element and field **names** of one per-user input file (read only).
 
 The chain, from device to server:
@@ -66,7 +66,7 @@ build's control names `IntStart` ... `IntRightThumbYDownNormalized` (46, `IntUnd
 `IampXenon` / `IampPs3` / `IampAllPlatforms` and the slots `IAMESlot1` - `IAMESlot8` are in the PC exe too.
 
 [exe: BFBC2Game.exe field tables: IDK_W 0x01C2FF68, IDB_Rdown 0x01C2FB48, IDA_Axis0Y 0x01C2F890, IampXenon 0x01C285B8, IAMESlot1 0x01C28600]
-[doc: opfor:CONTROLLER_PLAN.md:71-89]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:73-91]
 
 ## 2. The data
 
@@ -99,7 +99,7 @@ soldier, tank and missile.)
 
 [test: core/tests/test_spec_probes.py::options]
 [data: spec/probes/options.py, 2026-11-23: DICE's startup bundle, the eight concept partitions' instance counts above]
-[doc: opfor:CONTROLLER_PLAN.md:43-70]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:45-72]
 
 ### INP-DATA-2: Mapping partitions: concept to entry input action, per player entry
 
@@ -161,7 +161,7 @@ confirmed or cancelled and on a reset (0x5B1810, 0x5B1920, 0x5B325E). The names 
 
 [exe: BFBC2Game.exe 0x5B14C0 (0x6E3E90; per map 0x59B340 at 0x5B155E; version test 0x5B1567; default 0x4FC6F0 / 0x13B3600; maps +0x38 / +0x54 via 0x5AD5C0); load 0x59B340 ("/data/local/input/" 0x1419E08 + name + ".dbx" 0x140BA60; 0x4DDC10 open; 0x466670 XML read); save 0x59B420 (0x4DDBF0, 0x47B1E0); 0x5AE8F0 (callers 0x5B1801, 0x5B1908, 0x5B1931, 0x5B325E); name list 0x1570EF0 ("shared" 0x141A160, "infantry" 0x141A154, "land" 0x141A14C, "air" 0x141A148)]
 [data: the element and field names of one per-user input file (read only): EntryInputActionMapDataVersion with MapDataVersion and EntryInputActionMapData, one EntryInputActionMapData (PlatformSpecific, Slot), InputActionsData, Keyboard- / Mouse- / PadInputActionData]
-[doc: opfor:CONTROLLER_PLAN.md:43-70]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:45-72]
 
 ### INP-UI-1: The controls screen's names
 
@@ -199,7 +199,7 @@ applied to both pad sticks. `Vibration` is read by 0x8301D0, but no PC code driv
 object (SET-ENG-1).
 
 [exe: BFBC2Game.exe 0x7C3E70 (caller 0x596CD2 in 0x596BA0; "Sensitivity0" - "5", "InvertScrollWheel" between 0x7C3F00 and 0x7C4A80; getter 0x80D0C0 at 0x7C401C ... 0x7C485A); setters 0x7CC820 / 0x7CC840; 0x8301D0 (caller 0x955C73) reads Vibration, Scheme*, AimAssist, Crouch]
-[doc: opfor:CONTROLLER_PLAN.md:83-89]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:85-91]
 
 ### INP-SET-2: Which control writes which input setting
 
@@ -241,7 +241,7 @@ have no caller either - the PC has no rumble. `Client.UseGlobalGamePadInput` (0 
 menus are told a pad is connected through the UI manager's flag +0xC3F29, which the PC never sets.
 
 [exe: BFBC2Game.exe 0x7E7D50 (reached by the jump at 0x7E845C); 0x7CC4A0 (caller 0x7D2504); XInput device constructor 0x7D6890, motors 0x7CC010 / 0x7CC050, switch 0x7BA010: no call and no absolute reference in the round's call index and reference search; 0x7BA120 reached only by the jump at 0x7CBFFD; XINPUT1_3 imports IAT 0x1405A54 - 0x1405A5C, read only at 0xE42CE2 - 0xE42CEE]
-[doc: opfor:CONTROLLER_PLAN.md:71-121] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:73-123] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:484-500]
 
 ### INP-TUNE-1: Dead zones, sensitivities and curves live in the data
 
@@ -257,7 +257,7 @@ the joystick scale (INP-SET-1). PC and Xbox 360 ship different aimer values for 
 turns a full stick about 30 times as fast as the console's).
 
 [exe: BFBC2Game.exe field tables: the deadzone fields 0x01C1A788 - 0x01C1A7E8 (+0x28 - +0x38); the camera sensitivities 0x01C2F020 - 0x01C2F068 (+0xC0 - +0xD0); IsPadRumbleEnabled 0x01C142D8 (a Client field)]
-[doc: opfor:CONTROLLER_PLAN.md:43-70] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:45-72] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:484-500]
 
 ## 5. OPFOR's controller patch in the chain
 
@@ -283,7 +283,7 @@ skips the whole chain and writes the entry input state (BOT-CTL-4).
 
 [code: opfor:src/tools/controller/make_pad_bindings.py:1-16]
 [code: opfor:src/dll/input.cpp:211-252]
-[doc: opfor:CONTROLLER_PLAN.md:184-201]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:186-203]
 
 ## 6. Open questions
 

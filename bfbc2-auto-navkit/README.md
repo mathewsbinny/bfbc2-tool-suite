@@ -4,22 +4,22 @@ Standalone tooling to create AI navigation data (`pathdata.hpd`) for Battlefield
 levels – including multiplayer maps that never shipped with any – so the game's own AI can move on
 them. Developed for Project OPFOR BFBC2 and published for other modders as `bfbc2-auto-navkit`, the automated
 navigation-data generator of the BFBC2 suite. It measures levels through Project OPFOR BFBC2's in-game sampler,
-so it needs an OPFOR install, plus the suite's FbrbTool and DbxEdit. Since 2026-10-26 the same measurements can
-also be computed without the game ("Standalone sampling": `bfbc2 navkit sample <level> --offline` or `navkit.py
-sample <level> --offline`, the Rust core's sampler since round NKS-deep C; not yet in the window).
+so it needs an OPFOR install; the level files are read in process by the suite's Rust core (`bfbc2.exe fbrbtool` /
+`dbxedit` since round R4). Since 2026-10-26 the same measurements can also be computed without the game ("Standalone
+sampling": `bfbc2 navkit sample <level> --offline`, the Rust core's sampler since round NKS-deep C; not in the window).
 
 **To use it, start with [QUICKSTART.md](QUICKSTART.md).** Double-click `navkitGUI.pyw` for the window, or
 run `python navkit.py` from a command prompt.
 
-**Today (2026-11-20):** NavKit needs Python 3.12+ and the suite's Rust core: its generator (the grid walks,
-walkability rules, areas, tracing, route graphs) runs only in Rust since rounds E1d and R1 (2026-11-17 / 18), and
-the tools around the build (round E4e) run there with their Python as the fallback (`tools\navnative.py`,
-`BFBC2_NAVTOOLS_PYTHON=1`). `bin\bfbc2.exe navkit ...` and `bin\bfbc2.exe <tool> ...` for the tools (`hpdtool`,
-`hkpack`, `levelobjects`, `ladders`, `ordercheck`, `navcompare`, `hpdcheck`, `hpdview`, `detailed`, `navparity`,
-`navregress`, `sample_all`, `graphstats`) are the same command lines without Python (rounds O2 - O5); `navkit build`,
-`apply`, `all` and `sample`, the regression builds and the drawings still run in Python behind the binary. NavKit's
-window runs the binary when it is built from the suite's checkout. `tools\graphstats.py` was retired in round RT1
-(2026-11-20): `bfbc2.exe graphstats` is its only form (the suite's README, "bfbc2.exe").
+**Today (suite 0.37.0):** NavKit needs the suite's Rust core: its generator (walkability rules, areas, tracing, route
+graphs, the writer) runs only in Rust (rounds E1d, R1, NK1-NK5-rest; `navbuild.py` retired), the tools around the
+build (round E4e) with their Python as the fallback (`tools\navnative.py`, `BFBC2_NAVTOOLS_PYTHON=1`).
+`bin\bfbc2.exe navkit ...` answers in Rust `levels`, `prepare`, `status`, `build`, `all`, `apply`, `check`, `compare`,
+`install`, `restore` and `sample --offline`; only the in-game `sample` (it starts the game) is handed to `navkit.py`.
+`bin\bfbc2.exe <tool> ...` is each tool's command line (`hpdtool`, `hkpack`, `levelobjects`, `ladders`, `ordercheck`,
+`navcompare`, `hpdcheck`, `hpdview`, `detailed`, `navparity`, `navregress`, `sample_all`, `graphstats`; rounds O2 -
+O5); for `navparity run`, `navregress`, `sample_all` and `hpdview` it checks the arguments and hands the run to the
+Python (round OR16 moves navparity's level row to Rust). Python left: `PYTHON_STATUS.md`; retired tools: `RETIRED.md`.
 
 ## Why
 
@@ -51,7 +51,7 @@ licence error. NavKit replaces it with independent code.
 QUICKSTART.md        how to build path data for a level, step by step
 navkitGUI.pyw        the NavKit window (Tkinter): the steps below as buttons
 navkit.py            driver: levels / prepare / sample / build / check / install / restore / status / all
-research\            specification (KYNAPSE_SPEC.md) and images (img\)
+research\            KYNAPSE_SPEC.md (the research record; the rules: the suite's spec\formats\hpd.md) and img\
 tools\               NavKit tools (Python 3.12+, numpy / matplotlib, the suite's Rust core)
   hpdtool.py         pathdata.hpd: info / sector / roundtrip / coverage / meshtrip
   kymesh.py          per-sector runtime mesh: parse_mesh / write_mesh (byte-exact)
@@ -212,10 +212,10 @@ its low shares on MP_009CQ / GR (36 / 50 %) measure the many small islands (roof
 `apply_sector_offsets.py`; the runtime uses 0,0 without one - the harness's offsets check fails for that reason) and
 the AI layer (`bfbc2-stockmp-ai`: HasAI, AI templates, orders).
 
-**Integration (not done - navkit.py / navbuild.py belong to another worker):** `navkit.py sample --offline` calling
-`navsample_offline.sample_level` (and `all --offline`), `Project.samples08` / `build` looking in
-`work\navsample_offline\` when asked; `prepare` reading Package over Dist (`package_overlay`) and taking the combat
-box for levels without path data; the window's "Sample" step with an offline choice.
+**Integration:** `navkit sample <level> --offline` is the Rust sampler since round NKS-deep C (above), and the map
+editor's export stages it (`--stage`). Still open: `all --offline`, `build` taking `work\navsample_offline\` when
+asked, `prepare` reading Package over Dist (`package_overlay`) with the combat box for levels without path data, and
+the window's "Sample" step with an offline choice.
 
 ## Vehicle path data (2026-10-26)
 
@@ -441,8 +441,8 @@ rule below; AI order coverage on both Onslaught maps 100 %.
 - **Exact bridge tracing (2026-10-23; the `BRIDGE_UNION` switch and the old clipping removed 2026-11-18):** an area's 45-degree bridges are the exact union of
   the quarter cells they cut, traced as one outline, in place of clipping each bridge on its own (`clip_bridges`,
   which left gaps where bridges met: open boundaries, and walkable ground in no area). Ground 98.12 -> 98.22 %,
-  extra 8.36 -> 8.31; checked by `tests\test_bridge_union.py` (600 random patterns; the old method fails 107; a Rust test since
-  round NK5-rest: `bridge_outlines_are_closed`) and by
+  extra 8.36 -> 8.31; checked by `tests\test_bridge_union.py` (600 random patterns; the old method failed 107), which
+  round NK5-rest replaced with the Rust test `bridge_outlines_are_closed` (`rust\bc2-navbuild\src\stage_tests.rs`), and by
   `hpdcheck.py` on every regression build.
 
 - **The default pipeline:** `navkit.py sample` (and `all`, and the window's buttons) samples the level at 0.8 m, chooses
@@ -536,8 +536,8 @@ rule below; AI order coverage on both Onslaught maps 100 %.
   runtime switches their path data off once destroyed), `PdtWhenPartDestroyed` (13); level settings
   `DestructibleLocalPathfindingParts`, `PathObjectCount`, `MaxLocalPathfindingObjects` point to runtime handling.
   Not yet checked that the switch-off works on NavKit's files (a play-test item). Openings made by destruction are
-  not routes in either; precomputed "breach links" for OPFOR's bot layer are on the TODO list (OPFOR
-  `DEVELOPMENT_NOTES.md`).
+  not routes in either; precomputed "breach links" for OPFOR's bot layer are on the TODO list (the private research
+  notes, `private:opfor-research/DEVELOPMENT_NOTES.md`).
 - **Still open:** sp_003_b (connectivity 93.3: a rocky gully whose rough terrain fails the slope test at 0.2 m almost
   everywhere); soldier spawns on small islands where NavKit has more than DICE (sp_008_b, sp_02, sp_003_b, sp_006,
   sp_01, a few each); ONS_MP_002's power-line pylons and a cliff top that roof pruning keeps (they stand beside each
@@ -550,7 +550,10 @@ rule below; AI order coverage on both Onslaught maps 100 %.
 ## Plan and status (2026-10-26)
 
 The newest work is in the sections above (2026-10-26): standalone sampling, vehicle path data, route islands, D lines
-and F cells. None of it is play-tested yet. The steps below keep their history.
+and F cells. None of it is play-tested yet. The steps below keep their history: `tools\navbuild.py` and its
+`navbuild.NAME` settings are the Rust core's `BuildSettings` / `Switches` since round NK5 (the layout above), and the
+measurements are those of their dates. The generator's normative rules are the suite's `spec/formats/hpd.md`,
+`spec/transforms/kynapse_generation.md` and `spec/transforms/navkit.md`.
 
 1. **`.hpd` format – done.** Header, sector table, per-sector graph and runtime mesh fully decoded
    (spec §4); `hpdtool.py` parses every campaign file.
@@ -584,7 +587,8 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
      2026-10-19, same launch as DICE's file, only the `.hpd` differing): the file loads, the pathfinder
      finds paths (394 of 400 requests), but **the friendly squad does not follow them**, where with DICE's
      file it does. After a found path the game checks whether its last point equals the requested destination
-     exactly, and further checks decide whether it is followed (`DEVELOPMENT_NOTES.md` in Project OPFOR BFBC2);
+     exactly, and further checks decide whether it is followed (the private research notes,
+     `private:opfor-research/DEVELOPMENT_NOTES.md`);
      measuring how NavKit's paths end, and which check they fail, is the next step. Leaving the level with NavKit's file also crashes at shutdown (a Kynapse block released after its memory manager was
      destroyed; not with DICE's file) - a separate open bug.
    - Accuracy against DICE's files (`ordercheck.py`: AI order / patrol positions on the areas, and the
@@ -709,8 +713,9 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
         `work\levels\<level>\order_points.json` by `levelobjects.py` (part of `navkit.py prepare`).
      A detour repair pass (`DETOUR_REPAIR`) was tried and rejected: shorter routes did not fix the stairs-top
      failure (removed 2026-11-18, with the `DEDUP_GRAPH_NODES` and `BRIDGE_UNION` switches: one node per
-     surface and the exact bridge union are the only builds). How the game uses the file is written up in spec §4.5 and in OPFOR's
-     `research\BFBC2_DECOMP_RESEARCH.md` §9.
+     surface and the exact bridge union are the only builds). How the game uses the file is written up in spec §4.5, the
+     suite's `spec/engine/kynapse_runtime.md` and the private research notes
+     (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` §9).
    - **13-level regression with the four rules - accepted (2026-10-20):** order nodes in route islands under
      25 nodes are dropped (`ORDER_MIN_ISLAND`; it replaced a per-level exception for sp_009); zero-cost edges
      0 everywhere, sorted sectors 100 %, owners 98-100 %.
@@ -737,12 +742,12 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
        bots there need an AI layer authored on top, as Napisal did; NavKit's part comes after that. (2026-10-26:
        the suite's `bfbc2-stockmp-ai` authors that layer; built for Atacama Conquest and Valparaiso Rush, not yet
        played.)
-     Details: OPFOR's `MP_APPLICATION_LOG.md`, spec section 4.5.
+     Details: `bfo:docs/research/opfor/MP_APPLICATION_LOG.md` (battlefield-opfor's knowledge base), spec section 4.5.
    - **Since then (2026-10-21 to 10-23):** combat on ONS_MP_002 fixed (OPFOR's Onslaught import); the sampler's
      south "hole" is beyond the PC terrain (the reference is now clipped to it); detailed zones at 0.2 m, chosen
      from the level alone, sampled and built by default; ladder links; the walkability rules and parity measures in
      the section above; "up" border portals found to be a quirk of DICE's data. The stock-MP AI layer is planned in
-     OPFOR's `STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
+     `bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
      rule (all 14 M-COM targets on an area, AI coverage on the two maps 100 / 100; the floor is the sampled layer
      nearest the target with enough hits, so a slab over the terrain and stray hits on the object's sides do not
      mislead it), and what D and F are for at run time (spec §4.5). 2026-10-26: D lines and F cells generated

@@ -9,15 +9,15 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:208-221"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:208-221"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:472-475"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:472-475"
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:344-347"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:344-347"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -34,15 +34,15 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:211-214"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:211-214"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:242-245"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:242-245"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:125"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:125"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -63,11 +63,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:STOCK_MP_AI_PLAN.md:292-296"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:294-298"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:345-347"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -84,7 +84,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:464-471"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:464-471"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -101,19 +101,19 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:284-292"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:284-292"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:348-351"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:348-351"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:363-370"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:363-370"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:378-379"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:378-379"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -130,7 +130,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:413-449"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:413-449"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -147,7 +147,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:381-396"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:381-396"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -164,11 +164,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:590-596"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:590-596"
     },
     {
      "kind": "doc",
-     "ref": "opfor:STOCK_MP_AI_PLAN.md:53-69"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:55-71"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -185,11 +185,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:STOCK_MP_AI_PLAN.md:279-291"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:281-293"
     },
     {
      "kind": "doc",
-     "ref": "opfor:STOCK_MP_AI_PLAN.md:328-336"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:330-338"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -206,11 +206,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:STOCK_MP_AI_PLAN.md:39-41"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:41-43"
     },
     {
      "kind": "doc",
-     "ref": "opfor:STOCK_MP_AI_PLAN.md:310-312"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:312-314"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -227,11 +227,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:597-600"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:597-600"
     },
     {
      "kind": "doc",
-     "ref": "opfor:STOCK_MP_AI_PLAN.md:320-327"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:322-329"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -248,7 +248,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:579-581"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:579-581"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -320,7 +320,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:269-273"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:269-273"
     },
     {
      "kind": "doc",
@@ -341,7 +341,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:450-461"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:450-461"
     },
     {
      "kind": "doc",

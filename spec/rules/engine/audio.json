@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_SHADER_AUDIO_AUDIT.md:148-156"
+     "ref": "bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:150-158"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -26,11 +26,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200"
+     "ref": "private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_SHADER_AUDIO_AUDIT.md:170"
+     "ref": "bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:172"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -151,11 +151,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:137-142"
+     "ref": "private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:137-142"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:179-186"
+     "ref": "private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:179-186"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -260,11 +260,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:9-28"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:9-28"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:150-155"
+     "ref": "private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:150-155"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -281,7 +281,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:30-66"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:30-66"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -298,11 +298,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:43-48"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:43-48"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:126"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:126"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -319,7 +319,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:61-89"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:61-89"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -336,7 +336,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VEHICLE_SOUNDS_AUDIT_2026-11-15.md:149-155"
+     "ref": "bfo:docs/research/opfor/WW2_VEHICLE_SOUNDS_AUDIT_2026-11-15.md:151-157"
     }
    ],
    "file": "spec/engine/audio.md",

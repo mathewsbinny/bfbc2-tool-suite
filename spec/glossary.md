@@ -56,8 +56,8 @@ Terms as the specification uses them. The rule that defines a term in full is na
 |---|---|
 | main block | a level's central TerrainHeightfield (`Heightfield-000`, 1024 or 2048 samples a side) |
 | sub-terrain | one of the lower-resolution height fields around the main block; its tail is a min / max quadtree |
-| patch map | VisualTerrain's per-block grid of cells, each naming its mask-atlas tiles, flags and patch shader |
-| tiled layer / rule layer | a terrain patch layer that reads a mask-atlas tile / one computed by a rule (base, slope, destruction, sea floor) |
+| patch map | VisualTerrain's per-block grid of cells, each naming its mask-atlas tiles, flags and patch shader (RNDR-TERR-1) |
+| tiled layer / rule layer | a terrain patch layer that reads a mask-atlas tile / one computed in the shader by a rule (base, slope, destruction, sea floor) (RNDR-TERR-3) |
 | mask atlas | the texture of 64-pixel mask tiles that tiled terrain layers sample; the patch map's header gives its layout |
 | DICE's (Havok) wrapper | the part, box and material-list header before the Havok packfile in a HavokPhysicsData resource |
 | part run | the wrapper's bytes giving each part's index into the material list, or a material table (model groups) |
@@ -130,10 +130,10 @@ Terms as the specification uses them. The rule that defines a term in full is na
 | Term | Meaning |
 |---|---|
 | session state | the session's state machine number; a load runs 5, 7, 13, 4, 8, 6, 9, 14, 3 (3 = in play) (LOAD-PH-1) |
-| Md5Buffer | the level checksum's pass over `LevelData.Objects` (FUN_006EFBC0), faulting at 0x6EFF8A / 0x6EFCA4 (LOAD-CSUM-1) |
+| Md5Buffer | the level checksum's pass over `LevelData.Objects` (0x6EFBC0), faulting at 0x6EFF8A / 0x6EFCA4 (LOAD-CSUM-1) |
 | startup bundle | `async/startup-00.fbrb` (Package, then Dist): descriptions, game modes, the level list, menu config, post shaders (LOAD-START-1) |
 | mode level | one level per game mode of a map (MP_005, MP_005GR, MP_005SR), loading its map's bundles after its own (LVL-MODE-1) |
-| content set / game mod | BFBC2, BFBC1, Vietnam or WW2; the client's game mod is BC2 (0) or VIETNAM (1), a level declares its own by `MatchmakingModID` (GAME-MODE-6, LVL-DESC-1) |
+| content set / game mod | BFBC2, BFBC1, Vietnam or WW2; DICE's client knows game mod BC2 (0) and VIETNAM (1), Project OPFOR BFBC2's native eras add PACIFIC (2) and BC1 (3) (ERA-NAT-1); the game mod follows the loaded level's `MatchmakingModID` (GAME-MODE-6, ERA-MOD-2, LVL-DESC-1) |
 | mode layer | a level's gameplay entities for its mode (seed types, objectives and what they reach), apart from the world objects (GAME-LAYER-2) |
 | HQ / base | a capture point with `UnableToChangeTeam` true, owned by one team; a flag has it false (GAME-CQ-1) |
 | M-COM | a Rush objective: a placed object whose events reach an arm / disarm `GameInteractionEntityData` (GAME-RUSH-1) |
@@ -154,8 +154,6 @@ Terms as the specification uses them. The rule that defines a term in full is na
 | draw class | opaque, tested (alpha test, alpha to coverage or a discard) or blended; it sets the draw order (RNDR-ORD-1) |
 | depth pass | `psUnprojectDepthBuffer`, turning scene depth into view distances before the first draw that reads them (RNDR-ORD-3) |
 | EnvironmentMain | the weather pass drawing the sky, haze and fog over the scene by depth (RNDR-WTHR-3) |
-| patch map | the visual terrain's per-cell patch shader and mask tiles (RNDR-TERR-1) |
-| tiled layer / rule layer | a terrain layer whose mask is read from the mask atlas / computed in the shader (RNDR-TERR-3) |
 | shader-set override | a placement's choice of another of its mesh set's shader sets, named `<partition>/<GUID>` (RNDR-DRAW-2) |
 | on-demand wave | a wave with `IsOnDemand`, its audio in `async/ondemand_sounds`, loaded by the game itself (SND-OD-1) |
 | streamed wave | a wave with `IsStreaming`: a stub whose audio is in `streaming_sounds` or `streaming_vo_<lang>` (SND-WAVE-1) |

@@ -409,7 +409,7 @@ suggests never reaches the engine. The native contract (ERA-NAT-1) uses DICE's f
 `BFBC2Beach`.
 
 [data: scratch dump of DICE's Package main_nav (OPFOR's work/aptgraft copy), 2026-11-27: frame labels of 438 (3), 466 (4), 477 (4); sprite 471's listener at 0x052019 - 0x0520B4 (`EA_PushByte 2`, `EA_PushByte 3`); setGameMod at 0x01AD24]
-[doc: opfor:research/WW2_MENU.md:129-138]
+[doc: bfo:docs/research/opfor/WW2_MENU.md:131-140]
 
 ### ERA-UI-2: Every movie reads extern.gameMod as "1 or not"
 

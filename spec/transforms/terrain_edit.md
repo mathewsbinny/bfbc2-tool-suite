@@ -2,7 +2,8 @@
 
 What the map editor's terrain tools (round E5: sculpt and paint; round E7: Create Level from a height map) must
 write for the game to draw, collide with and shade an edited terrain, and what the game computes itself. Written by
-round SPG2 (2026-11-22) before any terrain writer exists: most rules are what DICE's data holds (measured by
+round SPG2 (2026-11-22) before any terrain writer existed (E5's sculpt, paint and export and the terrain generator,
+`transforms/terrain_gen.md`, came later): most rules are what DICE's data holds (measured by
 `spec/probes/terrain.py` over the 30 DICE terrains of the game copy) and what that implies for a writer; the
 formats are [formats/terrain.md](../formats/terrain.md), the drawing [engine/rendering.md](../engine/rendering.md)
 section 4, the baked colour / occlusion map [engine/lighting.md](../engine/lighting.md) section 1, the destruction

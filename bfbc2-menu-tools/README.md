@@ -1,7 +1,7 @@
 # Menu tools
 
 Command-line tools for Battlefield: Bad Company 2's menus and HUD (EA APT movies), built on the suite's APT reader
-(`bfbc2-console-readers\apt\apt.py`). They read your own game copy - straight from its bundles, nothing unpacked - and
+(`bc2_formats::apt` in the Rust core; its Python twin `bfbc2-console-readers\apt\apt.py`). They read your own game copy - straight from its bundles, nothing unpacked - and
 never write into it. There is no menu viewer here.
 
 | Tool | For |
@@ -37,8 +37,8 @@ to the toolkit). Outputs made from game data go to `<OPFOR>\work\tools_out\`.
 ## aptcheck.py - menu patch checks
 
 ```
-python aptcheck.py lint "C:\Programming\Projects\project-opfor-bfbc2\src\menus\*.patch" --installed --brief
-python aptcheck.py verify pristine:main_nav main_nav --patch "C:\Programming\Projects\project-opfor-bfbc2\src\menus\main_nav.patch"
+python aptcheck.py lint "<OPFOR>\src\menus\*.patch" --installed --brief
+python aptcheck.py verify pristine:main_nav main_nav --patch "<OPFOR>\src\menus\main_nav.patch"
 python aptcheck.py check main_root
 ```
 
@@ -46,7 +46,7 @@ python aptcheck.py check main_root
   and `append <member> <label> "text"`, as `bfbc2 aptpatch` applies them; OPFOR's AptTool.cs until round OR5): syntax, the size kept, lines
   overlapping, labels, a comment on the line or just above it. It then applies the file to the source movie (default
   `pristine:<file name>`) with every expected byte checked, and verifies the result. `--installed` also says whether
-  the game's installed movie is that result (if not, the build is stale - or, for main_nav, `onslaught_art.py` added
+  the game's installed movie is that result (if not, the build is stale - or, for main_nav, `bfbc2 menuart onslaught` added
   the Onslaught picture after the patches).
 - **`verify <original> <patched>`** names every changed byte range (the instructions before and after and the
   function they are in, a constant's old and new text, or data), checks that every instruction away from the changed
@@ -54,7 +54,7 @@ python aptcheck.py check main_root
   not. With `--patch`, every changed byte must be one the patch file names.
 - **`check <movie>`** runs the rules on one movie by itself.
 
-The rules (OPFOR's DEVELOPMENT_NOTES.md section 3, learned from menus that crashed while loading):
+The rules (`private:opfor-research/DEVELOPMENT_NOTES.md` section 3, learned from menus that crashed while loading; normative: `spec/formats/apt.md`):
 
 | Finding | Meaning |
 |---|---|

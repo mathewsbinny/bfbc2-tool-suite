@@ -1,5 +1,6 @@
 """A level's AI-readiness checks that files can decide: Project OPFOR BFBC2's validation criteria for AI levels
-(STOCK_MP_AI_PLAN.md section 6.3, MP_APPLICATION_LOG.md: what made the Onslaught ports' bots move and fire), on any
+(battlefield-opfor's docs/plans/opfor/STOCK_MP_AI_PLAN.md section 6.3, docs/research/opfor/MP_APPLICATION_LOG.md:
+what made the Onslaught ports' bots move and fire), on any
 level - campaign levels pass them, stock MP maps show what they still lack.
 
 From files (each a checks.Result):

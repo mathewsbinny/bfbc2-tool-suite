@@ -1,9 +1,10 @@
 # bfbc2-stockmp-ai
 
 Gives a stock Bad Company 2 multiplayer level - which ships with no AI layer - the AI spawners, AI orders and event
-wiring bots need, as level data the game loads like its own. It is option c of Project OPFOR BFBC2's
-`STOCK_MP_AI_PLAN.md`: the tool proposes the layer from the level's own objectives and spawns, a person tidies the
-per-map configuration, and the tool builds and checks it offline.
+wiring bots need, as level data the game loads like its own. It is option c of Project OPFOR BFBC2's stock-MP AI
+plan (battlefield-opfor's knowledge base, `bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md`): the tool proposes the layer
+from the level's own objectives and spawns, a person tidies the per-map configuration, and the tool builds and checks
+it offline.
 
 Nothing EA-owned is in this folder. The tool reads the user's own game copy and writes only under
 `<OPFOR>\work\stockmp\<level>\`; an install into the game is a separate, explicit step.
@@ -13,16 +14,17 @@ Nothing EA-owned is in this folder. The tool reads the user's own game copy and 
 ```
 bfbc2 stockmp summary  mp_005                     what the tool reads: mode, teams, flags, Rush stages
 bfbc2 stockmp generate mp_005 [--bots 8]          a first configuration: work\stockmp\mp_005\config.json
-bfbc2 stockmp build    mp_005                     author, pack, stage:   work\stockmp\mp_005\out\game\...
+bfbc2 stockmp build    mp_005 [--config <file>]   author, pack, stage:   work\stockmp\mp_005\out\game\...
 bfbc2 stockmp validate mp_005                     the offline checks:    work\stockmp\mp_005\validation.json
 bfbc2 stockmp all      mp_005                     the three in a row (keeps an existing config.json)
-bfbc2 stockmp install  mp_005 [--apply | --revert]         plan (default), copy into the game, or undo
+bfbc2 stockmp install  mp_005 [--apply | --revert] [--game <folder>]   plan (default), copy into the game, or undo
 ```
 
-Options: `--pathdata <folder>` (a folder under the game's `Output\win32\ai\levels`; default the level's own, else the
-DICE folder of the same world, e.g. mp_005 -> ons_mp_005gr), `--minimal` (experiment 0: HasAI, PathfindingTypes,
-path data and SectorOffsets only, stock spawners untouched), `--keep-stock-spawners`, `--variant <name>` (a second
-build beside the first: `work\stockmp\<level>-<name>`).
+Options of `generate` (and `all`): `--pathdata <folder>` (a folder under the game's `Output\win32\ai\levels`; default
+the level's own, else the DICE folder of the same world, e.g. mp_005 -> ons_mp_005gr), `--minimal` (experiment 0:
+HasAI, PathfindingTypes, path data and SectorOffsets only, stock spawners untouched), `--keep-stock-spawners`. Common
+options: `--variant <name>` (a second build beside the first: `work\stockmp\<level>-<name>`), `--work <folder>`. The
+full usage: `bfbc2 stockmp` with no arguments (`rust\bc2-cli\src\stockmp\stockmp_usage.txt`).
 
 Edit `config.json` by hand and run `build` again; the build is deterministic (same configuration, same bytes).
 
@@ -98,4 +100,5 @@ messages are the Python's; Atacama's generate + build + validate 26 -> 16 s (`ru
 
 Built and checked offline (2026-10-26): Atacama Conquest (MP_005, 16 bots, 6 orders) and its experiment-0 variant;
 Valparaiso Rush (MP_002, 40 bots over 5 stages) as a test of the stage logic. Not yet run in the game: what the
-engine does with this layer is open until a play test (`STOCK_MP_AI_PLAN.md` section 12).
+engine does with this layer is open until a play test (battlefield-opfor's plan, `bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md`
+section 12; the user paused in-game tests on 2026-11-20).
