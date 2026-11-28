@@ -23,7 +23,26 @@ python tasks\build.py --fmt               the registry in its canonical form aga
 python tasks\build.py show <code>         one task with its scope, decisions and links (a code, alias or old code)
 python tasks\build.py merge <code>        at a round's merge: done, its CHANGELOG fragment, its version (RELEASING.md)
 python tasks\build.py cut [--version V]   CHANGELOG's Unreleased released as a version (RELEASING.md)
+python tasks\build.py next [--top N]     the launchable rounds in priority order (default 5), with est_h and why
+python tasks\build.py stale [--minutes M]  running rounds quiet for more than M minutes (default 45), orphaned slots and acquires
+python tasks\build.py budget             est_h against actual_h per round and per priority group, with totals
+python tasks\build.py merge <code> --actual-h X --tokens N   the merge also records the hours and tokens
 ```
+
+## The agent harness (round HARN1)
+
+Optional task fields: `needs_slot` (bool: it builds, so it needs a build slot), `est_h` (defaults to `score.h`),
+`actual_h` and `tokens` (recorded at the merge), `worktrees` (paths) and `agent_state` (`queued`, `running`, `blocked`,
+`done`). `--check` validates them.
+
+- `next` lists open rounds of lane `next` (or `run` with `agent_state = "queued"`) in the `[[priority]]` order, then the
+  lanes, that are not running or blocked, whose `depends` are all done and, if `needs_slot`, while a build slot is free.
+  Slot state is read from `_rounds\.slots\slot1` / `slot2` (the files `buildslot.ps1` keeps; older than 90 minutes is
+  free), found from the nearest parent holding `buildslot.ps1` or `BFBC2_ROUNDS_ROOT`. Free RAM is not checked.
+- `stale` lists rounds with `agent_state = "running"` whose `worktrees` have had no commit, no modified or untracked
+  file and no new worktree for more than M minutes (git log, file mtimes). It also reports, and never changes, slot
+  files whose round is not running or is quiet, and `buildslot.ps1 acquire` processes waiting for such a round.
+- `budget` prints per-round and per-group est_h and actual_h with an actual/est ratio and the tokens.
 
 `--check` fails when a suite file is stale. A battlefield-opfor `TASKS.md` behind the registry is a note there, not a
 failure: the suite's tests do not fail on another repository's state. `--strict-bfo` makes it fail, for the merges
@@ -54,6 +73,7 @@ comments, because the canonical form drops them: put the words in a field.
 | `kb` | battlefield-opfor knowledge-base pages (`docs/...`) |
 | `spec`, `links` | spec rule ids, other references |
 | `score` | `{ d, t, h }`: difficulty 1-5, size 1-5 and calibrated agent-hours (the coordinator's scoring of open tasks, 2026-11-28; the board shows them) |
+| `needs_slot`, `est_h`, `actual_h`, `tokens`, `worktrees`, `agent_state` | scheduling (HARN1, below) |
 | `reason` | why a task was dropped or held |
 | `body` | a short paragraph: state and result |
 | `scope` | the full scope, where it is longer than a body (the old ROADMAP queue cells) |
