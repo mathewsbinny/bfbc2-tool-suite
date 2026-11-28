@@ -57,7 +57,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1128-1132"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1030-1034"
     }
    ],
    "file": "spec/model/bundles.md",
@@ -149,7 +149,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1142-1143"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1044-1045"
     }
    ],
    "file": "spec/model/bundles.md",
@@ -233,7 +233,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1160-1161"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1062-1063"
     },
     {
      "kind": "test",

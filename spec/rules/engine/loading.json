@@ -55,11 +55,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1135-1139"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1037-1041"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:917-921"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:819-823"
     }
    ],
    "file": "spec/engine/loading.md",

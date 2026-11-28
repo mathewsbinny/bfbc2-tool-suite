@@ -51,7 +51,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1859"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1704"
     },
     {
      "kind": "code",
@@ -130,7 +130,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1859"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1704"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -176,7 +176,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1371-1379"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1269-1277"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -201,7 +201,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1388-1399"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1286-1297"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -226,7 +226,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1523-1527"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1416-1420"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -243,7 +243,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1381-1386"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1279-1284"
     }
    ],
    "file": "spec/engine/audio.md",

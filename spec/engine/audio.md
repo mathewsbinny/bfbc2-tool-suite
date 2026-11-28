@@ -46,7 +46,7 @@ copy sources of an export or port leave the streaming bundles out. `mapexport ch
 such an entry (round QW2).
 
 [exe: BFBC2Game.exe 0x49EDF4, the loader reading streamed wave data as a partition]
-[doc: opfor:src/tools/ww2/wake_install.py:193-197] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1859]
+[doc: opfor:src/tools/ww2/wake_install.py:193-197] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1704]
 [code: rust/bc2-levelwrite/src/export.rs:2682-2687] [code: rust/bc2-levelwrite/src/export.rs:2759-2764] [test: rust/bc2-levelwrite/src/export.rs::streamed_waves_named]
 
 ### SND-OD-1: On-demand waves play only from their own bundle's partitions
@@ -87,7 +87,7 @@ this reason.
 
 [exe: BFBC2Game.exe 0xFF2AC2, client sound set-up]
 [doc: opfor:src/tools/ww2/wake_install.py:98-101] [doc: opfor:src/tools/ww2/wake_install.py:147-149]
-[code: rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1859]
+[code: rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1704]
 
 ## 3. The announcer
 
@@ -115,7 +115,7 @@ copies and `nam/` trigger sets. OPFOR's WW2 levels carry their own banks (BF1943
 `vo_en`), trigger sets and an English voice-over bundle in their own folder.
 
 [code: rust/bc2-levelwrite/src/profile.rs:68-81] [test: rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1371-1379]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1269-1277]
 
 ### SND-VO-3: Voice-over blocks: absent sources, present targets
 
@@ -129,7 +129,7 @@ donor's blocks under its own name.
 
 [code: rust/bc2-levelwrite/src/export.rs:245-257] [test: rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1388-1399]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1286-1297]
 
 ### SND-VO-4: A level's own banks shadow the commons'
 
@@ -142,7 +142,7 @@ target's versions go into the level's bundle first.
 
 [code: rust/bc2-levelwrite/src/export.rs:1795-1806] [code: rust/bc2-levelwrite/src/export.rs:2836-2847]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1523-1527]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1416-1420]
 
 ### SND-VO-5: Level bundles hide other modes' trigger sets
 
@@ -152,7 +152,7 @@ Every stock level's own bundle hides the trigger sets of the other modes with de
 the Conquest levels); a mode level loads only its own mode's announcer.
 
 [data: the stock multiplayer levels' own bundles: deleted markers over other modes' trigger sets among their markers; OPFOR's mp_001 holds two Squad Deathmatch trigger sets in its Package bundle]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1381-1386]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1279-1284]
 
 ## 4. Voice-over events in the executable
 

@@ -257,7 +257,7 @@ air 101, sea 27.
 
 [test: core/tests/test_spec_probes.py::spg_vehicles]
 [data: spec/probes/vehicles.py on the game copy, 2026-11-22: mp spawner field ranges as listed in the spawners section]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:139]
+[doc: bfo:docs/research/suite/L1_placement_report.md:141]
 
 ## 7. BF1943's and the console's vehicles
 

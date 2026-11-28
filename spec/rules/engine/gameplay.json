@@ -33,7 +33,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1444-1457"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1337-1350"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -149,7 +149,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1454-1457"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1347-1350"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -201,7 +201,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1474-1482"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1367-1375"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -217,7 +217,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1105-1116"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1007-1018"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -277,7 +277,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:132-144"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:134-146"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -293,7 +293,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:46-48"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:48-50"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -309,11 +309,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:211-234"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:213-236"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:331-341"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:333-343"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -329,11 +329,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:52-53"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:54-55"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:266-270"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:268-272"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -349,11 +349,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:236-245"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:238-247"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:177-185"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:179-187"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -369,7 +369,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:55-56"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:57-58"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -385,11 +385,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:57-59"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:59-61"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:226-229"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:228-231"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -425,7 +425,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:79-83"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:81-85"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -510,7 +510,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:60-61"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:62-63"
     },
     {
      "kind": "doc",
@@ -622,7 +622,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1484-1486"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1377-1379"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -638,7 +638,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-159"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:148-161"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -654,7 +654,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:22-29"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:24-31"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -670,7 +670,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:272-293"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:274-295"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -686,7 +686,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:30-37"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:32-39"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -702,7 +702,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:38-41"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:40-43"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -718,11 +718,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:42-44"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:44-46"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:295-298"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:297-300"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -738,11 +738,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:292"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:294"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:472"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:474"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -770,7 +770,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-163"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:148-165"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -894,11 +894,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:70-74"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:72-76"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:303-316"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:305-318"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -914,11 +914,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:74"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:76"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:189-194"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:191-196"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -934,7 +934,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:189-194"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:191-196"
     },
     {
      "kind": "doc",
@@ -954,11 +954,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:78"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:80"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:202-205"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:204-207"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -1022,7 +1022,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:143"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:145"
     },
     {
      "kind": "doc",
@@ -1042,7 +1042,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:62-66"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:64-68"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -1058,7 +1058,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:202-205"
+     "ref": "bfo:docs/research/suite/L1_placement_report.md:204-207"
     }
    ],
    "file": "spec/engine/gameplay.md",

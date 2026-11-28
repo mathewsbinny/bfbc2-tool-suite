@@ -47,7 +47,7 @@ BF1943 ports) Conquest and Air Superiority. WW2 has no Rush.
 [code: rust/bc2-levelwrite/src/profile.rs:385-397]
 [test: rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers]
 [data: stock levels per mode: BFBC2 Conquest 9, Rush 10, Squad Rush 7, Squad Deathmatch 8, Onslaught 4; BFBC1 2 each; Vietnam 5 each; WW2 Conquest 3, Air Superiority 1]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1444-1457]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1337-1350]
 
 ### GAME-MODE-3: Mode keys and names
 
@@ -119,7 +119,7 @@ mode; its rules are OPFOR's Pacific War work, still queued).
 
 [code: rust/bc2-levelwrite/src/modelayer.rs:94-103]
 [test: rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1454-1457]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1347-1350]
 
 ## 2. The mode layer
 
@@ -152,7 +152,7 @@ instances, `mp_005gr` 821, `mp_005sr` 279, `mp_009sdm` 172, `nam_mp_002r` 507, `
 [code: rust/bc2-levelwrite/src/modelayer.rs:46-67] [code: rust/bc2-levelwrite/src/mpconvert.rs:333-362]
 [code: rust/bc2-levelwrite/src/modelayer.rs:253-288]
 [test: rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1474-1482]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1367-1375]
 
 ### GAME-LAYER-3: Every stock Conquest layer has the same types
 
@@ -165,7 +165,7 @@ announcer's `VoiceOver`s and lines, an MP `HumanPlayer`, `Mission`, `Menu`s, `In
 `CombatAreaTrigger` with its outline.
 
 [data: the Conquest layer compared on every stock Conquest level and DICE's MP_SP_005CQ conversion (round E3)]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1105-1116]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1007-1018]
 
 ### GAME-LAYER-4: A layer complete for its mode
 
@@ -205,7 +205,7 @@ zone is its `Geometry` (an outline, a sphere or an axis-aligned box) or, without
 
 [code: rust/bc2-levelwrite/src/mpconvert.rs:541-560]
 [data: L1: every Conquest level's capture points; flag counts match the maps (Panama Canal 4: A-D)]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:132-144]
+[doc: bfo:docs/research/suite/L1_placement_report.md:134-146]
 
 ### GAME-CQ-2: Three or four flags (WW2 five)
 
@@ -215,7 +215,7 @@ DICE's Conquest levels have 3 or 4 flags (12 levels 3, 4 levels 4). BF1943's por
 L1-CQ-001, L1-CQ-001w.
 
 [data: L1: 16 DICE Conquest levels 3-4 flags; 3 WW2 levels 5 each]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:46-48]
+[doc: bfo:docs/research/suite/L1_placement_report.md:48-50]
 
 ### GAME-CQ-3: Flags and HQs keep their distance
 
@@ -227,7 +227,7 @@ at most 54 m (median 14 m). WW2: flags 103-205 m apart, HQs 202-633 m from the n
 the asymmetry up to 94 m. L1 warning rules: L1-CQ-002, L1-CQ-002w, L1-CQ-003, L1-CQ-003w, L1-CQ-004, L1-CQ-005.
 
 [data: L1: 52 DICE flags, 32 HQs on 16 levels; min nearest-flag distance 58 m mp_006cq, max HQ-HQ 1,358 m mp_sp_005cq; WW2 15 flags, 6 HQs]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:211-234] [doc: bfbc2-map-editor/placement/L1_placement_report.md:331-341]
+[doc: bfo:docs/research/suite/L1_placement_report.md:213-236] [doc: bfo:docs/research/suite/L1_placement_report.md:333-343]
 
 ### GAME-CQ-4: Every flag lies between the HQs
 
@@ -238,7 +238,7 @@ of the line (WW2 up to 1.1). The flag letters run in order along the axis (|rho|
 direction); the flags' `Index` order does not. L1 warning rules: L1-CQ-006, L1-CQ-007.
 
 [data: L1: 67 of 67 flags (DICE and WW2) at 0.1-0.9; 52 of 52 DICE flags within 0.4 sideways]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:52-53] [doc: bfbc2-map-editor/placement/L1_placement_report.md:266-270]
+[doc: bfo:docs/research/suite/L1_placement_report.md:54-55] [doc: bfo:docs/research/suite/L1_placement_report.md:268-272]
 
 ### GAME-CQ-5: Capture zones of 7.5-37 m
 
@@ -250,7 +250,7 @@ DICE's capture zones (outlines, spheres and `CaptureRadius`-only flags) are 7.5-
 L1-CQ-008 (boxes left out).
 
 [data: L1: 52 DICE flags by zone kind 30 / 2 / 4 / 16; 39 zones measured without the boxes]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:236-245] [doc: bfbc2-map-editor/placement/L1_placement_report.md:177-185]
+[doc: bfo:docs/research/suite/L1_placement_report.md:238-247] [doc: bfo:docs/research/suite/L1_placement_report.md:179-187]
 
 ### GAME-CQ-6: Capture takes 20 seconds (WW2 ten)
 
@@ -260,7 +260,7 @@ A flag's `TimeToGetControl` is 20 s on DICE's levels (51 of 52; one 25 s) and 10
 warning rule: L1-CQ-009.
 
 [data: L1: TimeToGetControl read as an integer from its raw bits: DICE 51 x 20, 1 x 25; WW2 15 x 10]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:55-56]
+[doc: bfo:docs/research/suite/L1_placement_report.md:57-58]
 
 ### GAME-CQ-7: Flag and HQ spawns
 
@@ -271,7 +271,7 @@ A flag has one spawner per team (36 of 52) or one neutral spawner (16 of 52), wi
 WW2: one neutral spawner per flag with 4-5 points 10-53 m out. L1 warning rules: L1-CQ-010, L1-CQ-011, L1-CQ-012.
 
 [data: L1: 52 DICE flags, 67 flags with WW2, 38 HQs]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:57-59] [doc: bfbc2-map-editor/placement/L1_placement_report.md:226-229]
+[doc: bfo:docs/research/suite/L1_placement_report.md:59-61] [doc: bfo:docs/research/suite/L1_placement_report.md:228-231]
 
 ### GAME-CQ-8: Any team takes a PC flag only with OnlyTakeableByTeam 0
 
@@ -293,7 +293,7 @@ above), and two flags differ by at most 24 m in height. Rush M-COMs likewise (-8
 flags favour hill tops (8 of 15 at 5 m or more, median +6.7 m). L1 warning rules: L1-HT-001, L1-HT-002.
 
 [data: L1: 52 DICE flags prominence -6.5 to +7.4 m; 60 flag pairs up to 24 m; 118 M-COMs; 15 WW2 flags]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:79-83]
+[doc: bfo:docs/research/suite/L1_placement_report.md:81-85]
 
 ### GAME-CQ-10: How a capture point moves, frame by frame
 
@@ -361,7 +361,7 @@ A Conquest team starts with 200 tickets (24 of 32 teams; 250 on 6, 350 on 2) and
 level. BF1943's ports: 130 and 4 per minute; Coral Sea (Air Superiority) 100 and 4. L1 warning rule: L1-CQ-016.
 
 [data: L1: 32 DICE Conquest ticket counters; WW2 3 levels; Coral Sea's two counters]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:60-61] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:88-101]
+[doc: bfo:docs/research/suite/L1_placement_report.md:62-63] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:88-101]
 
 ### GAME-TKT-2: The ticket counter's bleed fields
 
@@ -427,7 +427,7 @@ stages of 2, `nam_mp_002r` 3 of 2, `mp_005sr` 2 of 1.
 
 [code: rust/bc2-levelwrite/src/modelayer.rs:219-232] [code: rust/bc2-levelwrite/src/modelayer.rs:499-520]
 [test: rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1484-1486]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1377-1379]
 
 ### GAME-RUSH-2: Stage order follows the counters' enable chain
 
@@ -440,7 +440,7 @@ count equals the defenders' `LifeCounterEntityData.BaseCount` on every level, an
 `LifeCounterEntityData` with `Attacker` true (Team1 on every stock Rush level).
 
 [data: L1 stage simulation: 30 of 30 Rush and Squad Rush levels resolved without ambiguity, stage count = BaseCount on 30 of 30, base names in the game's order]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:146-159]
+[doc: bfo:docs/research/suite/L1_placement_report.md:148-161]
 
 ### GAME-RUSH-3: Three to five stages of two M-COMs
 
@@ -450,7 +450,7 @@ Rush has 3-5 stages (BFBC2 3-5, BFBC1 4-5, Vietnam always 3), each of exactly 2 
 L1 warning rules: L1-RU-001, L1-RU-002.
 
 [data: L1: 16 Rush levels, 59 of 59 stages with 2 M-COMs; 14 Squad Rush levels, 28 of 28 stages with 1]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:22-29]
+[doc: bfo:docs/research/suite/L1_placement_report.md:24-31]
 
 ### GAME-RUSH-4: A stage's M-COMs and the step between stages
 
@@ -461,7 +461,7 @@ are 93-316 m apart (median 174 m, centroid to centroid), Squad Rush stages 45-16
 L1-RU-003, L1-RU-004, L1-RU-004s, L1-RU-014.
 
 [data: L1: 59 M-COM pairs (min 11.7 m mp_007gr s1, max 91 m nam_mp_006r s1); 43 Rush steps (93 m mp_sp_002gr s3 to 316 m bc1_oasis_gr s2); 14 Squad Rush steps]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:272-293]
+[doc: bfo:docs/research/suite/L1_placement_report.md:274-295]
 
 ### GAME-RUSH-5: Defenders spawn close behind, attackers far in front
 
@@ -473,7 +473,7 @@ in front on all 87 Rush and Squad Rush stages, 1.8-21 times as far as the defend
 L1-RU-005, L1-RU-005s, L1-RU-006, L1-RU-006s, L1-RU-007, L1-RU-007s, L1-RU-008, L1-RU-009.
 
 [data: L1: 59 Rush and 28 Squad Rush stages]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:30-37]
+[doc: bfo:docs/research/suite/L1_placement_report.md:32-39]
 
 ### GAME-RUSH-6: The attackers' first base is outside the defenders' area
 
@@ -484,7 +484,7 @@ protection Rush has. From stage 2 the attackers' forward base usually lies insid
 previous stage's defender base. L1 warning rule: L1-RU-010.
 
 [data: L1: 30 of 30 Rush and Squad Rush levels]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:38-41]
+[doc: bfo:docs/research/suite/L1_placement_report.md:40-43]
 
 ### GAME-RUSH-7: Combat areas grow stage by stage
 
@@ -496,7 +496,7 @@ than the attackers'; from stage 2 both sides usually share one outline. Every M-
 least 5.7 m from the edge. L1 warning rules: L1-RU-011, L1-RU-012, L1-RU-013.
 
 [data: L1: 41 of 43 stage steps keep 99 % or more; 146 M-COM margins]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:42-44] [doc: bfbc2-map-editor/placement/L1_placement_report.md:295-298]
+[doc: bfo:docs/research/suite/L1_placement_report.md:44-46] [doc: bfo:docs/research/suite/L1_placement_report.md:297-300]
 
 ### GAME-RUSH-8: Attacker lives
 
@@ -506,7 +506,7 @@ The attackers' life counter starts at 75-100 on Rush (BFBC2 100, BFBC1 and Vietn
 defenders' at 1,500 (Squad Rush 1,000) with `BaseCount` the number of stages. L1 warning rule: L1-RU-015.
 
 [data: L1: 16 of 16 Rush and 14 of 14 Squad Rush levels]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:292] [doc: bfbc2-map-editor/placement/L1_placement_report.md:472]
+[doc: bfo:docs/research/suite/L1_placement_report.md:294] [doc: bfo:docs/research/suite/L1_placement_report.md:474]
 
 ### GAME-RUSH-9: A stage as it is played: the counters' events from the start state
 
@@ -523,7 +523,7 @@ bases and the two combat areas in play per stage are L1's, in L1's play order, w
 [code: rust/bc2-levelwrite/src/modelayer.rs:594-725] [code: rust/bc2-levelwrite/src/modelayer.rs:729-780]
 [test: rust/bc2-levelwrite/tests/vw2.rs::rush_stages_as_played_match_l1]
 [test: rust/bc2-editor/tests/vw2.rs::mode_view_layer_hides_by_mode_and_rush_stage]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:146-163]
+[doc: bfo:docs/research/suite/L1_placement_report.md:148-165]
 
 ### GAME-RUSH-10: A stage's counters count its M-COMs
 
@@ -624,7 +624,7 @@ shared by all). L1 warning rules: L1-SD-001, L1-SD-002, L1-SD-003, L1-SD-006.
 
 [test: rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers]
 [data: L1: 15 of 15 DICE levels 4 squads, one vehicle, MaxKillCount 50; on 13 of 15 the squads' capture points stand at one spot]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:70-74] [doc: bfbc2-map-editor/placement/L1_placement_report.md:303-316]
+[doc: bfo:docs/research/suite/L1_placement_report.md:72-76] [doc: bfo:docs/research/suite/L1_placement_report.md:305-318]
 
 ### GAME-SDM-2: A small area around the spawns
 
@@ -634,7 +634,7 @@ The Squad Deathmatch combat area is 15,000-84,000 m2 (median 40,000) and every s
 (the spawners themselves may stand outside: `nam_mp_007sdm` 14-20 m). L1 warning rules: L1-SD-004, L1-SD-005.
 
 [data: L1: 15 levels]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:74] [doc: bfbc2-map-editor/placement/L1_placement_report.md:189-194]
+[doc: bfo:docs/research/suite/L1_placement_report.md:76] [doc: bfo:docs/research/suite/L1_placement_report.md:191-196]
 
 ## 7. Spawning and combat areas
 
@@ -648,7 +648,7 @@ suite treats the spawner's own transform as an anchor, not a spawn place (it cou
 No stock BFBC2 level fills a spawner's `Vehicle` array (spawning into a vehicle).
 
 [data: L1: 441 spawners; Squad Deathmatch spawners stacked 2.5 m apart while their alternatives spread over the map]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:189-194] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:235-238]
+[doc: bfo:docs/research/suite/L1_placement_report.md:191-196] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:235-238]
 
 ### GAME-SPAWN-2: Spawners check for enemies within 20 m
 
@@ -658,7 +658,7 @@ Every soldier spawner's `SpawnEnemyRadius` is 20 m (409 of 410; one 10 m on `mp_
 it is the only spawn protection; no dedicated spawn-protection entity exists. L1 warning rule: L1-AL-001.
 
 [data: L1: 410 spawners on the stock levels]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:78] [doc: bfbc2-map-editor/placement/L1_placement_report.md:202-205]
+[doc: bfo:docs/research/suite/L1_placement_report.md:80] [doc: bfo:docs/research/suite/L1_placement_report.md:204-207]
 
 ### GAME-SPAWN-3: DICE's spawn points stand on open ground
 
@@ -718,7 +718,7 @@ many levels; its role is not known), `AllowedVehicles` (DICE uses it for the UAV
 `InitalSpeed` (DICE's spelling) and the deserter fields.
 
 [data: L1: every combat area of the 70 levels read and rasterised; SurroundingGeometry on mp_005 410,000 m2 against 356,000]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:143] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:239-243]
+[doc: bfo:docs/research/suite/L1_placement_report.md:145] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:239-243]
 
 ### GAME-AREA-2: Conquest areas and spawn protection
 
@@ -730,7 +730,7 @@ HQ inside its own team's area and every spawn point at least 1.3 m inside its te
 share one area and have no such protection. L1 warning rules: L1-CQ-013, L1-CQ-014, L1-CQ-015, L1-CQ-017, L1-AL-002.
 
 [data: L1: 16 DICE Conquest levels, 67 flags, 38 HQs, 1,146 spawn points inside their team's area, 16 of 16 per-team HQs outside the enemy's area]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:62-66]
+[doc: bfo:docs/research/suite/L1_placement_report.md:64-68]
 
 ## 8. Damage areas
 
@@ -742,7 +742,7 @@ DICE's `DamageAreaTriggerEntityData` instances on multiplayer levels are buildin
 an object's `onDestroyed`, 10,000 damage per second. Which part and material a hit damages is HAVOK-MAT-2.
 
 [data: L1: every DamageAreaTrigger of the stock levels (l1_dmg.py)]
-[doc: bfbc2-map-editor/placement/L1_placement_report.md:202-205]
+[doc: bfo:docs/research/suite/L1_placement_report.md:204-207]
 
 ## 9. Awards and stats offline
 

@@ -336,7 +336,7 @@ DICE names a texture by its role with a suffix: colour `_C` / `_D` / `_Df` / `_C
 [data: spec/probes/materials.py, 2026-11-22: 2,852 distinct DICE ITexture names; _C 375, _D 253, _N 219, _RGB 127, _Nm 123, _Oc 118, _S 73, _Df 45, _OcRGB 43, _M 27, _Occ 27, _RGBM 24, _Occlusion 23, _RGBmask 22, _Mask 20, _AO 15, _SkyOc 14, _CM 14; no suffix 445; names containing dt_ 113, dirt 45, camo 20, rust 8, msk_ 7, grime 1]
 [code: rust/bc2-formats/src/shaderdb/query.rs:211-226]
 [test: rust/bc2-formats/src/shaderdb/query.rs::kinds]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:877-880]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:779-782]
 
 ### MAT-TEX-2: Grime and dirt are shader layers over the asset's maps
 

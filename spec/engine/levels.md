@@ -34,7 +34,7 @@ map's first mode (Conquest on MP_001, MP_003, MP_005, MP_007; Rush on MP_002, MP
 `R` is Rush. The level, not the session, decides the mode: the suite's exports are likewise one mode per level.
 
 [data: OPFOR's logged level catalogue of the stock levels: 10 BFBC2 maps with 2-4 mode levels each (MP_009 all four), Harvest Day and Oasis four each, Cold War three, Heavy Metal two, five Vietnam maps four each]
-[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:604-620] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1549-1551]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:604-620] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1442-1444]
 
 ### LVL-MODE-2: A mode level loads its map's bundles after its own
 
@@ -47,7 +47,7 @@ the files the engine finds by the level's name (PART-NAME-3), and deleted marker
 except its map's.
 
 [data: stock package.mft: mode levels' level blocks target the base map's bundles after their own (MP_005GR -> MP_005); MP_005GR holds the shader databases, emitter system, model groups and cull trees under its own name]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1128-1132] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1512-1520]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1030-1034] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1405-1413]
 
 ### LVL-RT-1: The level data object at run time
 
@@ -73,7 +73,7 @@ Island, installed from NAM_MP_002CQ's description, was `VIETNAM` until OPFOR cha
 exports take the target era's donor's (XEXP-PRE-2).
 
 [data: descriptions measured: Vietnam's levels MatchmakingModID VIETNAM, Licenses nam, KickIfLicenseMissing true, KIT_*_NAM; BFBC2's levels MatchmakingModID BC2 and no licence]
-[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:102-107] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1307-1313]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:102-107] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1207-1213]
 
 ### LVL-DESC-2: The loading picture is found by the name key
 
@@ -87,7 +87,7 @@ picture.
 
 [data: OPFOR's records: a _NAME prefix mismatch gave a black loading screen; stock keys such as MP_009_NAME name mp_009's picture]
 [code: rust/bc2-levelwrite/src/export.rs:135-150] [code: rust/bc2-levelwrite/src/export.rs:1951-1961]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1326-1332] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1862]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1226-1232] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1707]
 
 ## Open questions
 
