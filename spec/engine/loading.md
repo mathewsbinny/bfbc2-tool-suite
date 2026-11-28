@@ -6,7 +6,7 @@ the loader reads is layer 2 (`model/bundles.md` for the stack and the markers, `
 `package.mft`, `bundleManifest` and the start-up checksum, `model/level.md` for the level partition); this file is what
 the executable does with it, and the crashes it gives when the data is wrong.
 
-**Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`research/BFBC2_DECOMP_RESEARCH.md`, build
+**Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md`, build
 795745), the crash guards and probes of OPFOR's DLL (`src/dll/levelfix.cpp`: each records the function, the fault and
 the level that hit it), OPFOR's install tools, and the suite's crash reader (its symbol table
 `bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt` holds the known crash sites with their
@@ -26,7 +26,7 @@ loaded in state 4 (the null-partition crash of LOAD-PART-1 was in state 4), and 
 reaches 14 and stays (GAME-LAYER-1).
 
 [exe: BFBC2Game.exe Session::updateState 0x56A6D0, Session::setState 0x557150; state sequences logged at run time, 2026-10-12 to 10-19]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:102-106] [doc: opfor:src/dll/levelfix.cpp:272-275]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:102-106] [doc: opfor:src/dll/levelfix.cpp:272-275]
 
 ### LOAD-PH-2: The server's level load: AI, entities, save game
 
@@ -38,7 +38,7 @@ therefore happens after the AI and its path data are set up: a crash in the AI's
 comes before any entity of the level exists.
 
 [exe: BFBC2Game.exe server level load 0x85F8A0 -> 0x574FB0 (strings "Init AI", "Spawn entities", "Load save game")]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:99] [doc: bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:14]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:99] [doc: bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:14]
 
 ## 2. The startup bundle
 
@@ -84,7 +84,7 @@ were hit at a level's first load: ONS_MP_008 (a console Objects item naming an e
 Wake Island (BF1943's effects placed as `ReferenceObjectData` naming the effect asset itself).
 
 [exe: BFBC2Game.exe FUN_006EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h] and count at [esp+50h] name the entry]
-[doc: opfor:src/dll/levelfix.cpp:513-521] [doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:275-277]
+[doc: opfor:src/dll/levelfix.cpp:513-521] [doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:275-277]
 [doc: opfor:src/tools/ww2/wake_ambience.py:209-212] [doc: bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:21-22]
 
 ### LOAD-CSUM-2: The suite's checks catch both checksum defects before a launch
@@ -124,8 +124,8 @@ and Nelson Bay: the console action maps); OPFOR's port gives such seats PC input
 element as a null reference and logs its field.
 
 [exe: BFBC2Game.exe reference reader 0x4EB4B0, fault at 0x4EB538 (crash reports of the Valparaiso / Nelson Bay Onslaught ports, 2026-10-30)]
-[doc: opfor:src/dll/levelfix.cpp:184-189] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:575-576]
-[doc: opfor:DEVELOPMENT_NOTES.md:1270]
+[doc: opfor:src/dll/levelfix.cpp:184-189] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:575-576]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:1270]
 
 ### LOAD-PART-3: An object's asset is read without a check (0x5A5A61)
 
@@ -140,7 +140,7 @@ stack in the first case. The cure each time was to make the asset resolve (copy 
 leave the object out).
 
 [exe: BFBC2Game.exe 0x5A5A00, fault at 0x5A5A61 on a null asset pointer (Valparaiso Onslaught load test, 2026-10-30)]
-[doc: opfor:src/dll/levelfix.cpp:249-251] [doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:186-191]
+[doc: opfor:src/dll/levelfix.cpp:249-251] [doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:186-191]
 [doc: opfor:src/tools/onslaught/console_vehicles.py:8] [doc: opfor:src/tools/onslaught/console_loadset.py:18-20]
 
 ### LOAD-PART-4: The voice-over set-up walks each kit's objects (0x6EA3F0)
@@ -153,8 +153,8 @@ check; a blueprint whose `Object` is null faults at 0x6EA3F0. OPFOR's soldier pa
 blueprints) hit it in the automated load tests.
 
 [exe: BFBC2Game.exe voice-over walk 0x6EA340 (ReferenceObjectData type 0x1C11E64), fault at 0x6EA3F0]
-[doc: opfor:src/dll/levelfix.cpp:378-381] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:577-578]
-[doc: opfor:DEVELOPMENT_NOTES.md:336-338]
+[doc: opfor:src/dll/levelfix.cpp:378-381] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:577-578]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:336-338]
 
 ### LOAD-PART-5: A level's sub-files must be its own
 
@@ -195,9 +195,9 @@ copy against BF1943's 2). The static-model-group part set-up (0x8F4720) looks ea
 up by the group's index: client-side group physics that lack a member's bodies fault there on an AI level (AI-CRASH-3).
 
 [exe: BFBC2Game.exe model-group construction 0x8FC260, part data 0xAF7140 / fault 0xAF7144; part bitset fault 0xAB4E58 (0x62E740's loop); static group part set-up 0x8F4720]
-[doc: opfor:src/dll/levelfix.cpp:524] [doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:278-280]
+[doc: opfor:src/dll/levelfix.cpp:524] [doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:278-280]
 [doc: bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:30-31]
-[doc: opfor:DEVELOPMENT_NOTES.md:1535-1537]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:1535-1537]
 
 ## Open questions
 

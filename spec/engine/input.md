@@ -8,7 +8,7 @@ bot module (BOT-CTL-2 - BOT-CTL-4) sit in the chain. The game settings the contr
 
 **Sources.** Round SPG3 (2026-11-23): `BFBC2Game.exe` (PC build 795745) read statically on a scratch copy; DICE's
 `Input/*` partitions of the startup bundle and of `mp_common`'s level bundle through `spec/probes/options.py`;
-Project OPFOR BFBC2's controller research (`bfo:docs/plans/opfor/CONTROLLER_PLAN.md` section 2, `research/BFBC2_DECOMP_RESEARCH.md`
+Project OPFOR BFBC2's controller research (`bfo:docs/plans/opfor/CONTROLLER_PLAN.md` section 2, `private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md`
 section 10); the element and field **names** of one per-user input file (read only).
 
 The chain, from device to server:
@@ -241,7 +241,7 @@ have no caller either - the PC has no rumble. `Client.UseGlobalGamePadInput` (0 
 menus are told a pad is connected through the UI manager's flag +0xC3F29, which the PC never sets.
 
 [exe: BFBC2Game.exe 0x7E7D50 (reached by the jump at 0x7E845C); 0x7CC4A0 (caller 0x7D2504); XInput device constructor 0x7D6890, motors 0x7CC010 / 0x7CC050, switch 0x7BA010: no call and no absolute reference in the round's call index and reference search; 0x7BA120 reached only by the jump at 0x7CBFFD; XINPUT1_3 imports IAT 0x1405A54 - 0x1405A5C, read only at 0xE42CE2 - 0xE42CEE]
-[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:73-123] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:73-123] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:484-500]
 
 ### INP-TUNE-1: Dead zones, sensitivities and curves live in the data
 
@@ -257,7 +257,7 @@ the joystick scale (INP-SET-1). PC and Xbox 360 ship different aimer values for 
 turns a full stick about 30 times as fast as the console's).
 
 [exe: BFBC2Game.exe field tables: the deadzone fields 0x01C1A788 - 0x01C1A7E8 (+0x28 - +0x38); the camera sensitivities 0x01C2F020 - 0x01C2F068 (+0xC0 - +0xD0); IsPadRumbleEnabled 0x01C142D8 (a Client field)]
-[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:45-72] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500]
+[doc: bfo:docs/plans/opfor/CONTROLLER_PLAN.md:45-72] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:484-500]
 
 ## 5. OPFOR's controller patch in the chain
 

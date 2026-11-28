@@ -7,7 +7,7 @@ engine-movie events and extern getters in general are [menus.md](menus.md) (MENU
 **Sources.** Round SPG3 (2026-11-23) read `BFBC2Game.exe` (PC build 795745) statically on a scratch copy (string and
 reference searches, the call index, disassembly of the readers and writers), DICE's partitions of the startup bundle
 with `spec/probes/options.py` (whose `checks()` hold the counts below), Project OPFOR BFBC2's research notes
-(`research/BFBC2_DECOMP_RESEARCH.md` sections 2, 3 and 10, `DEVELOPMENT_NOTES.md` "User data separation") and the
+(`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` sections 2, 3 and 10, `private:opfor-research/DEVELOPMENT_NOTES.md` "User data separation") and the
 **key names only** of one `GameSettings.ini` and one `settings.ini` the game wrote (read only, no value read). Nothing
 was run. Round SPG3-rest (2026-11-27) read the parsers, `GameSettings.bin`'s reader and writer and the registry's text
 path the same way (capstone over a scratch copy; REA's Ghidra provider timed out on the 19 MB executable), and walked
@@ -41,7 +41,7 @@ so the base game's settings are never touched (the user-data redirect, MOD-IMP-1
 
 [exe: BFBC2Game.exe imports SHGetSpecialFolderPathA (IAT 0x14057C4, called at 0x4E25BB and 0x518174); "/data/local/" 0x14107C8, "/data/local/input/" 0x1419E08, "/data/local/GameSettings.ini" 0x1432448, "\settings.ini" 0x142FABC, "/data/local/Screenshots/" 0x147737C, "/data/local/crashreport.xml" 0x1419CF8]
 [code: opfor:src/dll/userdata.cpp:170-200]
-[doc: opfor:DEVELOPMENT_NOTES.md:187-205] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:187-205] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:52-62]
 
 ### SET-INI-1: settings.ini: four sections, 29 keys
 
@@ -123,7 +123,7 @@ The menus' `loadSettings` (0x920470, also run by the `settingsLoad` event at 0x9
 (SET-UI-2).
 
 [exe: BFBC2Game.exe reader 0x831ED0 (0x80D970 section name, flag +0x28 at 0x831FB0, GetPrivateProfileStringA at 0x831FDC, type switch 0x831FEA - 0x832241, "GameSettings.bin" 0x83215F -> 0x815870); writer 0x833FD0 ("/data/local/GameSettings.ini" 0x834330, "GameSettings.bin" 0x83446D; callers 0x8347CF, 0x920623); 0x9205A0 callers 0x932E5C, 0x95993D, 0x95FB65, 0x95FEFD, 0x962D33, 0x962F0D, 0x96316E, 0x963336]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:52-62]
 
 ### SET-GS-4: Which keys the file holds
 
@@ -218,7 +218,7 @@ saved in the user's files and no options page edits them. The `GameSettings` obj
 `Server.UnrestrictedUnlocks`, the AI-NEED rules).
 
 [exe: BFBC2Game.exe lookup 0x4F4C40 (ECX = *(0x0155CFDC); the boolean type object 0x01BF0354); the GameSettings field table around 0x01C15250 (InputConfiguration +0x78, ToggleCrouch +0x8E, HoldToZoom +0x90, InputTapMaxTime +0x1C, InputHoldMinTime +0x84); type names "CoreSettings" 0x1412FB8, "GameSettings" 0x142CD30, "ClientSettings" 0x142CEB4, "ServerSettings" 0x142D4C0]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:69-86]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:69-86]
 
 ### SET-CLI-1: Command-line options
 

@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:236-241"
     }
    ],
    "file": "spec/model/ai_orders.md",
@@ -39,7 +39,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:236-241"
     }
    ],
    "file": "spec/model/ai_orders.md",
@@ -107,7 +107,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:229-235"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:229-235"
     }
    ],
    "file": "spec/model/ai_orders.md",

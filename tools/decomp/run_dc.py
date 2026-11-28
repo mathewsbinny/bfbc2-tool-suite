@@ -19,7 +19,8 @@ tools/decomp/README.md).
     python tools/decomp/run_dc.py index     build_index.py: <db>\index\decomp.sqlite
 
 The exe is only read. Everything is written under the database folder, which must not be inside any git checkout
-(the script refuses one that is). Ghidra comes from BFBC2_GHIDRA (default C:\Tools\ghidra_12.1.4_PUBLIC), Java
+(the script refuses one that is) except the private repository itself (round DOC1: the folder is its root, it has
+no remote, and its .gitignore leaves ghidra, pseudo, index and logs untracked). Ghidra comes from BFBC2_GHIDRA (default C:\Tools\ghidra_12.1.4_PUBLIC), Java
 from JAVA_HOME; --heap sets Ghidra's Java heap (GHIDRA_HEADLESS_MAXMEM).
 """
 from __future__ import annotations
@@ -45,6 +46,23 @@ def in_git(p: Path) -> Path | None:
         if (up / '.git').exists():
             return up
     return None
+
+
+WRITTEN = ('ghidra', 'pseudo', 'index', 'logs')     # the folders the steps write under the database folder
+
+
+def private_repo(repo: Path, db: Path) -> bool:
+    """The private decompilation repository (round DOC1): the database folder is that checkout's root, it has no
+    remote (it must never get one), and its .gitignore leaves every folder the steps write untracked."""
+    git = repo / '.git'
+    if repo != db or not git.is_dir():
+        return False
+    try:
+        config = (git / 'config').read_text(encoding='utf-8', errors='replace')
+        ignored = {ln.strip().strip('/') for ln in (repo / '.gitignore').read_text(encoding='utf-8').splitlines()}
+    except OSError:
+        return False
+    return '[remote' not in config and all(w in ignored for w in WRITTEN)
 
 
 def headless(db: Path, heap: str, args: list[str], log: str) -> int:
@@ -76,7 +94,7 @@ def main(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     db = Path(a.db) if a.db else default_db()
     repo = in_git(db.resolve())
-    if repo:
+    if repo and not private_repo(repo, db.resolve()):
         print(f'refused: the database folder {db} is inside the git checkout {repo}; it must stay outside every repo')
         return 2
     idx = db / 'index'
@@ -90,7 +108,7 @@ def main(argv: list[str]) -> int:
             rc = headless(db, a.heap, ['-import', exe, '-analysisTimeoutPerFile', '10800'], 'import.log')
         elif s == 'plan':
             old = idx / 'old_project_symbols.jsonl'
-            rc = py('extract_names.py', '--out', str(idx / 'names.json'),
+            rc = py('extract_names.py', '--out', str(idx / 'names.json'), '--private', str(db),
                     *(['--old-symbols', str(old)] if old.is_file() else []), *(['--exe', a.exe] if a.exe else []))
             rc = rc or py('gen_types.py', '--out', str(idx / 'types_plan.json'))
         elif s == 'apply':

@@ -27,7 +27,7 @@ The executable's type registry has fifteen `*OrderEntityData` classes: `AreaOrde
 No class is a game-mode objective (no capture, M-COM, ticket or flag order): see AIO-MODE-1.
 
 [exe: BFBC2Game.exe type-name strings 0x0146ADC0..0x0146B070, type-info records 0x01C02434..0x01C025BC (stride 0x18), base name ">@OrderEntityData" at 0x01419C56]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:236-241]
 
 ### AIO-CLS-2: What DICE's campaign uses
 
@@ -58,7 +58,7 @@ those moments); `ReadinessOnStart` / `ReadinessOnComplete` / `ReadinessOnFail` (
 soldier keeps while it carries the order out: of the campaign's 1,141 patrols 630 run and 171 sprint.
 
 [data: ai_probe field tallies over 4,657 campaign orders; the enumerators listed are every value seen]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:236-241]
 
 ### AIO-FLD-2: The fields of each order class
 
@@ -119,7 +119,7 @@ true), `Immortal` (174), `FakeImmortal` (33), `HumanTargetPreference` (-1 to 2),
 `TryToSpawnAwayFromSight` (67), `SpawnEnemyRadius` (20 everywhere), `LodDistance` (0-500).
 
 [data: ai_probe SoldierSpawnEntityData tallies over 1,556 campaign spawners]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:229-235]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:229-235]
 
 ## 4. Issuing, completing, chaining
 

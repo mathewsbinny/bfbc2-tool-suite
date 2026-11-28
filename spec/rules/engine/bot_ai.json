@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:208-221"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:208-221"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -90,7 +90,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:202-203"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:202-203"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -111,7 +111,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:192-201"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:192-201"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -171,11 +171,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115"
+     "ref": "private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:160-195"
+     "ref": "private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:160-195"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -205,7 +205,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247"
+     "ref": "private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247"
     },
     {
      "kind": "doc",
@@ -226,7 +226,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247"
+     "ref": "private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -389,7 +389,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:494-500"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:494-500"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -419,7 +419,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:202-204"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:202-204"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -483,7 +483,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:2084-2088"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:2084-2088"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -543,7 +543,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:2164-2170"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:2164-2170"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -633,7 +633,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:582-583"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:582-583"
     },
     {
      "kind": "doc",
@@ -654,11 +654,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115"
+     "ref": "private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:37-38"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:37-38"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -863,7 +863,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1833-1836"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1833-1836"
     }
    ],
    "file": "spec/engine/bot_ai.md",
@@ -905,7 +905,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:225-227"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:225-227"
     }
    ],
    "file": "spec/engine/bot_ai.md",

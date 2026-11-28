@@ -165,15 +165,15 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AUDIT.md:26"
+     "ref": "private:opfor-research/research/AUDIT.md:26"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:145-156"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:145-156"
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1677-1680"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1677-1680"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -538,7 +538,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:24-28"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:24-28"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -558,7 +558,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:67-68"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:67-68"
     },
     {
      "kind": "doc",
@@ -582,7 +582,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:69-71"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:69-71"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -598,7 +598,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:65-66"
+     "ref": "private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:65-66"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -1074,11 +1074,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1099-1107"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1099-1107"
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1128-1129"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1128-1129"
     }
    ],
    "file": "spec/engine/gameplay.md",

@@ -30,7 +30,7 @@ the image check.
 [code: opfor:src/dll/bc2.h:136-158]
 [code: opfor:src/dll/opfor.cpp:162-188]
 [code: opfor:src/dll/opfor.cpp:370]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:17-18]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:17-18]
 
 ### MOD-HOOK-1: A hook is a 5 - 27 byte jump to a 32-byte trampoline, after its bytes are checked
 
@@ -118,7 +118,7 @@ Status: **implemented** · Variants: PC
 [code: opfor:src/dll/opfor.cpp:192-211]
 [code: opfor:src/dll/patches.cpp:30-72]
 [code: opfor:src/dll/patches.cpp:145-149]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:93-98]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:93-98]
 
 ### MOD-PATCH-1: Vietnam without sign-in, and scoring with fewer than four players
 
@@ -257,7 +257,7 @@ Status: **implemented** · Variants: PC, BF1943
 [code: opfor:src/dll/horn.cpp:46-60]
 [code: opfor:src/dll/voprobe.cpp:29-33]
 [code: opfor:src/dll/voprobe.cpp:113-121]
-[doc: opfor:research/WW2_REPAIR_STATIONS_LANDING_GEAR_RE_2026-11-14.md:186]
+[doc: private:opfor-research/research/WW2_REPAIR_STATIONS_LANDING_GEAR_RE_2026-11-14.md:186]
 
 ### MOD-PERS-1: The offline career, the profile and the stats screens
 
@@ -282,7 +282,7 @@ Status: **implemented** · Variants: PC
 [code: opfor:src/dll/stats_screens.cpp:52-64]
 [code: opfor:src/dll/stats_screens.cpp:632-640]
 [code: opfor:src/dll/onslaught_hud.cpp:48-75]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:174-185]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:174-185]
 
 ### MOD-DEV-1: Diagnostics and AI research, off by default
 

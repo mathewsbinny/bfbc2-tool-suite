@@ -8,8 +8,8 @@ HPD-USE-1, HPD-USE-2, HPD-NODE-2, HPD-RT-1 and HPD-RT-2); the suite's samples of
 multiplayer AI layer `transforms/stockmp.md`.
 
 **Sources.** Project OPFOR BFBC2's reverse engineering and live probes of the PC client
-(`research/BFBC2_DECOMP_RESEARCH.md` sections 8, 9 and 12, build 795745), its stock-map bot plan with the data
-survey of 54 level files (`bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md` section 12), the Onslaught imports (`research/BFBC2_NAPISAL_RESEARCH.md`),
+(`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` sections 8, 9 and 12, build 795745), its stock-map bot plan with the data
+survey of 54 level files (`bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md` section 12), the Onslaught imports (`private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md`),
 OPFOR's DLL probes, and the suite's crash reader table. "Working AI level" means a level on which bots were seen to
 move and fight in a play test: DICE's campaign levels, Napisal's PC Onslaught ports, OPFOR's console Onslaught ports.
 
@@ -26,8 +26,8 @@ with `HasAI` false skips all three: every stock multiplayer level (AI-NEED-1). S
 set-active) does nothing; OPFOR's `force_ai` research option must act at the 0x575046 test.
 
 [exe: BFBC2Game.exe server level load 0x574FB0: cmp byte [level+0x3AE], 0 at 0x575046; AI init 0x5B33C0, set-active 0x5958F0, path-data world 0x5AF5F0; settings Server.IsAiEnabled / Server.IsAIEnabled]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:208-221] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:472-475]
-[doc: opfor:DEVELOPMENT_NOTES.md:344-347]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:208-221] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:472-475]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:344-347]
 
 ### AI-START-2: The AI's settings come from seven shared partitions
 
@@ -39,8 +39,8 @@ cover and navigation constants and `AI/Difficulty` the per-difficulty health, ac
 level's bundles must reach these partitions (Napisal's Onslaught levels carry their own `Ons_*` difficulty profiles).
 
 [exe: BFBC2Game.exe AI init 0x5B4B20 -> 0x5B33C0(difficulty); singletons at *(0x018903EC) +0x498 settings, +0x4A0 orders, +0x4A4 difficulty]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:211-214] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:242-245]
-[doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:125]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:211-214] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:242-245]
+[doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:125]
 
 ### AI-START-3: One Kynapse world per pathfinding type the level lists
 
@@ -53,7 +53,7 @@ The path-data world set-up (0x5AF5F0) loads a Kynapse world for each `Pathfindin
 
 [inferred: every working AI level read lists mp_common's two PathfindingSettings in LevelData and every stock MP level has the array empty (STOCK_MP_AI_PLAN 12.1); the generator settings are found at LevelData+0x36C as an array of PathfindingSettings pointers; the set-up's per-type load was not traced instruction by instruction]
 [data: PathfindingTypes infantry + vehicles on Napisal's ONS_MP_005GR, ONS_MP_002, ONS_MP_004, DICE's Xbox ONS_MP_002 and SP_004_B; empty on every stock MP level read]
-[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:294-298] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:294-298] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:345-347]
 
 ## 2. The Kynapse runtime
 
@@ -69,7 +69,7 @@ depends on the offsets fail (HPD-USE-2). A level that runs bots must ship the as
 sector ids (the suite writes it from them: XSMP-AUT-1).
 
 [exe: BFBC2Game.exe path-data set-up 0x00F209F1..0x00F20C8E (strings at 0x014A93D0 / 0x014A93E0, offsets passed from +0x1C / +0x18); probes at 0x00F20AD2, 0x00F20B48, 0x00F20BB0]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:464-471]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:464-471]
 
 ### AI-KY-2: One runtime world, and no usable generator
 
@@ -83,8 +83,8 @@ without DICE's therefore comes from existing data (campaign, console, Napisal's)
 writing the `.hpd` format (NavKit, `transforms/navkit.md`); OPFOR does not bypass the licence.
 
 [exe: BFBC2Game.exe world capacity at 0x00F025EC (C7 46 08 01), registry refusal 0x0109E930; generator driver 0x00F299A0 with no caller in .text; Kaim::CMapBuilder licence request for feature CMapBuilder (error -1,359), 2026-10-14]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:284-292] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:348-351]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:363-370] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:378-379]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:284-292] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:348-351]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:363-370] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:378-379]
 
 ### AI-KY-3: A go-to is computed at once; "true" means the request was taken
 
@@ -99,7 +99,7 @@ search stage reaching no node); its reason is kept at pathfinder +0x110 (1 start
 Resolving the points is HPD-RT-1; finding the ids needs each sector's nodes sorted (HPD-NODE-2).
 
 [exe: BFBC2Game.exe go-to 0x0107FE80, Flat compute 0x0107F620 (false exits 0x0107F8E1, 0x0107F9B0, 0x0107FABE, 0x0107FB0D, 0x0107FC33, 0x0107FCB2, 0x0107FD6B), caller 0x010B1AB0, reader 0x010B2400; DataMode default 1 in the constructor 0x01080CC0]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:413-449]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:413-449]
 
 ### AI-KY-4: The engine's physics queries
 
@@ -113,7 +113,7 @@ takes its geometry from these queries, and OPFOR's in-game sampler uses them to 
 (`formats/navsample.md`).
 
 [exe: BFBC2Game.exe ray / sphere cast 0xB145C0 (-> 0xB12F60, world vtable +0x34), capsule 0xB14640, point query 0xB145A0 (world vtable +0x3C); ray collector add-hit 0xB0D370, root collidables at +0x50 / +0x54; shape vtables 0x01454D14 terrain, 0x01483B38 objects, 0x01483378 soldiers]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:381-396]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:381-396]
 
 ## 3. What a level needs for bots
 
@@ -128,7 +128,7 @@ capture points, area geometry (769 points on MP_002), teams and squads. A stock 
 an authored AI layer (XSMP-AUT-1), not a switch.
 
 [data: stock MP levels compared (all launch MP levels, identical on Xbox 360): HasAI false, no PathfindingTypes, no SpawnPointManager; path data only for the 13 campaign levels; MP_002: 1 AI spawner, disabled, 0 AreaOrder, 0 PatrolOrder]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:590-596] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:55-71]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:590-596] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:55-71]
 
 ### AI-NEED-2: What a working AI level has
 
@@ -168,7 +168,7 @@ spawning (Laguna Alta's are `SSHumanPlayer` with delay 0). Whether they spawn bo
 suite's AI layer adds its own spawners and marks the stock ones `SSHumanPlayer` by default.
 
 [data: SSAiPlayer with SpawnDelay 15: Arica Harbor CQ 8 of 8, White Pass CQ 7 of 7, Nelson Bay Rush 11 of 13, Atacama CQ 7 of 8 (all enabled, Template null)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:597-600] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:322-329]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:597-600] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:322-329]
 
 ### AI-NEED-5: Kills of bots score nothing offline without the scoring patch
 
@@ -182,7 +182,7 @@ which stays clear with fewer than 4 clients: nobody scores, humans included (BOT
 (BOT-SCO-2). Whether bots count for capturing and for tickets is not known (BOT-GS-3).
 
 [exe: BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for a null victim at 0x86DCAE; scoring flag test 0x86DD97) -> kill scoring 0x86C070 (returns for an AI killer at 0x86C12D) -> award 0x86BE20]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:579-581]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:579-581]
 
 ### AI-NAV-1: A bot reaches only what the route graph connects to the main network
 
@@ -232,7 +232,7 @@ Linux dedicated server's level (R34) has them, and OPFOR's console Nelson Bay is
 `materials_linux`) and loads to state 3.
 
 [exe: BFBC2Game.exe static-model-group part set-up 0x8F4720 (physics-part lookup 0xA9E6A0)]
-[doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:269-273] [doc: bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:30]
+[doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:269-273] [doc: bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:30]
 
 ### AI-CRASH-4: Unsorted path data crashes the game on exit (0x401090)
 
@@ -245,7 +245,7 @@ wrote each sector's nodes sorted (HPD-NODE-2); DICE's files never hit it. The cr
 the original path data).
 
 [exe: BFBC2Game.exe purecall handler 0x401090 from 0x01046AB3 (Kynapse release 0x01046AA0, from 0x010A248A in the container destructor 0x010A2450), at exit after a NavKit play test, 2026-10-19]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:450-461] [doc: opfor:src/dll/probes.cpp:118-119]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:450-461] [doc: opfor:src/dll/probes.cpp:118-119]
 [doc: bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:48]
 
 ## Open questions

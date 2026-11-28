@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:131-133"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:131-133"
     },
     {
      "kind": "doc",
@@ -30,11 +30,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:110-125"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:110-125"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:584-585"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:584-585"
     }
    ],
    "file": "spec/engine/menus.md",
@@ -59,7 +59,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:146-147"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:146-147"
     }
    ],
    "file": "spec/engine/menus.md",

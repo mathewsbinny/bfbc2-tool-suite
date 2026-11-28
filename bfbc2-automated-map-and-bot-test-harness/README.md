@@ -15,7 +15,7 @@ playtest**, below; the user paused in-game tests on 2026-11-20).
 - In-game level runs are done by Project OPFOR BFBC2's `testrun.bat` (start a level offline, watch its log,
   report: in game, crashed, timed out), which uses the crash reader. Campaign levels often stall on a black
   screen through its developer trigger; play-test those from the campaign menu, with OPFOR's probes
-  logging (Project OPFOR BFBC2 `DEVELOPMENT_NOTES.md`, "NavKit play tests of sp_004_b").
+  logging (Project OPFOR BFBC2 `DEVELOPMENT_NOTES.md` (private research notes), "NavKit play tests of sp_004_b").
 
 ## Use
 

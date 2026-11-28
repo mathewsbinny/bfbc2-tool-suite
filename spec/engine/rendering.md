@@ -138,7 +138,7 @@ for any layout. An export therefore adds the entries of every mesh it brings in 
 
 [exe: BFBC2Game.exe 0x98BD6E, renderer; 0x98BCE0-0x98BD7B: `mov edx,[ebx+8]` ... `movups xmm0,[edx+8]`]
 [data: OPFOR: the WallWooden port (fixed by giving its parts a same-stride layout and its instanced variant); ONS_MP_004's road / stop signs (open)]
-[doc: opfor:src/tools/ww2/wake_install.py:1416-1429] [doc: opfor:DEVELOPMENT_NOTES.md:1350] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:586]
+[doc: opfor:src/tools/ww2/wake_install.py:1416-1429] [doc: private:opfor-research/DEVELOPMENT_NOTES.md:1350] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:586]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1371]
 
 ### RNDR-DRAW-7: A mesh set's LOD settings must resolve (0x8D59FB)

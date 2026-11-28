@@ -11,7 +11,7 @@
 //! The PC panel's picture sprite (frames CONQUEST ... ANY) gets a frame `ONSLAUGHT` placing a new shape textured with
 //! a new image, whose pixels go into free space in the menu atlas (4096 x 4096 DXT5) with a new entry in its index
 //! (`atlas_meta.dbx`). New data is appended to the members and the tables it extends are copied (APT converts a
-//! movie's offsets to pointers in place, once: nothing new may be shared with existing data; DEVELOPMENT_NOTES.md,
+//! movie's offsets to pointers in place, once: nothing new may be shared with existing data; DEVELOPMENT_NOTES.md (private research notes),
 //! "Menu build pipeline").
 //!
 //! The pixels are the Python's: `crate::pil` gives Pillow's (resize, paste, composite, DXT5 decode) and the cut-out's

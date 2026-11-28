@@ -2,7 +2,7 @@
 //! made from a picture the user gives (PNG or JPEG) with the suite's texture writer (`bc2_convert::texwrite`, round
 //! F2a), in the form the game's own pictures have.
 //!
-//! Where the game finds them (OPFOR's `ww2_loading.py`, `research\WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md`):
+//! Where the game finds them (OPFOR's `ww2_loading.py`, `research\WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md` (private research notes)):
 //! - the loading screen cuts the description's `Name` loc key at `_NAME` (`MP_009_NAME` -> `mp_009`) and shows
 //!   `Awards/images/loadingScreens/<that>` from the on-demand awards bundles (`async\ondemand_awards-00.fbrb`,
 //!   `game\Package` first);

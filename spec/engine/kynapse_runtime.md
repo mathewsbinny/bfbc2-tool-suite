@@ -9,7 +9,7 @@ meaning is `formats/kynapse.md`, its bytes `formats/hpd.md`. The AI's start and 
 **Sources.** Static reverse engineering of the PC retail executable, build 795745 (image base 0x400000), done read-only
 with a small capstone disassembler in rounds NKS and NKS-rest (which added the class names from the RTTI and
 the reflected field tables). It builds on Project OPFOR BFBC2's earlier runtime probes and targeted
-disassembly (`research/BFBC2_DECOMP_RESEARCH.md` section 9). An `[exe: ...]` item names the instructions read. A rule is
+disassembly (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` section 9). An `[exe: ...]` item names the instructions read. A rule is
 **observed** when those instructions were read, and **inferred** when the conclusion goes beyond them. In the
 addresses, `mesh` is the runtime-mesh record + 0x14, the base the runtime works from after relocation. So
 `[mesh+0x0C]` is the record's +0x20.
@@ -31,7 +31,7 @@ manager: +0x874C offset x, +0x8750 offset z, +0x8758 size, +0x8754 overlap.
 
 [exe: set-up 0x00F20C0E-0x00F20CD9 (size from [obj+0x40], overlap from [obj+0x20], objects walked at 0x00F20800-0x00F2080F, `lea edi, [esi+0x30]` the name at 0x00F20829); parser 0x01090873-0x0109092E (atoi for the offsets, atof for size and overlap)]
 [exe: `PathfindingType`'s reflected field table 0x01C39DB8-0x01C39EBF, 24-byte entries {name, type, offset}: OutputName +0x30, EntityRadius +0x2C, MaxGraphHandles +0x3C, SubgraphsToLoad +0x44, SubgraphBoxSize +0x40, DiagramHalfWidth +0x1C, MaxGaps +0x18, DistEdgeMax +0x20, CanGoMaxEntityRadius +0x28, UseLocalPathfinding +0x48; names at 0x014752CC-0x01475364]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:464-471]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:464-471]
 
 ## 2. Loading a file
 
@@ -143,7 +143,7 @@ nearest.
 
 [exe: resolver 0x00F095C0 -> point query 0x00F09360 / 0x0107ADD0, snap 0x00F01250; node lookup 0x01086CE0 -> gather 0x0105ED80 (R from [status+0x38])]
 [exe: the candidates walked one by one from the gather's list: cursor [list+8] incremented at 0x0105F278, end [list+0xC] at 0x0105F27F, each candidate read `mov ebx, [edi+edx*4+0x18]` at 0x0105EF5A; no sort between the gather 0x0105EEDF and the walk]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:429-435]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:429-435]
 
 ### KYRT-NODE-2: The box query reads the lookup lists, in list order
 
@@ -337,7 +337,7 @@ Recorded faults and refusals caused by the data, with the rule that keeps a writ
 | a cull tree that does not describe the level | crash in the AI's sphere query at load | AI-CRASH-1 |
 
 [exe: version refusal 0x010A428E; magic / word 0 0x0108EC95-0x0108ECAE]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:450-461]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:450-461]
 
 ## Open questions, and the reverse engineering left
 

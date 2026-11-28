@@ -36,7 +36,7 @@ game mode is data only (`GameModeData`: `ModeID`, HUD layers, the in-game bundle
 id (the mode owner 0x92AB10, +0x6C) through the string compare 0x4304D0; server gameplay never checks the name.
 
 [exe: 0x4304D0 the string compare; 0x142ABD8 the "conquest" literal; 0x92AB10 the mode owner, its id at +0x6C]
-[doc: opfor:DEVELOPMENT_NOTES.md:1279-1285]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:1279-1285]
 [code: opfor:src/tools/onslaught/console_mode.py:9-22]
 
 ### ONS-MODE-2: OPFOR's GameModes/Onslaught is PC Conquest re-identified, matchmaking CONQUEST
@@ -47,7 +47,7 @@ OPFOR writes `GameModes/Onslaught.dbx` into the level's Package bundle: the PC `
 under the console mode's GUIDs (so the console level's reference resolves unchanged), `ModeID` `onslaught`,
 `MatchmakingQueryID` `CONQUEST`, the description `MP_GAMEMODE_ONSLAUGHT_NAME`. CONQUEST because the session code
 (0x5680C0) maps the matchmaking id to a stats category (RUSH / CONQUEST 0x20, SQDM 0x10, SQRUSH 8, else -1): with
-ONSLAUGHT no score, kills or round-end stats were kept. (`DEVELOPMENT_NOTES.md` still says ONSLAUGHT.)
+ONSLAUGHT no score, kills or round-end stats were kept. (`private:opfor-research/DEVELOPMENT_NOTES.md` still says ONSLAUGHT.)
 
 [code: rust/bc2-install/src/onslaught/mode.rs:35-43]
 [code: rust/bc2-install/src/onslaught/mode.rs:331-353]
@@ -75,7 +75,7 @@ not take it either; with 0 they could. OPFOR writes 0 on every Onslaught flag, s
 retake" is lost until the module handles it. The field's reader is the capture point's update (round SPG2-rest2:
 ONS-CAP-3, GAME-CQ-10), which explains all three results.
 
-[doc: opfor:DEVELOPMENT_NOTES.md:334]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:334]
 [data: OPFOR playtest 2026-10-29 on a console-ported level: flag A with OnlyTakeableByTeam 1, 2 and 0, as described]
 [code: rust/bc2-install/src/onslaught/mode.rs:31-32]
 
@@ -145,7 +145,7 @@ few (patrols, one search-and-destroy). A template or kit fix must cover every sp
 levels override `AI/Difficulty.dbx` (profiles `Ons_Casual`, `Ons_Normal`, `Ons_Hard`, `Ons_Hardcore`) and
 `AI/Settings.dbx` (multiplayer-scaled: `LoiterActivityDistance` 10 -> 280, `MaxMobileVehicles` 16 -> 32).
 
-[doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:106-144]
+[doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:106-144]
 [doc: bfo:docs/procedures/ONSLAUGHT_PROCEDURE.md:96-99]
 [data: Napisal's ONS_MP_005GR (OPFOR's research 2026-10-29): the spawner counts listed]
 
@@ -160,8 +160,8 @@ M-COMs, not the console's flags. They carry DICE's console path data byte for by
 `Precomputed/<Kind>/SectorOffsets` assets, so the runtime uses 0, 0 and route requests from some sectors fail
 (ONS_MP_002: sector 0x30a).
 
-[doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:96-97]
-[doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:196-210]
+[doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:96-97]
+[doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:196-210]
 [data: round SPG2, 2026-11-22: Napisal's backed-up Package ONS_MP_002 level partition: 4,320 instances, 1 reference to gamemodes/goldrush]
 
 ### ONS-PORT-2: Sector offsets are the most common per-sector value
@@ -205,7 +205,7 @@ reference) and grafts every non-world console instance onto it.
 
 [code: opfor:src/tools/onslaught/console_linux_base.py:9-20]
 [code: rust/bc2-install/src/onslaught/linux.rs:27-48]
-[doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:268-271]
+[doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:268-271]
 
 ### ONS-REG-1: Registration, and what the game copy lists
 
@@ -217,7 +217,7 @@ The two ports load different commons (Napisal's ONS_MP_002 `nam_common`; the con
 sp_common). OPFOR's `maps.ini` offers Onslaught on MP_002, MP_004, MP_005 and MP_008 (the console ports); Napisal's
 ONS_MP_005GR is still installed and registered.
 
-[doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:173-192]
+[doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:173-192]
 [data: round SPG2, 2026-11-22: the game copy's Dist package.mft (the ons_mp_002 level block, the ons_mp_005gr blocks), bundleManifest and maps.ini Onslaught lines]
 [exe: 0xBD2D30 the level name table compare]
 

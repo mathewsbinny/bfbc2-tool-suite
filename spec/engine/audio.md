@@ -34,7 +34,7 @@ game streams from itself. Voice-over waves are 44-byte stubs in the commons' `vo
 `streaming_sounds-00` (DICE streams every voice-over line, EALayer3).
 
 [data: PC loop segments: 34,038 streamed stubs, all voice-over among them (WAVE-SEG-2); SP_01's Japanese chatter: stubs in mp_common's vo/<lang> bundles, data in streaming_sounds-00]
-[doc: opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200] [doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:172]
+[doc: private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200] [doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:172]
 
 ### SND-STRM-1: Streaming wave data in a level bundle crashes the load (0x49EDF4)
 
@@ -103,7 +103,7 @@ persons) matched against each trigger's person conditions (inflictor, victim, li
 
 [data: BF1943's single trigger set ported to Wake Island: 74 events over 22 event types; Vietnam kits list a class person and a nation person; SP_01's Japanese chatter set has 15 event types]
 [code: rust/bc2-levelwrite/src/profile.rs:57-67]
-[doc: opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:137-142] [doc: opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:179-186]
+[doc: private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:137-142] [doc: private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:179-186]
 
 ### SND-VO-2: Each content set's announcer
 
@@ -167,7 +167,7 @@ with no name in the enum (BF1943's `ETHeadshotKill`, `ETRoadkill`, `ETVehicleRep
 cannot be expressed in data.
 
 [exe: BFBC2Game.exe enum table 0x01C33688 (125 entries, ETNone 124); VOEventType TypeInfo 0x01C047BC; VOEvent TypeInfo 0x01C04C54, EventType +0x1C, PauseTime +0x18, Rows +0x20]
-[doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:9-28] [doc: opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:150-155]
+[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:9-28] [doc: private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:150-155]
 
 ### SND-EVT-2: Two voice-over systems, one raise
 
@@ -179,7 +179,7 @@ victim player, position, mode), called from 71 sites, and two systems of the sam
 its events (contact, cover, readiness, orders ...) on the server system only.
 
 [exe: BFBC2Game.exe raise 0x637770 (ret 0x14), constructor 0x633330 (0x60 bytes), server system [0x01566B6C], client system [0x01571408], AI forwarder 0x57D380]
-[doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:30-66]
+[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:30-66]
 
 ### SND-EVT-3: Matching by type, throttled by PauseTime
 
@@ -190,7 +190,7 @@ The matcher (0x636010) walks every loaded `VOAsset`'s events and keeps those who
 rows are queued on a timed list. A type no loaded asset has plays nothing and does no harm.
 
 [exe: BFBC2Game.exe matcher 0x636010 (ret 0x10, returns the matched row count), play path 0x637380, sink 0x636C80]
-[doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:43-48] [doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:126]
+[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:43-48] [doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:126]
 
 ### SND-EVT-4: Which side raises which event
 
@@ -204,7 +204,7 @@ grenade thrown / incoming and soldier fire. In multiplayer the chatter players h
 server raise is heard on the in-process host is open.
 
 [exe: BFBC2Game.exe client: capture point 0x8C7190, ticket counter 0x8E9AF0, message handler 0x800CF0, focus points 0x76E430; server: round end 0x67E3F0, kill scoring 0x86C070, message handler 0x5756A0, 0x5ACA80]
-[doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:61-89]
+[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:61-89]
 
 ## 5. Vehicle sounds
 

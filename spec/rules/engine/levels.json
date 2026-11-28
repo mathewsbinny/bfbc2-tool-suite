@@ -13,11 +13,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:93"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:93"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:602-620"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:602-620"
     }
    ],
    "file": "spec/engine/levels.md",
@@ -34,7 +34,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:604-620"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:604-620"
     },
     {
      "kind": "doc",
@@ -76,11 +76,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:222-223"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:222-223"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:345-347"
     }
    ],
    "file": "spec/engine/levels.md",

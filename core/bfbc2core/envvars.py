@@ -94,7 +94,7 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'OPFOR_ROOT': ('paths', 'the Project OPFOR BFBC2 checkout (default: found beside or above the suite)'),
     'BFBC2_BFO_ROOT': ('paths', "the battlefield-opfor checkout spec/trace.py resolves `bfo:` citations in (its "
                        "docs\\ knowledge base; default: beside the suite)"),
-    'BFBC2_DECOMP_DB': ('paths', "the private decompiled database of BFBC2Game.exe (tools/decomp; default bfbc2-decomp-private beside or above the suite)"),
+    'BFBC2_DECOMP_DB': ('paths', "the private decompiled database of BFBC2Game.exe (tools/decomp) and OPFOR's private research spec/trace.py's `private:` citations resolve in (default battlefield-decomp-work\\bfbc2-decomp beside or above the suite; round DOC1)"),
     'BFBC2_GHIDRA': ('paths', 'the Ghidra install tools/decomp/run_dc.py runs headless (default C:\\Tools\\ghidra_12.1.4_PUBLIC)'),
     'OPFOR_TOOLKIT': ('paths', "the folder holding the suite as Project OPFOR sees it (OPFOR's opforcore.paths)"),
     'OPFOR_GAME': ('paths', "a game folder for levelwrite's export tests (default: OPFOR's game copy)"),

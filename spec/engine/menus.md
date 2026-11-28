@@ -5,7 +5,7 @@ movies talk, and what the movie loader and unloader require. The movie format is
 loader's own rules APT-LOAD-1 to APT-LOAD-3); the commands that start a match are NET-SES-1; the server browser's rows
 are NET-SB-1 and NET-SB-2.
 
-**Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`research/BFBC2_DECOMP_RESEARCH.md` section
+**Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` section
 5, build 795745), its menu installs (`bfo:docs/research/opfor/WW2_MENU.md`), and the suite's movie patcher (`bfbc2-menu-tools`,
 `aptgraft.py`). Round SPG2-rest added the action script as DICE ships it (MENU-AS-*), measured by
 `spec/probes/menus.py` over DICE's bundles of the game copy (`game/**/*.fbrb` dated before 2013, plus OPFOR's pristine
@@ -23,7 +23,7 @@ mode key. The menus' level lists, the server browser's rows (NET-SB-1) and the m
 is in no `LevelListQuery` item is in no menu (LEVEL-DESC-1).
 
 [exe: BFBC2Game.exe catalogue builder 0x951480 into UiManager+0xC3F34; mode keys CONQUEST, RUSH, SQRUSH, SQDM]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:131-133] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:849-851]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:131-133] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:849-851]
 
 ### MENU-EVT-1: The engine talks to the movies by events and extern getters
 
@@ -37,7 +37,7 @@ false switches the movies to their authoring behaviour (raw localisation keys, m
 the engine through the generic command entry (0x753540) and the main-menu dispatcher (NET-SES-1).
 
 [exe: BFBC2Game.exe event acquire 0x920360, add string 0x588910, add value 0x588940, queue 0x9299B0, simple event 0x929A70; extern switch case 0x95B316; command entry 0x753540 -> 0x95E680]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:110-125] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:584-585]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:110-125] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:584-585]
 
 ### MENU-DLG-1: A class defined in several movies is the first-loaded movie's
 
@@ -52,7 +52,7 @@ which find it defined - and 10 HUD, in-game and loading movies. The rule for eve
 [test: core/tests/test_spec_probes.py::menus]
 [data: dice.Dialog's definition found in main_root, main_nav and main_popups; OPFOR's dialog patches]
 [data: spec/probes/menus.py, 2026-11-22: __Packages.dice.Dialog exported by 23 of the 91 distinct movies]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:146-147]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:146-147]
 
 ### MENU-UNL-1: A sprite's frames pointer must be 0 when it has no frames (0x13046DA)
 

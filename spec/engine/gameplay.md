@@ -133,8 +133,8 @@ maps playable (Napisal's study of MP_SP_004GR) are the description's `GameMode` 
 three `TeamEntityData`, `HumanPlayer`, two `LifeCounter`s, `MissionObjective`s and human spawns.
 
 [data: OPFOR's offline-MP host of stock SP_005: the whole AI chain ran, the session stalled in state 14 (2026-10-19 on); sp_004_b once reached state 3]
-[doc: opfor:research/AUDIT.md:26] [doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:145-156]
-[doc: opfor:DEVELOPMENT_NOTES.md:1677-1680]
+[doc: private:opfor-research/research/AUDIT.md:26] [doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:145-156]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:1677-1680]
 
 ### GAME-LAYER-2: What a layer is
 
@@ -376,7 +376,7 @@ server counter's code, BOT-GS-6, which also gives the bleed's formula).
 
 [data: Atacama Conquest, Wake Island (BF1943) and Coral Sea counters compared field by field]
 [exe: BFBC2Game.exe: TicketCountPercentage {VOEvent +0, TicketLossPerMin +4, MaxPercentOfTicketsLeft +8}, TicketCounterEntityData.TicketPercentages at +0x84]
-[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:86-105] [doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:24-28]
+[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:86-105] [doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:24-28]
 
 ### GAME-TKT-3: A counter at zero ends the round on the server
 
@@ -389,7 +389,7 @@ after a delay) and `OnReachZero` disables player spawning; Conquest has no timer
 
 [exe: BFBC2Game.exe 0x67E3F0 (calls 0x67E53A, 0x67E5AC), reached from 0x6805B0 and 0x548324]
 [data: Coral Sea's and BF1943's Conquest event graphs: the same end chain]
-[doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:67-68] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:106-115]
+[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:67-68] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:106-115]
 
 ### GAME-TKT-4: Ticket percentages raise their own voice-over
 
@@ -402,7 +402,7 @@ raised only when the data holds such entries.
 
 [exe: BFBC2Game.exe 0x8E9AF0 (calls 0x8E9B7C, 0x8E9B9C), index change 0x8F0610]
 [data: Wake (BF1943) puts ETTicketsLow at 20 % and ETReachTicketPercentage at 80 %; Atacama's entry is 15 % with no event]
-[doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:69-71]
+[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:69-71]
 
 ### GAME-TKT-5: Capture voice-over is the client's
 
@@ -412,7 +412,7 @@ When a capture point's replicated state changes to an owner team, the client rai
 the local player's team owns it, otherwise ETLostCapturePoint (0x3F), also for a flag the player's team never held.
 
 [exe: BFBC2Game.exe 0x8C7190 (calls 0x8C71DD, 0x8C71FF), from 0x8ECD94]
-[doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:65-66]
+[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:65-66]
 
 ## 5. Rush and Squad Rush
 
@@ -757,7 +757,7 @@ award list (+0xC3D58). Offline the copy is null: the lists are undefined or empt
 game's own answer for an item without an award) keeps 0x943B20 from running.
 
 [exe: BFBC2Game.exe 0x943B20 weaponProficiency$; stats download handler 0x9644A0; extern getter 0x76EC30]
-[doc: opfor:DEVELOPMENT_NOTES.md:1099-1107] [doc: opfor:DEVELOPMENT_NOTES.md:1128-1129]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:1099-1107] [doc: private:opfor-research/DEVELOPMENT_NOTES.md:1128-1129]
 
 ## 10. Air Superiority (BF1943)
 

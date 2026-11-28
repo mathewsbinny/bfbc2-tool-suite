@@ -8,7 +8,7 @@ options, the version and anti-cheat checks, the server's listen path and the cli
 services themselves (login, matchmaking servers, stats) are not reachable and are not specified. What the network
 layer would need for LAN, Direct IP or hosted play is studied in `engine/network_feasibility.md`.
 
-**Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`research/BFBC2_DECOMP_RESEARCH.md` sections
+**Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` sections
 4, 5, 6 and 13, build 795745; the hostMultiplayerLocal call chain was found statically and confirmed in game on
 2026-10-12), its DLL's patches and their comments (`src/dll/patches.cpp`, `src/dll/server_browser.cpp`), the Pacific
 War mode work (`bfo:docs/research/opfor/WW2_THIRD_MODE.md`, `bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md`). The mode keys, the game
@@ -30,7 +30,7 @@ and 0xA to one handler (0x77BEC3), which queues a start request with `type = (id
 0x38 bytes: the level at +0x28, `isLocal` at +0x34) on channel 0x28; the campaign's start is message 0x10.
 
 [exe: BFBC2Game.exe command table .rdata 0x143C898 (574 entries); dispatcher 0x77BC10, switch 0x77BC8C, shared handler 0x77BEC3; queue 0x956E10 (UiManager+0x82CD0); consumer 0x951E00; HostGameMessage constructor 0x918D70]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:90-95]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:90-95]
 
 ### NET-SES-2: The session hosts the level in process
 
@@ -43,7 +43,7 @@ The session's message handler (0x56A890) takes message 0x13: the level to +0xB8,
 `Network.ServerPort`. The load then runs through the session states of LOAD-PH-1 to state 3.
 
 [exe: BFBC2Game.exe session onMessage 0x56A890 (jump table 0x56AA48; 0x13 -> 0x56A959); updateState 0x56A6D0 (state 5 -> 0x565450); server object vtable 0x01418140, create 0x54B0B0]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:95-98]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:95-98]
 
 ### NET-SES-3: A local multiplayer session needs the in-memory transport
 
@@ -58,7 +58,7 @@ campaign and `hostMultiplayerLocal` set it); with it the user reached a running 
 about 7 s) with no socket opened. A remote join passes 0 and is unchanged.
 
 [exe: BFBC2Game.exe createClient 0x54AEE0, selection at 0x54AF2C (22 bytes, continuing at 0x54AF42); setTransportMode 0x650E60: 0 in-memory 0x4F1E00, 1 sockets 0x4F1E60, 2 remote 0x5F0F40; play test 2026-10-12]
-[code: opfor:src/dll/patches.cpp:3-17] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:98]
+[code: opfor:src/dll/patches.cpp:3-17] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:98]
 
 ### NET-SES-4: Offline matches open no sockets
 
@@ -70,7 +70,7 @@ join path (0xDBC440, which drops a player "not approved" at 0xDBA466 or for a "t
 used offline. OPFOR's network guard keeps every lookup of the network modules on loopback.
 
 [exe: BFBC2Game.exe game-server join 0xDBC440, drops at 0xDBA466 / 0xDBA4DE; imports of WS2_32, WinHTTP, ICMP, NETAPI32]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:625-630] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:100]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:625-630] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:100]
 
 ### NET-SES-5: One game process at a time
 
@@ -83,7 +83,7 @@ server's name. One process is therefore the default, not a limit of the executab
 renames the mutex (`-OPFOR`), which is why OPFOR and the base game already run side by side.
 
 [exe: BFBC2Game.exe named objects: mutex BFBC2-6A8D82A8-2C27-46db-A39C-96E64C8286B5 (client), BFBC2Server-124DD424-A478-4d95-A026-DA20E544D4E2 (server), SingleMgrMutex<pid>]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:64-66]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:64-66]
 
 ## 2. The player
 
@@ -97,7 +97,7 @@ local player `"Human player"` with id 1 (0x841930). The server-side join (0x865D
 and asks the stats service for it (0x85AED0), a request never answered offline (GAME-AWARD-1).
 
 [exe: BFBC2Game.exe Client::sendJoin 0x55DFB0, clan tag check 0x743A70, default name at 0x841930 (string 0x1433338); server join 0x865D70, stats request 0x85AED0]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:154-160] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:171-173]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:154-160] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:171-173]
 
 ## 3. The server browser
 
@@ -112,7 +112,7 @@ description partitions (MENU-CAT-1). The mode keys are `CONQUEST`, `RUSH`, `SQRU
 exactly and case-sensitively.
 
 [exe: BFBC2Game.exe server list at UiManager+0xC8958 (record constructor 0x5ECF60), row writer 0x956A80, rows rebuilt by 0x958BF0; level catalogue UiManager+0xC3F34 built by 0x951480]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:127-133]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:127-133]
 
 ### NET-SB-2: A key shared by two modes blanks the rows of one of them
 
@@ -160,7 +160,7 @@ choice for the whole process, not one per connection. Swapping it is therefore a
 when the server and the client make their sockets.
 
 [exe: BFBC2Game.exe setTransportMode 0x650E60; factories 0x4F1E00 (vtable 0x1411934), 0x4F1E60 (vtable 0x1411960), 0x5F0F40 -> 0x5F0D50 (vtable 0x141BE04); shared base vtable 0x141128C; UDP create methods 0x4F5280 / 0x4F5380 / 0x4F54A0 -> 0x4F1EC0; in-memory create 0x4F5020 -> 0x4F1D60]
-[doc: opfor:research/notes/srv8.txt:1]
+[doc: private:opfor-research/research/notes/srv8.txt:1]
 
 ### NET-TRN-2: The game's own sockets are UDP only
 
@@ -207,7 +207,7 @@ encryption of this layer was found: the only "encrypted" flags in the executable
 
 Status: **observed** · Variants: PC
 
-The settings registry (`FUN_004F4C40`, the engine settings of `research/BFBC2_DECOMP_RESEARCH.md` section 3) holds the
+The settings registry (`FUN_004F4C40`, the engine settings of `private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` section 3) holds the
 network's knobs under four groups. Network: ServerPort, ClientPort, TitleId, ProtocolVersion, Version, MaxClientCount,
 MaxGhostCount, MaxServerFrameSize, MaxClientFrameSize, MaxQueriesPerSecond, QueryPortOffset, UseFrameManager.
 Client: ServerIp, SecondaryServerIp (NET-SRV-3), IsMultiplayer, Level, IncomingFrequency and the timeouts. Server:
@@ -219,7 +219,7 @@ secondary-server join (0x55D0EF), a constructor of the client side (0x561D9B) an
 statically; a run-time read is the way to get them.
 
 [exe: BFBC2Game.exe field names 0x142CC84-0x142CE80 (network / core), 0x142D100-0x142D714 (client / server), 0x142DC00-0x142DDB0 (game); setting strings 0x14183E4, 0x141D9FC, 0x1418624, 0x141D8F4, 0x141D9EC; readers 0x565654, 0x55D0EF, 0x561D9B, 0x8587CC, 0x6561A1]
-[doc: opfor:research/notes/srv5.txt:1-10]
+[doc: private:opfor-research/research/notes/srv5.txt:1-10]
 
 ### NET-CFG-2: Start-up options are looked up by name
 
@@ -310,10 +310,10 @@ The executable carries PunkBuster's client and server loaders: it looks for `pbc
 `pbclnew.dll`) and `pbsv.dll` (`pbsvold.dll` / `pbsvnew.dll`, `pbag.dll`) under `pb\`, and reports "PB Error: Client
 DLL Load Failure" otherwise. PunkBuster is switched by `Game.clpunkbuster` / `Game.svpunkbuster` (and the commands
 `set_cl_punkbuster` / `set_sv_punkbuster`); a PunkBuster kick is reason 13 (NET-VER-2). The game copy has no `pb\`
-folder, so neither side loads (DEVELOPMENT_NOTES, network guard). No other anti-cheat was found.
+folder, so neither side loads (DEVELOPMENT_NOTES (private research notes), network guard). No other anti-cheat was found.
 
 [exe: BFBC2Game.exe loader 0x5B83EC-0x5B89BA (strings 0x141AC90-0x141ADAC); settings 0x143C22C, 0x141B750; commands 0x141AE3C, 0x141AF4C]
-[doc: opfor:DEVELOPMENT_NOTES.md:182-183]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:182-183]
 
 ## 7. The server side
 
@@ -359,7 +359,7 @@ part of the client; it is how the client moves to a secondary server, and it is 
 (`engine/network_feasibility.md`).
 
 [exe: BFBC2Game.exe 0x55CE50 (event 10 -> 0x55D040); setting 0x14183F8 read at 0x55D07F, ':' search 0x55D0C6, ServerPort 0x55D0EF, format ":%d" 0x14183E0; message 0x551480 (type 0x14 at 0x551483, vtable 0x1417D20); post 0x55D17F; other constructors' callers 0x5B3FF5, 0x5B43C4, 0x952413, 0x95E5C2, 0x95F267]
-[doc: opfor:research/notes/srv6.txt:1-60]
+[doc: private:opfor-research/research/notes/srv6.txt:1-60]
 
 ## 8. EA's back-end, seen from the client
 

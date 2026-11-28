@@ -322,11 +322,11 @@
    "evidence": [
     {
      "kind": "data",
-     "ref": "OPFOR's menu patches hide controls this way in its installed movies (DEVELOPMENT_NOTES.md section 3), confirmed in game"
+     "ref": "OPFOR's menu patches hide controls this way in its installed movies (DEVELOPMENT_NOTES.md (private research notes) section 3), confirmed in game"
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:740-743"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:740-743"
     }
    ],
    "file": "spec/formats/apt.md",
@@ -439,7 +439,7 @@
    "evidence": [
     {
      "kind": "data",
-     "ref": "every movie of the game copy's movie sets (128) and the Xbox 360 menus pass; patched menus that broke these crashed while loading (OPFOR DEVELOPMENT_NOTES section 3)"
+     "ref": "every movie of the game copy's movie sets (128) and the Xbox 360 menus pass; patched menus that broke these crashed while loading (OPFOR DEVELOPMENT_NOTES (private research notes) section 3)"
     },
     {
      "kind": "test",
@@ -488,7 +488,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:730-734"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:730-734"
     }
    ],
    "file": "spec/formats/apt.md",
@@ -535,7 +535,7 @@
    "evidence": [
     {
      "kind": "data",
-     "ref": "OPFOR's menu patches crashed the menus when two PushData shared a list (DEVELOPMENT_NOTES.md section 3); no movie of the game copy shares one"
+     "ref": "OPFOR's menu patches crashed the menus when two PushData shared a list (DEVELOPMENT_NOTES.md (private research notes) section 3); no movie of the game copy shares one"
     },
     {
      "kind": "test",
@@ -547,7 +547,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:735-738"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:735-738"
     }
    ],
    "file": "spec/formats/apt.md",

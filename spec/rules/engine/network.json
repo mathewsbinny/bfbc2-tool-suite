@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:90-95"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:90-95"
     }
    ],
    "file": "spec/engine/network.md",
@@ -26,7 +26,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:95-98"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:95-98"
     }
    ],
    "file": "spec/engine/network.md",
@@ -47,7 +47,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:98"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:98"
     }
    ],
    "file": "spec/engine/network.md",
@@ -64,11 +64,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:625-630"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:625-630"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:100"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:100"
     }
    ],
    "file": "spec/engine/network.md",
@@ -85,7 +85,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:64-66"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:64-66"
     }
    ],
    "file": "spec/engine/network.md",
@@ -102,11 +102,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:154-160"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:154-160"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:171-173"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:171-173"
     }
    ],
    "file": "spec/engine/network.md",
@@ -123,7 +123,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:127-133"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:127-133"
     }
    ],
    "file": "spec/engine/network.md",
@@ -178,7 +178,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/notes/srv8.txt:1"
+     "ref": "private:opfor-research/research/notes/srv8.txt:1"
     }
    ],
    "file": "spec/engine/network.md",
@@ -225,7 +225,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/notes/srv5.txt:1-10"
+     "ref": "private:opfor-research/research/notes/srv5.txt:1-10"
     }
    ],
    "file": "spec/engine/network.md",
@@ -320,7 +320,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:182-183"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:182-183"
     }
    ],
    "file": "spec/engine/network.md",
@@ -363,7 +363,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/notes/srv6.txt:1-60"
+     "ref": "private:opfor-research/research/notes/srv6.txt:1-60"
     }
    ],
    "file": "spec/engine/network.md",

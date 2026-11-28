@@ -2,7 +2,7 @@ r"""Collect every named BFBC2Game.exe address the suite and Project OPFOR BFBC2 
 (round DC0; tools/decomp/README.md).
 
     python tools/decomp/extract_names.py --out <private>\index\names.json [--opfor <folder>] [--bfopfor <folder>]
-                                         [--old-symbols <jsonl>] [--exe <BFBC2Game.exe>]
+                                         [--private <folder>] [--old-symbols <jsonl>] [--exe <BFBC2Game.exe>]
 
 Sources, in order of precedence (a declared name - qualified, backticked, a table cell, a constant - beats words
 picked from a sentence; among equals an earlier source wins; every disagreement is listed in the output's
@@ -10,7 +10,9 @@ picked from a sentence; among equals an earlier source wins; every disagreement 
 
   1. spec      the specification: spec/**/*.md, each address with the rule id whose section cites it
   2. symbols   the crash reader's symbols_795745.txt (ADDRESS name | hint)
-  3. research  Project OPFOR BFBC2's research\BFBC2_DECOMP_RESEARCH.md
+  3. research  Project OPFOR BFBC2's research\BFBC2_DECOMP_RESEARCH.md, in the private repository since round DOC1
+               (--private, default BFBC2_DECOMP_DB or battlefield-decomp-work\bfbc2-decomp:
+               <private>\opfor-research\research\BFBC2_DECOMP_RESEARCH.md)
   4. hooks     Project OPFOR BFBC2's src\dll\bc2.h constants and battlefield-opfor's `bc2_795745` hook tables
   5. ghidra    an older Ghidra project's user and imported names (ExportSymbols.java's JSON lines)
 
@@ -46,6 +48,9 @@ def sibling(name: str) -> Path:
 
 DEFAULT_OPFOR = Path(os.environ['OPFOR_ROOT']) if os.environ.get('OPFOR_ROOT') else sibling('project-opfor-bfbc2')
 DEFAULT_BFOPFOR = sibling('battlefield-opfor')
+# the private decompilation repository (bfbc2core.paths.decomp_root's order); OPFOR's research is in opfor-research
+DEFAULT_PRIVATE = (Path(os.environ['BFBC2_DECOMP_DB']) if os.environ.get('BFBC2_DECOMP_DB')
+                   else sibling(os.path.join('battlefield-decomp-work', 'bfbc2-decomp')))
 PRECEDENCE = ('spec', 'symbols', 'research', 'hooks', 'ghidra')
 
 # BFBC2Game.exe build 795745's image (image base 0x400000; .text to .rsrc), used when the exe is not given.
@@ -285,6 +290,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument('--out', required=True)
     ap.add_argument('--opfor', default=str(DEFAULT_OPFOR))
     ap.add_argument('--bfopfor', default=str(DEFAULT_BFOPFOR))
+    ap.add_argument('--private', default=str(DEFAULT_PRIVATE))
     ap.add_argument('--old-symbols', default='')
     ap.add_argument('--exe', default='')
     a = ap.parse_args(argv)
@@ -296,8 +302,9 @@ def main(argv: list[str]) -> int:
     counts['spec'] = sum(scan_markdown(entries, p, p.relative_to(SUITE).as_posix(), 'spec', ranges, True)
                          for p in sorted(SPEC.rglob('*.md')))
     counts['symbols'] = scan_symbols(entries, SYMBOLS, ranges) if SYMBOLS.is_file() else 0
-    research = opfor / 'research' / 'BFBC2_DECOMP_RESEARCH.md'
-    counts['research'] = scan_markdown(entries, research, 'opfor:research/BFBC2_DECOMP_RESEARCH.md', 'research',
+    research = Path(a.private) / 'opfor-research' / 'research' / 'BFBC2_DECOMP_RESEARCH.md'
+    counts['research'] = scan_markdown(entries, research, 'private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md',
+                                       'research',
                                        ranges, False) if research.is_file() else 0
     hooks = 0
     bc2h = opfor / 'src' / 'dll' / 'bc2.h'
