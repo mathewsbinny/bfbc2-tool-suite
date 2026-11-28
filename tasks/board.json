@@ -1832,6 +1832,23 @@
 },
 {
 "category": "navai",
+"code": "BOT0",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "bot0",
+"lane": "run",
+"note": "A capability matrix (the retired BF1943 bot module, Project Phoenix, BFBC2 today, DICE's AI), offline measurements per map, a gap ranking, the orders-or-input decision and a round plan for the priority track; read-only; report in _rounds/bot0",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": null,
+"tags": [],
+"title": "The bot baseline: the BF1943 bot work and Project Phoenix against ours, measured",
+"version": ""
+},
+{
+"category": "navai",
 "code": "BOTS-BREACH",
 "contention": false,
 "date": "2026-10-23",
@@ -2600,6 +2617,23 @@
 "tooling"
 ],
 "title": "Remove the old BF1943 path fallback (operation-rising-sun)",
+"version": ""
+},
+{
+"category": "navai",
+"code": "DQ0",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "dq0",
+"lane": "run",
+"note": "Each spec / KB open question classed STATIC, STATIC-PARTLY, LIVE, DATA or SETTLED, checked against DC0 and Project Phoenix's engine notes, grouped into 1-3 h research rounds by value to the priority track; report in _rounds/dq0",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": null,
+"tags": [],
+"title": "Every open RE question sorted: answerable from the decompiled database or needing the game",
 "version": ""
 },
 {
@@ -4882,10 +4916,14 @@
 "depends": [],
 "id": "nam-bots",
 "lane": "later",
-"note": "NavKit builds and stock-MP AI layers for the Vietnam expansion's maps, with what keeps them from playing offline fixed; the Vietnam mode stays opt-in (the Vietnam owned ruling)",
+"note": "NavKit builds and stock-MP AI layers for the Vietnam expansion's maps, with what keeps them from playing offline fixed; the Vietnam mode is on by default since 2026-11-22 (`vietnam=0` turns it off; the Vietnam owned ruling)",
 "onRoadmap": true,
 "repo": "suite · bfo",
-"score": null,
+"score": {
+"d": 4,
+"h": 16.0,
+"t": 4
+},
 "tags": [
 "eras"
 ],

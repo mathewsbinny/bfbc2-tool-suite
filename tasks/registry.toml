@@ -98,6 +98,14 @@ definition = "Release packaging, installers, licences and credits, licensing rul
 
 [[priority]]
 rank = 1
+title = "Bots in offline MP and the BFBC2 single-player in battlefield-opfor's host"
+ruled = "2026-11-28"
+by = "the user"
+source = "chat, 2026-11-28: \"let's focus on the priority order (bots + single-player first); use the bot work from BF1943 as a point of reference to start from, and measure where we could improve and how\""
+tasks = ["bot0", "dq0", "bfo-fix4", "hk1a-c", "levelfix-counts", "vr-fix4", "era-tags", "mv0-9", "mv0-11", "ais-rest2", "stockmp-next", "a2-rest", "nam-bots", "inp0-inp6", "live-runs"]
+
+[[priority]]
+rank = 2
 title = "Finish the OR rounds, then the Python exit"
 ruled = "2026-11-27"
 by = "the user"
@@ -105,7 +113,7 @@ source = "three-repo plan step 1; the Python exit goal PX1-PX7 (PY1 became PX4, 
 tasks = ["or13", "hk0-table", "dp1", "da0", "px1", "navregress-help", "px2", "px3", "px4", "px5", "px6", "px7"]
 
 [[priority]]
-rank = 2
+rank = 3
 title = "The xenolith migration"
 ruled = "2026-11-27"
 by = "the user"
@@ -113,16 +121,15 @@ source = "three-repo plan step 2; XM0 (the user: \"do the XM rounds\")"
 tasks = ["xm1", "xm2", "xm1-fmt", "sc1", "sc1-sm3", "da0-apply", "dp1-rest", "xm3", "xm4", "xm5-xm8", "xm9-xm11"]
 
 [[priority]]
-rank = 3
+rank = 4
 title = "battlefield-opfor's phase"
 ruled = "2026-11-27"
 by = "the user"
 source = "three-repo plan step 3; XBM0, MC0, XB3D0, HK0"
-tasks = ["bfo-fix4", "hk1a-c", "levelfix-counts", "vr-fix4", "era-tags"]
 lanes = ["bfo"]
 
 [[priority]]
-rank = 4
+rank = 5
 title = "The post-Rust improvements' rest"
 ruled = "2026-11-19"
 by = "the user"
@@ -130,23 +137,23 @@ source = "priority 4, re-scoped 2026-11-20 (PR0) and 2026-11-21 (AU5)"
 tasks = ["pr1c", "au6"]
 
 [[priority]]
-rank = 5
+rank = 6
 title = "The editor, its export and the rendering"
 ruled = "2026-11-19"
 by = "the user"
 source = "priority 7, with the 2026-11-21 to 2026-11-27 additions (VW, TG, AUT); RD1 and CM0 at the end of the queue"
-tasks = ["e6", "renderdoc", "vw2-rest", "vw2e", "vw3", "a2-rest", "a3", "tg5", "in1-rest", "mm1-rest", "aut0-aut7", "ww2-map", "rd1", "cm0"]
+tasks = ["e6", "renderdoc", "vw2-rest", "vw2e", "vw3", "a3", "tg5", "in1-rest", "mm1-rest", "aut0-aut7", "ww2-map", "rd1", "cm0"]
 
 [[priority]]
-rank = 6
+rank = 7
 title = "The specification, NavKit parity and the reverse-engineering oracles"
 ruled = "2026-11-27"
 by = "the user"
 source = "NKM / ER / RC beside DC0 (2026-11-27); the spec follow-ups (2026-11-23 to 2026-11-27)"
-tasks = ["nkm0-nkmn", "er0-ern", "rc0-rc3", "spg-rests", "ais-rest2", "gm0-rest", "ui0-ui3", "nk5-rest2", "nam-bots"]
+tasks = ["nkm0-nkmn", "er0-ern", "rc0-rc3", "spg-rests", "gm0-rest", "ui0-ui3", "nk5-rest2"]
 
 [[priority]]
-rank = 7
+rank = 8
 title = "After the BFBC2 editor is complete"
 ruled = "2026-11-22"
 by = "the user"
@@ -154,7 +161,7 @@ source = "the multi-game goal; the x64 recompilation (2026-11-27)"
 tasks = ["mg0", "rcx0-rcxn"]
 
 [[priority]]
-rank = 8
+rank = 9
 title = "Last: the full suite release (ask the user first)"
 ruled = "2026-11-22"
 by = "the user"
@@ -1229,6 +1236,18 @@ body = "Runtime features ported, the stock-MP bots layer, a console aimer CLI, l
 source = "bfo 911dea4"
 
 [[task]]
+id = "bot0"
+code = "BOT0"
+title = "The bot baseline: the BF1943 bot work and Project Phoenix against ours, measured"
+lane = "run"
+repos = ["suite", "bfo"]
+category = "navai"
+raised = "2026-11-28"
+started = "2026-11-28"
+body = "A capability matrix (the retired BF1943 bot module, Project Phoenix, BFBC2 today, DICE's AI), offline measurements per map, a gap ranking, the orders-or-input decision and a round plan for the priority track; read-only; report in _rounds/bot0"
+source = "the user, 2026-11-28 (priority ruling)"
+
+[[task]]
 id = "bots-breach"
 code = "BOTS-BREACH"
 title = "Breach links through destruction"
@@ -1719,6 +1738,18 @@ depends = ["da0-apply", "dp1"]
 score = { d = 1, t = 1, h = 0.5 }
 body = "Once the data sits in _data/extracted/bf1943: BF1943_OLD_XENON / BF1943_WORKSPACE, bf1943src::OLD_XENON and their test go; spec B43-SRC-1."
 source = "TR0; dp1 branch ROADMAP row; BENCHMARKS DP1 Left"
+
+[[task]]
+id = "dq0"
+code = "DQ0"
+title = "Every open RE question sorted: answerable from the decompiled database or needing the game"
+lane = "run"
+repos = ["suite", "bfo"]
+category = "navai"
+raised = "2026-11-28"
+started = "2026-11-28"
+body = "Each spec / KB open question classed STATIC, STATIC-PARTLY, LIVE, DATA or SETTLED, checked against DC0 and Project Phoenix's engine notes, grouped into 1-3 h research rounds by value to the priority track; report in _rounds/dq0"
+source = "the user, 2026-11-28"
 
 [[task]]
 id = "dx9-port"
@@ -3190,7 +3221,8 @@ repos = ["suite", "bfo"]
 category = "navai"
 tags = ["eras"]
 raised = "2026-11-28"
-body = "NavKit builds and stock-MP AI layers for the Vietnam expansion's maps, with what keeps them from playing offline fixed; the Vietnam mode stays opt-in (the Vietnam owned ruling)"
+score = { d = 4, t = 4, h = 16.0 }
+body = "NavKit builds and stock-MP AI layers for the Vietnam expansion's maps, with what keeps them from playing offline fixed; the Vietnam mode is on by default since 2026-11-22 (`vietnam=0` turns it off; the Vietnam owned ruling)"
 source = "KB1 contradiction K15"
 decisions = [
     { date = "2026-11-28", by = "the user", source = "TK0 review page (K15) and chat, 2026-11-28", choice = "Yes: bots on every Vietnam map (NavKit builds and stock-MP AI layers for them)", note = "Vietnam's maps also get bots and restoration to playability" },
