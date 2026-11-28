@@ -116,14 +116,14 @@ def build(db: Path) -> dict[str, int]:
                         (e['addr'], func, c['rule'], c['source'], c['where'], c['name'], c['context']))
             n['cites'] += 1
     for k, v in founds.items():
-        con.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', (k, json.dumps(v)))
+        con.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', (k, json.dumps(v, sort_keys=True)))
     for k, v in statuses.items():
-        con.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', ('decompile_' + k, json.dumps(v)))
+        con.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', ('decompile_' + k, json.dumps(v, sort_keys=True)))
     meas = idx / 'measure.json'
     if meas.is_file():
         for k, v in json.loads(meas.read_text(encoding='utf-8')).items():
             if not k.startswith('decompile'):        # the statuses above count the merged exports
-                con.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', (k, json.dumps(v)))
+                con.execute('INSERT OR REPLACE INTO meta VALUES (?,?)', (k, json.dumps(v, sort_keys=True)))
     con.executescript(INDEXES)
     con.commit()
     con.close()
