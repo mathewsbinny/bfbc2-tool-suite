@@ -6393,6 +6393,262 @@ bundle manifests and `startup-00` untouched).
 - The in-process FbrbTool / DbxEdit commands still write no tool log ("details: (no log file)", as OR9).
 - **Unproven until a playtest**: nothing new in game - the bundles are the Python's byte for byte.
 
+## DC0: the decompiled database of BFBC2Game.exe (2026-11-27, branch `dc0`)
+
+DC0 builds a Ghidra database of `BFBC2Game.exe`: PC build 795745, 32-bit x86, 19,322,816 bytes, SHA-1
+`a48f7aea8bc0ec9087ea3efb91d5f41df4a3f6f9`. The database has:
+
+- MSVC RTTI and Frostbite's reflection as classes;
+- the spec's typeinfo records as types;
+- the spec's and Project OPFOR's named addresses;
+- every function decompiled to pseudo-C;
+- an SQLite index and a lookup tool.
+
+**The database is EA-derived and private.** It is in `C:\Programming\Projects\bfbc2-decomp-private\` (or
+`BFBC2_DECOMP_DB`), outside every repo; `run_dc.py` refuses a folder inside a git checkout. Only `tools/decomp/` is
+committed: the scripts, generators and lookup, with no decompiled code, strings or Ghidra output. Use is documented
+in `tools/decomp/README.md`; how rules cite it is in `spec/README.md`, "The decompiled database".
+
+### What was done
+
+**Analysis.**
+- Ghidra 12.1.4 headless, default analysers: x86 PE, MSVC RTTI, the decompiler's switch analysis, constant
+  references, non-returning functions.
+- 1,273 s at a 6 GB heap. The later passes ran at 9 GB, then 7 GB: free RAM fell to about 2.4 GB while the other
+  rounds built.
+- Result: 59,873 functions. Project and output total about 1.2 GB. C: stayed at 39 - 41 GB free.
+
+**Classes** (`ApplyTypes.java`).
+
+- MSVC RTTI gives only 282 vftables (Kynapse `Kaim::`, Apt, the C++ runtime): the engine is built without RTTI.
+- Frostbite's reflection gives the rest:
+  - the registration calls (RTTI-REG-1) map 1,986 class infos to their record names;
+  - a byte scan finds 3,639 `getType` bodies, `mov eax, <class info>; ret` (RTTI-FAC-1);
+  - the aligned data words pointing at them are vtable slots, and each vtable starts at the slot a constructor's
+    code references: 1,609 vtables.
+- Across all 1,891 vtables:
+  - 25,343 slots read;
+  - 4,801 functions made where a slot pointed at code with none;
+  - 11,893 functions placed in their class, all as `__thiscall`. A function is placed when it is in one class's
+    vtables, or in several of which one is the others' typeinfo ancestor (512), or when it stores only that class's
+    vftables (constructors and destructors, the most derived when several).
+
+**Types** (`gen_types.py` and `ApplyTypes.java`).
+
+- `spec/typeinfo.json`'s records become 2,248 Ghidra types:
+  - 2,017 structures and 231 enums;
+  - the arrays as `Array<T>` (16 bytes) or `RefArray<T>` (20 bytes);
+  - 8,405 members placed, 0 skipped.
+- 1,335 types match a class of the same name, so the `this` of that class's functions has its layout: 9,672
+  functions.
+
+**Names** (`extract_names.py` and `ApplyNames.java`).
+
+- 3,323 distinct in-image addresses from 5,333 citations:
+
+  | Source | Citations |
+  |---|---|
+  | the spec's markdown, each with its rule id | 5,057 |
+  | OPFOR's `research\BFBC2_DECOMP_RESEARCH.md` | 176 |
+  | the hook tables (OPFOR's `src\dll\bc2.h`, battlefield-opfor's `bc2_795745` constants) | 53 |
+  | the crash reader's `symbols_795745.txt` | 44 |
+  | OPFOR's old `research\ghidra_project` | 3 |
+
+  The old Ghidra project held no user names: 2,926 of its 2,928 symbols were imported RTTI and export labels,
+  which the new analysis makes itself.
+- 936 of the addresses have a name. A declared name beats words picked from a sentence; among declared names the
+  spec wins. There are 7 conflicts, listed in the private `names.json`, for example 0x77BC10 `main_menu_command_dispatcher`
+  against the hooks' `MainMenuDispatcher` and 0x951E00 `offline_host_request_hostMultiplayerLocal` against
+  `ProcessStartRequests`.
+- Where the addresses landed, at apply time:
+
+  | Landed | Addresses |
+  |---|---|
+  | a function's entry (359 renamed, the rest already named by export or RTTI) | 1,089 |
+  | inside a function | 1,091 |
+  | data | 455 |
+  | code in no function (160 were later in orphan functions) | 354 |
+  | undefined bytes in code (43 later in discovered functions) | 129 |
+  | undefined data | 137 |
+  | inside an instruction | 68 |
+
+  Every address carries a `[DC0]` comment with its rule ids.
+
+**Function discovery** (`DiscoverFunctions.java`, then `ConfirmFunctions.java`). Two passes over what analysis left
+outside functions in `.text`, skipping 0x0124F000 - 0x012BFFFF:
+
+- 6,083 **orphan** functions, made at the first instruction of code that was disassembled but in no function;
+- 27,369 **prologue** functions, made at 16-byte boundaries after padding or a return whose bytes start like an
+  MSVC prologue. 27,371 were tried; 2 were rejected because their flow met a bad instruction.
+
+Each function's `found` (`analysis` / `orphan` / `prologue`) is in the index.
+
+The prologue functions, and every function in the skip range, are **doubtful**. A doubtful function is confirmed
+only by an independent reference to its entry:
+- a call or jump from a trusted function (repeated to a fixed point);
+- disassembled code;
+- a data reference, or an aligned data word holding its address;
+- an export.
+
+| Doubtful | Confirmed | Unconfirmed |
+|---|---|---|
+| prologue | 319 | 27,050 |
+| skip range | 523 | 29 |
+
+Unconfirmed functions keep their pseudo-C but are left out of `--callers` / `--callees` unless `--all` is passed.
+
+**Hand check** of 50 random unconfirmed prologue functions (seed 42), disassembled by capstone:
+
+- All 50 are well-formed MSVC code ending in `ret`: accessors, comparators, `memmove` wrappers through the IAT
+  (0x1405510), EASTL allocator asserts, small loops.
+- None is a string table, a jump table or float data misread as code: a false-positive rate of 0 / 50 (95 % upper
+  bound about 6 %).
+- They read as real functions that nothing references: dead template instantiations the linker kept. That reading
+  is inferred; DC0 did not prove it.
+
+**The skip range.** Its lower part, roughly 0x0124F000 - 0x0129FFFF, is obfuscated code (opaque `jo` / `jno` pairs,
+`cpuid`, paired `xchg`) and reads as the executable's protection layer. DC0 decompiled it as it decompiles
+everything, then analysed it no further. Under the copy-protection ruling no later round may. Its upper part
+(0x012A0000 - 0x012BFFFF) reads as ordinary library code.
+
+**Decompile** (`ExportDb.java`, 4 decompiler processes).
+
+- 98,130 functions in two range exports:
+  - 0x00400000 - 0x0124FFFF at 90 s per function: 89,640 functions in 700 s;
+  - 0x01250000 - end at 4 s: 8,490 functions in 152 s. The skip range times the decompiler out.
+- Results: 97,600 decompiled, 413 thunks, 113 timeouts (110 of them in the skip range), 4 failures.
+- Output: 78 MB of pseudo-C in 64 KiB files, and a 76 MB index folder.
+
+### Measure
+
+| | Count | Share |
+|---|---|---|
+| functions | 98,130 | 64,678 analysis, 6,083 orphan, 27,369 prologue |
+| trusted (not doubtful, or confirmed) | 71,051 | 72.4 % |
+| named (not `FUN_`, by source) | 1,774 | 1.8 % (2.5 % of trusted) |
+| in a class | 11,893 | 12.1 % (16.7 % of trusted) |
+| `this` typed with a typeinfo layout | 9,672 | 9.9 % |
+| signature set (not Ghidra's default) | 596 | 0.6 % |
+| executable bytes | 16,793,600 | |
+| bytes in functions | 12,934,098 | 77.0 % (analysis alone: 11,305,714, 67.3 %) |
+| bytes in trusted functions | 11,829,497 | 70.4 % |
+
+**Gaps** (RCX0's inputs; the private `index\gaps.jsonl` lists each one). All figures are for executable memory
+outside every function.
+
+| Gap | `.text` outside the skip range | skip range | `ctr` / `CONST` (static initialisers) | total |
+|---|---|---|---|---|
+| regions | 10,999 | 608 | 726 | 12,333 with code or 64+ undefined bytes; 101,951 in all |
+| instructions | 202,140 | 12,992 | 16,146 | 231,278 (729,574 bytes) |
+| undefined, non-padding bytes | 1,650,613 | 290,637 | 107,036 | 2,520,248 (10,011 regions of 64+) |
+| padding bytes (`CC` / `90` / `00`) | | | | 556,591 |
+| defined data bytes | | | | 53,191 |
+| computed jumps unresolved | 1,182 | 268 | 0 | 1,450 of 2,584 (892 `jmp reg`, 556 `jmp [mem]`; 515 in no function) |
+| computed calls unresolved | | | | 55,487 of 72,429 (virtual and function-pointer calls; 300,346 calls in all) |
+
+Ghidra's error bookmarks: 515.
+
+### For RCX0 (x64 recompilation)
+
+- **Trust only the trusted set.** That is 71,051 functions and 70.4 % of executable bytes. The 27,050 unconfirmed
+  prologue functions are real code that nothing references; lift them only if something reaches them at run time.
+- **The 1,450 unresolved computed jumps** need switch recovery or run-time tables. Most are in `.text`: 892 are
+  `jmp reg` (tail calls through registers, or switches Ghidra could not bound), 556 `jmp [mem]`.
+- **The 55,487 unresolved computed calls** are mostly virtual calls. The 1,891 vtables (25,343 slots) give their
+  target sets per class.
+- **202,140 instructions in no function** in `.text`, and **1.65 MB of undefined non-padding bytes**. The largest
+  regions are listed in `measure.json`, for example 0x00A74E21 - 0x00A78ACF (15.5 KB) and 0x00F4BF24 - 0x00F4DF3F.
+  Each needs a decision: code reached at run time, or data.
+- **The skip range stays out of scope** (copy protection).
+- **The decompile failures**: 113 timeouts and 4 failures, listed in the index with their status.
+
+### Spec addresses that look wrong (reported, not changed)
+
+68 cited addresses lie inside an instruction:
+
+- 41 are the operand bytes of an instruction (`push imm32` + 1 and the like), a citation style rather than an
+  error. `spec/README.md` now asks for instruction starts.
+- 3 are file offsets, named as such: MAT-TEX-6 and VEG-UG-3.
+- The rest are range ends, scan bounds, or addresses in the skip range.
+
+Three cite a function where the address is mid-function and mid-instruction:
+
+- **ERA-LIC-1** (`spec/engine/gamemodes.md:359`): "the persistent-weapon checks 0x652380 / 0x6524C0". Both lie
+  inside 0x652290 (385 bytes) and 0x652420 (248 bytes). Those two functions, both called from 0x662560, are the
+  likely intent.
+- **`spec/formats/animtree.md:165`**: "The run-time tree (0xF69140)". It lies inside an instruction of 0xF69030
+  (2,030 bytes).
+
+No rule was changed; the owning rounds should check these.
+
+### Tests
+
+- `tests/test_decomp_tools.py` (quick tier, `decomp-tools`; synthetic input only): names from spec text,
+  precedence, the type plan, and the lookup on a small built index, including unconfirmed functions and `--all`.
+- `ruff` and `mypy` are clean on `tools/`, which is now in `tests/test_lint.py` and `tests/test_types.py`.
+- `spec/trace.py --check`: ok.
+
+### What is left
+
+- Names cover only 1.8 % of functions. Next steps: more of the reflection (the member tables' getters and setters,
+  the factories' creators by class), `EASTL` / CRT signatures (Ghidra's Function ID found few), and the hook tables
+  of the WW2 DLL.
+- Signatures are mostly Ghidra's defaults: 596 set. Decompiler parameter ID was not run, being too slow for 98k
+  functions.
+- `RecoverClassesFromRTTIScript` was not run. DC0's own vtable pass covers the reflected classes; multiple
+  inheritance (`vftable{for X}`) is only placed for RTTI classes.
+- The 27,050 unconfirmed functions: a run-time trace (RCX0's harness) would settle which are reached.
+## GM4: N native eras - every limit on the era count, and a host era table (2026-11-27, branch `gm4`)
+
+GM1 settled four native eras (0 BFBC2, 1 Vietnam, 2 Pacific War, 3 BFBC1). GM4 asked what stops a fifth, and how GM2's
+patch set can serve any number of eras from a host-owned table.
+
+**Method.** Static only:
+
+- capstone over a scratch copy of `BFBC2Game.exe` (PC build 795745);
+- `bfbc2 apt dump` of DICE's 22 Package main-menu movies (OPFOR's `work/aptgraft` copy) and OPFOR's hudlayer_shared /
+  mp_objectives dumps;
+- `bfbc2 aptrefs` for extern ids and cases.
+
+Nothing was run, launched or built. Nothing was written to `game\`. DC0's database answered only a name lookup: its
+caller and pseudo-C queries failed while it re-exported, so callers came from a scan of the image for `call` / `jmp` /
+pointer targets.
+
+| Question | Found | Rules |
+|---|---|---|
+| the field | +0xC8C8C / +0xC8C90 are dwords (11 `mov dword` stores); no array indexed by the value; only two imm8 sites would carry N (the tracker bound, GM1's label test), so N <= 125 | ERA-N-1, ERA-N-4 |
+| every limit | the parser (2 tags), the setter's labels (2), the gate, the 20 `== 1` sites, `UISharedConfigAsset`'s two slot pairs, the weapon maps and unlock grid (2 each), the tag builders (3 / 7 bytes), the menu tracker (4 pages), the launcher pipe (0 / 1), the online strings, the movies (2 - 4 frames) | ERA-N-1 |
+| the new-item tracker (GM1's open question) | the key is a `UIMenuTrackerPage`: Awards 0, MenuUnlocks 1, MenuUnlocksVietnam 2, Store 3, Count 4. The writer is 0x9573F0 (pages 0 / 1 / 2 only); the loader 0x957140 reads pages 0 - 3 (`cmp eax, 4` at 0x9573D1); the saver 0x932CB0 writes the `GstMenuTracker` profile entries. GM1's "era + 1" would put era 2 on the Store page and era 3 on a page never read back; the rule is page k + 2 | ERA-N-2 |
+| tag lengths | the builders allocate 4 / 8 and copy 3 / 7 by immediates; a 3- or 7-character tag needs a pointer only, any other length a builder cave (0x942266 - 0x942320) | ERA-N-5 |
+| a third setter caller | UI message 0x38 comes from the launcher pipe `\\.\pipe\rome_snowroller`: `expansion` = `bfbc2vietnam` -> 1, else 0 (0x5B5108) | ERA-N-6 |
+| dead ends | the tag helper 0x9201A0 (no caller), `extern.seenMenu` (a page parameter, no movie), `extern.fillColor` (constant orange), the `BFBC2` compare at 0x662409 (an entitlement group) | ERA-N-7 |
+| the design | a host table, one row per era (tag, label, the four names, shared config, weapon map, tracker page, sign-in and redeem policy); GM2's thunks index it; online search left DICE's | ERA-N-8, ERA-N-9, ERA-N-13 |
+| era 4's cost | on a table-built GM2: one row, N = 5 (tracker bound 7), the era's GM3-style data set and the menu frames; on a hard-coded GM2: about 15 sites change | ERA-N-10 |
+| labels | the engine never parses a label back (the only references are the setter's pushes; `setGameMod` is ActionScript only); the movies match it as frame labels, in three `"BFBC2Nam"` compares and in the empty-label fallback; no string operation on it, so no prefix or length matters; a label is a key, renaming the visible name is art and text | ERA-N-11 |
+| a fifth frame | 17 sprites carry era frames (main_nav 9, hudlayer_shared 4, sharedGraphics 2, weaponicon 2); only bgBar 466 / loggo_mc 477 have four; a missing label leaves the previous era's art. The selector 443 is a two-state toggle sending `"0"` / `"1"` | ERA-N-12 |
+
+**Probe and checks** (game tier; addresses and digests only, nothing of EA's kept). `spec/probes/gamemodes.py` gained
+`N_SITES`: 9 ranges with sha256 prefixes, the boundary check and the overlap check against the kept Vietnam ranges.
+It also reads the tracker's page bound (4). The whole probe takes 7.3 s, and `core/tests/test_spec_probes.py::game_modes`
+now checks 28 answers.
+
+**Rules** went from 1,657 on main to 1,670: eras_n.md has 13 (2 verified, 6 observed, 5 inferred). eras.md's ERA-SITE-5
+and ERA-SITE-4 carry the corrections. These pass: `spec/trace.py --check`, `spec/probes/census.py --check`
+(CENSUS.md rewritten) and the game_modes step.
+
+### Playtests still pending (in-game tests are paused)
+
+- ERA-N-2: a page above 3 saved to GameSettings.bin and read back by the patched loader.
+- ERA-N-11: APT's `gotoAndStop` with an unknown or numeric-looking label.
+- ERA-N-12: a fifth era's frames in each of the four movies, and the load-time picks after a level.
+- ERA-N-13: the in-process server's level list with an era tag in +0xB8.
+
+### What is left (GM4)
+
+- Whether battlefield-opfor's launcher uses the `rome_snowroller` pipe. Only OPFOR's source was searched.
+- The Store page's writer on PC (none found), and the page-0 source 0x9484A0 as the award list (inferred).
+- GM1's open questions stand: 0x9381F0's Vietnam map keys, the server strings' writers, a missing asset's handle.
+
 ## OR10: OPFOR in Rust - the Onslaught console port, stages 5 - 7 (2026-11-27, branch `or10`, with Project OPFOR's `or10`)
 
 The plan's second round ("OR9", "The plan"): `console_port.py`'s stages 5 `console_vehicles`, 6 `console_soldiers` and

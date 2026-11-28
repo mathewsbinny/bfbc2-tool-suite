@@ -90,6 +90,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BF1943_XENON': ('paths', "Battlefield 1943's extracted Xbox 360 data (default: beside the suite)"),
     'BF1943_SUITE_FBRB': ('paths', "the BF1943 tool suite's bundle reader folder (bf1943-fbrb-tool)"),
     'OPFOR_ROOT': ('paths', 'the Project OPFOR BFBC2 checkout (default: found beside or above the suite)'),
+    'BFBC2_DECOMP_DB': ('paths', "the private decompiled database of BFBC2Game.exe (tools/decomp; default bfbc2-decomp-private beside or above the suite)"),
+    'BFBC2_GHIDRA': ('paths', 'the Ghidra install tools/decomp/run_dc.py runs headless (default C:\\Tools\\ghidra_12.1.4_PUBLIC)'),
     'OPFOR_TOOLKIT': ('paths', "the folder holding the suite as Project OPFOR sees it (OPFOR's opforcore.paths)"),
     'OPFOR_GAME': ('paths', "a game folder for levelwrite's export tests (default: OPFOR's game copy)"),
     'OPFOR_REBUILD_TRACK': ('paths', "set for each WW2 rebuild step by the runner (bc2_install::rebuild): the folder "

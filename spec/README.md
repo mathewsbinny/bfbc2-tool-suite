@@ -123,6 +123,31 @@ fn varint_shortest_form() {
 
 After editing rules: `python spec/trace.py --emit`, then `--check`.
 
+## The decompiled database (round DC0)
+
+A Ghidra database of `BFBC2Game.exe` (PC build 795745) with every function decompiled to pseudo-C lives **outside
+every repo**, in `bfbc2-decomp-private` beside the checkouts (`BFBC2_DECOMP_DB`). It is EA-derived and private. Its
+build scripts and the lookup tool are `tools/decomp/` (README there):
+
+```
+python tools/decomp/decomp.py 0x5B33C0          the function containing an address, with its pseudo-C
+python tools/decomp/decomp.py --rule AI-START-2  the addresses a rule cites, each with its function
+```
+
+How rules use it:
+
+- **Cite by address**, as before: `[exe: BFBC2Game.exe 0x5B33C0 ...]`. An address is the fact; the database is how a
+  reader checks it. A function's address is its entry; an address inside a function names an instruction's first byte
+  (or say "the operand of the instruction at ..."). Ranges are `first - last`, both addresses in the image (file
+  offsets say "file offset").
+- **Never paste decompiled code, pseudo-C or the strings it shows** into a rule, a test or any committed file. Describe
+  what the code does in your own words, with addresses, offsets, constants and names (the facts DC0 may commit).
+- A name Ghidra shows (`Session::setState`, a reflected class's `ClientSoldierEntity::...`, `spec_<words>`) may be
+  quoted when it helps; the address stays the citation. `spec_` names are words DC0 picked from a rule's sentence, not
+  DICE's names.
+- Every address the spec cites carries a `[DC0]` comment in the database naming the citing rule ids; the next refresh
+  (`run_dc.py plan apply export index`) picks up new rules.
+
 ## Contents
 
 | File | Covers |

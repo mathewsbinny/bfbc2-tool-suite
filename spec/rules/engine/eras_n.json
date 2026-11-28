@@ -1,0 +1,206 @@
+{
+ "about": "The rules of spec/engine/eras_n.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe every address in the table; the 33 + 8 field instructions re-read: 5 + 6 stores, all `mov dword`"
+    },
+    {
+     "kind": "inferred",
+     "ref": "from ERA-MOD-1, ERA-SITE-1 - ERA-SITE-6, ERA-UI-1, ERA-UI-2 and ERA-N-2 - ERA-N-7"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-1",
+   "status": "observed",
+   "title": "Every place that bounds the era count",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: `tracker_pages` 4 (the immediate at 0x9573D1); ranges `tracker.bound`, `tracker.writer`, `seen.a.key` - `seen.d.key` with their digests, on instruction boundaries"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/engine/typeinfo/game_shared.md, UIMenuTrackerPage: Awards 0, MenuUnlocks 1, MenuUnlocksVietnam 2, Store 3, Count 4"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x9573F0 - 0x957743 (state 7 -> 15 at 0x95741E - 0x957428; page 0 loop 0x957460 - 0x9574BA; page 1 0x9574F1 - 0x95754B; page 2 0x9575CD - 0x957627); 0x957140 - 0x9573EE (0x9571DD - 0x9571F2 the name, 0x95720A the getter 0x80D4B0, `;` 0x140A434, bound 0x9573D1); 0x932CB0 - 0x932E6B (`:%d` 0x14183E0, 0x82FCF0, 0x9205A0); 0x94D440 (byte flag: +0x138 or +0x134); 0x920D24 - 0x920D86; callers of 0x955520 and 0x921200 (all in 0x957140 / 0x9573F0)"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-2",
+   "status": "verified",
+   "title": "The menu tracker keeps four pages, and DICE's page 3 is the Store",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: `n_sites` 9 digests, `n_ragged` none, `n_keep_overlap` none"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-3",
+   "status": "verified",
+   "title": "The N-era patch ranges beyond GM1's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-NAT-2, ERA-N-2, ERA-N-3 and the imm8 encodings at 0x9573D1 (`83 F8 04`) and 0x75FDB2 (`83 FD 01`)"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-4",
+   "status": "inferred",
+   "title": "Two immediates bound N; every other site reads the table",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x942266 - 0x942324 (`push 4` 0x942279, `push 3` 0x94228C, `push 8` 0x9422C8, `push 7` 0x9422DB, the empty branch 0x942302); 0x9519B8 - 0x951A5E (the same shape); 0x77C9AC - 0x77CA77"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-5",
+   "status": "observed",
+   "title": "The tag builders copy 3 or 7 bytes; other lengths need the builder cave",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5B5040 - 0x5B5144 (`expansion` 0x141A4F8, `bfbc2vietnam` 0x141A4E8 compared through 0x4304D0 at 0x5B510E; the message: size 0x30, type +0x20 = 0x38, value +0x28, vtable 0x1419640); 0x964A80 - 0x964A96 (`id - 0x12`, byte table 0x965324, dword table 0x9652E4); 0x964E38 - 0x964E4A; the pipe name 0x141A4CC (0x5B4E07)"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-6",
+   "status": "observed",
+   "title": "The launcher pipe sets era 0 or 1 from its `expansion` parameter",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x9201A0 - 0x9201D9 (no `call` / `jmp` / pointer to it in the image); 0x95CEFA - 0x95CF2E; 0x91C9E0; 0x9127D0; 0x95D7E2 - 0x95D81B; 0x662343 - 0x662419 (`ACTIVE` 0x141C1AC, `:ADDSVETRANK` 0x141DECC)"
+    },
+    {
+     "kind": "data",
+     "ref": "bfbc2 aptrefs on DICE's Package and HUD movies, 2026-11-27: `seenMenu` in the exe's table, in none of the 128 movies read; `fillColor` read by 31 movies of the menu, mp2_hud and nam_hud sets"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-7",
+   "status": "observed",
+   "title": "The era paths that need nothing",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-N-1 - ERA-N-7, ERA-SITE-1 - ERA-SITE-5, ERA-NAT-1 - ERA-NAT-5"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-8",
+   "status": "inferred",
+   "title": "A host-owned era table, one row per era value",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-NAT-2 - ERA-NAT-5, ERA-SITE-2 - ERA-SITE-5, ERA-N-2 - ERA-N-5, ERA-N-13"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-9",
+   "status": "inferred",
+   "title": "GM2's patch set, read from the table",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-N-8, ERA-N-9, ERA-N-12 and the GM3 row of the ROADMAP"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-10",
+   "status": "inferred",
+   "title": "What era 4 costs on top of GM2",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x75FDA4 - 0x75FDE3 (`BFBC2` 0x141DEC4 / 0x141DEC9, `BFBC2Nam` 0x142B26C / 0x142B274, the event name 0x142B25C); no other load of 0x142B26C; 0x141DEC4's other load 0x662409 is ERA-N-7's"
+    },
+    {
+     "kind": "data",
+     "ref": "scratch `bfbc2 apt dump` of DICE's 22 Package main-menu movies plus OPFOR's hudlayer_shared / mp_objectives dumps, 2026-11-27: 41 `gameModChange` listeners, string operations in none but sprite 471's numeric `_x + 170`; `\"BFBC2Nam\"` compared at main_nav 0x0357B4, 0x03C474 and rank_unlock 0x0102D8; setGameMod 0x01AD24 - 0x01AE15 has no GetURL"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-11",
+   "status": "observed",
+   "title": "The label is a key the movies match; the engine never reads it back",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "scratch `bfbc2 apt dump` of DICE's 22 Package main-menu movies plus OPFOR's hudlayer_shared dump, 2026-11-27: the 17 sprites with era frame labels and their placements as listed; gameModSelector's `changeGameMod` literals at 0x050E58 / 0x050E6C / 0x050F0C / 0x050F20; main_root 0x0039BC (`changeFromNamMod`), 0x003DCC, 0x003E1C"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-12",
+   "status": "observed",
+   "title": "A fifth frame: 17 sprites, the selector and the load-time picks",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-N-2, ERA-N-6, ERA-NAT-4, ERA-MM-1, ERA-RISK-3 and SET-BIN-1"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x77C994 - 0x77CA77, 0x77D0C3 - 0x77D194; 0x920C00 - 0x920C61; 0x94EB2E - 0x94EB3F"
+    }
+   ],
+   "file": "spec/engine/eras_n.md",
+   "id": "ERA-N-13",
+   "status": "inferred",
+   "title": "The online and saved paths, and what they get for an era they do not know",
+   "variants": "PC"
+  }
+ ]
+}

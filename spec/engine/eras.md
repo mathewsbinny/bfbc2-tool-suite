@@ -328,7 +328,9 @@ choice and the pushed pointer change.
   branch. The pushes at 0x77C9C0 / 0x77D0EF (`VIETNAM`) and 0x77CA63 / 0x77D194 (`BC2`) become push thunks.
 
 After this, the offline list filter compares each record's tag with the era's own. The online attribute matters only
-with a network, which this project never opens; it is patched for consistency.
+with a network, which this project never opens; it is patched for consistency. Round GM4 drops the `search.*` patches
+(ERA-N-13): unpatched, every era other than 1 sends `BC2`, which keeps an unknown tag out of EA's matchmaking. A tag
+of neither 3 nor 7 characters needs ERA-N-5's builder cave.
 
 [test: core/tests/test_spec_probes.py::game_modes]
 [data: spec/probes/gamemodes.py, 2026-11-27: patch ranges `maps.*`, `search.*`]
@@ -337,6 +339,9 @@ with a network, which this project never opens; it is patched for consistency.
 ### ERA-SITE-5: The new-item tracker: tag = era + 1 (the tag's writer still to trace)
 
 Status: **inferred** · Variants: PC
+
+**Superseded by ERA-N-2 (round GM4).** The tag is a `UIMenuTrackerPage`, and page 3 is the Store. The writer is
+0x9573F0, and the loader reads pages 0 - 3 only. Era k >= 2 gets page k + 2, not k + 1. The text below is GM1's.
 
 The tracker's entries (map nodes under UI +0xC8A38 +8) carry a tag at node +0x10: 1 means BFBC2 only and 2 means
 Vietnam only. The four functions compute `sete` from `mod == 1`, then skip tag-1 entries under Vietnam and tag-2
@@ -623,7 +628,7 @@ Status: **inferred** · Variants: PC
 
 ## Open questions
 
-- The writer of the new-item tracker's entry tag (ERA-SITE-5).
+- The writer of the new-item tracker's entry tag (ERA-SITE-5): answered by round GM4, 0x9573F0 (ERA-N-2).
 - The writers of the server's +0xB8 / +0x118 strings (ERA-RISK-3; queued in GM0-rest).
 - How 0x9381F0 keys its two Vietnam weapon maps (+0xC89DC / +0xC89FC), which the host's era maps must copy.
 - Whether a name lookup of a missing asset (0x459530) returns a null handle or an empty one (ERA-RISK-1).

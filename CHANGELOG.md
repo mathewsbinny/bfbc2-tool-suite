@@ -32,7 +32,7 @@ landed on `main`.
 
 Round OR10 retires Project OPFOR's Python of the console Onslaught port's stages 5 - 7: OPFOR now needs this
 version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`, so its `SUITE_REQUIRES` moves to
-0.36.0 - 0.37.0. Round GM1's research, merged before it unreleased, is in this version too.
+0.36.0 - 0.37.0. Rounds GM1, DC0 and GM4, merged before it unreleased, are in this version too.
 
 ### Added
 
@@ -61,6 +61,54 @@ version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`
   not touch. For each range it records the address, length and digest, and checks that the range ends on an
   instruction boundary and that no patch range overlaps a kept one. `core/tests/test_spec_probes.py::game_modes`
   checks 24 answers.
+- **A decompiled database of BFBC2Game.exe, and the tools that build and query it** (round DC0, `tools/decomp/`,
+  `rust/BENCHMARKS.md` "DC0"). The database is a Ghidra 12.1.4 headless analysis of the PC exe (build 795745). It
+  has MSVC RTTI plus Frostbite's own reflection: 1,891 vtables, with functions placed in their classes. The spec's
+  2,248 types from `spec/typeinfo.json` are applied, with `this` typed for the classes that match. It carries the
+  spec's and Project OPFOR's named addresses, with `[DC0]` comments citing their rule ids. Every function is
+  decompiled to pseudo-C, 98,130 of them, with an SQLite index. Each function is marked by how it was found:
+  analysis, orphan code, or a prologue scan. The prologue scan's functions are kept apart until a reference confirms
+  them. The database is EA-derived and stays private, in
+  `bfbc2-decomp-private` beside the checkouts (`BFBC2_DECOMP_DB`), never in a repo. Only the scripts are committed:
+  - `extract_names.py`: the names;
+  - `gen_types.py`: the type plan;
+  - the Ghidra scripts `ApplyTypes`, `ApplyNames`, `DiscoverFunctions`, `ConfirmFunctions`, `ExportDb` and
+    `ExportSymbols`;
+  - `build_index.py` and `run_dc.py`;
+  - `decomp.py`, the lookup by address, name, string, caller / callee or rule.
+
+  `spec/README.md` "The decompiled database" says how rules cite it: by address, never pasted code. New quick test
+  `decomp-tools` (synthetic input only). New environment variables `BFBC2_DECOMP_DB` and `BFBC2_GHIDRA`.
+- `spec/engine/eras.md` (round GM1, research): native eras for Project OPFOR. The four values are 0 BFBC2, 1 Vietnam,
+  2 BF1943 / Pacific War (tag `PACIFIC`, label `BFBC2143`) and 3 BFBC1 (tag `BC1`, label `BFBC2Beach`). The file covers:
+  - a decision (as 0, as 1, or the era's own resource), the reason and round GM2's patch for each of the game mod's
+    41 instructions and the values derived from them;
+  - the parser and setter changes (era 1's sign-in path unchanged; no gate for eras 2 / 3);
+  - a `UISharedConfigAsset` per era, chosen at the unlock and weapon slot reads;
+  - DICE's four-era main_nav, every movie's `extern.gameMod` test and the menus' contract for UI0 - UI7;
+  - Vietnam's ownership checks kept byte for byte;
+  - the risks, and what battlefield-opfor and OPFOR must change.
+
+  21 rules: ERA-NAT-*, ERA-SITE-*, ERA-UI-*, ERA-LIC-2 / 3, ERA-RISK-*.
+- `spec/probes/gamemodes.py` now also checks the 45 byte ranges GM2 will patch and the 10 Vietnam check ranges it must
+  not touch. For each range it records the address, length and digest, and checks that the range ends on an
+  instruction boundary and that no patch range overlaps a kept one. `core/tests/test_spec_probes.py::game_modes`
+  checks 24 answers.
+- `spec/engine/eras_n.md` (round GM4, research): what bounds the era count, and a host era table for N eras. It covers:
+  - every limit (the parser, the setter's labels, the 20 `== 1` sites, `UISharedConfigAsset`'s two slot pairs, the
+    weapon maps and unlock grid, the 3- / 7-byte tag builders, the menu tracker, the launcher pipe, the online
+    strings, the movies);
+  - the menu tracker's four pages (`UIMenuTrackerPage`: Awards, MenuUnlocks, MenuUnlocksVietnam, Store), their writer
+    0x9573F0, loader bound 0x9573D1 and `GstMenuTracker` save, with an era's page k + 2;
+  - the launcher pipe `\\.\pipe\rome_snowroller`, whose `expansion` = `bfbc2vietnam` sets era 1 (UI message 0x38);
+  - the host era table, GM2's patch set read from it, and what era 4 costs on top of GM2;
+  - the labels' contract (a key the movies match, never parsed back; renaming), and the 17 era-labelled sprites a
+    fifth era needs frames in;
+  - what the online and saved paths get for an era they do not know.
+
+  13 rules: ERA-N-1 - ERA-N-13.
+- `spec/probes/gamemodes.py` also checks nine further ranges by digest (ERA-N-3) and the tracker's page bound;
+  `core/tests/test_spec_probes.py::game_modes` checks 28 answers.
 
 ### Changed
 
@@ -80,6 +128,12 @@ version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`
   reaches through 0x944D50. It is not in 0x93CF40.
 - `bc2-install`'s level-build tests read the process-wide stock index one at a time: two tests replaced each other's
   kept index between two reads (`stock_bundles_index_and_our_files` failed now and then, "kept for the process").
+- `spec/engine/eras.md` ERA-SITE-5 (round GM4): the tracker's tag is a page, and page 3 is the Store. Era 2 cannot take
+  "era + 1" = 3. ERA-N-2 gives era k >= 2 page k + 2. ERA-SITE-4's online `search.*` patches are dropped (ERA-N-13):
+  unpatched, eras other than 1 send `BC2`.
+
+- `spec/engine/gamemodes.md` ERA-MOD-1: the unlock-tree reader 0x93D14F is in 0x93D120, which `extern.playerStats`
+  reaches through 0x944D50. It is not in 0x93CF40.
 
 ## [0.35.0] - 2026-11-27
 
