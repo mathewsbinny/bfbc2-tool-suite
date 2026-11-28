@@ -1911,11 +1911,12 @@ source = "the user, 2026-11-28"
 id = "dq5"
 code = "DQ5"
 title = "DICE's AI start and the Kynapse runtime, statically"
-lane = "run"
+lane = "done"
 repos = ["suite"]
 category = "navai"
 raised = "2026-11-28"
 started = "2026-11-28"
+done = "2026-11-28"
 score = { d = 3, t = 3, h = 4.8 }
 body = "DQ0's round DQ5: what a stock MP level must carry for DICE's AI to start, which .hpd fields the runtime reads and how strictly, and NavKit's parity gaps ranked by their effect at run time; spec rules on branch dq5"
 source = "the user, 2026-11-28"

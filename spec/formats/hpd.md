@@ -590,8 +590,9 @@ near each AI order position fixed it. So route nodes must lie near the points th
 Status: **inferred**
 
 Objects with `DisablePathfinding = PdtWhenAlive` (doors, gates, scripted walls) and dynamic props are absent from the
-data, ladders are not in it, and soldiers are not obstacles; destruction is handled at run time by switching path data
-off on destroyed objects (`PdtWhenDestroyed`).
+data, ladders are not in it, and soldiers are not obstacles; destruction is handled at run time beside the path data,
+not in it: a destroyed part leaves the local-pathfinding layer's part set and the route data is not changed
+(KYRT-DYN-3). Nothing checks that a file matches its level (KYRT-LOAD-5).
 
 [inferred: DICE's files route through PdtWhenAlive doors (sp_009, sp_003_b) and have islands reached only by ladder; the level settings DestructibleLocalPathfindingParts / MaxLocalPathfindingObjects point to run-time handling]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:356-361]

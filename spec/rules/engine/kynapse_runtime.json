@@ -65,6 +65,36 @@
    "evidence": [
     {
      "kind": "exe",
+     "ref": "BFBC2Game.exe sector load 0x0108FD60 (overlap test 0x0108E310 before each join 0x0108FC00, then 0x0108E1D0); overlap 0x0108E310 (kind difference 0x0108E31C-0x0108E331, the 99999 = 0x1869F tests 0x0108E33A / 0x0108E349, `cmp [+0x3B4"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-LOAD-4",
+   "status": "observed",
+   "title": "A border node's copies are joined into a ring through node +0x14",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe header check 0x0108EC70 (`_stricmp` with \"Kynogon HPD\" and `cmp [+0x3A8"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a static negative over the functions read (the loader's state machine, the header and table reads, the relocation, the set-up); the code was not swept exhaustively"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-LOAD-5",
+   "status": "observed",
+   "title": "Nothing checks that a file belongs to its level",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
      "ref": "point to sector 0x0106D8D0 (floor via 0x00C5286C, `sub [+0x874C"
     }
    ],
@@ -91,11 +121,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "0x0107ADD0 -> 0x010706D0 (cached) / 0x010707A0 (every mesh) -> 0x01073EA0 (item heights 0x01073EF4-0x01073F0F) -> inside test 0x01073B00 (E, B, C; pre-test 0x010739D0 with 1.1 at 0x0143BD08; parity 0x01073740)"
-    },
-    {
-     "kind": "inferred",
-     "ref": "the exact maths of 0x01073740 (on-segment band versus crossing) was not followed instruction by instruction"
+     "ref": "0x0107ADD0 -> 0x010706D0 (cached) / 0x010707A0 (every mesh) -> 0x01073EA0 (item heights 0x01073EF4-0x01073F0F; the area's +0x14 passed as the tolerance at 0x01073F13) -> inside test 0x01073B00 (E, B, C; pre-test 0x010739D0: three terms of 1.1 at 0x0143BD08 summed against 3.0; segment test 0x01073740: constant z, constant x and general cases, the parity byte flipped, 1 returned for a hit within the tolerance)"
     }
    ],
    "file": "spec/engine/kynapse_runtime.md",
@@ -185,10 +211,6 @@
     {
      "kind": "exe",
      "ref": "target filter 0x0105C8C0 (`cmp byte [ebp+0x22"
-    },
-    {
-     "kind": "inferred",
-     "ref": "the chain through node +0x14 is written at load (the file holds DistEdgeMax or 0 there, HPD-NODE-1); the write was not found"
     }
    ],
    "file": "spec/engine/kynapse_runtime.md",
@@ -265,7 +287,28 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "no reads of words 1, 4-7, 34 found outside the swap pass 0x0108EAE0; date / time passed to 0x010C8A30 / 0x010C8A50; A and B walked in 0x01071D10 with 0x010714C0"
+     "ref": "BFBC2Game.exe 0x5AF5F0 -> 0xF27E10 (48-byte parts, the table at world +0x3C8 / +0x3CC kept sorted through 0xF129A0, then the provider's vtable +0x10); providers built in 0xF2EFF0 (0xF2AB40 or 0xF2B090 by the setting at *(0x018903E8)+0x6C +0x68, interface at +0x65C, kept at world +0x3E4 from 0xF2F4A7): rebuild 0xF2ABE0 / 0xF2B1A0 (each part's +0x10, +0x18, +0x20, +0x24 to 0xF28560, then 0xF26160), remove 0xF2AC80 / 0xF2B240 (the same four words to 0xF289A0; 0xF2B240 also calls the listeners at +0x28); event handler 0x5AF790 (category 0x23 through the table 0x5B03EC at 0x5AFF0A: 0x10 -> 0x5B01EA, 0x11 -> 0x5B0287) -> 0x5AD8D0 (destroyed flag 0x5AD8EE, lookup and removal 0xF24F00 at 0x5AD91B -> 0xF213F0 / 0xF150B0, provider vtable +0x14 at 0xF24F18; `cmp [esp+0x30"
+    },
+    {
+     "kind": "inferred",
+     "ref": "that the type value 3 is `PdtWhenPartDestroyed` (PathfindingDisableType 3) rests on the number only"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-DYN-3",
+   "status": "observed",
+   "title": "Destroyed parts leave the local-pathfinding part set; the path data is untouched",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "no reads of words 1, 4-7, 34 found outside the swap pass 0x0108EAE0; A and B walked in 0x01071D10 with 0x010714C0"
+    },
+    {
+     "kind": "exe",
+     "ref": "date / time pushed with the sector id at 0x0109012D-0x0109014C to the thunk 0x010C8A50 (`jmp [0x01521F44"
     },
     {
      "kind": "inferred",

@@ -44,16 +44,37 @@ level's bundles must reach these partitions (Napisal's Onslaught levels carry th
 
 ### AI-START-3: One Kynapse world per pathfinding type the level lists
 
-Status: **inferred** · Variants: PC
+Status: **observed** · Variants: PC
 
-The path-data world set-up (0x5AF5F0) loads a Kynapse world for each `PathfindingSettings` the level data's
-`PathfindingTypes` lists (`ai/pathfinding/infantry`, `ai/pathfinding/vehicles`), from the type's own folder
-(HPD-USE-1); `HasFlyingAI` (+0x3AD) adds the flying AI's set-up (0x59A140). A level with `HasAI` and an empty
-`PathfindingTypes` would start the AI with no path data at all.
+The path-data world set-up (0x5AF5F0) hands the level data to 0x5A89F0, which walks `PathfindingTypes` (the array at
+LevelData +0x36C, `PathfindingSettings` references) and collects each entry's `OutputType` (+0x3C, the
+`PathfindingType`: `InfantryData`, `VehicleData`) into a list. 0xF2EFF0 then checks the runtime licence string and,
+when the list is empty, returns at once: no Kynapse world, no path data, no error. Otherwise the world set-up
+(0xF1B980) configures one path-data world per listed type from that type's `OutputName` (the folder, HPD-USE-1),
+`SubgraphBoxSize` and `DistEdgeMax` (KYRT-CFG-1); a type whose `OutputName` is `Infantry` is recorded as the
+infantry world. So what decides the worlds is each setting's `OutputType`, not the setting's own name, and a level
+with `HasAI` and an empty `PathfindingTypes` starts the AI with no path data at all. After the worlds, 0x5AF5F0 runs
+the flying AI's set-up (0x59A140, its `AerialHeightmap`, GFILE-AHM-1) only when `HasFlyingAI` (+0x3AD) is set, hands
+`DestructibleLocalPathfindingParts` (+0x388) to the local-pathfinding layer (KYRT-DYN-3) and sets up each of
+`ExplosiveObjects` (+0x398, 0x5A6A40).
 
-[inferred: every working AI level read lists mp_common's two PathfindingSettings in LevelData and every stock MP level has the array empty (STOCK_MP_AI_PLAN 12.1); the generator settings are found at LevelData+0x36C as an array of PathfindingSettings pointers; the set-up's per-type load was not traced instruction by instruction]
+[exe: BFBC2Game.exe 0x5AF5F0 -> 0x5A89F0 (LevelData +0x36C through 0x13A5660; each entry's +0x3C read at 0x5A8A34-0x5A8A41) -> 0xF2EFF0 (licence check 0xF2F0BF with the string at 0x014A9EA4; empty list `cmp [ebp], [ebp+4]` at 0xF2F0D2 -> return 0 at 0xF2F4F9; world set-up called at 0xF2F0F3; `Infantry` compared against the type's +0x30 name, the world's +0x3EC written); `HasFlyingAI` call 0x5AF6D3; +0x388 through 0x13A5640 to 0xF27E10 at 0x5AF6B6 / 0x5AF6BE; +0x398 through 0x13A5680, each entry to 0x5A6A40]
 [data: PathfindingTypes infantry + vehicles on Napisal's ONS_MP_005GR, ONS_MP_002, ONS_MP_004, DICE's Xbox ONS_MP_002 and SP_004_B; empty on every stock MP level read]
 [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:301-305] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:345-347]
+
+### AI-START-4: Demo playback is the only other branch of the level load
+
+Status: **observed** · Variants: PC
+
+Before the `HasAI` test (AI-START-1) the server's level load reads a flag of the start-up demo settings: the
+68-byte object the game's main object builds at start-up (+0xAC), handed to the server when it is created and kept at
+the game context's +0x20. Its +0x1C is 1 only when `Demo.PlaybackDemoFileName` is set (a demo being played back) and
+cleared when `Demo.RecordDemoFileName` is set. With the flag set the level load skips the AI's start, the normal
+entity spawn (0x571CF0) and the save-game load, and creates only one kind of entity through 0x571F10. In every
+ordinary game, offline matches included, the flag is 0: the gate is no obstacle to bots, and a host must simply not
+set `Demo.PlaybackDemoFileName`.
+
+[exe: BFBC2Game.exe level load 0x574FB0: the context (0x547BF0, the object at 0x01566B18) +0x20 -> +0x1C tested at 0x57501B-0x575031 (else 0x571F10), again before the save-game load at 0x5751B0-0x5751B6; the settings object made by 0x596AF0 at the main object's +0xAC in 0x56EDE0, +0x1C = 1 at 0x56F26D (playback), = 0 at 0x56F1A9 (recording); passed by the server create 0x54B0B0 (its +0x1C as argument 5) to 0x756D40 (stored at +0x20, 0x756D6B) and by 0x853B00 to the context's +0x20 (0x853C7E)]
 
 ## 2. The Kynapse runtime
 
@@ -96,9 +117,14 @@ path and sets a state: 1 when the path ends exactly at the destination, 0 when i
 path. A path that is not followed is asked for again about 9.6 s later. The computation fails on seven exits (start or
 destination not resolved to a route node, either id missing from the query's result set, both ids equal, the second
 search stage reaching no node); its reason is kept at pathfinder +0x110 (1 start, 2 destination, 3 later stage).
-Resolving the points is HPD-RT-1; finding the ids needs each sector's nodes sorted (HPD-NODE-2).
+Resolving the points is HPD-RT-1; finding the ids needs each sector's nodes sorted (HPD-NODE-2). The later stage is
+the graph search itself: the A* of KYRT-PATH-1 (0x010795E0; another search, 0x0107B790, when the path finder's
++0x474 flag is clear) from the start's route node to the destination's. Reaching the destination's node writes the
+path; a search stopped at its 100-node budget returns true with the path still to come; anything else is reason 3.
+So "the stage reached no node" means the graph has no route between the two nodes (AI-NAV-1), not a missing list.
 
 [exe: BFBC2Game.exe go-to 0x0107FE80, Flat compute 0x0107F620 (false exits 0x0107F8E1, 0x0107F9B0, 0x0107FABE, 0x0107FB0D, 0x0107FC33, 0x0107FCB2, 0x0107FD6B), caller 0x010B1AB0, reader 0x010B2400; DataMode default 1 in the constructor 0x01080CC0]
+[exe: the later stage: `cmp byte [esi+0x474], 0` at 0x0107FCEB, A* 0x010795E0 called at 0x0107FD0A (result 4: the path written, the path finder's +0x64 = 8; result 3: true, resumed later, KYRT-PATH-1's time slicing), the other search 0x0107B790 at 0x0107FD77; reason 3 stored at 0x0107FD3E]
 [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:413-449]
 
 ### AI-KY-4: The engine's physics queries
@@ -114,6 +140,22 @@ takes its geometry from these queries, and OPFOR's in-game sampler uses them to 
 
 [exe: BFBC2Game.exe ray / sphere cast 0xB145C0 (-> 0xB12F60, world vtable +0x34), capsule 0xB14640, point query 0xB145A0 (world vtable +0x3C); ray collector add-hit 0xB0D370, root collidables at +0x50 / +0x54; shape vtables 0x01454D14 terrain, 0x01483B38 objects, 0x01483378 soldiers]
 [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:381-396]
+
+### AI-KY-5: The ground the AI and collision see is the Havok height-field shape
+
+Status: **observed** · Variants: PC
+
+The terrain's collision is one Havok shape (the terrain shape vtable 0x01454D14 of AI-KY-4), built by the physics
+world's terrain set-up (0xB0BAB0) from the runtime height field it is given: the sample count and the size give the
+sample spacing, size / (count - 1). The AI does not read the height field itself: its physics queries (AI-KY-4) hit
+that shape like any other body, and its path data was sampled from the same shape when it was built. The visual
+terrain's build (0xA2D690, its jobs `terrainPrepBld`, `terrainBuild`, `terrainPostBld`, `terrainCullView`) is
+rendering only. Kynapse's own height-field reader (0xF33620, the `.Heightfield-000` name) belongs to the generator's
+steps, which nothing calls (AI-KY-2). So a sculpted height field changes collision and the AI's ground with the shape;
+the path data must be built again (TEDIT-NAV-1).
+
+[exe: BFBC2Game.exe terrain shape constructor 0xAC7640 (vtable 0x01454D14 stored at 0xAC7656), called from 0xB0BAB0 (the physics world's vtable slot 0x014575EC; spacing from the height field's +0xE0 / (+0xE8 - 1), shape kept at +0xA3A4); a second terrain-shape constructor 0xAB8800 (0xAB8806); visual terrain build 0xA2D690 (strings 0x0144FEB8-0x0144FF18); generator reader 0xF33620 (string 0x014AA4DC) reached only through 0xF33730 in the table at 0x014AA390]
+[inferred: that the object 0xB0BAB0 receives is the level's main height field (its fields are a count and a size, as TerrainHeightfieldData's Resolution and SizeXZ); not followed to the resource loader]
 
 ## 3. What a level needs for bots
 
@@ -254,10 +296,11 @@ the original path data).
   use objectives without orders.
 - Whether bots count for capturing (`MinNrToTakeControl`) and for tickets (AI-NEED-5, BOT-GS-3); where bots' own
   scores are skipped is BOT-SCO-2.
-- The gate `*(*(0x01566B18 + 0x20) + 0x1C)` that sends the server's level load to another branch (0x571F10) before the
-  AI's start.
-- The per-type load in the path-data world set-up (AI-START-3 is inferred), and what the second search stage's list of
-  reached nodes is filled from (AI-KY-3).
+- Answered in round DQ5: the gate before the AI's start is demo playback (AI-START-4); the per-type load is
+  observed (AI-START-3); the go-to's later stage is the A* search (AI-KY-3); what reads the height field for
+  collision and the AI (AI-KY-5).
+- Whether the go-to's caller ever sees the time-sliced "true without a path" (AI-KY-3) on DICE's levels, and which
+  path finders clear +0x474.
 - Why a go-to needs a route node near the order position (HPD-RT-1). (The tile size is the mesh's resolution field:
   KYN-TILE-1, KYRT-TILE-1; the runtime's loading and searching is `engine/kynapse_runtime.md`.)
 - The flying AI's data (`HasFlyingAI`): what 0x59A140 loads; no stock MP level and only Napisal's ONS_MP_005GR set it.

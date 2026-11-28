@@ -517,8 +517,9 @@ the rule's status rises to verified with the playtest as its data) or a new rule
 
 - The main block's tail (TERR-HF-4) is decoded; whether the game checks the lower envelope (TERR-HF-11) against the
   heights, and what the depth map's values do in game, wait on a playtest of a sculpted terrain.
-- What reads the height field for collision and for the AI (Havok's heightfield shape, the navigation sampler):
-  whether a sculpt also needs the level's collision or path data rebuilt (navigation: yes, as for any geometry).
+- ~~What reads the height field for collision and for the AI~~: the Havok terrain shape built from it, which the AI's
+  queries hit (AI-KY-5, round DQ5); no separate collision resource needs rebuilding, the path data does
+  (TEDIT-NAV-1). Whether that shape is built from the main block as the export writes it waits on a playtest.
 - Whether the engine reads the material map's cell under a contact or blends neighbours (TEDIT-MM-1).
 - Whether a patch map's shared tile (TEDIT-ATL-2) is always a uniform mask.
 - Whether a cell's leftover flag on a rule-only patch (TEDIT-VT-1) is read by anything.
