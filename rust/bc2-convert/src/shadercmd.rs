@@ -876,8 +876,7 @@ pub fn cmd_merge(a: &MergeArgs<'_>, env: &Env<'_>) -> Result<MergePrinted> {
     let report_path = format!("{}.merge.txt", a.out);
     let text = format!("{}\n", lines.join("\n")).replace('\n', "\r\n");
     std::fs::write(&report_path, text.as_bytes()).map_err(|e| os(&report_path, e))?;
-    let shown =
-        (m.report.len() + 5 + usize::from(!m.conflicts.is_empty()) + usize::from(unowned > 0)).min(lines.len());
+    let shown = (m.report.len() + 5 + usize::from(!m.conflicts.is_empty()) + usize::from(unowned > 0)).min(lines.len());
     Ok(MergePrinted {
         head: lines[..shown].join("\n"),
         summary: format!(
