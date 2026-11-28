@@ -319,7 +319,7 @@ change makes the preset `custom` (SET-INI-2). The controls commands (`controlsSl
   (SET-BIN-1), the generic `-<Object>.<Field>` option (SET-CLI-2: none) and the sliders (INP-SET-2). Left: what
   the renderer does with `SelectedRenderer_None` (an unknown `DxVersion`); what a damaged `.bin` does (a count or a
   length past the file's end: the stream reader's bounds were not traced); both want a test start with copies of
-  the files (in-game tests are paused).
+  the files (`bfo:docs/tasks/spec-task-notes.md`).
 - `Scheme0Sensitivity` / `Scheme0InputType` are named in INP-SET-1 by what reads them; the controls page's slider
   command writes only `Sensitivity0` - `Sensitivity5` (INP-SET-2), so what else writes them is open.
 - `GstMenuTracker` has no section name (SET-GS-2): whether its settings are saved at all (they are not user-exposed).

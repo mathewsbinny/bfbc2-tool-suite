@@ -392,11 +392,7 @@ unknown era into them:
 
 ## Pending playtests (in-game tests are paused)
 
-- ERA-N-2: a page above 3 written to GameSettings.bin by 0x932CB0 and read back by the patched loader; the setting names
-  being the decimal page numbers.
-- ERA-N-11: `gotoAndStop` in APT with an unknown label (stays on the current frame?) and with a numeric-looking label.
-- ERA-N-12: a fifth era's frames reached by its label in each of the four movies; the load-time picks after a level.
-- ERA-N-13: the in-process server's level list with an era tag in +0xB8 (ERA-RISK-3's question).
+The list (each rule with the playtest that would prove it) moved to `bfo:docs/tasks/spec-task-notes.md` in round KB2.
 
 ## Open questions
 

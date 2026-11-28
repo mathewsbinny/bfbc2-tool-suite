@@ -100,11 +100,9 @@ module patches the five tests. See AI-NEED-5.
 
 ## 3. Planned: the Pacific War career (the user's decisions, 2026-11-15)
 
-Not implemented; recorded so the award work starts from them (`bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md`,
-option C): one award engine in the game module running BF1943's rules on Pacific War maps; a separate Pacific War
-career file (not `stats.txt`); BF1943's 50 ranks and point scale there; BF1943's 12 hidden Xbox achievement trackers
-as trophies; a stars system of OPFOR's own in BFBC2's style for the WW2 weapons and vehicles; awards that need content
-not yet in shown and earnable once it lands; all gated on the WW2 install.
+Not implemented. The user's decisions (one award engine running BF1943's rules on Pacific War maps, a separate career
+file, BF1943's 50 ranks, its 12 hidden Xbox achievements as trophies, OPFOR's own stars, gated on the WW2 install)
+are in battlefield-opfor's knowledge base since round KB2: `bfo:docs/decisions/pacific-war-career.md`.
 
 ## 4. The persistence data (DICE's classes)
 

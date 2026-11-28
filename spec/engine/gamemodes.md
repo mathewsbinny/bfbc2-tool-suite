@@ -531,12 +531,7 @@ base. BFBC1 on base 1 also inherits Vietnam's licence tests (ERA-NEW-2). Its "33
 
 ## Pending playtests (in-game tests are paused)
 
-- ERA-MOD-2: after a Vietnam match the main menu comes back in Vietnam's era (music, art); a fresh start is BFBC2.
-- ERA-OPF-2: battlefield-opfor in an era session hosting a level of another era (the icon set and HUD sounds).
-- ERA-OPF-1: a Pacific level's victory stings and vignettes (Vietnam's today).
-- GMD-SW-2: a new ModeID's team / squad behaviour (kind 0) on a Squad-style layer.
-- GMD-CAT-1: the menus' mode name for Air Superiority and Onslaught (their own catalogue entries).
-- GMD-NEW-2: a mode reusing `conquest` as its ModeID (one catalogue entry with Conquest).
+The list (each rule with the playtest that would prove it) moved to `bfo:docs/tasks/spec-task-notes.md` in round KB2.
 
 ## What the UI rounds (UI0 - UI7) need from this file
 

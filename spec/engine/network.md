@@ -6,7 +6,7 @@ evidenced is here: the PC client's offline paths as Project OPFOR BFBC2 uses the
 the network layer underneath them as the executable shows it statically: the transports, the settings and start-up
 options, the version and anti-cheat checks, the server's listen path and the client side of EA's back-end. EA's
 services themselves (login, matchmaking servers, stats) are not reachable and are not specified. What the network
-layer would need for LAN, Direct IP or hosted play is studied in `engine/network_feasibility.md`.
+layer would need for LAN, Direct IP or hosted play is studied in `bfo:docs/research/suite/network_feasibility.md`.
 
 **Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` sections
 4, 5, 6 and 13, build 795745; the hostMultiplayerLocal call chain was found statically and confirmed in game on
@@ -356,7 +356,7 @@ by reading `Client.SecondaryServerIp`, appending `:` and `Network.ServerPort` wh
 message (type 0x14, constructor 0x551480, the address set by 0x55C7A0) on channel 0x28. The same message constructor
 is used by the UI manager's join sites (0x952413, 0x95E5C2, 0x95F267). A join by a plain `ip:port` string is therefore
 part of the client; it is how the client moves to a secondary server, and it is the hook a Direct IP join needs
-(`engine/network_feasibility.md`).
+(`bfo:docs/research/suite/network_feasibility.md`).
 
 [exe: BFBC2Game.exe 0x55CE50 (event 10 -> 0x55D040); setting 0x14183F8 read at 0x55D07F, ':' search 0x55D0C6, ServerPort 0x55D0EF, format ":%d" 0x14183E0; message 0x551480 (type 0x14 at 0x551483, vtable 0x1417D20); post 0x55D17F; other constructors' callers 0x5B3FF5, 0x5B43C4, 0x952413, 0x95E5C2, 0x95F267]
 [doc: private:opfor-research/research/notes/srv6.txt:1-60]
@@ -377,7 +377,7 @@ State_GameLeaving, and a launcher can start it in one with `requestState` / `req
 server browser's rows (NET-SB-1) come from this layer online (`postGetServers` -> the browser list), and a join from
 the browser is `startServerListMatch` (OPFOR's DLL answers both offline). The join a back-end hands out carries a
 ticket that the hosted game checks (NET-SES-4: "ticket mismatch", "not approved"). Public server emulators replace
-exactly this layer (FESL + Theater) by redirecting its host names (`engine/network_feasibility.md`, sources).
+exactly this layer (FESL + Theater) by redirecting its host names (`bfo:docs/research/suite/network_feasibility.md`, sources).
 
 [exe: BFBC2Game.exe client strings 0x141C2BC-0x141C2FC; host parts 0x149D080 / 0x149D088 used at 0xDDC39C / 0xDDC31E; 0x149C7D0 at 0xDD6EC9; theaterIp / theaterPort 0x149B5E0 / 0x149B5FC; overrides 0x149A235-0x149A2E5; states 0x1505214-0x1505394; requestState 0x5B4EF5]
 

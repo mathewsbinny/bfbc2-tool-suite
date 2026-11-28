@@ -319,9 +319,9 @@ uses most for that mesh (MP_004 uses one block in all 40 of its grass's patch gr
 
 - Answered by round SPG2-rest6: the undergrowth shaders' sway (VEG-UG-10) and `UndergrowthMaxHeight` (VEG-UG-11).
   Still open: the Dx9 programs' sway was counted, not read (the Dx11 ones were); what the engine's default
-  `UndergrowthWindSpeed` and `UndergrowthMaxHeight` are (a settings dump in a playtest).
+  `UndergrowthWindSpeed` and `UndergrowthMaxHeight` are (a settings dump in a playtest: `bfo:docs/tasks/spec-task-notes.md`).
 - Whether the engine settings can be set from the command line (SET-CLI-1) and so raise the undergrowth's density
-  and reach for every level (VEG-UG-8): a test start (paused).
+  and reach for every level (VEG-UG-8): a test start (`bfo:docs/tasks/spec-task-notes.md`).
 - How the undergrowth mask shader fills the mask the generator reads (VEG-UG-7: per layer weight, a noise, the mask
   tiles) and what the per-entry shader name changes.
 - The undergrowth cache: the generator (VEG-UG-7) runs per cell from the terrain's jobs; whether its output is kept in
