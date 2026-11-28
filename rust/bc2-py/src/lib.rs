@@ -103,6 +103,7 @@ mod navtools;
 mod navtrace;
 mod navwalk;
 mod onslaught;
+mod onsport_fixes;
 mod onsport_late;
 mod pathdata;
 mod pefile;
@@ -487,6 +488,18 @@ mod bc2_native {
     // round OR12: the console port's stages 11 - 13 (console_cull / console_loading / console_hud)
     #[pymodule_export]
     use super::onsport_late::{onsport_cull, onsport_hud, onsport_hud_movie, onsport_loading};
+    // round OR13: the Napisal-level fixes (apply_ai_template / apply_combat_squads / apply_sector_offsets)
+    #[pymodule_export]
+    use super::onsport_fixes::{
+        onsport_aitemplate_bundle, onsport_aitemplate_decide, onsport_aitemplate_sources, onsport_sectoroff_assets,
+        onsport_sectoroff_bundle, onsport_sectoroff_plan, onsport_squads_bundle, onsport_squads_plan,
+    };
+    // round OR13: stage 14 (console_icons), the shader audit (console_shader_audit), the driver (console_port)
+    #[pymodule_export]
+    use super::onsport_fixes::{
+        onsport_audit, onsport_driver_blocks, onsport_driver_plan, onsport_icons, onsport_icons_coverage,
+        onsport_icons_staged,
+    };
     // round OR2: OPFOR's WW2 level build (wake_install.build's parts, bc2_install::levelbuild)
     #[pymodule_export]
     use super::shaderdb_merge::ShaderMerger;

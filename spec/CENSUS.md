@@ -196,7 +196,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | AimNode2AimBoneData | 1,518 | 111 | 11 | DATA-ANIM-2, RTTI-ANIM-1 |
 | UITextureAtlasInfo | 1,458 | 52 | 7 | APT-ATL-1, MENU-ED-8, RTTI-UI-1 |
 | VOGroup | 1,419 | 28 | 4 | RTTI-GSR-5, SGR-VO-1 |
-| VehicleSpawnEntityData | 1,408 | 70 | 42 | MAT-TEX-8, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 (+1) |
+| VehicleSpawnEntityData | 1,408 | 70 | 42 | MAT-TEX-8, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 (+2) |
 | StaticModelEntityData | 1,407 | 1,407 | 44 | DSTR-STATE-1, MAT-SLOT-5, MAT-TEX-8, RTTI-DBX-2 (+3) |
 | TerrainSplinePlaneData | 1,372 | 74 | 22 | DECAL-SRC-2, RTTI-TERR-1 |
 | TerrainSplineData | 1,360 | 74 | 8 | DECAL-SRC-2, RTTI-TERR-1 |
@@ -262,7 +262,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | CameraComponentData | 377 | 90 | 21 | RTTI-GSR-3, VEH-ENT-1 |
 | VehicleExitPointComponentData | 375 | 68 | 5 | RTTI-GSR-3, VEH-ENT-1 |
 | MaterialPropertyTerrainData | 363 | 74 | 4 | DSTR-TERR-3, MAT-GRID-9, MAT-TEX-20, MAT-TEX-7 (+1) |
-| SoldierWeaponData | 361 | 360 | 28 | MAT-TEX-8, RTTI-GSR-4, WPN-ATT-1, WPN-CLS-1 (+5) |
+| SoldierWeaponData | 361 | 360 | 28 | MAT-TEX-8, MENU-WPN-1, RTTI-GSR-4, WPN-ATT-1 (+6) |
 | SoldierWeaponAsset | 359 | 359 | 7 | RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-4, WPN-CLS-1 |
 | PhysicsNode | 358 | 283 | 4 | RTTI-AUDIO-1, SGR-NODE-1 |
 | CompositeMeshAsset | 353 | 353 | 41 | MAT-TEX-8, RTTI-DBX-1, RTTI-GSR-3, RTTI-REND-1 (+1) |
@@ -354,7 +354,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | StaticModelGroupEntityData | 106 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+1) |
 | DebugMenuItemEntityData | 104 | 21 | 8 | RTTI-GSR-3, SCR-CMD-1 |
 | SubtitleLevelMap | 104 | 13 | 2 | RTTI-GSR-6, TEXT-SUB-1 |
-| PersistentWeapon | 101 | 3 | 11 | PERS-DATA-1, PERS-DATA-3, RTTI-GSR-2, RTTI-GSR-4 (+1) |
+| PersistentWeapon | 101 | 3 | 11 | MENU-WPN-1, PERS-DATA-1, PERS-DATA-3, RTTI-GSR-2 (+2) |
 | WheelComponentData | 101 | 27 | 15 | RTTI-GSR-3, VEH-ENT-1 |
 | VehicleAsset | 98 | 98 | 7 | RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-8, VEH-ENT-1 |
 | VehicleComponentData | 98 | 98 | 18 | RTTI-GSR-3, VEH-ENT-1 |
@@ -369,7 +369,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | IndexedAnimationData | 86 | 86 | 6 | ANIM-KIT-1, RTTI-GSR-8 |
 | IndoorDampingSetting | 85 | 28 | 2 | RTTI-GSR-7, RTTI-GSR-8, SGR-MIX-1 |
 | FPSCameraData | 84 | 84 | 17 | ANIM-KIT-1, RTTI-GSR-8 |
-| SoldierAsset | 84 | 84 | 7 | ANIM-KIT-1, RTTI-GSR-3, RTTI-GSR-8 |
+| SoldierAsset | 84 | 84 | 7 | ANIM-KIT-1, RTTI-GSR-3, RTTI-GSR-8, XCONS-ONS-6 |
 | SoldierEntityData | 84 | 84 | 73 | ANIM-KIT-1, ANIM-RAG-1, MAT-TEX-8, RTTI-GDLL-1 (+7) |
 | UINametag | 84 | 2 | 12 | HUD-CFG-1, RTTI-UI-1 |
 | CameraRecoilData | 82 | 82 | 3 | RTTI-GSR-4, SOLD-CAM-1 |
@@ -713,7 +713,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | UI3DSystemAsset | 1 | 1 | 5 | HUD-MENU-1, RTTI-UI-1 |
 | UIMenuConfig | 1 | 1 | 1 | MENU-AS-1, RTTI-UI-1 |
 | UIShaderAsset | 1 | 1 | 2 | HUD-MENU-1, RTTI-UI-1 |
-| UISharedConfigAsset | 1 | 1 | 10 | ERA-MOD-1, ERA-N-1, ERA-N-10, ERA-N-8 (+7) |
+| UISharedConfigAsset | 1 | 1 | 10 | ERA-MOD-1, ERA-N-1, ERA-N-10, ERA-N-8 (+8) |
 | UnlockTokenData | 1 | 1 | 3 | PERS-DATA-1, RTTI-GSR-7 |
 | VOConstantData | 1 | 1 | 16 | RTTI-GSR-5, SGR-VO-1 |
 | VOTypesAsset | 1 | 1 | 5 | RTTI-GSR-5, SGR-VO-1 |

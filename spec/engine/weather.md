@@ -11,7 +11,7 @@ exports write. How the renderer uses a state (light, sky dome, fog, post-process
 **Corpus.** The level bundles of Project OPFOR BFBC2's game copy (501 bundles, 444 DICE's: dated before 2013), every
 `weather/` partition once from the first bundle that holds it, DICE's first, counted by `spec/probes/lighting.py
 weather` on 2026-11-22; per-level facts (83 levels: stock MP and campaign, Package, Vietnam, Onslaught, BFBC1, OPFOR's
-four WW2 levels) from research round WX0 (2026-11-21, `weather_inventory.json` in the coordinator's scratchpad).
+four WW2 levels) from research round WX0 (2026-11-21; its `weather_inventory.json` was not kept: `bfo:docs/research/rounds/README.md`).
 Nothing here was measured in game.
 
 ## 1. The classes

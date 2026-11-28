@@ -129,114 +129,30 @@ all with the structure OK and links 100 % on infantry cells:
 
 SP_02's low figure needs a look: about 4,700 collision cells, from vegetation or rocks in the river (§6).
 
+Sections 3 to 8 (the domains, the transitions between them, the planner, what the game and OPFOR's bot layer each
+do, how vehicle path data plugs in, and what is implemented or only designed) moved to battlefield-opfor's knowledge
+base in round KB2 (2026-11-28): `bfo:docs/research/navigation/CROSS_DOMAIN_ROUTES.md`. Their headings stay here.
+
 ## 3. Domains
 
-| Domain | Graph | Speed | Source | In game |
-|---|---|---|---|---|
-| infantry | Kynapse infantry route graph | 4 m/s | `infantry\pathdata.hpd` (DICE's or NavKit's) | Kynapse queries (the game's own AI, or OPFOR's pathfinder probes) |
-| land | Kynapse vehicle route graph | 0.6 x 15 m/s | `vehicle\pathdata.hpd`: DICE's, or `navvehicle.py`'s `work\navvehicle\<level>\pathdata.hpd` | the game's `NTGround` driver can follow it itself (Car / Tank profiles) |
-| boat_pbl, boat_pwc | `navwater_mesh` route graph | 0.6 x MaxSpeed | `<level>.<profile>.watermesh.json` | OPFOR's bot layer: A* on the side file, steered by input |
-| air | (design) 3-D corridors over a safe-altitude field | MaxSpeed | to be built: height field + tall objects, helipads | the game's `NTHelicopter` for helicopters, or the bot layer |
-
-Costs are seconds: an edge's metres divided by the domain's speed. Later multipliers: risk (enemy fire along the
-leg, from the bot layer's threat map), exposure (an open boat), and vehicle health.
+`bfo:docs/research/navigation/CROSS_DOMAIN_ROUTES.md`, "3. Domains".
 
 ## 4. Transitions
 
-| Kind | From | To | Where | Cost |
-|---|---|---|---|---|
-| enter | infantry node within 12 m of the spawn | vehicle node within 30 m (boats: the spawn's launch cell) | `VehicleSpawnEntityData` of the domain (blueprint path `vehicles/land`, `/sea`, `/air`) | walk to the vehicle + 3 s |
-| exit (land) | land node | infantry node within 6 m (height within 2 m) | dismount points, one per 40 m tile | 2 s + walk |
-| exit (boat) | boat node | infantry route node at the link's land end | shore links (beach, dock) | 2 s + wading at 1.5 m/s |
-| exit (air) | air node | infantry | landing zones (flat open ground, helipads), parachute drops | design |
-| enter (parked) | infantry | vehicle | a vehicle left somewhere: a run-time transition the bot layer adds while the vehicle is there | as at a spawn |
-
-Rules:
-- A vehicle domain is entered only through an enter transition, so a vehicle leg always starts where a vehicle
-  is. Shore links and dismount points are exits only: the vehicle is left behind.
-- Seats matter for passengers: a squad can share one vehicle when the driver's plan and the passengers' agree.
-  The plan carries the spawn's tag, and the bot layer claims seats.
-- Availability is dynamic. `plan(..., unavailable=...)` takes spawn tags or transition ids: an empty spawn, a
-  claimed seat, a destroyed vehicle.
-- Crewed AI spawns (Napisal's `Spawn_Pbl`, out on the water with no infantry node within 12 m) are skipped as
-  enter points. Their crews spawn aboard, and their plans start in the boat domain.
+`bfo:docs/research/navigation/CROSS_DOMAIN_ROUTES.md`, "4. Transitions".
 
 ## 5. Planner
 
-Hierarchical. Implemented in `navdomains.World.plan`, with `plan_flat` as the reference:
-
-1. **Offline.** Per domain, a table of costs between all of its transition points: one Dijkstra per point. On
-   ONS_MP_004 this covers 319 transitions and takes 1.9 s in Python.
-2. **Query.** From the start (domain, node), one Dijkstra in the start's domain to every transition point. To the
-   goal, one in the goal's domain (edges are two-way). Then a Dijkstra over the small graph S, G and the two ends
-   of every transition: domain legs come from the tables, transition edges from their costs, and unavailable
-   transitions are dropped.
-3. **Expansion.** Each chosen leg becomes a path query inside its domain. Offline this is Dijkstra on the graph;
-   in game, Kynapse for infantry and land, and A* on the side file for boats.
-
-The answer is exact: the abstract graph holds every route the joined graph allows, because vehicle domains are
-entered at transition points only. The tests check this on 300 random queries (random worlds, random unavailable
-transitions) and on 40 random ONS_MP_004 queries, with 0 differing.
-
-ONS_MP_004 (DICE's infantry and vehicle files, both boat meshes), 150 random soldier-spawn → AI-order pairs:
-- 39 walked, 74 by land vehicle, 23 by jet ski, 9 by jet ski and land vehicle;
-- 106 faster than on foot, by a median of 27 s;
-- 14 reachable only with a vehicle (islands);
-- 5 unreachable (order points under water or off any mesh).
-
-Example: from the US base dock to the east beach at (80, -200), 30 s by jet ski (230 m of water); that island
-cannot be reached on foot.
-
-Data format, beside `pathdata.hpd` (written to `work\navwater\<level>\` for now):
-`<level>.domains.json`, format `opfor-domains` 1. It holds:
-- `domains`: per domain the node count, speed, file and SHA-1;
-- `costs`: the cost constants;
-- `transitions`: kind, from and to (domain, node index), seconds, tag and position;
-- `tables`: per domain, the transition-point cost tables;
-- `skipped_spawns`.
-
-Node indices follow the graph loaders: Kynapse node ids in first-seen order, as in `core/bfbc2core/navdata.py`;
-boat node indices as in the watermesh file. Positions are stored too, so the run-time side can re-resolve a point
-when the path data changes. A SHA-1 mismatch means the file must be rebuilt.
+`bfo:docs/research/navigation/CROSS_DOMAIN_ROUTES.md`, "5. Planner".
 
 ## 6. What the game does itself, and what OPFOR's bot layer does
 
-| Task | Game's AI | OPFOR's bot layer |
-|---|---|---|
-| infantry movement | Kynapse routes, orders | chooses goals; plans across domains |
-| land vehicles | driver follows `VehicleData` routes (`NTGround`), if given a MoveTo order | picks the vehicle and destination, issues the order, or steers by input |
-| boats (PBL) | none: `NTNone`, straight steering at best | reads the boat mesh, A* to a shore link or patrol point, steers by input (throttle / yaw), avoids other boats |
-| jet ski | Car profile on `VehicleData`: no water routes | as the PBL, with the `pwc` mesh |
-| helicopters | `NTHelicopter` (the engine's own flying, no Kynapse data) | landing zones, corridors, choosing to fly |
-| enter / exit | spawners seat AI (`SSAiPlayer` + `Vehicle` array) | enter / exit at transitions: needs the game's enter-vehicle action for bots (to find) |
+`bfo:docs/research/navigation/CROSS_DOMAIN_ROUTES.md`, "6. What the game does itself, and what OPFOR's bot layer does".
 
 ## 7. How vehicle path data plugs in
 
-The vehicle worker's `navvehicle.py build <level>` writes a standard Kynapse file to
-`work\navvehicle\<level>\pathdata.hpd`. `navdomains.py build <level> --vehicle <that file>` takes it as the
-`land` domain unchanged: graph and costs come from the file, and dismount points from its nodes. Where the level
-has DICE's vehicle file, that file is the default. Boats stay out of the vehicle file (option A stays a separate
-experiment).
+`bfo:docs/research/navigation/CROSS_DOMAIN_ROUTES.md`, "7. How vehicle path data plugs in".
 
 ## 8. Implemented, and designed only
 
-- **Implemented and tested offline:**
-  - boat meshes (PBL and PWC profiles) with shore links and spawns;
-  - the domain graph for infantry, land and boats from a level's files;
-  - the hierarchical planner with per-domain tables, availability and leg expansion.
-- **Designed only:**
-  - the air domain (no generator: the planner accepts an air graph, and the tests use one);
-  - landing zones;
-  - parked-vehicle enter transitions at run time;
-  - risk costs and seat claims;
-  - the run-time side in OPFOR's DLL: loading the side files, A* on the boat mesh, steering by input, using the
-    game's enter-vehicle action;
-  - option A (a Kynapse water type).
-- **Known limits:**
-  - The default box is the sampling box, and water beyond it is left out (`--box` widens it; there, objects and
-    terrain are the only obstacle sources).
-  - Vegetation or other group instances standing in shallow water count as obstacles (SP_02).
-  - Dynamic objects (floating crates) count as static.
-  - Edges are dense (about 16 neighbours per node; prune if run-time memory matters).
-  - Dock links are few (2 on ONS_MP_004): piers higher than 3 m or ending more than 5.5 m from free water give
-    none.
+`bfo:docs/research/navigation/CROSS_DOMAIN_ROUTES.md`, "8. Implemented, and designed only".

@@ -1,5 +1,5 @@
 //! DICE's placement tendencies as editor warnings (round V1, from round L1's study of the stock maps:
-//! `bfbc2-map-editor/placement/L1_placement_report.md`).
+//! `bfo:docs/research/suite/L1_placement_report.md`).
 //!
 //! [`measure`] reads a level partition's gameplay layout as L1's `l1_measure.py` does - the same metrics, the same
 //! names (`cq.flag_nn_dist`, `rush.stage_step` ...), the same definitions - and [`check`] holds each measurement

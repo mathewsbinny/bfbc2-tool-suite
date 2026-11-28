@@ -63,7 +63,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:294-298"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:301-305"
     },
     {
      "kind": "doc",
@@ -168,7 +168,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:55-71"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:62-78"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -185,11 +185,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:281-293"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:288-300"
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:330-338"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:337-345"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -206,11 +206,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:41-43"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:48-50"
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:312-314"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:319-321"
     }
    ],
    "file": "spec/engine/ai.md",
@@ -231,7 +231,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:322-329"
+     "ref": "bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:329-336"
     }
    ],
    "file": "spec/engine/ai.md",

@@ -124,9 +124,10 @@ and kits; 7 shader databases covering every placed and reached mesh; 8 the Mark 
 console seats; 10 every referenced but unloaded PC partition copied in; 11 cull-tree places; 12 the loading video;
 13 the HUD; 14 the Mark V's HUD icon (one level). The order is load-bearing: stage 7 follows 6 (the kits' weapons),
 9 and 10 follow 8. Stage 4 takes a level's folder list, if it has one, and the closure of what only PC
-mp2_common provides (XCONS-ONS-4).
+mp2_common provides (XCONS-ONS-4). The plan is the suite's since round OR13 (XCONS-ONS-16).
 
-[code: opfor:src/tools/onslaught/console_port.py:1-30] [code: opfor:src/tools/onslaught/console_port.py:75-93]
+[code: opfor:src/tools/onslaught/console_port.py:1-30] [code: rust/bc2-install/src/onslaught/driver.rs:14-31]
+[code: rust/bc2-install/src/onslaught/driver.rs:64-120]
 [doc: private:opfor-research/DEVELOPMENT_NOTES.md:1256-1279]
 
 ### XCONS-STG-2: What the stages guard against
@@ -262,11 +263,13 @@ two donors have comes from the first), with their `.merge.txt` reports. The merg
 (`bc2_convert::shadercmd`, moved there from `bfbc2.exe shaderdb`): it copies DICE's compiled programs and translates
 no console program, so the Xenos translator (XSH-CF-1) has no part in it. The partitions are read as the Python read
 them: XML beside an unpacked partition (a folder with none converted whole; a partition without one reads as missing),
-then the game copy's mesh index.
+then the game copy's mesh index. A base whose programs some entry group does not own (ONS_MP_004's stage 7 input:
+the 40 km/h sign's three entries taken out by hand on 2026-10-30, their 32 programs left) merges without them
+(SHDB-MRG-1, round OR13): before, both sides refused that level's Dx9 merge alike ("32 programs in no entry group").
 
 [code: rust/bc2-install/src/onslaught/shaders.rs:94-120] [code: rust/bc2-install/src/onslaught/shaders.rs:240-330] [code: rust/bc2-convert/src/shadercmd.rs:560-700] [code: opfor:src/tools/onslaught/console_shaders.py:38-55]
 [test: rust/bc2-install/src/onslaught/shaders.rs::patterns_and_donors] [test: rust/bc2-convert/src/shadercmd.rs::needs_from_a_file]
-[data: round OR10, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's, the merged databases among them; on ONS_MP_004 both sides refuse the Dx9 merge alike (32 programs in no entry group: the shared Rust merger, an open question below)]
+[data: round OR10, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's, the merged databases among them; on ONS_MP_004 both sides refused the Dx9 merge alike (32 programs in no entry group)] [data: round OR13, 2026-11-27: with SHDB-MRG-1, ONS_MP_004's stages 5 - 7 succeed on both sides, the merged Dx9 database byte for byte the user's installed one]
 
 ### XCONS-ONS-8: The Mark V stage gives the retired Python's work files; its base and its texture check
 
@@ -397,10 +400,74 @@ test reference (OR14: OPFOR's movie tools are `bc2_native.AptMovie`). A failing 
 [test: rust/bc2-install/src/onslaught/hud.rs::never_patches_twice] [test: rust/bc2-install/src/onslaught/hud.rs::records_and_names]
 [data: round OR12, 2026-11-27: the user's four levels, a redo on the entry records and the main menu's loading screen, every work and game file of the Rust stage identical to the Python's]
 
+### XCONS-ONS-14: The icons stage gives the retired Python's work files; the preview's encoding
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 14 (`console_icons.py`'s apply and `--check-all`, `bc2_install::onslaught::icons` since round OR13) gives the
+retired Python's work files and writes byte for byte on Valparaiso (`ons_mp_002`, the one level ICONS names): the
+Mark V's silhouette (DICE's distant `MarkV_Static_Mesh` from the side, round OR14's `bc2_convert::pictures::side`),
+placed in each weaponicon atlas's free space, its `UITextureAtlasInfo` (an XML copy of the first entry, DbxEdit
+import `--like`, the GUID `opfor_guid('ww2', 'onslaught-icon-mrkv', image)`), the WeaponIcon frame labelled `MRKV`
+and the small icon's alias (`bc2_menu::graft`), the manifest's sizes, the packed `ingame-00` / `loader-00`; and the
+same checks (aptcheck, every vehicle Name labelled, one textured quad, the atlas read back). The gate's findings over
+every registered level are the Rust's too; OPFOR's script keeps its verdict (campaign levels reported, not gated).
+Decided: the review picture `work\console_icons\preview\MRKV.png` keeps the Python's pixels but is encoded by the
+`png` crate, not Pillow's zlib stream (nothing reads it back).
+
+[code: rust/bc2-install/src/onslaught/icons.rs:589-772] [code: rust/bc2-install/src/onslaught/icons.rs:793-832] [code: opfor:src/tools/onslaught/console_icons.py:55-75]
+[test: rust/bc2-install/src/onslaught/icons.rs::references_name_the_partition] [test: rust/bc2-install/src/onslaught/icons.rs::chains_in_order]
+[data: round OR13, 2026-11-27: ons_mp_002's --plan and --apply on the user's installed bundles and the gate over every registered level, every work and game file of the Rust stage identical to the Python's (the preview by its pixels)]
+
+### XCONS-ONS-15: The shader audit gives the retired Python's report
+
+Status: **verified** · Variants: Xbox 360
+
+The shader audit (`console_shader_audit.py`, `bc2_install::onslaught::audit` since round OR13) prints the retired
+Python's report and leaves its files: the placed and reached (mesh, shader) pairs against the level's three databases,
+excused where the stock PC map lacks the same pair drawn the same way or no stock PC level compiles it
+(`work\console_shaders\pc_pairs.txt`, its stamp the level bundles' paths, sizes and times), then in depth each spawned
+vehicle's and placed object's parts by entry, vertex layout, pass and skinning kind (a mesh set or level of detail it
+cannot read is a gap, not a pass), and the seats' PC input (XCONS-ONS-9's rules). Decided: a placed part's line named
+its database with a stray prefix (`DxDx9`, or `Dx-` for a mesh it could not read: the f-string's `Dx{dx}`); it says
+`Dx9` (`-`).
+
+[code: rust/bc2-install/src/onslaught/audit.rs:299-373] [code: rust/bc2-install/src/onslaught/audit.rs:476-599] [code: rust/bc2-install/src/onslaught/audit.rs:902-1040]
+[test: rust/bc2-install/src/onslaught/audit.rs::a_mesh_set_that_does_not_parse_is_a_gap_not_a_pass] [test: rust/bc2-install/src/onslaught/audit.rs::instances_surfaces_and_known_gaps]
+[data: round OR13, 2026-11-27: the user's four levels (ONS_MP_008 reports 10 vehicle part gaps and 2 placed-object part gaps, mesh sets the reader does not read), the report and every work file identical to the Python's but the decided prefix]
+
+### XCONS-ONS-16: The driver's plan is the retired Python's
+
+Status: **verified** · Variants: Xbox 360
+
+`console_port.py`'s plan (`bc2_install::onslaught::driver` since round OR13): a restart at stage N reverts the level's
+stages N - 14 that are installed, the last first; stage 1 needs the backup of Napisal's ports and drops his
+registration of the level (`package.mft`'s blocks starting `BundleSource game:levels/<lv>/<level|ingame|loader|
+terrain>-00.fbrb`) unless the console port is built; stage 8 runs for Valparaiso only, stage 14 for the levels with
+pictures; an option a stage needs that was not given stops the run when it reaches that stage, after the stages
+before it.
+
+[code: rust/bc2-install/src/onslaught/driver.rs:64-140] [code: opfor:src/tools/onslaught/console_port.py:57-86]
+[test: rust/bc2-install/src/onslaught/driver.rs::stages_per_level_and_restart] [test: rust/bc2-install/src/onslaught/driver.rs::napisals_blocks_go]
+[data: round OR13, 2026-11-27: 5,282 runs (5 levels, 11 restarts, the options, three ledger states, built or not, backup or not, two package.mft texts) recorded alike to the retired driver's]
+
+### XCONS-ONS-17: The Napisal-level fixes give the retired Python's work files
+
+Status: **verified** · Variants: PC
+
+The fixes OPFOR applies to Napisal's Onslaught levels (`bc2_install::onslaught::{sectoroff, napisal, squads}` since
+round OR13) give the retired Python's work files and bundles byte for byte: the `Precomputed/<Kind>/SectorOffsets`
+assets from the installed path data's sector ids (`floor(centre / 100)` less the sector's grid id, the most common
+value, 75 % of sectors agreeing), typed `--like` the user's `sp_004_B` asset; the DefaultSoldier AI spawners given
+the campaign grunt template (`copyfield` from an `sp_004_b` spawner; its chain packed where `sp_common` is not loaded;
+the DbxEdit check's errors exactly the original's); ONS_MP_002's enabled AI spawners grouped by fours, nearest first
+(`math.dist`), each group given the nearest of the console level's squads.
+
+[code: rust/bc2-install/src/onslaught/sectoroff.rs:74-108] [code: rust/bc2-install/src/onslaught/napisal.rs:210-255] [code: rust/bc2-install/src/onslaught/squads.rs:89-169]
+[test: rust/bc2-install/src/onslaught/sectoroff.rs::guids_entries_and_agreement] [test: rust/bc2-install/src/onslaught/napisal.rs::templates_spawners_and_counts] [test: rust/bc2-install/src/onslaught/squads.rs::positions_and_lines]
+[data: round OR13, 2026-11-27: Napisal's ONS_MP_002 / 004 / 005GR from the user's backup, sector offsets then the AI template then the squads, 73,106 of 73,106 work and game files identical to the Python's; ONS_MP_004's and ONS_MP_005GR's bundles also the user's October install byte for byte]
+
 ## Open questions
 
-- ONS_MP_004's shader merge (XCONS-ONS-7): the merger since OR3a leaves 32 Dx9 programs that no entry group owns,
-  which its read-back check refuses; the user's October merge of the same level read back consistent. Decide against
-  DICE's databases (suspected: OR3a's self-clone accident, PY1).
 - 0x98BD6E on ONS_MP_004's console road / stop signs: which vertex layout or program the renderer lacks (layer 3,
   rendering).

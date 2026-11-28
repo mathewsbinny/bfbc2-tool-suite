@@ -6,7 +6,8 @@ numbers only; no game data is copied.
 
     python l1_measure.py [out.json] [level ...]
 
-Entity semantics used (each checked against the suite's code or the data; see L1_placement_report.md "Method"):
+Entity semantics used (each checked against the suite's code or the data; see the L1 report's "Method",
+bfo:docs/research/suite/L1_placement_report.md):
 - capture point (CapturePointEntityData): UnableToChangeTeam true = a team's base (HQ, never captured; mpconvert.rs
   capture_points), else a flag (Conquest, Onslaught) or a Rush spawn base (Rush and Squad Rush: no flags at all);
   its Spawners list its soldier spawners and vehicle spawners; its Geometry its capture area (a sphere, an AABB or an

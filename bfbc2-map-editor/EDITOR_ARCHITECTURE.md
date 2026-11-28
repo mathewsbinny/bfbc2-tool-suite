@@ -9,28 +9,20 @@ each round recorded here what it built and why, so the document now has three ki
   section 9 (what each retired GUI had and where it went in the editor).
 - **The 2026-11-16 plan as written**, kept for its reasoning; where it differs from what was built, the built
   part wins: section 2 (what existed then: much of it has since been ported to Rust or retired, `RETIRED.md`), 3.2,
-  3.3, 3.5 and 3.9 (the Python `levelwrite.py`, `mapedit apply` and the Map Inspector's edit mode became the Rust
-  crates, `mapexport` and the editor), 4 and 5 (stage 2 and the old order of work; the live queue and the rounds done
-  are `ROADMAP.md`), and the rulings of sections 1 and 6, which still hold.
-- **Plans not built yet**: 3.10's "Later", section 7 and section 10 (the AI workspaces).
+  3.3 and 3.5 (the Python `levelwrite.py`, `mapedit apply` and the Map Inspector's edit mode became the Rust
+  crates, `mapexport` and the editor).
+- **Moved to battlefield-opfor's knowledge base** in round KB2 (2026-11-28), each section left with a pointer: the
+  user's rulings (sections 1 and 6, the G1 decisions in 3.10, the rulings of 3.12, E3b, E3c and E3d) to `bfo:docs/decisions/map-editor.md`;
+  the plans (3.9, 3.10's "Later", sections 4, 5, 7 and 10) to `bfo:docs/plans/map-editor.md`.
 
 Code comments cite this document by section number, so the numbering stays. Items marked *(inferred)* were not
 checked in code.
 
 ## 1. Rulings (the user, 2026-11-16)
 
-- **Stage 1 edits existing maps.** Move, add and remove objects and gameplay entities on stock, Vietnam and WW2
-  maps, then build, install and play them. This sets the baseline.
-- **Stage 2 makes new maps.** New terrain, imported or randomized, populated with existing game assets.
-- **Audience: public modders too.** A guided GUI with validation and plain-language errors, in line with the
-  suite's beginner QUICKSTART and GUI plans. A power user can still drive every step from the command line.
-- **Home: the Map Inspector gets an edit mode,** as the Navigation Studio did, on the shared core. It is not a
-  separate tool. Under the performance ruling (3.8), the Map Inspector itself moves onto the Rust core and
-  application, and the edit mode is part of it there.
-- **Very fast, with parallelism:** a hybrid Rust core (3.8).
-- **WW2 mode.** The editor makes Pacific War maps under an explicit WW2 content profile. WW2 kits, ww2_common and
-  Package-only levels are used there, and modern kits are never placed on a WW2 map. This is the same rule as the
-  planned WW2 mode of the AI tools.
+Moved to `bfo:docs/decisions/map-editor.md` in round KB2 (2026-11-28): stage 1 edits existing maps, stage 2 makes new ones; public
+modders are an audience; the Map Inspector grew an edit mode (now the editor); a hybrid Rust core; an explicit
+WW2 mode.
 
 ## 2. What already exists to build on
 
@@ -529,88 +521,13 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
 
-The draft as written; what was built is 3.10's "Done in round" lists (the start flow is round G4's, the Problems
-panel V1's, Install / Uninstall 3.12's) and the editor's README.
-
-The editor is for a modder who has never opened a DBX file. Every step is visible, safe to try, and undoable.
-Everything the GUI does is an operation in the project log, so the CLI does it the same way.
-
-**Start screen**
-- **New map from an existing map.** Pick a stock, Vietnam, WW2 or custom map, then give the new map its name. For a
-  stock base this happens at once, because stock maps are never overwritten (6.1). The content profile follows the
-  base (WW2 for a Pacific War map).
-- **Open a project, recent projects, open a shared project.** For a shared project, the editor checks that this
-  game copy has its base map and assets, and names anything missing in plain words. It never asks for game files from
-  another person.
-- **View a map:** open any map read-only (the editor's View workspace since G1). "Edit a copy" makes a new project.
-- **Later (S2):** new map from terrain (import or generate).
-
-**Main window.** The panels are dockable (the user, 2026-11-16). A default layout ships as described below, and
-the user can drag, dock, tab, float and reset panels. The layout is saved per user, and tutorials say "Reset layout"
-first.
-- **Centre:** the 3D view. Orbit, fly (WASD) and focus (F) as today, plus camera bookmarks and a top-down map view
-  drawn like the in-game map.
-- **Top bar:**
-  - the workspace switcher: Objects, Gameplay, AI, and later Terrain;
-  - the mode layout (Conquest, Rush, Air Superiority, a custom mode ...) the Gameplay and AI workspaces show;
-  - the content profile badge (BFBC2, Vietnam, WW2);
-  - Build, Install and Play-test.
-- **Left:**
-  - the outliner: the map's contents by kind (gameplay, objects, vehicles, AI, areas), searchable, with hide and
-    isolate;
-  - the asset browser tab.
-- **Right:** properties of the selection. Fields are typed from the schema; references are links; several selected
-  objects can be edited at once.
-- **Bottom:**
-  - Problems: live validation, each with what is wrong, why it matters, how to fix it, a button to jump to the object,
-    and a quick fix where one is safe ("snap to the ground", "add a spawn for this flag");
-  - the build log;
-  - History: the operation log with names, times and undo/redo to any point.
-
-**Workspaces**
-- **Objects:**
-  - select (click, box, polygon);
-  - move and rotate with the gizmo (snap to ground, surface normal, grid, angle);
-  - scale only where proven safe (the user, 2026-11-16). An object type is allowed to scale only once tests and a
-    play-test show the engine handles it: collision, destruction and cull data. The list starts empty, so move and
-    rotate are the only transforms at first;
-  - duplicate, delete, and place from the asset browser by dragging into the view.
-  - Unsafe assets (3.3) are greyed out, with the reason shown.
-- **Gameplay:** the active mode layout's entities: flags, spawns, vehicles, objectives, combat and team areas
-  (polygons with vertex handles), ceilings. A checklist from the mode's definition shows what the mode still needs
-  ("Conquest: 2 bases, at least 1 flag, a spawn per base").
-- **AI (3.4a):**
-  - overlays: the navmesh, coverage, islands, routes and links;
-  - tools: spawners, orders, routes, links, walkable/unwalkable regions;
-  - a path test (click A, then B);
-  - "Regenerate navigation", which runs in the background and shows progress.
-
-**Build, install, play-test**
-- **Build** runs apply (3.5) in the background. The step graph shows as progress: which steps run in parallel, which
-  are done, and which failed. Errors stop the build and land in Problems with a jump button. Warnings do not stop it.
-- **Install** is a separate button. It installs the built map under its own name and keeps the revert. The game must
-  be closed, and the editor says so instead of failing.
-- **Play-test** builds if needed, installs and starts the map offline in the chosen mode layout, with bots where the
-  map has AI. It asks first, because the game starts. A crash comes back into the editor as the crash reader's
-  summary, with the objects it names linked.
-- **Export** (the user, 2026-11-16):
-  - "Share project" writes the small data-only file (6.2). It is the only way a map is shared: the other person
-    builds it from their own game copy.
-  - "Export built map" packs the built map **for this machine only**. A built map holds EA content, so the editor
-    offers no shareable built package.
-
-**Guard rails**
-- The base map is read-only; there is no "save over the original".
-- The WW2 profile hides modern kits and assets that need a licence.
-- An unsaved project is kept in an autosave log.
+The 2026-11-16 draft (start screen, main window, workspaces, build / install / play-test, guard rails, getting
+started) moved to `bfo:docs/plans/map-editor.md` in round KB2; what was built is 3.10's "Done in round" lists (the start flow is
+round G4's, the Problems panel V1's, Install / Uninstall 3.12's) and the editor's README. One guard rail of
+the draft is built and stays here:
 - One editor per project (round QW2, audit AU1 R4): an open project holds `<project>.mapedit.json.lock`; a
   second editor refuses it in words, a lock whose process is gone is taken over, and a save first checks that the
   file is still the one this editor read or wrote (modified time and length), else writes nothing and says so.
-- Long work never freezes the window.
-
-**Getting started**
-- A guided first map: copy Valparaiso as a new name, move a flag, add a vehicle, build, play-test.
-- A QUICKSTART, tooltips on every tool, and a sample project.
 
 ### 3.10 Parity with modern editors (the user, 2026-11-18)
 
@@ -641,20 +558,7 @@ features, beyond 3.1 - 3.9, each in the operation log and undoable like any edit
 12. **Version control.** Project history with diffs between versions and branches, on top of the data-only project
     format (which is already friendly to `git`).
 
-**Decisions on G1's first version** (the user, 2026-11-18):
-- Team labels name the side's faction per level and content profile (US / RU, US / NVA, US / JP ...), not T1 / T2.
-- The design tokens gain 3D-view variants of the team, neutral and status colours (readable on terrain in both
-  themes) and a `scene-*` group (terrain, water, sky, object greys) where it helps.
-- A third neutral colour for gameplay objects no team owns (objectives, combat areas), distinct from
-  `team-neutral`, the selection orange, the accent and the status colours.
-- Selection outlines show through walls; fly is right-button + WASD; F focuses.
-- A Help menu in the top bar for new users: controls and shortcuts, a getting-started guide, what each workspace is
-  for.
-- Opening a level NavKit has not prepared prepares it from the editor (a Prepare step with progress, or done
-  automatically on open), not by sending the user to another tool.
-- **Live rendering is the goal for the 3D view:** terrain, water and objects drawn as the game draws them - its
-  materials, textures, shaders (the shader translator, shaderview) and lighting - so a level looks in the editor as it
-  does in game. The opaque water and plain terrain of G1 are a first step.
+**Decisions on G1's first version** (the user, 2026-11-18): `bfo:docs/decisions/map-editor.md` (moved in KB2).
 
 *Done in round G2 (2026-11-18; `rust/BENCHMARKS.md` "G2"):* the labels by faction (`LevelDescription`'s
 `FactionTeam1` / `FactionTeam2` read through the content profile: `FactionRUS` is RU, NVA or JP; T1 / T2 where the
@@ -842,10 +746,8 @@ shape is read from the level's partitions, never made up (`rust/bc2-editor/src/o
   intact and destroyed (`Destruction::Stage`), up / down arrows and Page Up / Page Down, and says plainly when a
   blueprint's collision is one piece in its files.
 
-**Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
-hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to
-the running game (the bot-AI debugger) to see it and jump back to objects. True play-in-editor is not possible: the
-editor cannot host the game's engine; the fast build / install / launch of 3.6 stands in for it.
+**Later:** the features the user deferred on 2026-11-18 (scripting and plugins, customisable hotkeys, a live
+connection to the running game): `bfo:docs/plans/map-editor.md` (moved in KB2).
 
 ### 3.11 Game-accurate rendering (round R5, 2026-11-18: study and prototype)
 
@@ -1075,8 +977,8 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
 
 ### 3.12 Exporting a level as a new multiplayer level (round E3, 2026-11-18: study and first export)
 
-The user's goal: load Operation Aurora's map, edit it, save, export it, and find it in the level list on the next
-launch. A campaign level is exported as a NEW multiplayer level; no original is ever written. Built in round E3:
+The user's goal for the export: `bfo:docs/decisions/map-editor.md`. A campaign level is exported as a NEW multiplayer level; no
+original is ever written. Built in round E3:
 `bc2_levelwrite::{export, mpconvert, culltree}`, the `mapexport` binary, the editor's Export window
 (`bc2-editor/src/export_ui.rs`), and OPFOR's `src\tools\mapedit\mapedit_install.py` (the install moved into the
 suite as `bc2_install::mapedit` in round OR6).
@@ -1289,9 +1191,7 @@ The results:
 
 #### Round E3b: profiles, the level's own name and picture, the campaign checklist (the user, 2026-11-19)
 
-The user's answers to E3's open points: levels for BFBC1, BFBC2, Vietnam and WW2 by choice; each export with its own
-in-game name and loading picture; the user chooses what a campaign base loses; placement stays E3's first guess,
-editable, until E4's gameplay tools.
+The user's answers to E3's open points: `bfo:docs/decisions/map-editor.md`.
 
 **Content profiles** (`bc2_levelwrite::profile`). Nothing is a hand-kept list; each profile is read from the stock
 levels of its set in the game copy:
@@ -1364,10 +1264,8 @@ selected object stands (move any object with the gizmo, then take its place).
 
 E3b's open defect: a WW2 export (Aurora, donor `guadal_canal`) failed one reference check. The grafted layer's
 `guadal_canal_GameInfo` trigger set names `sound/vo/vo_common` lines that only the WW2 level's own copy of that bank
-has. The user's ruling: the announcer follows the profile's own conventions (WW2 BF1943's voices as OPFOR's WW2
-levels have them, Vietnam the DLC's, BFBC2 its own, BFBC1 the BFBC1 maps' own). Copying back the hidden modern
-partitions the base's own objects need stays as it is.
-
+has. The user's ruling (the announcer follows the profile's own conventions):
+`bfo:docs/decisions/map-editor.md`.
 **Each set's announcer, from the data** (`profile::Announcer`, read per donor from its own level bundles,
 `package.mft` and `bundleManifest`; `examples/profiles.rs` prints it):
 
@@ -1433,13 +1331,8 @@ The editor's Export window shows the donor's announcer (a row under Kits).
 
 #### Round E3d: any map, any era, any mode (the user, 2026-11-19)
 
-The user's goal: any map altered and exported for any multiplayer mode of the era the level is declared for
-(BFBC1, BFBC2, Vietnam, WW2), then installed end to end - a stock BFBC2 map declared WW2, a WW2 Conquest level
-declared a BFBC2 Rush level, Operation Aurora as a WW2 level with WW2 objects placed from WW2 bundles. The user's
-rulings during the round: the era and the mode are **project settings**, and the mode layer is **editable project
-data**, not a graft at export time; an era change gives the level the target era's kits, factions and teams; every
-combination that cannot work fails in the check and the editor with a plain message; the proof is a list of named
-**canary conversions**.
+The user's goal and rulings for the round (the era and the mode are project settings, the mode layer is
+project data, every impossible combination fails in plain words, named canary conversions): `bfo:docs/decisions/map-editor.md`.
 
 **Each era's modes, from the data** (`profile::modes`: every level's description's `GameMode`; `examples/modes.rs`
 prints it):
@@ -1773,8 +1666,8 @@ byte for byte but the intended changes, every check line passing; install and re
 
 ## 4. Stage 2: new maps from imported or randomized terrain
 
-- **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
-  noise with erosion and a seed, so it can be made again.
+The stage 2 and stage 3 plan (terrain sources, the new-level shell, populating, terrain collision, new
+models): `bfo:docs/plans/map-editor.md` (moved in KB2). Built so far:
 - **Terrain writer:** done for a generated terrain (rounds E5, TG1 and TG2, `spec/transforms/terrain_gen.md`): the
   main block and the ring from new heights (`bc2_formats::terrain_codec`), the material map, a rule-layer
   VisualTerrain and the visual water from a donor's (`visual_terrain`, `water::VisualWaterFile`), the colour /
@@ -1783,69 +1676,21 @@ byte for byte but the intended changes, every check line passing; install and re
   E7-TG3 (3.10, "Done in round G4").
 
   The terrain-patch rule applies: the material/mask atlas layout must match the donor's, or tiled cells draw black.
-- **A new-level shell:** the level-root files (shader database collection, emitter system, atlases), the material
-  grid, weather and the description. These come from a donor under the new name, as the WW2 levels do from mp_005
-  and NAM_MP_002CQ.
-- **Populating:** existing assets only, so no new collision is needed. Optional scatter tools place vegetation and
-  props by slope, height and density with a seed. Each scattered object still goes through the "safe to place" rules.
-- **Terrain collision:** *(inferred)* the game builds terrain collision from the heightfield itself, which needs
-  checking before stage 2 starts.
-- **Stage 3, new models:** a Havok shape and MOPP builder for new geometry, plus cull shapes for blueprints that
-  have none. It is needed only for custom models, not for terrain or existing assets.
+
 
 ## 5. Order of work (rough)
 
-The 2026-11-16 order, with the status the early rounds wrote into it. The rounds since went by other names (G, R, E3b
-on, V, A, GR, TG ...) and are listed, with the live queue, in `ROADMAP.md`; the rows below are not kept up to date.
-
-| Step | Delivers |
-|---|---|
-| E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings. **Status (2026-11-16, branch `rust-e0`):** workspace `rust/` (`bc2-formats`, `bc2-py` / `bc2_native`), the DBX reader ported and identical to the Python reader on all 48,120 distinct corpus files and to DbxEdit on its 31,404 fingerprints, `bfbc2core.dbx` on it with the Python fallback, timings in `rust/BENCHMARKS.md`. **E0b (branch `rust-e0b`):** the FBRB reader ported (`bc2_formats::fbrb`; `bfbc2core.fbrb` on it with the Python fallback), the same entries and bytes as the Python reader on every bundle of the game copy and `work\ww2`, and FbrbTool's unpack on the built and sampled bundles; level loading through `dbx.parse_many`. Bundle packing stays with FbrbTool (E1 / `levelwrite`). E0 done. |
-| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). **E1b (branch `rust-e1b`):** the writers in Rust: `dbx.write` (the Python writer's bytes on all 48,119 corpus files) and bundle packing (`fbrb.pack` / `pack_many`, FbrbTool's bytes on all 1,086 bundles of the game copy, with a byte-exact port of zlib's deflate). **E1c (branch `rust-e1c`):** shader databases (reader / writer, all 745 corpus databases identical) and the cull tree tool's element reader and level search in `bc2-formats` (3.8). **E1e (branch `rust-e1e`):** the mesh alias table read from the binary partitions and cached by the files' sizes and times (identical on all 37 prepared levels; MP_005's index 0.36 -> 0.11 s warm), NavKit's `detailed`, `ladders`, `navsample_offline` and `navwater_mesh` on the Rust collision readers (their output byte for byte the same), a WW2 level (Guadalcanal) loaded and timed from a temp prepare. **E1d (branch `rust-e1d`, 2026-11-16):** a WW2 level build and a NavKit build profiled; console textures (`bc2-convert`) and NavKit's grid walks and floods (`bc2-navbuild`) in Rust, byte-identical to the Python code on every BF1943 / Onslaught texture and on whole NavKit builds; the converters' partition reads one pass per bundle (`meshview.Partitions`): coral_sea's build 1,293 -> 667 s, a NavKit build of sp_004_b 566 -> 186 s (sp_009 153 -> 19 s). **Integrated** on branch `rust-e1`. **G1 (branch `rust-g1`, 2026-11-18): the editor's view on the scene** - the application's shell in `rust/bc2-editor` (binary `bfbc2-editor`, egui 0.36 on wgpu 30 through eframe, docked panels with egui_dock): the theme generated from `design/project/tokens.json` (Dark and Light, IBM Plex), the start screen ("View a map": the game copy's levels, read-only), the 3D view on `bc2-scene` (terrain, water, collision instanced per blueprint, entities as markers in team colours with labels, outlines; orbit / fly / focus, GPU picking, the selection outlined in `selection`, camera bookmarks) plus top / front / side orthographic views with their own cameras, the Outliner / Properties / Problems panels, an action registry shared by the top bar, the shortcuts and a command palette (Ctrl+Shift+P), and a CPU ray-cast on the scene's surfaces (the base of 3.10's surface snapping); the hub starts it. Proven headless: every token reaches the theme in both themes; the outliner equals the Map Inspector's lists on SP_01, MP_005, MP_009GR and ONS_MP_004 entity by entity; offscreen frames, outline, picking and clicks (README.md, "The map editor"). Next: entity creation / deletion and field edits with `levelwrite` |
-| E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save; with 3.10: surface / grid / angle / vertex snapping incl. sinking below the surface, align and distribute, ruler; layers and outliner folders; groups; several viewports and the viewport modes; the command palette; autosave and crash recovery. **Status (2026-11-18, branch `rust-e2edit`, first part):** the map project and its log in Rust (`rust/bc2-levelwrite`: `<name>.mapedit.json` after navtune.json's pattern - base level, partition sha1, content profile, operations with `by` / `when`, UUIDv5 guids, undo / redo, base-changed report, autosave beside it and crash recovery); levelwrite on `EditDbx` (transform, delete = DbxEdit's `drop` plus the deleted object's event connections, duplicate wired into `LevelData.Objects` and `EventConnections`, typed field sets from the partitions' own data by `dbxcatalogue`'s rules, never guessed; a field-level diff), proven on MP_005, SP_01 and Guadalcanal (parse, exactly the expected changes, writer round trips, the scene loads them; DbxEdit `drop` / `setfield` and the Python `dbxbin` reference byte for byte); the Objects workspace in `bfbc2-editor` ("New map from an existing map", "Open a project"; select by click and box, the move / rotate gizmo in world or local axes, grid / angle / vertex and edge / surface snapping with a sink depth in metres or a share of the height, along the normal or straight down, kept with the object; delete, duplicate, align, distribute, ruler, layers with hide / isolate / lock / colour, outliner folders, groups, typed properties; every edit one undoable operation in the History panel; the actions in the command palette). Remaining for E2: the viewport modes (lit / unlit / wireframe / collision / navmesh / cull tree), polygon selection, editing static group members (their group files), deep duplicates (owned sub-instances such as a flag's capture area), multi-object property editing ("Mixed"), and the levelwrite proofs extended to every prepared level (rust/BENCHMARKS.md, "E2") |
-| E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install`. **Status (2026-11-18, branch `rust-e3`, 3.12):** export as a NEW multiplayer level, campaign levels included - `bc2_levelwrite::{export, mpconvert, culltree}` and `mapexport` (build, offline check, the startup patch), the editor's Export window, OPFOR's `mapedit_install.py` (plan / apply / revert on the stage protocol); SP_01 staged as `MAPEDIT_AURORA_CQ` and every offline check passed, the game copy unchanged. Next: the first in-game test (with the user), new shader entries for placed meshes (E4's placing), bots |
-| E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority); with 3.10: prefabs, copy and paste between maps, performance budgets, splines |
-| E5 | NavKit and AI regenerated on apply; play-test button; content profiles incl. WW2; custom game modes from mode definitions; export of a built map |
-| E5a | The AI workspace (3.4a): spawners and orders, routes and connections, navmesh coverage and its regions, the workspace checks; Navigation Studio's editing and stockmp-ai brought into the editor's project. WW2's bot tools (carriers, LCVPs, spawn choice) when the WW2 bot planning becomes a build |
-| E6 | Modder polish: QUICKSTART, guided first map, plain-language errors, a sample project; with 3.10: version control (history, diffs, branches) |
-| S2 | New maps: terrain import / generation, terrain writer, new-level shell, scatter; with 3.10: terrain sculpting and painting brushes and the foliage brush (the terrain writer is their prerequisite; they also work on existing maps' terrain) |
-| S3 | Custom models: collision and cull-shape generation |
+The 2026-11-16 order (E0 - E6, S2, S3) with the status the early rounds wrote into it: `bfo:docs/plans/map-editor.md` (moved in KB2).
+The rounds since, with the live queue, are in `ROADMAP.md`.
 
 ## 6. Rulings on the open questions (the user, 2026-11-16)
 
-1. **Stock maps are never overwritten.** An edited map whose base is one of OPFOR's stock maps (BFBC2, Vietnam or
-   WW2/Pacific War) is always installed under a new name, with its own registration and description. The editor
-   refuses to install over a stock level. A **custom** map (one the editor made and installed) may be overwritten
-   by a later build of its own project. The install records which levels are custom, so the overwrite check knows
-   a custom level from a stock one.
-2. **A project is data-driven and shareable without content.** Until a map is built and installed or exported, a
-   project holds only data: the base level's name, the content profile, the operation log, generator settings and
-   seeds, and references to game assets by name. It holds no EA content, no copied partitions, meshes or textures.
-   It stays small (kilobytes) and rebuilds on another machine from that person's own game copy. Anything the editor
-   needs from the game is derived again at build time, in a cache outside the project. The built or exported map is
-   the only output that holds game content.
-3. **The level installer lives in the suite,** shared by every tool: the editor, stockmp-ai, and OPFOR's WW2 install,
-   which would call it rather than keep its own copy.
-4. **Every game mode, including Air Superiority and custom modes.** The editor authors maps for Conquest, Rush, Squad
-   Rush, Squad Deathmatch, Onslaught and Pacific War's Air Superiority, and for **custom game modes**. A mode is data
-   to the editor: a mode definition says which gameplay entities it needs and their rules (flags, stages, M-COMs,
-   capture areas in the air, ticket rules, spawn rules), its GameModeData (ModeID, HUD layers, matchmaking id and
-   bundles, as OPFOR's AirSuperiority is built), and the validation that applies. Built-in modes and custom modes
-   use the same definition format, so a modder can add a mode without changing the editor. One project can carry
-   several mode layouts, as DICE's mode-specific levels do (MP_005GR, MP_005SR).
-
-   Two lessons from Air Superiority (2026-11-14 to 16) carry over:
-   - a custom mode that shares a matchmaking key with another mode must not break the menus (the blank browser
-     rows, fixed in OPFOR's DLL);
-   - its description's GameMode must resolve at load, or the level crashes (0x74EAB3).
+The user's four rulings (stock maps never overwritten; projects data-only and shareable; the level installer
+in the suite; every game mode, custom modes included): `bfo:docs/decisions/map-editor.md` (moved in KB2).
 
 ## 7. Still open
 
-1. **The WW2 AI mode's timing:** WW2 bots are still being planned (battlefield-opfor's knowledge base,
-   `bfo:docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). WW2 maps are fully editable, including their bot side (3.4a),
-   so the editor is where that work will be done. Bots play on them once the WW2 bot runtime (the DLL side) exists.
-2. **Custom modes needing engine work:** some mode rules may need OPFOR's DLL (as Air Superiority's mode tests did).
-   The mode definition format needs a way to say so, and the editor a way to report it.
+The WW2 AI mode's timing and custom modes that need engine work: `bfo:docs/plans/map-editor.md`, "Still open" (moved in KB2).
 
 ## 8. Known risks (from OPFOR's records)
 
@@ -2012,64 +1857,19 @@ window headless (Apply gives `dbxedit edit setfield=`'s bytes) and the project r
 
 ## 10. Planned workspaces: tactical authoring, the bot AI debugger, the AI behaviour simulator (round FM1, 2026-11-20)
 
-Three tools of `DESIGN.md`'s first plan (2026-10-16) were never built: the tactical map authoring tool, the bot AI
-debugger and the AI behaviour simulator. Each had a folder holding only a README ("Planned - see ../DESIGN.md"). The
-user ruled (2026-11-19) that they become workspaces of the editor, not tools of their own, and that planned tools get
-no folders (2026-11-20); round FM1 deleted the three folders (`RETIRED.md`) and moved their plans here from
-`DESIGN.md` 4.3, 4.4 and 4.8. They build on the AI workspace (3.4a), and the same project, undo and apply rules
-hold. Nothing here is scheduled yet: each waits for Project OPFOR's bot layer (`ROADMAP.md`).
+Moved to battlefield-opfor's knowledge base in round KB2 (2026-11-28): `bfo:docs/plans/map-editor.md`, "Planned workspaces". Three tools
+of `DESIGN.md`'s first plan (2026-10-16), never built, became workspaces of the editor (round FM1, 2026-11-20);
+nothing here is scheduled: each waits for Project OPFOR's bot layer (`ROADMAP.md`).
 
 ### 10.1 Tactical authoring (milestone M7, when OPFOR's bot layer takes shape)
 
-A layer above the navigation data, for OPFOR's bots: generated as candidates, corrected by hand.
-
-- **Layers:**
-  - objectives and their approaches;
-  - cover candidates (positions with protection from one or more directions);
-  - firing positions (with fields of view);
-  - rally points, vehicle approach routes, squad routes;
-  - strategic regions (sectors of a map with a role: base, front, flank).
-- **Generators propose candidates** from geometry and the navigation data: cover from collision near walkable
-  ground, sight lines by ray casts (the editor's CPU ray-cast on the scene's surfaces, 3.10), approaches by path
-  search (the AI workspace's A*, GR2). People correct them in the workspace, each correction an operation of the
-  project's log.
-- **Output:** a per-level annotation file, `<level>.tactical.json` (`DESIGN.md` 5.3: typed annotations, each with a
-  position, orientation, extent, team relevance, game-mode relevance and source - generated or hand-made; the schema
-  is fixed when the bot layer's needs are known), which OPFOR's bot layer reads. It is not stockmp-ai's layer:
-  stockmp writes game data, this writes annotation side files.
+Candidate cover, firing positions, routes and regions, corrected by hand, written to `<level>.tactical.json`: `bfo:docs/plans/map-editor.md`.
 
 ### 10.2 The bot AI debugger (milestone M6, as soon as AI runs in OPFOR; first for the game's own AI)
 
-A live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of
-sight, threats, squads.
-
-- **OPFOR side:** a telemetry module in OPFOR's DLL streams AI state over 127.0.0.1 a few times a second (`DESIGN.md`
-  5.4: JSON lines over TCP, one frame per update, `{"t": ..., "soldiers": [...], "squads": [...], "events": [...]}`,
-  the schema fixed and versioned with the first module): soldier positions and orientation, team, current order and
-  goal, target, path request and route, tactical state, perceived threats, squad membership. It starts with what the
-  game's own AI exposes, then adds OPFOR's bot layer as it is built.
-- **Editor side:** a workspace on the same 3D view, with the live soldiers drawn over the level and its navigation
-  data:
-  - click a soldier for its state;
-  - its current route, line of sight and threat lines;
-  - a timeline to scrub back through the last minutes;
-  - recording to a file for later, and playing a recording back without the game.
-- It also feeds the test harness's in-game tests (bot traversal, stuck detection, squads, vehicles), which are on
-  hold with the user's pause of in-game tests (2026-11-20).
+OPFOR's AI state streamed over 127.0.0.1 and drawn over the level, with a timeline and recordings: `bfo:docs/plans/map-editor.md`.
 
 ### 10.3 The AI behaviour simulator (with OPFOR's bot layer, Goal 3)
 
-Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective
-priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls,
-physics or animation.
+OPFOR's bot decision code run on simplified maps without the game: `bfo:docs/plans/map-editor.md`.
 
-- **The rule this brings forward:** OPFOR's bot decision logic is written as an engine-independent library. It
-  reaches the world only through an interface: positions, line of sight, paths, objective states, squad messages.
-  OPFOR's DLL connects that interface to the game; the simulator connects it to a simplified map. Both run the same
-  decision code, so a flaw found in simulation is a flaw in the bots.
-- **The simplified map** comes from NavKit's navigation data (route graph, areas), the tactical annotations (10.1),
-  and line of sight from collision geometry.
-- **Scenarios:** teams, spawns and objectives from the level (or the project's mode layer); scripted or random enemy
-  behaviour; many runs faster than real time; results into the test harness. The workspace draws a run as 10.2 draws
-  a live game, so one view serves both.
-- **Out of scope:** controls, physics, animation, weapon ballistics. Those stay with in-game tests.

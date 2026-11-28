@@ -787,6 +787,8 @@ pub fn cmd_merge(a: &MergeArgs<'_>, env: &Env<'_>) -> Result<MergePrinted> {
     for (l, db) in donors_l.iter().zip(&donor_dbs) {
         m.add_donor(db, &l.kind(db), &l.label).map_err(merge_err)?;
     }
+    // the base's programs no entry group owns (a base edited by hand: SHDB-MRG-1) are left out by finish
+    let unowned = m.unowned_base_programs().len();
     let out = m.finish().map_err(merge_err)?;
     let parse_dx = if base_l.dx == 11 { 10 } else { base_l.dx };
     let (again_dx, again_big) = parse_kind(&out, Some(parse_dx), "the merged file")?;
@@ -823,6 +825,12 @@ pub fn cmd_merge(a: &MergeArgs<'_>, env: &Env<'_>) -> Result<MergePrinted> {
         format!("merged {} (Dx{}, {} bytes)", a.out, base_l.dx, thousands(out.len())),
         format!("base {}: {} entries, {} programs", base_l.label, before.0, before.1),
     ];
+    if unowned > 0 {
+        lines.push(format!(
+            "base: {unowned} programs no entry group owns left out (an entry taken out of the file by hand, its \
+             programs left; no DICE database has one)"
+        ));
+    }
     lines.extend(m.report.iter().cloned());
     lines.push(format!(
         "result: {} entries (+{}), {} programs (+{}), {} vertex shaders (+{}), {} pixel shaders (+{}), {} parameter \
@@ -830,7 +838,7 @@ pub fn cmd_merge(a: &MergeArgs<'_>, env: &Env<'_>) -> Result<MergePrinted> {
         again.entries.len(),
         again.entries.len() - before.0,
         again.programs.len(),
-        again.programs.len() - before.1,
+        again.programs.len() - (before.1 - unowned),
         again.vs.len(),
         again.vs.len() - before.2,
         again.ps.len(),
@@ -868,7 +876,7 @@ pub fn cmd_merge(a: &MergeArgs<'_>, env: &Env<'_>) -> Result<MergePrinted> {
     let report_path = format!("{}.merge.txt", a.out);
     let text = format!("{}\n", lines.join("\n")).replace('\n', "\r\n");
     std::fs::write(&report_path, text.as_bytes()).map_err(|e| os(&report_path, e))?;
-    let shown = (m.report.len() + 5 + usize::from(!m.conflicts.is_empty())).min(lines.len());
+    let shown = (m.report.len() + 5 + usize::from(!m.conflicts.is_empty()) + usize::from(unowned > 0)).min(lines.len());
     Ok(MergePrinted {
         head: lines[..shown].join("\n"),
         summary: format!(

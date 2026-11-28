@@ -267,9 +267,7 @@ on the findings above would need:
 - Answered by round SPG3-rest: the setting and console command entities (SCR-CMD-2), the document server (SCR-DEV-2:
   never made), the unused classes' factories and input events (SCR-EVT-3). Left: the events of the factories
   SCR-EVT-3 did not follow (lights, emitters, meshes, bangers, `WeaponCallback`), five unnamed hashes, the events each
-  class raises beyond the few named there, and a playtest of `ChangeSetting` (a level with a game setting entity:
-  in-game tests are paused).
-- What the debug-menu entities DICE left in the levels do when `IsMenuDevOptsEnabled` is set (a test start with the
-  setting forced: in-game tests are paused).
+  class raises beyond the few named there, and a playtest of `ChangeSetting` (`bfo:docs/tasks/spec-task-notes.md`).
+- What the debug-menu entities DICE left in the levels do when `IsMenuDevOptsEnabled` is set (a test start: `bfo:docs/tasks/spec-task-notes.md`).
 - The fields of the 62 unused classes that have a factory: what each handler does with its data (their names are in
   the census's field tables; their meaning per class is open).

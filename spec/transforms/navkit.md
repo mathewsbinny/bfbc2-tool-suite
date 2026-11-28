@@ -45,7 +45,7 @@ the parity measures against DICE's own path data (coverage of the AI's order pos
 routes, structure); it exits 1 when a measure got worse beyond its tolerance or a level failed to build.
 
 [code: bfbc2-auto-navkit/tools/navregress.py:191-206] [code: bfbc2-auto-navkit/tools/navregress.py:268-270]
-[doc: bfbc2-auto-navkit/README.md:76-77]
+[doc: bfbc2-auto-navkit/README.md:81]
 
 ### XNAV-BLD-4: Walkability decides in the sample run's own precision, with no iteration order
 

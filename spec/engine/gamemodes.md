@@ -266,7 +266,7 @@ re-apply 0x94EB3F and a UI message 0x964E4A.
 [test: core/tests/test_spec_probes.py::game_modes]
 [data: spec/probes/gamemodes.py, 2026-11-27: +0xC8C8C 33 instructions (cmp 1: 20, cmp reg: 1, load 7, store 5), +0xC8C90 8; the 33 addresses listed]
 [exe: BFBC2Game.exe every address in the table; extern names from the getters' jump tables (bfbc2-menu-tools/aptrefslib.py GETTERS, the HUD getter 0x777B30's table 0x77BAB8 / 0x77B880)]
-[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:61-99]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:69-107]
 
 ### ERA-MOD-2: The game mod follows the level's MatchmakingModID; the exe keeps no setting
 
@@ -466,7 +466,7 @@ ERA-NEW-2 is the layered design those rounds compare against; round GM1's decisi
 `engine/eras.md` (ERA-NAT-1 - ERA-RISK-5).
 
 [inferred: from ERA-MOD-1 - ERA-MOD-3, ERA-RES-1, ERA-RES-2, ERA-LIC-1, GMD-PERS-1]
-[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:259-313]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:267-321]
 
 ### ERA-NEW-2: An era as a host layer over 0 / 1 with per-site own content
 
@@ -491,7 +491,7 @@ The design that keeps every engine reader valid:
   slots.
 
 [inferred: from ERA-NEW-1; OPFOR's module implements (1) - (4) for the Pacific War except the HUD configuration and icon set]
-[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:127-176]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:135-184]
 
 ### ERA-OPF-1: OPFOR today, and its gaps
 
@@ -531,12 +531,7 @@ base. BFBC1 on base 1 also inherits Vietnam's licence tests (ERA-NEW-2). Its "33
 
 ## Pending playtests (in-game tests are paused)
 
-- ERA-MOD-2: after a Vietnam match the main menu comes back in Vietnam's era (music, art); a fresh start is BFBC2.
-- ERA-OPF-2: battlefield-opfor in an era session hosting a level of another era (the icon set and HUD sounds).
-- ERA-OPF-1: a Pacific level's victory stings and vignettes (Vietnam's today).
-- GMD-SW-2: a new ModeID's team / squad behaviour (kind 0) on a Squad-style layer.
-- GMD-CAT-1: the menus' mode name for Air Superiority and Onslaught (their own catalogue entries).
-- GMD-NEW-2: a mode reusing `conquest` as its ModeID (one catalogue entry with Conquest).
+The list (each rule with the playtest that would prove it) moved to `bfo:docs/tasks/spec-task-notes.md` in round KB2.
 
 ## What the UI rounds (UI0 - UI7) need from this file
 
