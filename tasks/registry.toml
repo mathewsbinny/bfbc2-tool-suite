@@ -1924,11 +1924,12 @@ source = "the user, 2026-11-28"
 id = "dq7"
 code = "DQ7"
 title = "The BFBC2 single-player campaign in battlefield-opfor's host, statically"
-lane = "run"
+lane = "done"
 repos = ["suite", "bfo"]
 category = "host"
 raised = "2026-11-28"
 started = "2026-11-28"
+done = "2026-11-28"
 score = { d = 3, t = 3, h = 4.8 }
 body = "DQ0's round DQ7 (campaign save body, weather, audio, network, soldier questions) and a checklist of what the stock campaign needs in OPFOREngine.exe, with the fix and the verification for each; spec rules on branch dq7"
 source = "the user, 2026-11-28"
