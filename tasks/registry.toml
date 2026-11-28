@@ -7952,15 +7952,17 @@ source = "XM1 (battlefield-opfor branch xm1)"
 id = "xm2"
 code = "XM2"
 title = "xenolith CI, an MIT-only build, an xma feature in the suite's bc2-convert"
-lane = "run"
+lane = "done"
 repos = ["suite", "xenolith"]
 category = "repos"
 tags = ["formats", "tooling"]
 raised = "2026-11-27"
 started = "2026-11-27"
+done = "2026-11-28"
 owner = "xm2 (suite, xenolith)"
+version = "unreleased"
 score = { d = 2, t = 1, h = 0.5 }
-body = "Worktrees xm2: suite 13 and xenolith 4 uncommitted files, no commits yet. Proof: cargo tree shows no xma in the MIT build."
+body = "bc2-xma behind bc2-convert's xma feature (on by default in bc2-cli and bc2-py; the workspace's bc2-convert dependency without it); the combined MIT + LGPL licensing of bfbc2.exe / bc2_native in README, RELEASING and native.yml; checks.yml's mit-only job. xenolith: CI (fmt, clippy, tests, an MIT-only job whose cargo tree lists no x360-xma, an xma build). Proof: cargo tree shows no xma in either MIT-only build; both builds pass."
 source = "TR0; _rounds/xm0 REPORT (XM rounds); memory three-repo-plan"
 
 [[task]]

@@ -12197,12 +12197,12 @@
 "category": "repos",
 "code": "XM2",
 "contention": false,
-"date": "2026-11-27",
+"date": "2026-11-28",
 "decided": false,
 "depends": [],
 "id": "xm2",
-"lane": "run",
-"note": "Worktrees xm2: suite 13 and xenolith 4 uncommitted files, no commits yet. Proof: cargo tree shows no xma in the MIT build.",
+"lane": "done",
+"note": "bc2-xma behind bc2-convert's xma feature (on by default in bc2-cli and bc2-py; the workspace's bc2-convert dependency without it); the combined MIT + LGPL licensing of bfbc2.exe / bc2_native in README, RELEASING and native.yml; checks.yml's mit-only job. xenolith: CI (fmt, clippy, tests, an MIT-only job whose cargo tree lists no x360-xma, an xma build). Proof: cargo tree shows no xma in either MIT-only build; both builds pass.",
 "onRoadmap": true,
 "repo": "suite · xenolith",
 "score": {
@@ -12215,7 +12215,7 @@
 "tooling"
 ],
 "title": "xenolith CI, an MIT-only build, an xma feature in the suite's bc2-convert",
-"version": ""
+"version": "unreleased"
 },
 {
 "category": "repos",

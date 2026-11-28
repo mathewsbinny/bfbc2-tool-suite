@@ -11,7 +11,8 @@ repository.workspace = true
 [dependencies]
 bc2-formats.workspace = true
 bc2-gamefs.workspace = true
-bc2-xma.workspace = true
+# EA-XMA decoded in process (wavport, soundport): the LGPL-2.1-or-later decoder, behind the xma feature (below)
+bc2-xma = { workspace = true, optional = true }
 # shadertranslate: BF1943's vertex shaders read for the translation plan (round OR3c)
 bc2-shader.workspace = true
 thiserror.workspace = true
@@ -23,6 +24,14 @@ flate2.workspace = true
 png.workspace = true
 # effectport's emitter index on disk (round OR8)
 serde_json.workspace = true
+
+# xma (round XM2): bc2-xma, FFmpeg's XMA2 decoder ported (LGPL-2.1-or-later), linked in. Without it the crate is
+# MIT only and an EA-XMA stream does not decode (wavport::decode_xma_part gives None). On by default for a build of
+# this crate alone; the workspace's bc2-convert dependency has default-features = false, so a crate that depends on
+# it links the decoder only by asking (bc2-cli's and bc2-py's own xma features, on by default there)
+[features]
+default = ["xma"]
+xma = ["dep:bc2-xma"]
 
 [dev-dependencies]
 proptest.workspace = true

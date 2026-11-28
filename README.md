@@ -9,8 +9,14 @@ the task registry `tasks/registry.toml` (`tasks/README.md`). How changes are mer
 
 **Licence.** The suite is under the MIT licence (`LICENSE`), with one exception: `rust/bc2-xma`, the XMA2 sound
 decoder, is a translation of FFmpeg's decoder and is under FFmpeg's licence, the GNU Lesser General Public License
-2.1 or later (`rust/bc2-xma/LICENSE`, its `README.md`; the user's choice, 2026-11-22). It is linked into the Rust
-core (`bc2_native`) and `bfbc2.exe`; its source is that folder.
+2.1 or later (`rust/bc2-xma/LICENSE`, its `README.md`; the user's choice, 2026-11-22). Since round XM2 it is linked
+only through the `xma` Cargo feature (`bc2-convert`'s, asked for by `bc2-cli`'s and `bc2-py`'s), which is **on by
+default** for the suite's own binaries: the Rust core (`bc2_native.pyd`) and `bfbc2.exe`, as built by
+`rust\build_native.py` and published by `native.yml`, are therefore MIT code combined with the LGPL-2.1-or-later
+decoder; the map editor and `mapexport.exe` do not link it. The complete source of those binaries, the MIT parts and
+the LGPL decoder's, is this public repository (the decoder's is `rust/bc2-xma`), so the decoder can be changed and
+the binaries rebuilt from it. `--no-default-features` builds MIT-only binaries without it (an EA-XMA sound then does
+not convert), and the checks workflow proves that build on every push (`cargo tree` lists no `bc2-xma`).
 
 ## Getting started
 

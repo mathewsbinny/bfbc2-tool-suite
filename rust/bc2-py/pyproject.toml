@@ -8,7 +8,8 @@ build-backend = "maturin"
 name = "bc2-native"
 requires-python = ">=3.12"
 description = "BFBC2 Tool Suite: Rust core bindings (DBX)"
-license = "MIT"
+# the default build links bc2-xma (LGPL-2.1-or-later) through the xma feature (round XM2; README.md, "Licence")
+license = "MIT AND LGPL-2.1-or-later"
 dynamic = ["version"]
 
 [tool.maturin]

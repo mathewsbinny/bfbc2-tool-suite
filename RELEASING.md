@@ -22,6 +22,10 @@ from it.
 5. On `main`: the **native** workflow (`.github/workflows/native.yml`) builds and publishes the prebuilt Rust module
    and `bfbc2.exe` (since round RT1) when the Rust sources (or `VERSION`) changed; `python rust\build_native.py
    --download` fetches both. The map editor and `mapexport.exe` are not published (built with `--editor`).
+   Both published binaries are built with the default `xma` feature (round XM2), so they combine the suite's MIT
+   code with `rust/bc2-xma`, the LGPL-2.1-or-later XMA2 decoder (README.md, "Licence"); the release notes say so and
+   name this repository as the source. The checks workflow proves the MIT-only build (`--no-default-features`, no
+   `bc2-xma` in `cargo tree`) on every push.
 6. In the merge, before committing it: `python tasks\build.py merge <code>` (below), then `python tasks\build.py
    --check`, and commit the registry, `CHANGELOG.md`, `VERSION` and the regenerated files with the merge. Then
    `python tasks\build.py --bfo <battlefield-opfor checkout>` writes battlefield-opfor's `docs/tasks/TASKS.md`,

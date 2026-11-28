@@ -8,6 +8,9 @@
 //! the bit), where the Python reference ran ffmpeg once per XMA stream (`-f wav -i pipe:0 -f s16le`). Every function
 //! answers `None` where the Python raises (an `AudioError`, NumPy's or `struct`'s errors) and where a Rust reader
 //! refuses what the Python reference may read: the caller then runs the Python, whose answer or error it is.
+//!
+//! `bc2_xma` is LGPL-2.1-or-later and linked only with the crate's `xma` feature (round XM2); without it
+//! [`decode_xma_part`] gives `None`, so an EA-XMA stream does not convert (the EA-XAS paths are unchanged).
 
 use bc2_formats::{audioframe, wave};
 
@@ -69,12 +72,21 @@ fn segment_stream(w: &wave::Wave, src: wave::Source, i: usize, streams: &[Option
 /// `audio.xma2_riff` makes of them (XMA-DEC-1): interleaved int16 samples. Damaged packets decode as ffmpeg decodes
 /// them (its errors skipped, samples given); a stream that gives no samples is empty (the caller pads it with silence
 /// to the header's count, as it pads a short one), where the ffmpeg run raised its `AudioError` for an empty output.
+/// `None` always in a build without the `xma` feature (no decoder linked).
 #[must_use]
+#[cfg(feature = "xma")]
 pub fn decode_xma_part(packets: &[u8], channels: usize, rate: u32) -> Option<Vec<i16>> {
     // the RIFF's average bytes a second (rate * channels * 2) sets ffmpeg's demuxer packets
     let byte_rate = rate.saturating_mul(channels as u32).saturating_mul(2);
     let d = bc2_xma::decode(packets, channels, rate, byte_rate).ok()?;
     Some(bc2_xma::to_s16(&d.planar))
+}
+
+/// [`decode_xma_part`] in a build without the `xma` feature: the decoder is not linked, so no stream decodes.
+#[must_use]
+#[cfg(not(feature = "xma"))]
+pub fn decode_xma_part(_packets: &[u8], _channels: usize, _rate: u32) -> Option<Vec<i16>> {
+    None
 }
 
 /// `decode_xma(st)`: interleaved int16 samples, cut or padded with silence to the header's count.

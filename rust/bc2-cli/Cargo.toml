@@ -42,7 +42,10 @@ sha1_smol.workspace = true
 
 # the tool groups (rounds O2, O3; all on by default; a group alone builds with --no-default-features --features <group>)
 [features]
-default = ["menu", "crash", "nav", "caches", "stockmp", "graft", "audio", "bf1943", "meshview", "cull", "navkit", "navtools", "harness", "texqa", "shader", "readers", "import", "mods", "terrain"]
+default = ["menu", "crash", "nav", "caches", "stockmp", "graft", "audio", "bf1943", "meshview", "cull", "navkit", "navtools", "harness", "texqa", "shader", "readers", "import", "mods", "terrain", "xma"]
+# round XM2: EA-XMA decoded in process (`bfbc2 audio`) by bc2-convert's xma feature (bc2-xma, LGPL-2.1-or-later; the
+# published bfbc2.exe links it, README.md "Licence"); the groups alone and a build without it are MIT only
+xma = ["bc2-convert/xma"]
 menu = []
 crash = []
 nav = []
