@@ -266,7 +266,7 @@ then the game copy's mesh index.
 
 [code: rust/bc2-install/src/onslaught/shaders.rs:94-120] [code: rust/bc2-install/src/onslaught/shaders.rs:240-330] [code: rust/bc2-convert/src/shadercmd.rs:560-700] [code: opfor:src/tools/onslaught/console_shaders.py:38-55]
 [test: rust/bc2-install/src/onslaught/shaders.rs::patterns_and_donors] [test: rust/bc2-convert/src/shadercmd.rs::needs_from_a_file]
-[data: round OR10, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's, the merged databases among them]
+[data: round OR10, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's, the merged databases among them; on ONS_MP_004 both sides refuse the Dx9 merge alike (32 programs in no entry group: the shared Rust merger, an open question below)]
 
 ### XCONS-ONS-8: The Mark V stage gives the retired Python's work files; its base and its texture check
 
@@ -399,5 +399,8 @@ test reference (OR14: OPFOR's movie tools are `bc2_native.AptMovie`). A failing 
 
 ## Open questions
 
+- ONS_MP_004's shader merge (XCONS-ONS-7): the merger since OR3a leaves 32 Dx9 programs that no entry group owns,
+  which its read-back check refuses; the user's October merge of the same level read back consistent. Decide against
+  DICE's databases (suspected: OR3a's self-clone accident, PY1).
 - 0x98BD6E on ONS_MP_004's console road / stop signs: which vertex layout or program the renderer lacks (layer 3,
   rendering).
