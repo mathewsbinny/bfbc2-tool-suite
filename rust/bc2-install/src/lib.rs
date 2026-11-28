@@ -22,8 +22,10 @@
 //! | `rebuild_all.py`'s runner, `stepstamps.py`'s records and decisions: the WW2 rebuild as a step graph (round OR7, feature `rebuild`) | [`rebuild`] |
 //! | `opforcore\migrate.py`; the mod manager (round MM1): enable / disable / uninstall / restore-original / verify | [`mods`] |
 //! | `mapedit_install.py` (the map export's install: plan, apply, revert, status; round OR6, feature `mapedit`) | `mapedit` |
-//! | `opforcore.stages.Stages`' whole-file operations as `console_common` calls them (round OR6) | [`stages`] |
+//! | `opforcore.stages.Stages`' whole-file operations as `console_common` calls them (round OR6); the rest of `opforcore.stages` (round OR15) | [`stages`] |
+//! | `opforcore.ledger` and `bfbc2core.gameledger` as Python calls them (round OR15: one ledger, `bc2_native.ledger_call`) | [`ledgerapi`] |
 
+pub mod ledgerapi;
 #[cfg(feature = "levelbuild")]
 pub mod levelbuild;
 pub mod lock;
