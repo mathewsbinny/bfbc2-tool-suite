@@ -339,7 +339,7 @@ and so is a written byte that becomes opcode 0x00 (`zero-opcode`; OPFOR fills wi
 
 [data: every movie of the game copy's movie sets (128) and the Xbox 360 menus pass; patched menus that broke these crashed while loading (OPFOR DEVELOPMENT_NOTES (private research notes) section 3)]
 [test: bfbc2-menu-tools/tests/test_menu_tools.py::quick] [test: rust/bc2-formats/src/aptscan.rs::findings_sorted] [code: rust/bc2-formats/src/aptscan.rs:120-130] [code: rust/bc2-formats/src/aptscan.rs:199-209]
-[doc: bfbc2-menu-tools/README.md:44-53]
+[doc: bfbc2-menu-tools/README.md:56-65]
 
 ### APT-CODE-6: Constant indices: global lists and the constant pool
 
@@ -400,7 +400,7 @@ first Onslaught timer graft read one the PC executable lacks).
 
 [exe: BFBC2Game.exe build 795745: name table 0x0143C898; main menu getter 0x76EC30; UI manager getter 0x95A1B0; HUD getter 0x777B30]
 [test: bfbc2-menu-tools/tests/test_menu_tools.py::game] [code: rust/bc2-formats/src/aptscan.rs:296]
-[doc: bfbc2-menu-tools/README.md:59-82]
+[doc: bfbc2-menu-tools/README.md:71-94]
 
 ## Geometry and images
 

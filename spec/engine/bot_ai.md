@@ -7,7 +7,7 @@ level requirements are [ai.md](ai.md) (AI-START-*, AI-KY-*, AI-NEED-*); the Kyna
 [kynapse_runtime.md](kynapse_runtime.md); the order entities of the level data are
 [../model/ai_orders.md](../model/ai_orders.md) (AIO-*); the in-process host is [network.md](network.md) (NET-SES-*).
 The section **Implementation interface** at the end lists what OPFOR's bot module must hook, call or replace, and
-**Reverse engineering still needed** the open items in priority order.
+**Reverse engineering still needed** a pointer to the open items in priority order (`bfo:docs/tasks/spec-task-notes.md`).
 
 **Sources.** Round AIS (2026-11-22): static reading of `BFBC2Game.exe` (PC, build 795745, image base 0x400000, no
 RTTI) with the analysed Ghidra project of OPFOR's research (a scratch copy, read only); DICE's AI data through the
@@ -136,7 +136,7 @@ The proxy (+0x8C), squad member (+0x90), name (+0x98) and template (+0x9C) are s
 here. The other parts' roles are not named.
 
 [exe: BFBC2Game.exe bot debug print 0xEEF450 (strings " Bot id: " 0x014A7E64, "Squad: ", " - Squad leader" 0x014A7E50, "Readiness: " 0x014A7E44, "Position: "); Kynapse bot entity 0xF27900 ("Entity_", thunk 0x109EAC0, registration 0x109DFF0); the bot +0x8C reads of BehaviourReload 0xEC6650 (target - 4, then +0xC = the AI input object), BehaviourChangePose 0xEC4EE0 / 0xEC4F60, BehaviourFire 0xEC4FE0 (+0x84 +0x88), BehaviourReload 0xEC64E0 (+0x9C +0x4C); no reference to 0xEEF450 in the image (AIS-rest byte scan for E8 / E9 targets and 32-bit pointers)]
-[exe: BFBC2Game.exe bot constructor 0xE6C0B0 (`param_1[5] = index`; allocations 0xB0 / 0x160 / 0x80 / 0x1C / 4 / 0x1430 / 0x38 / 0x50 / 0x48 / 0x48 / 0x58 / 0xC / 0x40 into +0x88 / +0x84 / +0x80 / +0x74 / +0x7C / +0x6C / +0xA0 / +0xA4 / +0xB0 / +0xA8 / +0xAC / +0x00 / +0x94; +0x8C, +0x98, +0x9C zeroed); callers 0xE6C480 (`push 0xF4` per slot, count from `[0x018903EC]` vtable +4) and 0xE6C6C0 (from 0xF10A30); 0xE6C690 (`push 0xB24`, global 0x01890324) from 0xED7C20; senses 0xE8E3E0 (+4 = bot; 0xE87BB0 x 5 with 1.0)]
+[exe: BFBC2Game.exe bot constructor 0xE6C0B0 (the index stored at the first argument's +0x14; allocations 0xB0 / 0x160 / 0x80 / 0x1C / 4 / 0x1430 / 0x38 / 0x50 / 0x48 / 0x48 / 0x58 / 0xC / 0x40 into +0x88 / +0x84 / +0x80 / +0x74 / +0x7C / +0x6C / +0xA0 / +0xA4 / +0xB0 / +0xA8 / +0xAC / +0x00 / +0x94; +0x8C, +0x98, +0x9C zeroed); callers 0xE6C480 (`push 0xF4` per slot, count from `[0x018903EC]` vtable +4) and 0xE6C6C0 (from 0xF10A30); 0xE6C690 (`push 0xB24`, global 0x01890324) from 0xED7C20; senses 0xE8E3E0 (+4 = bot; 0xE87BB0 x 5 with 1.0)]
 [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:202-203]
 
 ### BOT-RT-7: Goals, behaviours, plans and squad behaviours
@@ -275,7 +275,7 @@ A bot module can take control at one of two levels:
 Path finding stays Kynapse's in both (AI-KY-3, KYRT-*), or OPFOR's own on the same path data.
 
 [inferred: from BOT-CTL-2 (the server applies a handler's state whatever filled it), BOT-CTL-3 (what DICE's AI writes and what it does not) and the input path of the landing-gear study (every digital EIA a client sends reaches the server)]
-[doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:265-268]
+[doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:272-275]
 
 ### BOT-CTL-5: Bots are the server's; the in-process client sees replicated soldiers
 
@@ -394,7 +394,7 @@ peripheral 45 / 60 / 90° to 55 m, hearing 48 m, alerting others within 48 m. Th
 (combat field of view 0, no alert range) gives bots that aim and never fire (AI-NEED-3).
 
 [data: 14 SensingTemplateData of sp_common (ai_probe ranges); the grunt template's values]
-[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:41-43]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:48-50]
 
 ### BOT-PER-2: The sensing constants
 
@@ -956,7 +956,7 @@ no path gives a bot score (kills, captures, objectives, assists). The per-player
 players.
 To give bots scoreboard scores, OPFOR would patch these three tests and create the records (0x8634E0) itself.
 
-[exe: BFBC2Game.exe 0x86C070 (`[param_1+8][victim id]` record, "deaths" through 0x7D27A0; killer tests at 0x86C125 / 0x86C12D; award `0x86BE20(killer, *param_1 + 0x360)`); 0x865D70 (test 0x865D7F; 0x8634E0 allocates the 0x570-byte record into +8[id]); 0x86A7E0 (test 0x86A7EE; adds to record +0x18); 0x865F60 (test 0x865F66)]
+[exe: BFBC2Game.exe 0x86C070 (the record at [first argument + 8][victim id], "deaths" through 0x7D27A0; killer tests at 0x86C125 / 0x86C12D; award 0x86BE20 called with the killer and the first argument's object + 0x360); 0x865D70 (test 0x865D7F; 0x8634E0 allocates the 0x570-byte record into +8[id]); 0x86A7E0 (test 0x86A7EE; adds to record +0x18); 0x865F60 (test 0x865F66)]
 
 ### BOT-SCO-3: Scoring offline: what the patch changes
 
@@ -1050,7 +1050,7 @@ and ranges (BOT-PER-1); each spawner `HumanTargetPreference`, `Immortal`, `FakeI
 section 11).
 
 [data: BehaviourTemplateData (14), SensingTemplateData (14), SoldierSpawnTemplateData (18), SoldierSpawnEntityData (ai_probe)]
-[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:220-233]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:227-240]
 
 ### BOT-DIF-4: A multiplayer session's AI difficulty is the session's, Normal by default
 
@@ -1117,85 +1117,13 @@ the shared AI partitions (a Package overlay of `AI/*`). The limits are BOT-CMB-4
 
 ## Reverse engineering still needed
 
-In priority order (what blocks OPFOR's bots first), each with how to settle it. Round AIS-rest settled items 2, 7 and
-8 statically and most of 3 and 4; round SPG2-rest3 settled the tickets and Rush counters (item 2's open half, most of
-3), found the bot object (item 4) and narrowed the fire path (item 8); what stays open needs the game or a deeper read.
-
-1. **The AI input object in a running game** (needs the game; the plan is below). Proves BOT-CTL-2, BOT-CTL-3 and
-   BOT-CTL-7 and decides between the two ways of BOT-CTL-4.
-2. **Bots in captures and tickets.** Settled statically: captures (BOT-GS-5, round SPG2-rest2) and tickets and Rush
-   lives (BOT-GS-6 to BOT-GS-8, round SPG2-rest3: a bot's death costs a ticket or a life, its revive gives it back).
-   The play test (steps 8 and 9 below) confirms both.
-3. **The M-COM's armed and destroyed state.** The Rush stage is the defenders' life counter +0x9C (BOT-GS-8); the
-   M-COM's arming is a `ServerInteractionEntity` (BOT-GS-9) whose armed state and timer were not found, nor any
-   reader of `IsHumanAllowed`. Next: the interaction's input side (the soldier's interaction component,
-   "ServerWorldInteractionComponent" 0x1421314) and the M-COM blueprint's event graph from `OnInteraction` to
-   `onDestroyed`.
-4. **The bot's parts.** The bot is found (BOT-RT-6: 0xF4 bytes, constructor 0xE6C0B0, all made up front by the bot
-   manager 0xE6C480) and its senses are +0x6C (0xE8E3E0, five sensing tasks); the roles of +0x80, +0x94, +0xA0 - +0xB0
-   are not named, nor the target record layout inside the senses (+0xB0 - +0x10B0, BOT-PER-4). The 0xE82D70 object
-   (+4 = the bot) that `BehaviourFire`'s score 0xECD970 calls is one of the unnamed parts.
-5. **The order and squad runtime beyond `IssueOrder`.** The issue itself (the order entity's vtable slot 52,
-   0x5A5490), how a soldier's goal list takes the order's urgency modifiers, the urgency sum and arg-max (AIO-RDY-2,
-   BOT-RT-8) and the squad update: read 0x5A5490 and the decision pass 0xE6D8B0's goal loop.
-6. **Who sets the seat-entry request** (proxy +0x24, BOT-CTL-8) in DICE's AI, if anything does: a scan for writes of
-   the proxy's +0x24 from the AI's code.
-7. **The soldier interface's state bits** (BOT-CTL-8, 0x68E620 / 0x68E5E0) and input slot 16's value (0x58E050 ->
-   0x6ABC30): name them from the soldier's readers. The soldier interface's slot 2 (0x594290) sets the soldier's
-   +0x298 bit 7 (0x68DE30, a replicated flag) unless the interface's lock byte (+8, slot 3 0x57D4D0) is set; 0xE528B0
-   unlocks, writes and relocks it.
-8. **The combat fire path.** Not found. Round SPG2-rest3 ruled out: input slots 17 / 18 (0x58E090 / 0x58E100 act only
-   for a player in a vehicle); any direct AI call of 0x612A00, 0xACC460 or 0xAD1960 (none in 0xE40000 - 0xF30000); a
-   register-indexed slot-2 call through a +0xC object (the three in the AI's code, 0xEE7240, 0xEEA410, 0xEEA460, are
-   map lookups); and 0xED2130, which reads `EiaFire` back (input slot 12) for the scripted "SSFire" action.
-   `BehaviourFire` (vtable 0x014A70A0) has the default update (slot 10 0xEC0C10) and hands everything to an action
-   object at its +0x10 (status +0x1C, update +0x20, valid +0x14, stop +0x30) that its creator (0xED2A70, 0x28
-   bytes) leaves null: the next read is whoever stores the behaviours' +0x10 (the behaviour start path) and that
-   object's update.
-   The play test's return addresses (step 2) name the site.
-9. **Award listeners and the career save** (PERS-AWD-4, PERS-SCORE-1): not read this round.
-
-### Play-test plan for item 1 (when in-game tests resume)
-
-One Onslaught round (`ons_mp_002`, Rush, offline, OPFOR's module with `[debug]` probes), about two minutes, then one
-seated-driver check. Each step lists what to log and what settles.
-
-1. **Probe set-up.** Hook, log-only, budget 20,000 lines: 0x586EE0 (slot 2: this, action index, value), 0x586DC0
-   (slot 3: this, index, level), 0x586E30 (slot 4: yaw, pitch), 0x586F30 (slot 7: dt), 0x57DCE0 (slot 14), 0x58DF80
-   (slot 15: the position), 0x57DD20 (slot 19: argument), 0x58E090 / 0x58E100 (slots 17 / 18), 0x58DAB0 (soldier
-   interface slot 20: pose). For each line also log the input object's player id (`[this+0x24]+0x154`) and the
-   return address. Keep the AI flag (`player +0xD84`) beside every id.
-2. **Passive minute.** Stand still near a bot squad for 60 s, then let one bot see you. Expect: slot 7 once per AI
-   time per bot; slot 15 while walking and no slot-3 index 0 / 1 for infantry; slot 4 every frame in combat; slot 2
-   index 6 (fire) only from 0xEC8380 / 0xEC83C0 or a site not in BOT-CTL-7 (log its return address: a new site means
-   BOT-CTL-7's scan missed it); index 11 (reload) toggling; any index 1, 7, 8, 9 or 10 at all (BOT-CTL-7's inferred
-   "never").
-3. **Stance.** Wait for a bot to crouch in cover: expect 0x58DAB0 with 1 and no `EiaChangePose`.
-4. **Write test.** With `[debug] ai_hold_jump=<player id>` set `EiaJump` (9) on that bot's state (+0x28) through
-   0x612A00 right before its slot 7 each frame for 5 s: the bot must jump on the local client. Then the same with
-   `EiaThrottle` 1.0: it must walk forward against DICE's move target (shows which wins).
-5. **Seated driver.** Load SP_004_B through the offline path (`force_ai`), wait for an AI tank: expect slot 3 with
-   indices 3, 2, 0 from 0xE78480 every update and 5 / 4 from 0xE78A50 for its gunner; slots 17 / 18 when it fires.
-6. **Scores and names** (BOT-SCO-*, needs MOD-PATCH-1): kill two bots, let a bot kill you. The kill probe
-   (`[debug] kill_probe=1`) must show 0x86C070 for all three, a `KillScore` award (0x86BE20) for your kills and none
-   for the bot's; the scoreboard shows each bot's row with its soldier's name and 0 score.
-7. **Record:** the log lines' counts per (site, action) go into BOT-CTL-7's table as `[data: ...]`, and BOT-CTL-2,
-   BOT-CTL-3, BOT-CTL-7 and BOT-SCO-2 move to verified when a test reads the log.
-8. **Tickets** (BOT-GS-6, BOT-GS-7; a Conquest level, MOD-PATCH-1 not needed): log 0x681A70 (this, new value) and
-   0x684050 (channel, type, message +0x20 / +0x24 and their AI flags). Let a bot die with no capture changing: expect
-   one (0x10, 0x11) with the bot as +0x20 and its team's +0x80 one lower; a revive of a bot (if any medic AI revives:
-   none expected, BOT-CMB-4) one higher. Hold every flag with bots alone for a minute: the losing counter's +0x80 falls
-   by (m x 0.01 + 1) x 10 / 60 a second.
-9. **Rush lives and stages** (BOT-GS-8, `ons_mp_002`): log 0x689200 (this, amount), 0x6897D0 (event hash) and the
-   defenders' +0x9C. A bot attacker's death: the attackers' +0x84 one lower; an M-COM destroyed: `DestructBase` and
-   +0x9C one lower; the last: message 0x46 and `OnTeamLoss` (0x59D3259A). Also log 0x68FA70's class's slots 33 / 34
-   (BOT-GS-9) while a human arms an M-COM, to find where the armed state is kept.
-10. **Fire** (RE item 8): hook `BehaviourFire`'s slots 5, 10 and 13 (0xEC4FE0, 0xEC0C10, 0xECAA90) and log its
-   +0x10's vtable; then that vtable's +0x20 with the return address of every input slot-2 call it makes.
+The list (nine items in priority order, what blocks OPFOR's bots first, each with how to settle it) and the
+play-test plan for its item 1 moved to battlefield-opfor's knowledge base in round KB2: `bfo:docs/tasks/spec-task-notes.md`, "Bot AI". "RE item
+n" in this chapter means its items, numbered as there.
 
 ## Open questions
 
-The numbered list above; besides:
+The reverse-engineering list (`bfo:docs/tasks/spec-task-notes.md`, "Bot AI"); besides:
 
 - Whether DICE's AI ever sends `EiaInteract` (action 10) and what for (M-COM arming is interact for humans); BOT-CTL-7
   found no site.

@@ -967,8 +967,20 @@ impl<'a> Merger<'a> {
         Ok(())
     }
 
+    /// The base's programs that no entry group owns, by their index in the base: none in any of DICE's databases
+    /// (the engine reaches a program only through its entry's group). A base that has some was edited by hand: the
+    /// entries were taken out and their programs left (`ONS_MP_004`'s 40 km/h sign of 2026-10-30, spec SHDB-MRG-1).
+    /// `finish` leaves them out.
+    #[must_use]
+    pub fn unowned_base_programs(&self) -> Vec<usize> {
+        let owned: HashSet<ProgRef> = self.groups.values().flatten().copied().collect();
+        (0..self.out.programs.len())
+            .filter(|i| !owned.contains(&ProgRef::Old(*i)))
+            .collect()
+    }
+
     /// `finish()`: the programs re-sorted by GUID (the PC byte order), the entry groups renumbered and sorted. The
-    /// merged file's bytes.
+    /// merged file's bytes. The base's programs no entry group owns are left out ([`Self::unowned_base_programs`]).
     ///
     /// # Errors
     /// More programs than an entry group can index.
@@ -977,13 +989,14 @@ impl<'a> Merger<'a> {
     }
 
     /// `finish()` as a database (its records borrowed from the merger): the programs re-sorted by GUID (the PC byte
-    /// order), the entry groups renumbered and sorted.
+    /// order), the entry groups renumbered and sorted; the base's programs no entry group owns left out.
     ///
     /// # Errors
     /// More programs than an entry group can index.
     pub fn finished(&self) -> Result<ShaderDb<'_>> {
         let o = &self.out;
-        let total = o.programs.len() + self.new_programs.len();
+        let unowned: HashSet<usize> = self.unowned_base_programs().into_iter().collect();
+        let total = o.programs.len() - unowned.len() + self.new_programs.len();
         if total >= MAX_PROGRAMS {
             return Err(MergeError::Msg(format!(
                 "the merged file would have {total} programs; entry groups index at most {}: take fewer donor entries",
@@ -997,6 +1010,7 @@ impl<'a> Merger<'a> {
             .iter()
             .zip(&o.keys)
             .enumerate()
+            .filter(|(i, _)| !unowned.contains(i))
             .map(|(i, (p, k))| (*p, *k, ProgRef::Old(i)))
             .collect();
         allp.extend(
@@ -1324,5 +1338,51 @@ mod tests {
         let again = crate::shaderdb::parse(&out, 9, false).unwrap();
         assert_eq!(again.entries.len(), 3);
         assert_eq!(again.programs.len(), 1 + 2 + 2);
+    }
+
+    /// Every program in exactly one entry group, and each program's key naming that group's entry.
+    fn owned_once(db: &ShaderDb<'_>) -> bool {
+        let mut seen = vec![0u32; db.programs.len()];
+        for (g, idx) in &db.groups {
+            for &i in idx {
+                seen[usize::from(i)] += 1;
+                if &db.keys[usize::from(i)][..16] != *g {
+                    return false;
+                }
+            }
+        }
+        seen.iter().all(|&n| n == 1)
+    }
+
+    #[test]
+    fn a_base_with_programs_no_entry_owns_merges_without_them() {
+        // ONS_MP_004's base of 2026-10-30: three entries taken out by hand, their programs left in the file
+        let clean = crate::shaderdb::write(&built(&[(A, 2)], 70, &[]));
+        let mut edited = built(&[(A, 2), (B, 3)], 70, &[]);
+        let gb = name_guid(B.as_bytes(), false);
+        edited.entries.retain(|e| e.guid != gb.as_slice());
+        edited.groups.retain(|(g, _)| *g != gb.as_slice());
+        assert!(!owned_once(&edited), "the hand-edited base has programs no group owns");
+        let mut m = Merger::new(edited, kind(), vec!["objects/c/c_mesh".into()], false).unwrap();
+        assert_eq!(m.unowned_base_programs().len(), 3);
+        let donor = built(&[("Objects/C/C_Mesh/Objects/C/Shaders/Glass", 4)], 71, &[]);
+        m.add_donor(&donor, &kind(), "d").unwrap();
+        let out = m.finish().unwrap();
+        let again = crate::shaderdb::parse(&out, 9, false).unwrap();
+        assert_eq!(again.entries.len(), 2);
+        assert_eq!(again.programs.len(), 2 + 4, "the three unowned programs left out");
+        assert!(owned_once(&again));
+        // without a donor the merge of the edited base is the base the entry was never in, but for the records only
+        // the taken-out entry's programs used (its shaders and its part name stay, as the hand edit left them)
+        let mut edited = built(&[(A, 2), (B, 3)], 70, &[]);
+        edited.entries.retain(|e| e.guid != gb.as_slice());
+        edited.groups.retain(|(g, _)| *g != gb.as_slice());
+        let mut m = Merger::new(edited, kind(), Vec::new(), false).unwrap();
+        let merged = m.finish().unwrap();
+        let again = crate::shaderdb::parse(&merged, 9, false).unwrap();
+        let clean = crate::shaderdb::parse(&clean, 9, false).unwrap();
+        assert_eq!(again.programs, clean.programs);
+        assert_eq!(again.keys, clean.keys);
+        assert_eq!(again.groups, clean.groups);
     }
 }

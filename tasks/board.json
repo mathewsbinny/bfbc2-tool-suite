@@ -202,6 +202,27 @@
 "version": ""
 },
 {
+"category": "editor",
+"code": "AE1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ae1",
+"lane": "later",
+"note": "An editor workspace: the game copy's bundles read-only beside a mod project's overrides, Copy to project and Restore original, export / import to common formats (PNG, DDS, WAV, BIK) through the existing bc2_formats / bc2-convert code and the audio decoders, texture / video / audio preview; installs through the ledger. From the BFBC2 Toolkit's Data / Mod Explorer split (REF1 idea 1); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 16.0,
+"t": 4
+},
+"tags": [],
+"title": "Resource workbench: browse, preview, export and import any bundle resource",
+"version": ""
+},
+{
 "category": "navai",
 "code": "AI-FORCEAI",
 "contention": false,
@@ -303,6 +324,222 @@
 "tooling"
 ],
 "title": "What the bot AI spec left (play test and static items)",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re1",
+"lane": "hold",
+"note": "Bot RE item 1: the play test (steps 1 - 7 of the plan) that proves BOT-CTL-2, BOT-CTL-3 and BOT-CTL-7 and decides between the two ways of BOT-CTL-4. Waits for in-game tests. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 3,
+"h": 1.8,
+"t": 2
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "The AI input object in a running game",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE2",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re2",
+"lane": "hold",
+"note": "Bot RE item 2: settled statically (captures BOT-GS-5; tickets and Rush lives BOT-GS-6 - 8); steps 8 and 9 of the play-test plan confirm it in game. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 3,
+"h": 1.8,
+"t": 2
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "Bots in captures and tickets: the play-test confirmation",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE3",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re3",
+"lane": "later",
+"note": "Bot RE item 3: the M-COM's arming interaction (BOT-GS-9), its armed state and timer, and the event graph from OnInteraction to onDestroyed; static first, step 9 of the play test as the check. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 6.4,
+"t": 3
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "The M-COM's armed and destroyed state",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE4",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re4",
+"lane": "later",
+"note": "Bot RE item 4: the roles of the bot object's +0x80, +0x94 and +0xA0 - +0xB0 and the senses' target record layout (BOT-PER-4); static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 6.4,
+"t": 3
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "The bot's unnamed parts",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE5",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re5",
+"lane": "later",
+"note": "Bot RE item 5: the order issue (0x5A5490), how a goal list takes the order's urgency modifiers, the urgency sum and arg-max, the squad update; static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 6.4,
+"t": 3
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "The order and squad runtime beyond IssueOrder",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE6",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re6",
+"lane": "later",
+"note": "Bot RE item 6: a scan for writes of the proxy's +0x24 from DICE's AI code (BOT-CTL-8); static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 6.4,
+"t": 3
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "Who sets the seat-entry request",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE7",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re7",
+"lane": "later",
+"note": "Bot RE item 7: name the soldier interface's state bits and input slot 16's value from the soldier's readers; static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 6.4,
+"t": 3
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "The soldier interface's state bits",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE8",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re8",
+"lane": "later",
+"note": "Bot RE item 8: who stores BehaviourFire's action object (+0x10) and what its update calls; static, with step 10 of the play test naming the site. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 6.4,
+"t": 3
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "The combat fire path",
+"version": ""
+},
+{
+"category": "navai",
+"code": "AIS-rest2-RE9",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ais-rest2-re9",
+"lane": "later",
+"note": "Bot RE item 9: the award listener classes, where a finished award is written, and why the career save drops the round's kills; static. Not part of AIS-rest2's own scope; filed under it as the bot item it was listed with. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\".",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 3,
+"h": 4.8,
+"t": 3
+},
+"tags": [
+"re",
+"bots"
+],
+"title": "Award listeners and the career save",
 "version": ""
 },
 {
@@ -2491,7 +2728,7 @@
 "depends": [],
 "id": "dl1",
 "lane": "next",
-"note": "xenolith's apps/xenolith/src/theme.rs reads only 19 colour tokens, uses egui's default fonts instead of Plex, and its token mapping breaks the rules (inputs on ground, all text ink, control borders line, pressed = accent, window border, 4px corners, inactive tabs); the bfo opfor-launcher and opfor-apt hub hold hand-copied Dark constants (no Light theme, no Plex, literal sizes, four era accents #3ba6a8 #d96b27 #e0a82e #f07b19 to become real tokens, one near `selection`); opfor-setup has its own palette; the map editor: 10.5px history timestamps, literal sizes / radii, 2-4px start-screen icon strokes against the 1.5px rule, Light not following the system setting, no reduced motion; the editor's shipped Plex TTFs registered in tokens.json type.fonts and the design-system artifact",
+"note": "xenolith's apps/xenolith/src/theme.rs reads only 19 colour tokens, uses egui's default fonts instead of Plex, and its token mapping breaks the rules (inputs on ground, all text ink, control borders line, pressed = accent, window border, 4px corners, inactive tabs); the bfo opfor-launcher and opfor-apt hub hold hand-copied Dark constants (no Light theme, no Plex, literal sizes, four era accents #3ba6a8 #d96b27 #e0a82e #f07b19 to become real tokens, one near `selection`); opfor-setup has its own palette; the map editor: 10.5px history timestamps, literal sizes / radii, 2-4px start-screen icon strokes against the 1.5px rule, Light not following the system setting, no reduced motion; the editor's shipped Plex TTFs registered in tokens.json type.fonts and the design-system artifact REF1 additions: a visible interface-size setting (Ctrl +/- in View and the palette, saved) in the editor and xenolith; reword the bfo hub's 'OPTION B MODULES' heading.",
 "onRoadmap": true,
 "repo": "suite · bfo · xenolith",
 "score": {
@@ -2634,6 +2871,48 @@
 "score": null,
 "tags": [],
 "title": "Every open RE question sorted: answerable from the decompiled database or needing the game",
+"version": ""
+},
+{
+"category": "navai",
+"code": "DQ5",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "dq5",
+"lane": "run",
+"note": "DQ0's round DQ5: what a stock MP level must carry for DICE's AI to start, which .hpd fields the runtime reads and how strictly, and NavKit's parity gaps ranked by their effect at run time; spec rules on branch dq5",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 3,
+"h": 4.8,
+"t": 3
+},
+"tags": [],
+"title": "DICE's AI start and the Kynapse runtime, statically",
+"version": ""
+},
+{
+"category": "host",
+"code": "DQ7",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "dq7",
+"lane": "run",
+"note": "DQ0's round DQ7 (campaign save body, weather, audio, network, soldier questions) and a checklist of what the stock campaign needs in OPFOREngine.exe, with the fix and the verification for each; spec rules on branch dq7",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 3,
+"h": 4.8,
+"t": 3
+},
+"tags": [],
+"title": "The BFBC2 single-player campaign in battlefield-opfor's host, statically",
 "version": ""
 },
 {
@@ -4664,6 +4943,27 @@
 },
 {
 "category": "release",
+"code": "MM-PKG1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "mm-pkg1",
+"lane": "later",
+"note": "One solution that finds and resolves conflicts across third-party mod packages AND the map editor's exports: every colliding bundle, resource, level registration (package.mft / bundleManifest) and file listed by owner, refused by default with a chosen winner recorded (today bfo's merged_text silently keeps the first, opfor-vfs manifest.rs:218-226); a module zip whose manifest.toml adds version / author / link / image, installed and removed through the ledger; a user load order (Up / Down, Apply / Reset); bundleManifest merged per era like package.mft. From the Mod Loader (REF1 idea 2); folds MM1-rest's bfo half; our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "bfo · suite",
+"score": {
+"d": 4,
+"h": 16.0,
+"t": 4
+},
+"tags": [],
+"title": "Conflict resolution for mod packages and editor exports; third-party packages and a load order",
+"version": ""
+},
+{
+"category": "release",
 "code": "MM1",
 "contention": false,
 "date": "2026-11-22",
@@ -6281,11 +6581,11 @@
 "category": "onslaught",
 "code": "OR13",
 "contention": false,
-"date": "2026-11-27",
+"date": "2026-11-28",
 "decided": false,
 "depends": [],
 "id": "or13",
-"lane": "merge",
+"lane": "done",
 "note": "Branch or13 5 ahead and 0 behind suite main, worktree clean; Done row and version 0.38.0 written; ONS_MP_004's stage 7 merge fixed (the base's unowned programs left out). ONS4-S7 row merged into this card.",
 "onRoadmap": true,
 "repo": "suite · OPFOR",
@@ -6300,7 +6600,7 @@
 "repos"
 ],
 "title": "OPFOR in Rust, the rest of the Onslaught console port (stage 14, shader audit, community-mod level fixes, driver); fixes ONS4-S7",
-"version": ""
+"version": "0.38.0"
 },
 {
 "category": "menus",
@@ -7478,6 +7778,27 @@
 "version": ""
 },
 {
+"category": "editor",
+"code": "OV-SPL1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ov-spl1",
+"lane": "later",
+"note": "A read-only view overlay of every spline and plane by type; SPL1's first step (REF1 idea 3); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 2,
+"h": 4,
+"t": 3
+},
+"tags": [],
+"title": "Draw DICE's terrain splines, rivers, shores and lakes in the editor's views",
+"version": ""
+},
+{
 "category": "tooling",
 "code": "P1",
 "contention": false,
@@ -7652,6 +7973,27 @@
 "score": null,
 "tags": [],
 "title": "The Pacific War systems' DLL parts carried over to battlefield-opfor's host (DMZ, repair stations, Air Superiority, landing gear, loading, VO)",
+"version": ""
+},
+{
+"category": "navai",
+"code": "PHX0",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "phx0",
+"lane": "run",
+"note": "Every address, offset and vtable slot Project Phoenix (a BFBC2 dedicated-server bot mod, PolyForm Noncommercial: facts only) relies on, matched to the client 795745 through DC0 with a confidence each; which bot_ai.md RE items it settles; how each mechanism fits the hybrid bot architecture (ruled 2026-11-28); report in _rounds/phx0",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 4,
+"h": 6.4,
+"t": 3
+},
+"tags": [],
+"title": "Project Phoenix's server-side mechanisms mapped to BFBC2Game.exe",
 "version": ""
 },
 {
@@ -7917,6 +8259,167 @@
 "formats"
 ],
 "title": "Remove research probes",
+"version": ""
+},
+{
+"category": "tooling",
+"code": "PT-ERAS",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "pt-eras",
+"lane": "hold",
+"note": "eras.md's eight playtests: each era loading in its own era in one session, switching to eras 2 and 3 offline, the gameModChange labels, each era's table entries, the era asset's pages, the offline level list's filter, the main menu after each era, the in-process server's level list. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md.",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 2,
+"h": 0.5,
+"t": 1
+},
+"tags": [
+"playtest"
+],
+"title": "Pending playtests: eras",
+"version": ""
+},
+{
+"category": "tooling",
+"code": "PT-ERAS-N",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "pt-eras-n",
+"lane": "hold",
+"note": "eras_n.md's four playtests: a page above 3 in GameSettings.bin, gotoAndStop with an unknown label, a fifth era's frames, the server's level list with an era tag. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md.",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 2,
+"h": 0.5,
+"t": 1
+},
+"tags": [
+"playtest"
+],
+"title": "Pending playtests: N eras",
+"version": ""
+},
+{
+"category": "tooling",
+"code": "PT-GAMEMODES",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "pt-gamemodes",
+"lane": "hold",
+"note": "gamemodes.md's six playtests: the menu era after a Vietnam match, a level of another era in an era session, a Pacific level's stings, a new ModeID's squad behaviour, the mode names of Air Superiority and Onslaught, a mode reusing conquest. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md.",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 2,
+"h": 0.5,
+"t": 1
+},
+"tags": [
+"playtest"
+],
+"title": "Pending playtests: game modes",
+"version": ""
+},
+{
+"category": "tooling",
+"code": "PT-SCRIPTING",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "pt-scripting",
+"lane": "hold",
+"note": "scripting.md: a playtest of ChangeSetting (a level with a game setting entity) and a test start with IsMenuDevOptsEnabled forced (what DICE's debug-menu entities do). On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md.",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 2,
+"h": 0.5,
+"t": 1
+},
+"tags": [
+"playtest"
+],
+"title": "Pending playtests: scripting",
+"version": ""
+},
+{
+"category": "tooling",
+"code": "PT-SETTINGS",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "pt-settings",
+"lane": "hold",
+"note": "settings.md: a test start with copies of the files: what the renderer does with SelectedRenderer_None, and what a damaged GameSettings.bin does. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md.",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 2,
+"h": 0.5,
+"t": 1
+},
+"tags": [
+"playtest"
+],
+"title": "Pending test start: settings files",
+"version": ""
+},
+{
+"category": "tooling",
+"code": "PT-SQUADS",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "pt-squads",
+"lane": "hold",
+"note": "squads.md: spawning on a mate prone on a ledge, in a full vehicle, outside the combat area, and twice in a row. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md.",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 2,
+"h": 0.5,
+"t": 1
+},
+"tags": [
+"playtest"
+],
+"title": "Pending playtest: squad spawning",
+"version": ""
+},
+{
+"category": "tooling",
+"code": "PT-VEGETATION",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "pt-vegetation",
+"lane": "hold",
+"note": "vegetation.md: a settings dump for the engine's default UndergrowthWindSpeed and UndergrowthMaxHeight, and a test start setting the engine settings from the command line (SET-CLI-1, VEG-UG-8). On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md.",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 2,
+"h": 0.5,
+"t": 1
+},
+"tags": [
+"playtest"
+],
+"title": "Pending playtests: vegetation",
 "version": ""
 },
 {
@@ -8196,6 +8699,27 @@
 },
 "tags": [],
 "title": "Quick match: a mode and map picker authored in each menu's own style",
+"version": ""
+},
+{
+"category": "editor",
+"code": "QT1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "qt1",
+"lane": "later",
+"note": "Typed fields for post-processing per channel, sun angles / size / colour, minimap and HUD placement, camera distance and FOV; each change one project-log operation, previewed in the game-accurate view; only values the level's data holds. From the Toolkit's Customizer (REF1 idea 4); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 3,
+"h": 4.8,
+"t": 3
+},
+"tags": [],
+"title": "Level look panel: typed forms for post-processing, sun, minimap / HUD and camera",
 "version": ""
 },
 {
@@ -8504,7 +9028,7 @@
 "depends": [],
 "id": "rd1",
 "lane": "later",
-"note": "End of the queue, after E5-rest; Catmull-Rom / Bezier, baked to the road blocks.",
+"note": "End of the queue, after E5-rest; Catmull-Rom / Bezier, baked to the road blocks. REF1: roads on DICE's TerrainSplineData / PlaneData (Road type, per-point Left / RightEdge, Segments, UserMasks, Start / EndIndex, AttachedStart / End for junctions); shipped Road planes in the proof if SPL-PROBE1 finds any; through SPL1.",
 "onRoadmap": true,
 "repo": "suite",
 "score": {
@@ -8533,6 +9057,48 @@
 "input"
 ],
 "title": "Faster rebuilds and unattended playtest driver",
+"version": ""
+},
+{
+"category": "tooling",
+"code": "REF1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ref1",
+"lane": "run",
+"note": "File Porter's console-to-PC rules diffed against the console-converter spec; the spline-plane lake method for TGEN-WATER-1 and RD1; the Mod Loader's flow for MM1-rest and Setup; a scored UI comparison with ours. Read-only, no code copied (GPL-3 / unlicensed); report in _rounds/ref1",
+"onRoadmap": true,
+"repo": "suite · bfo",
+"score": {
+"d": 2,
+"h": 1.5,
+"t": 2
+},
+"tags": [],
+"title": "The old community tools read for ideas: FBOneTools and the Unity BC2 map editor, and their UI against ours",
+"version": ""
+},
+{
+"category": "formats",
+"code": "REG-PROBE1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "reg-probe1",
+"lane": "hold",
+"note": "The Mod Loader pre-registered 10 community levels whether or not installed; test a fully absent registered level against a half-present one on a scratch copy (CSUM-CHK-2's open condition). In game, so on hold",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 2,
+"h": 1.5,
+"t": 2
+},
+"tags": [],
+"title": "Registered but absent level bundles: does start-up really crash?",
 "version": ""
 },
 {
@@ -8903,6 +9469,27 @@
 "version": ""
 },
 {
+"category": "release",
+"code": "SETUP-R1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "setup-r1",
+"lane": "later",
+"note": "The hub: a mod tracker listing every installed module and mod with its state, per-module toggles through the ledger, an all-off state shown in words, the 'OPTION B MODULES' heading reworded. Setup: Verify / Repair and Uninstall (on bfbc2 mods verify / restore-original), path checks before Start (opfor-setup main.rs:174-175 skips a missing ISO / XBLA silently), and the list of files it will write. Themed per DL1 (REF1 idea 5); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": false,
+"repo": "bfo",
+"score": {
+"d": 3,
+"h": 4.8,
+"t": 3
+},
+"tags": [],
+"title": "Hub mod tracker with toggles and visible mod state; Setup repair and uninstall",
+"version": ""
+},
+{
 "category": "editor",
 "code": "SG1",
 "contention": false,
@@ -9228,6 +9815,48 @@
 ],
 "title": "What round SPG4 left, static only",
 "version": "0.29.0"
+},
+{
+"category": "terrain",
+"code": "SPL-PROBE1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "spl-probe1",
+"lane": "later",
+"note": "Count the 1,372 planes by type; compare each Lake polygon (Start / EndIndex respected) with the visual water's open-water triangles (WATER-VIS-4 / -6); record shipped Road planes. A probe for SPL1, TG-rest and RD1",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 2,
+"h": 1.5,
+"t": 2
+},
+"tags": [],
+"title": "Terrain spline planes: PlaneType census and lake / road geometry against DICE's water",
+"version": ""
+},
+{
+"category": "editor",
+"code": "SPL1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "spl1",
+"lane": "later",
+"note": "Overlays first (OV-SPL1: each spline polyline and plane by type, lake fill, river / shore bands from Left / RightEdge, labels; new view-* tokens 3.5:1 on terrain and water), then editing on DICE's own classes (TerrainSplineData / PlaneData: Road / River / FillConvex / FilledInner / Lake, per-point Left / RightEdge, Segments, UserMasks, Start / EndIndex, AttachedStart / End, InnerSpline holes) with export in DICE's form; lakes triangulated with holes, self-intersections refused with a message, water written in the WATER-VIS-6 form on the lake slot. Builds on SPL-PROBE1; serves RD1 and TG-rest; our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 16.0,
+"t": 4
+},
+"tags": [],
+"title": "Spline tool: draw, edit and export DICE terrain splines (roads, rivers, shores, lakes)",
+"version": ""
 },
 {
 "category": "docs",
@@ -9624,6 +10253,27 @@
 "version": ""
 },
 {
+"category": "formats",
+"code": "TERR-BC1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "terr-bc1",
+"lane": "later",
+"note": "REF1 P1-P5: TERR-HF-13 (BFBC1 0x29 / 0x2D / 0x31 headers, 512 x 512, from xenolith bfbc1/terrain.rs; verified on a twin proof from the BFBC1 ISO); 512 in TERR-HF-1 plus the question whether BFBC2 takes a 512 block; XCONS-DET-1 (platform from the source, refuse when both byte orders pass); the size-floor open question; the PS3 scope line; the TEX-FMT-1 community-names note",
+"onRoadmap": true,
+"repo": "suite · xenolith",
+"score": {
+"d": 2,
+"h": 1.5,
+"t": 2
+},
+"tags": [],
+"title": "BFBC1 height-field headers and 512-sample tiles in the spec; console platform detection",
+"version": ""
+},
+{
 "category": "tooling",
 "code": "TESTRUN",
 "contention": false,
@@ -9653,7 +10303,7 @@
 "depends": [],
 "id": "tg-rest",
 "lane": "later",
-"note": "Shores and partial water bodies (TGEN-WATER-1), the bright shallow sea floor, temperate's ridged / terraced option, jungle's slope percentile, multi-ring terrains, generated terrain shown in the views before export, WW2 bases.",
+"note": "Shores and partial water bodies (TGEN-WATER-1), the bright shallow sea floor, temperate's ridged / terraced option, jungle's slope percentile, multi-ring terrains, generated terrain shown in the views before export, WW2 bases. REF1: lakes from spline polygons after SPL-PROBE1 (holes for InnerSpline, self-intersections refused with a message, WATER-VIS-6 vertices, a WaterMesh with the same triangles on the lake slot, ground lowered inside plus a band; shore strips later); through SPL1.",
 "onRoadmap": true,
 "repo": "suite",
 "score": {

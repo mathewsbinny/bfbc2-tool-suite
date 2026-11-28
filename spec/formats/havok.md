@@ -150,7 +150,7 @@ object. The part run indexes this list; a list may only grow at its end (existin
 [test: tests/test_converter_units.py::part_materials]
 [test: bfbc2-bf1943-import/tests/test_havokport.py::material_slots]
 [data: on every object HavokAsset BFBC2 ships, HavokMaterials equals MaterialMappings and the part run names PartInfoDatas' materials]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:48-58]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:54-64]
 
 ### HAVOK-MAT-2: Which material slot the game reads
 
@@ -166,7 +166,7 @@ shapes.
 
 [exe: part material read at vtable+0xE0 (0xAAED90) and per health state at 0x6D84D0; face material at 0xAAEEE0 / 0xAADE10; runtime id built at 0x10029E0; bullet part damage 0x722990 (server), 0x8D6730 (client); explosion 0x6A19A0; penetration 0x6F6570; impact effect 0x822D60; contacts 0xAB0710 / 0x70F720]
 [data: DICE's 991 object HavokAssets: in 922 the per-part bytes name exactly PartInfoData.MaterialName's materials, 69 share one byte]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:15-50]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:21-56]
 
 ## 3. The Havok 5.5.0 packfile
 

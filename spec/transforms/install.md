@@ -199,7 +199,7 @@ A stage deletes its working folder under `work\` when it ends without an error (
 leaves it). A path outside `work\`, a link or junction, or a path that is or holds a backup or original is never
 deleted as scratch.
 
-[code: opfor:src/tools/onslaught/console_common.py:351-400] [test: opfor:src/tools/tests/test_scratch.py::test_drop_scratch_rules] [test: opfor:src/tools/tests/test_scratch.py::test_take_keep]
+[code: opfor:src/tools/onslaught/console_common.py:339-396] [test: opfor:src/tools/tests/test_scratch.py::test_drop_scratch_rules] [test: opfor:src/tools/tests/test_scratch.py::test_take_keep]
 
 ## 2. The map export's install
 

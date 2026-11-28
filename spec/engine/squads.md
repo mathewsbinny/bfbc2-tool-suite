@@ -107,5 +107,4 @@ entered, 10 m horizontally, a 2 s timer at `[player+0xD80]`) is likely spawning 
 
 - The squad manager's code beyond the spawn: squad size (`MaxPlayersPerSquad`'s reader), the a != b spawn form, the
   anti-spam timer's length, the player flag `[+0xBC8] & 4`.
-- Playtests (paused): spawning on a mate prone on a ledge, in a full vehicle, outside the combat area, and twice in
-  a row (SQD-PLAY-2).
+- Playtests (paused): four spawn cases for SQD-PLAY-2, `bfo:docs/tasks/spec-task-notes.md`.

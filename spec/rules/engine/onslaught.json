@@ -315,7 +315,7 @@
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_onslaught_qa.py::test_ai_template_plan_follows_the_bundle"
+     "ref": "rust/bc2-install/src/onslaught/napisal.rs::templates_spawners_and_counts"
     }
    ],
    "file": "spec/engine/onslaught.md",

@@ -38,7 +38,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1256-1258"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1442-1444"
     }
    ],
    "file": "spec/engine/levels.md",
@@ -55,11 +55,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:841-845"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1030-1034"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1220-1228"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1405-1413"
     }
    ],
    "file": "spec/engine/levels.md",
@@ -97,11 +97,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:100-105"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:108-113"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1015-1021"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1207-1213"
     }
    ],
    "file": "spec/engine/levels.md",
@@ -126,11 +126,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1034-1040"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1226-1232"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1372"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1707"
     }
    ],
    "file": "spec/engine/levels.md",

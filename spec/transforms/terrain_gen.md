@@ -957,18 +957,8 @@ Status: **inferred** · Variants: PC
 | in-game acceptance | blocked by the in-game pause (TGEN-OUT-5) | - |
 
 Rounds: **TG1** (done 2026-11-23: `rust/bc2-terragen`, `bfbc2 terrain generate`; the writers are round E5's codec)
-the Rust generator and writers: main block, material map, water mesh, the canary and the readers' round trip, erosion
-and remapping tuned to the biome statistics (terrain_shape.py as the scorer); the ring and the visual water move to
-TG2. **TG2** (done 2026-11-23) the ring, temperate's rough relief and the visual side: one donor's patch and undergrowth
-shaders renamed into a new terrain's databases, rule-layer patch maps, the visual water, the colour / occlusion map,
-the game-accurate view of a generated terrain (`bc2_render::world::World::load_generated`, the editor's
-`gameview::read_generated`); the prototype retired. **TG3** E7's Create Level path A wired to the generator (a "Generate"
-choice beside "From a height map": the same `TerrainImport` then written by the generator), the export with the
-level's own terrain bundle, `export::check`, NavKit from the offline sampler. **TG4** (done 2026-11-27) vegetation, rocks and
-props placed per biome (TGEN-VEG-1 - 4), the donor's tiled layers (TGEN-MAT-3), E5's sculpt and paint working on the
-generated terrain (TEDIT-NEW-4). **TG5** gameplay on
-the generated terrain through A3 (objectives on its pads, combat areas from its flat region), and the WW2 (pacific)
-biome. Each round reports the TGEN-SHAPE / TGEN-PLAY statistics of its output against DICE's.
+Rounds TG1 - TG5 (what each did or will do; TG1, TG2, TG3 and TG4 are done, TG5 is gameplay on the generated terrain
+and the WW2 biome): battlefield-opfor's knowledge base, `bfo:docs/plans/terrain-generator.md` (moved in round KB2).
 
 [inferred: the verdicts from the rules cited per row; the order from the dependencies (writer, then drawing, then export, then content)]
 

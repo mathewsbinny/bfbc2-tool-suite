@@ -77,7 +77,7 @@ and `setRecomendedSettings` (0x960946). The item levels are the words `low`, `me
 `MainQuality` is the preset, and a change to any single item writes `MainQuality=custom` (0x7D7330, 0x7D73E7).
 
 [exe: BFBC2Game.exe reader 0x7DBD60 (caller 0x570430 in 0x5703E0); writer 0x7DD1F0 (callers 0x56AE02, 0x570442, 0x9124ED, 0x960946, 0x960FF9); "low" / "medium" / "high" / "custom" pushed in 0x7DD100 - 0x7DDA00; "custom" -> MainQuality at 0x7D7339 and 0x7D73F0; "auto" in the reader]
-[doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:181]
+[doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:183]
 
 ### SET-GS-1: The game settings' defaults are the GameSettings partition
 
@@ -319,7 +319,7 @@ change makes the preset `custom` (SET-INI-2). The controls commands (`controlsSl
   (SET-BIN-1), the generic `-<Object>.<Field>` option (SET-CLI-2: none) and the sliders (INP-SET-2). Left: what
   the renderer does with `SelectedRenderer_None` (an unknown `DxVersion`); what a damaged `.bin` does (a count or a
   length past the file's end: the stream reader's bounds were not traced); both want a test start with copies of
-  the files (in-game tests are paused).
+  the files (`bfo:docs/tasks/spec-task-notes.md`).
 - `Scheme0Sensitivity` / `Scheme0InputType` are named in INP-SET-1 by what reads them; the controls page's slider
   command writes only `Sensitivity0` - `Sensitivity5` (INP-SET-2), so what else writes them is open.
 - `GstMenuTracker` has no section name (SET-GS-2): whether its settings are saved at all (they are not user-exposed).

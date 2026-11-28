@@ -83,7 +83,7 @@ their deleted markers). A partition only the base names that the stock base lack
 
 [code: rust/bc2-levelwrite/src/export.rs:1592-1723]
 [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture] [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1206-1229]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1391-1414]
 
 ### XEXP-VO-1: The announcer is the target era's
 
@@ -97,7 +97,7 @@ Vietnam 13 from `nam_common`, WW2 12, BFBC1 13).
 
 [code: rust/bc2-levelwrite/src/export.rs:1801-1862] [code: rust/bc2-levelwrite/src/export.rs:2836-2857]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer] [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1119-1140]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1309-1330]
 
 ### XEXP-REG-1: The registration: one block and one line per bundle, written for the install
 
@@ -144,7 +144,7 @@ Build and check never write the game copy: after a build, check and install plan
 their size and write time and the key shared files their sha256.
 
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:983-985]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1177-1179]
 
 ## 3. The check
 

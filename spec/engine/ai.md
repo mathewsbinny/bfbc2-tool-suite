@@ -60,7 +60,7 @@ the flying AI's set-up (0x59A140, its `AerialHeightmap`, GFILE-AHM-1) only when 
 
 [exe: BFBC2Game.exe 0x5AF5F0 -> 0x5A89F0 (LevelData +0x36C through 0x13A5660; each entry's +0x3C read at 0x5A8A34-0x5A8A41) -> 0xF2EFF0 (licence check 0xF2F0BF with the string at 0x014A9EA4; empty list `cmp [ebp], [ebp+4]` at 0xF2F0D2 -> return 0 at 0xF2F4F9; world set-up called at 0xF2F0F3; `Infantry` compared against the type's +0x30 name, the world's +0x3EC written); `HasFlyingAI` call 0x5AF6D3; +0x388 through 0x13A5640 to 0xF27E10 at 0x5AF6B6 / 0x5AF6BE; +0x398 through 0x13A5680, each entry to 0x5A6A40]
 [data: PathfindingTypes infantry + vehicles on Napisal's ONS_MP_005GR, ONS_MP_002, ONS_MP_004, DICE's Xbox ONS_MP_002 and SP_004_B; empty on every stock MP level read]
-[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:294-298] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:345-347]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:301-305] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:345-347]
 
 ### AI-START-4: Demo playback is the only other branch of the level load
 
@@ -170,7 +170,7 @@ capture points, area geometry (769 points on MP_002), teams and squads. A stock 
 an authored AI layer (XSMP-AUT-1), not a switch.
 
 [data: stock MP levels compared (all launch MP levels, identical on Xbox 360): HasAI false, no PathfindingTypes, no SpawnPointManager; path data only for the 13 campaign levels; MP_002: 1 AI spawner, disabled, 0 AreaOrder, 0 PatrolOrder]
-[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:590-596] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:55-71]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:590-596] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:62-78]
 
 ### AI-NEED-2: What a working AI level has
 
@@ -184,7 +184,7 @@ in OPFOR's test). On Conquest the spawners need no event logic (they spawn from 
 trigger moves the AI on (GAME-RUSH-1).
 
 [data: SSAiPlayer spawners enabled / named by an order: Napisal ONS_MP_005GR 24 / 17, ONS_MP_002 28 / 28, Xbox ONS_MP_002 78 / 78 (54 via squads), SP_004_B 91 / 91; orders 7, 41, 47, 182; SquadEntityData 0, 0, 17, 16]
-[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:281-293] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:330-338]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:288-300] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:337-345]
 
 ### AI-NEED-3: Bots need a real AI template
 
@@ -196,7 +196,7 @@ bots' team. The template must be in a bundle the level loads: a multiplayer leve
 `sp_common`, so a campaign template is packed into the level's own bundles (as on ONS_MP_002).
 
 [data: OPFOR's Onslaught play tests: DefaultSoldier bots aim and do not fire, DICE's grunt template fires; mp_005's package.mft block loads its own bundles and mp_common only]
-[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:41-43] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:312-314]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:48-50] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:319-321]
 
 ### AI-NEED-4: The stock SSAiPlayer spawners are the human spawn points
 
@@ -210,7 +210,7 @@ spawning (Laguna Alta's are `SSHumanPlayer` with delay 0). Whether they spawn bo
 suite's AI layer adds its own spawners and marks the stock ones `SSHumanPlayer` by default.
 
 [data: SSAiPlayer with SpawnDelay 15: Arica Harbor CQ 8 of 8, White Pass CQ 7 of 7, Nelson Bay Rush 11 of 13, Atacama CQ 7 of 8 (all enabled, Template null)]
-[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:597-600] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:322-329]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:597-600] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:329-336]
 
 ### AI-NEED-5: Kills of bots score nothing offline without the scoring patch
 

@@ -26,17 +26,17 @@ files ("OPFOR N": its files); "tests N": the suite's test files.
 | Status | Files | Lines |
 |---|---:|---:|
 | live | 17 | 5,094 |
-| partly | 19 | 13,587 |
-| twin | 56 | 21,839 |
+| partly | 19 | 13,592 |
+| twin | 56 | 21,840 |
 | ported | 24 | 3,199 |
 | retired-pending | 3 | 311 |
-| stays | 82 | 18,529 |
-| test | 193 | 53,388 |
-| **all** | **394** | **115,947** |
+| stays | 82 | 18,559 |
+| test | 193 | 53,391 |
+| **all** | **394** | **115,986** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,445 | 56 |  |  |  |  |  | 1,389 |
+| `(root)` | 2 | 1,448 | 56 |  |  |  |  |  | 1,392 |
 | `bfbc2-anim-tools` | 8 | 2,717 |  | 1,027 |  | 106 |  |  | 1,584 |
 | `bfbc2-auto-navkit` | 56 | 14,860 | 1,873 | 4,418 | 2,821 | 273 |  |  | 5,475 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,836 | 637 | 743 | 1,108 | 40 |  |  | 1,308 |
@@ -46,18 +46,18 @@ files ("OPFOR N": its files); "tests N": the suite's test files.
 | `bfbc2-culltree` | 4 | 1,898 |  |  | 1,051 |  |  |  | 847 |
 | `bfbc2-dbx-tools` | 1 | 22 |  |  |  |  | 22 |  |  |
 | `bfbc2-fbrb-tool` | 1 | 18 |  |  |  |  | 18 |  |  |
-| `bfbc2-map-editor` | 20 | 2,141 |  |  | 1,282 |  |  | 859 |  |
+| `bfbc2-map-editor` | 20 | 2,142 |  |  | 1,283 |  |  | 859 |  |
 | `bfbc2-menu-tools` | 12 | 6,659 |  |  | 4,407 |  |  |  | 2,252 |
 | `bfbc2-mesh-viewer` | 4 | 614 |  |  |  | 306 |  | 78 | 230 |
 | `bfbc2-model-tools` | 9 | 2,093 |  | 267 | 851 |  |  |  | 975 |
 | `bfbc2-navigation-studio` | 2 | 359 |  |  |  |  | 271 |  | 88 |
-| `bfbc2-shader-tools` | 18 | 11,536 | 1,657 | 3,775 | 984 | 126 |  |  | 4,994 |
+| `bfbc2-shader-tools` | 18 | 11,541 | 1,657 | 3,780 | 984 | 126 |  |  | 4,994 |
 | `bfbc2-stockmp-ai` | 11 | 3,483 |  |  | 2,367 | 38 |  |  | 1,078 |
 | `core` | 76 | 19,998 | 772 |  | 1,648 | 2,078 |  |  | 15,500 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 38 | 7,924 |  |  |  |  |  | 7,657 | 267 |
+| `rust` | 38 | 7,925 |  |  |  |  |  | 7,658 | 267 |
 | `spec` | 23 | 8,424 |  |  |  |  |  | 8,424 |  |
-| `tasks` | 1 | 622 |  |  |  |  |  | 622 |  |
+| `tasks` | 1 | 651 |  |  |  |  |  | 651 |  |
 | `tests` | 30 | 7,774 |  |  |  |  |  |  | 7,774 |
 | `tools` | 5 | 836 |  |  |  |  |  | 836 |  |
 
@@ -68,11 +68,11 @@ Lines by status in the folder table.
 | Round | What it retires | Files | Lines |
 |---|---|---:|---:|
 | PX1 | OR16-rest: navregress, the harness's run and libraries, dbxparitylib, the NavKit diagnostics, hpdview | 12 | 3,302 |
-| PX2 | every "partly" file finished | 15 | 10,692 |
+| PX2 | every "partly" file finished | 15 | 10,697 |
 | PX3 | the "stays Python by decision" files reversed (the HLSL compiles, xdiff / xenos_exec, the previews, the game launches) | 5 | 3,859 |
-| PX4 | PY1: the twins retired, bc2-pyrt deleted | 56 | 21,839 |
-| PX5 | Tests in Rust, on the synthetic corpus | 193 | 53,388 |
-| PX6 | the plumbing, the shims, the "stays" scripts as Rust benches; then every .py deleted | 113 | 22,867 |
+| PX4 | PY1: the twins retired, bc2-pyrt deleted | 56 | 21,840 |
+| PX5 | Tests in Rust, on the synthetic corpus | 193 | 53,391 |
+| PX6 | the plumbing, the shims, the "stays" scripts as Rust benches; then every .py deleted | 113 | 22,897 |
 | PX7 | the baselines (retires no file) | 0 | 0 |
 
 ## Stays Python by decision (reversed by PX3)
@@ -89,12 +89,12 @@ The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exce
 
 ## `(root)`
 
-2 files, 1,445 lines.
+2 files, 1,448 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring (PX) | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 56 | library | live |  | every Python tool and test; OPFOR 2 | PX6 | the one sys.path bootstrap |
-| `run_tests.py` | 1389 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | PX5 | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1392 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | PX5 | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
@@ -303,14 +303,14 @@ The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exce
 
 ## `bfbc2-map-editor`
 
-20 files, 2,141 lines.
+20 files, 2,142 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring (PX) | Note |
 |---|---:|---|---|---|---|---|---|
 | `bfbc2-map-editor/placement/scripts/l1_geom.py` | 117 | library | twin | bc2_levelwrite::placement / site geometry | l1_measure, l1_sdmcheck, l1_try_hf | PX4 | l1_measure's plane geometry |
 | `bfbc2-map-editor/placement/scripts/l1_level.py` | 206 | library | twin | bc2_levelwrite::placement | l1_measure and 9 other L1 scripts | PX4 | l1_measure's level graph |
 | `bfbc2-map-editor/placement/scripts/l1_levels.py` | 61 | library | twin | bc2-levelwrite examples/v1_rules.rs | l1_measure, l1_aabb, l1_anchor, l1_scan | PX4 | the stock MP levels with era and mode (v1_rules.rs lists them the same way) |
-| `bfbc2-map-editor/placement/scripts/l1_measure.py` | 851 | tool entry point | twin | bc2_levelwrite::placement::measure | l1_sdmcheck; tests 1 (VW2 cites simulate) | PX4 | V1 ported the measures (3,539 of 3,539 values equal); kept as the parity reference |
+| `bfbc2-map-editor/placement/scripts/l1_measure.py` | 852 | tool entry point | twin | bc2_levelwrite::placement::measure | l1_sdmcheck; tests 1 (VW2 cites simulate) | PX4 | V1 ported the measures (3,539 of 3,539 values equal); kept as the parity reference |
 | `bfbc2-map-editor/placement/scripts/l1_read.py` | 47 | library | twin | bc2_formats fbrb / dbx | l1_dump, l1_geom, l1_level, l1_levels, l1_measure | PX4 | a stock level's partition straight from the bundles |
 | `bfbc2-map-editor/placement/scripts/l1_a1.py` | 141 | build or dev script | stays |  | none | PX6 | writes l1_a1_params.json, which bc2_levelwrite::autolayout embeds |
 | `bfbc2-map-editor/placement/scripts/l1_aabb.py` | 24 | build or dev script | stays |  | none | PX6 | one-off check of AABB capture areas |
@@ -385,7 +385,7 @@ The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exce
 
 ## `bfbc2-shader-tools`
 
-18 files, 11,536 lines.
+18 files, 11,541 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring (PX) | Note |
 |---|---:|---|---|---|---|---|---|
@@ -393,7 +393,7 @@ The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exce
 | `bfbc2-shader-tools/xdiff.py` | 562 | tool entry point | live | bfbc2 xdiff (argparse, errors only) | tests 5; OPFOR 4 (xdiff.main in process) | PX3 | the translator's differential test (xenos_exec, WARP draws) |
 | `bfbc2-shader-tools/xenos_exec.py` | 551 | library | live |  | xdiff; tests 2 | PX3 | the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement) |
 | `bfbc2-shader-tools/renderqa.py` | 2141 | tool entry point | partly | bfbc2 renderqa (argparse, errors); bc2-render (the draw) | meshview, xdiff; tests 7; OPFOR 6 | PX3 | left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets |
-| `bfbc2-shader-tools/shaderdb.py` | 1634 | tool entry point | partly | bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate, shadercmd; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb; embedded | 33 suite modules; tests 37; OPFOR 54 | PX2 | reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; the needs and merge commands are also a library (OR10: bc2_convert::shadercmd, from bfbc2 shaderdb, for OPFOR's console port stage 7, which no longer runs this script); left: path glue, level_meshes (DBX reading) |
+| `bfbc2-shader-tools/shaderdb.py` | 1639 | tool entry point | partly | bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate, shadercmd; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb; embedded | 33 suite modules; tests 37; OPFOR 54 | PX2 | reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; the needs and merge commands are also a library (OR10: bc2_convert::shadercmd, from bfbc2 shaderdb, for OPFOR's console port stage 7, which no longer runs this script); left: path glue, level_meshes (DBX reading) |
 | `bfbc2-shader-tools/xenos.py` | 984 | library | twin | bc2_shader::xenos (decoder, disasm) | xdiff, xenos_exec, xenos_hlsl; tests 5; OPFOR 4 | PX4 | parse_shader_python for damaged blobs and disasm for edited trees kept by ruling |
 | `bfbc2-shader-tools/xenos_hlsl.py` | 126 | library | ported | bc2_shader::hlsl (translate) | xdiff, xenos_exec; tests 3; OPFOR 3 | PX6 | translate_python retired (R3); a thin call into the Rust translator |
 | `bfbc2-shader-tools/tests/test_pcbuild_batch.py` | 203 | test | test |  | run_tests.py | PX5 | pcbuild's compile cache and batches (round E3d): compile_hlsl remembers compiles (memory, disk), compile_ma... |
@@ -519,7 +519,7 @@ The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exce
 
 ## `rust`
 
-38 files, 7,924 lines.
+38 files, 7,925 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring (PX) | Note |
 |---|---:|---|---|---|---|---|---|
@@ -558,7 +558,7 @@ The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exce
 | `rust/parity_pacific_menu.py` | 462 | benchmark or parity script | stays |  | by hand | PX6 | round OR14's Pacific War menu edits (bc2_menu::pacific) and texts (bc2_menu::loc) against menu_install.py's Python on aptgraft.py and bc2loc.py: movies, damaged movies, the whole menu step, every language file |
 | `rust/parity_silhouette.py` | 350 | benchmark or parity script | stays |  | by hand | PX6 | round OR14's side silhouettes (bc2_convert::pictures::side, Pillow's polygon fill) against OPFOR's type95_icon.silhouette and Pillow: random polygons, synthetic and game meshes |
 | `rust/parity_texwrite_axes.py` | 233 | benchmark or parity script | stays |  | by hand | PX6 | round OR14's texwrite principal axes (bc2_convert::eigh3) against numpy.linalg.eigh, bit for bit, and the encoded blocks |
-| `rust/python_status.py` | 1002 | build or dev script | stays |  | by hand; tests/test_repo.py | PX6 | this inventory |
+| `rust/python_status.py` | 1003 | build or dev script | stays |  | by hand; tests/test_repo.py | PX6 | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | PX5 | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PX5 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 
@@ -594,11 +594,11 @@ The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exce
 
 ## `tasks`
 
-1 files, 622 lines.
+1 files, 651 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring (PX) | Note |
 |---|---:|---|---|---|---|---|---|
-| `tasks/build.py` | 622 | build or dev script | stays |  | by hand; run_tests.py (tasks-registry) | PX6 | the task registry's generator and check: ROADMAP.md, tasks/board.json, battlefield-opfor's TASKS.md |
+| `tasks/build.py` | 651 | build or dev script | stays |  | by hand; run_tests.py (tasks-registry) | PX6 | the task registry's generator and check: ROADMAP.md, tasks/board.json, battlefield-opfor's TASKS.md |
 
 ## `tests`
 
