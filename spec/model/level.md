@@ -100,6 +100,7 @@ loads: `GameMode` (a reference to `gamemodes/<mode>/<guid>`), `FactionTeam1` / `
 `LevelListQuery` items (`<lv>.dbx`, `<lv>_description.dbx`) the level is in no menu.
 
 [exe: state 13 crash, _stricmp in the name table 0xBD2D30 (OPFOR BFBC2_NAPISAL_RESEARCH.md (private research notes))]
+[doc: private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:180-181]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1037-1041] [code: rust/bc2-levelwrite/src/export.rs:49-50]
 
 ### LEVEL-DESC-2: A GameMode that does not resolve crashes
