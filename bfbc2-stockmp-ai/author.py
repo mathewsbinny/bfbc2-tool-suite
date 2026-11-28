@@ -1,6 +1,7 @@
 """Insert an AI layer, described by a configuration (config.py), into a stock level partition (dbxbin).
 
-What it writes, and where each part was taken from (STOCK_MP_AI_PLAN.md, section 12):
+What it writes, and where each part was taken from (battlefield-opfor's docs/plans/opfor/STOCK_MP_AI_PLAN.md,
+section 12):
 - LevelData: HasAI true; PathfindingTypes = the infantry and vehicle PathfindingSettings of mp_common (as every level
   with working AI lists them: campaign, Napisal's ports, DICE's Xbox Onslaught); every new entity in Objects; the new
   EventConnections.

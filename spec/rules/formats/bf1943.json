@@ -25,7 +25,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BF1943_WW2_ASSETS.md:7-21"
+     "ref": "bfo:docs/research/opfor/BF1943_WW2_ASSETS.md:9-23"
     }
    ],
    "file": "spec/formats/bf1943.md",
@@ -42,7 +42,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:19-23"
+     "ref": "bfo:docs/research/opfor/PACIFIC_GAP_ANALYSIS.md:21-25"
     }
    ],
    "file": "spec/formats/bf1943.md",
@@ -72,7 +72,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:73-81"
+     "ref": "bfo:docs/research/opfor/PACIFIC_GAP_ANALYSIS.md:75-83"
     }
    ],
    "file": "spec/formats/bf1943.md",
@@ -89,7 +89,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BF1943_WW2_ASSETS.md:125-152"
+     "ref": "bfo:docs/research/opfor/BF1943_WW2_ASSETS.md:127-154"
     }
    ],
    "file": "spec/formats/bf1943.md",
@@ -102,11 +102,11 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_PORT_PLAN.md:126-133"
+     "ref": "bfo:docs/plans/opfor/WW2_PORT_PLAN.md:128-135"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/DBXPORT_DEEP_AUDIT.md:35-49"
+     "ref": "bfo:docs/research/opfor/DBXPORT_DEEP_AUDIT.md:37-51"
     },
     {
      "kind": "data",
@@ -127,11 +127,11 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_PORT_PLAN.md:94-104"
+     "ref": "bfo:docs/plans/opfor/WW2_PORT_PLAN.md:96-106"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_FIELD_PARITY_AUDIT.md:14"
+     "ref": "bfo:docs/research/opfor/WW2_FIELD_PARITY_AUDIT.md:16"
     },
     {
      "kind": "data",

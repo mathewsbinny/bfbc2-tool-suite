@@ -140,7 +140,7 @@ hit at 900 a minute (97.5 a second) at 2 m/s, its overheat limiting how long it 
 
 [test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: wcKnife 4 weapons: StartDamage 120 x3, 125 x1, speed 1.75 x2 / 1.8 / 2.25, TimeToLive 1, Gravity 0, RateOfFire 52 x3 / 60, NumberOfMagazines -1; wcNone StartDamage 120 x2 at 1.6; wcPowerTool 2: 6.5 at 900 rpm, speed 2, NumberOfMagazines -1; 8 player bullets with gravity 0, all of these]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:43-45]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:45-47]
 
 ## 4. Shot and projectile
 
@@ -188,7 +188,7 @@ Status: **inferred**
 The bullet flies at the firing's `Shot.InitialSpeed`, not at `BulletEntityData.InitialSpeed`.
 
 [inferred: DICE changed Shot.InitialSpeed (to 600) on every BF1943 firearm it converted and left the bullet's own field; the M24's 2000 on the bullet would make every sniper hit near-instant, which the game's sniper bullet drop contradicts; not read from BFBC2Game.exe]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:25-34]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:27-36]
 
 ## 5. Ammunition
 
@@ -366,7 +366,7 @@ Japanese M18).
 
 [test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: 76 partitions under beach/; 14 SoldierWeaponData there: mp 4, mp+sp 1, sp 9]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:12-23]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:14-25]
 
 ### WPN-WW2-2: How DICE converted BF1943's weapons
 
@@ -381,7 +381,7 @@ tanks' guns DICE left as BF1943 had them (VEH-WPN-2).
 
 [test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: the 8 firearms in beach/: Gravity -9.81 x8, InitialSpeed 600 x8, NumberOfMagazines 4 / 6 / 9999, no zero pickup, UseAutoAiming false x8, press x8, SprintLookSpeedMultiplier 1 on 16 of 16 zoom levels, AnimBaseSet wabsRif x6 / wabsHg x2]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:23-36]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:25-38]
 
 ### WPN-WW2-3: The suite's port applies DICE's conventions
 
@@ -427,7 +427,7 @@ magazine size and zoom FOVs stay. Every class value of the build lies inside the
 [test: opfor:src/tools/tests/test_ww2_balance.py::test_class_overrides_take_the_donors_values]
 [test: opfor:src/tools/tests/test_ww2_balance.py::test_class_overrides_refuse_unknown_shapes]
 [test: opfor:src/tools/tests/test_ww2_balance.py::test_built_bolt_action_rifles_in_dices_class_ranges]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:40-52]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:42-54]
 
 ### WPN-WW2-6: The wrench on the power tool's rates
 

@@ -28,6 +28,22 @@ landed on `main`.
 
 ## [Unreleased]
 
+Round DOC1: Project OPFOR BFBC2's documents left it. The ones battlefield-opfor's knowledge base superseded (62)
+are cited there, and its decompiler-derived research (research/notes, the Ghidra probe scripts, the left-out RE
+documents) is cited in the private decompilation repository:
+- `spec/trace.py` resolves two new source prefixes: `bfo:` (the battlefield-opfor checkout:
+  `bfbc2core.paths.bfo_root`, `BFBC2_BFO_ROOT`, else beside the suite) and `private:` (the private repository:
+  `bfbc2core.paths.decomp_root`, `BFBC2_DECOMP_DB`, else `battlefield-decomp-work\bfbc2-decomp` beside or above
+  the suite). Without the private repository `--check` skips its citations with a counted note.
+- 127 spec citations of moved documents repointed to `bfo:docs/...` (the same text; line ranges remapped past the
+  KB's origin lines) and 120 of the private research to `private:opfor-research/...` (the same lines: the files
+  are byte-identical); the prose, READMEs and code comments that named them repointed too.
+- The private repository moved from `bfbc2-decomp-private` to `battlefield-decomp-work\bfbc2-decomp` and is now a
+  git repository without a remote: `tools/decomp`'s default database follows it, `run_dc.py` accepts that one
+  checkout (its root, no remote, the written folders ignored; new test `test_private_repo`), and
+  `extract_names.py` reads OPFOR's `BFBC2_DECOMP_RESEARCH.md` there (`--private`).
+- New environment variable `BFBC2_BFO_ROOT`; `BFBC2_DECOMP_DB` also names where `private:` citations resolve.
+
 ## [0.37.0] - 2026-11-27
 
 Round OR15 makes the install ledger one implementation (audit AU5-ARC-3): `bfbc2core.gameledger`'s Python twin is
@@ -126,7 +142,8 @@ version's `bc2_native.onsport_vehicles` / `onsport_soldiers` / `onsport_shaders`
   decompiled to pseudo-C, 98,130 of them, with an SQLite index. Each function is marked by how it was found:
   analysis, orphan code, or a prologue scan. The prologue scan's functions are kept apart until a reference confirms
   them. The database is EA-derived and stays private, in
-  `bfbc2-decomp-private` beside the checkouts (`BFBC2_DECOMP_DB`), never in a repo. Only the scripts are committed:
+  `bfbc2-decomp-private` beside the checkouts (`BFBC2_DECOMP_DB`; since round DOC1 `battlefield-decomp-work\bfbc2-decomp`), never in a
+  public repo. Only the scripts are committed:
   - `extract_names.py`: the names;
   - `gen_types.py`: the type plan;
   - the Ghidra scripts `ApplyTypes`, `ApplyNames`, `DiscoverFunctions`, `ConfirmFunctions`, `ExportDb` and

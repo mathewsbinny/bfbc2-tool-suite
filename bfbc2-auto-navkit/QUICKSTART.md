@@ -152,7 +152,7 @@ through the mission on NavKit's file (play test 2026-10-20), and leaving a level
 Measured against DICE's files on 15 levels, NavKit's files have 98 % of DICE's walkable ground and allow 98 %
 of the routes DICE's allow. The changes since 2026-10-22 (closed area boundaries, floors at the M-COMs, D lines
 and F cells, fewer small route islands) are measured offline but not yet play-tested. Some places still differ
-(see README.md), so the AI may still stop somewhere. Project OPFOR BFBC2's `DEVELOPMENT_NOTES.md` has the details.
+(see README.md), so the AI may still stop somewhere. Project OPFOR BFBC2's `DEVELOPMENT_NOTES.md` (private research notes) has the details.
 
 Tip: to start a mission your campaign save is not on, set `level=Levels/<LEVEL>` under `[dev]` in
 `game\opfor.ini` (for example `level=Levels/SP_004_B`), start OPFOR and press **F9** in the main menu. Put

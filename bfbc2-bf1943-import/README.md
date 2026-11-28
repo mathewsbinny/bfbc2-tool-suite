@@ -188,7 +188,7 @@ Converted for the WW2 side project: the Willys (and wreck), Sherman, LCVP and it
 bunker and the machine-gun mounts. Velocity limits go through Havok's hkUFloat8 table, read from the user's
 executable (`ufloat8_table`; the nearest value). Without the table only 200 (0x7F, the Kurogane oracle's) is known.
 
-**Model-group w lanes (2026-11-09; Project OPFOR `research\HAVOK_AABB_W.md`).** BFBC2's model-group physics carry
+**Model-group w lanes (2026-11-09; battlefield-opfor's `docs/research/opfor/HAVOK_AABB_W.md`).** BFBC2's model-group physics carry
 values in w lanes that BF1943's 4.6.1 files leave 0, and havokport writes them as DICE's exporter does:
 - every shape subpart with children gets `translation.w` 1.0 (all 277,950 such subparts of BFBC2's levels; Havok's
   empty last subpart keeps 0);
@@ -222,7 +222,7 @@ The byte differences from DICE's codes are the builders' split choices. Tests: `
 
 ## Data partitions (`dbxport.py`)
 
-**Stage 1 rewrite (2026-11-09; research DBXPORT_DEEP_AUDIT.md in Project OPFOR).** The module docstring has the rules.
+**Stage 1 rewrite (2026-11-09; Project OPFOR's research, now battlefield-opfor's `docs/research/opfor/DBXPORT_DEEP_AUDIT.md`).** The module docstring has the rules.
 
 ```python
 cat = dbxcatalogue.load(ix)                                    # meshview.Index; BFBC2's schema, guids, class names

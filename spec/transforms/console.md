@@ -127,7 +127,7 @@ console seats; 10 every referenced but unloaded PC partition copied in; 11 cull-
 mp2_common provides (XCONS-ONS-4).
 
 [code: opfor:src/tools/onslaught/console_port.py:1-30] [code: opfor:src/tools/onslaught/console_port.py:75-93]
-[doc: opfor:DEVELOPMENT_NOTES.md:1256-1279]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:1256-1279]
 
 ### XCONS-STG-2: What the stages guard against
 
@@ -139,7 +139,7 @@ and stop signs drawn without a PC vertex layout (0x98BD6E, still open on Isla In
 LOAD-PART-3, LOAD-PART-2, RNDR-DRAW-6.
 
 [exe: BFBC2Game.exe 0x5A5A61 (console-only vehicle mesh and physics), 0x4EB538 (null string of a value-less reference), 0x98BD6E (renderer)]
-[doc: opfor:DEVELOPMENT_NOTES.md:1266-1270] [doc: opfor:DEVELOPMENT_NOTES.md:1350]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:1266-1270] [doc: private:opfor-research/DEVELOPMENT_NOTES.md:1350]
 
 ### XCONS-ONS-1: The console Onslaught import gives the retired Python's work files
 

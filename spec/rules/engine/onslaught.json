@@ -5,7 +5,7 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_CONSOLE_RESEARCH.md:142-151"
+     "ref": "bfo:docs/research/opfor/BFBC2_CONSOLE_RESEARCH.md:144-153"
     },
     {
      "kind": "code",
@@ -30,7 +30,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1279-1285"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1279-1285"
     },
     {
      "kind": "code",
@@ -85,7 +85,7 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:334"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:334"
     },
     {
      "kind": "data",
@@ -177,11 +177,11 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:106-144"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:106-144"
     },
     {
      "kind": "doc",
-     "ref": "opfor:ONSLAUGHT_PROCEDURE.md:94-97"
+     "ref": "bfo:docs/procedures/ONSLAUGHT_PROCEDURE.md:96-99"
     },
     {
      "kind": "data",
@@ -198,11 +198,11 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:96-97"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:96-97"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:196-210"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:196-210"
     },
     {
      "kind": "data",
@@ -223,7 +223,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:ONSLAUGHT_PROCEDURE.md:146-151"
+     "ref": "bfo:docs/procedures/ONSLAUGHT_PROCEDURE.md:148-153"
     },
     {
      "kind": "exe",
@@ -269,7 +269,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:268-271"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:268-271"
     }
    ],
    "file": "spec/engine/onslaught.md",
@@ -282,7 +282,7 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:173-192"
+     "ref": "private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md:173-192"
     },
     {
      "kind": "data",

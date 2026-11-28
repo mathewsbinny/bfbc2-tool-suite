@@ -195,7 +195,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:46-56"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:48-58"
     }
    ],
    "file": "spec/formats/havok.md",
@@ -215,7 +215,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:13-48"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:15-50"
     }
    ],
    "file": "spec/formats/havok.md",
@@ -454,7 +454,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/HAVOK_AABB_W.md:1-60"
+     "ref": "bfo:docs/research/opfor/HAVOK_AABB_W.md:1-62"
     }
    ],
    "file": "spec/formats/havok.md",

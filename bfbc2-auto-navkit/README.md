@@ -537,7 +537,7 @@ rule below; AI order coverage on both Onslaught maps 100 %.
   `DestructibleLocalPathfindingParts`, `PathObjectCount`, `MaxLocalPathfindingObjects` point to runtime handling.
   Not yet checked that the switch-off works on NavKit's files (a play-test item). Openings made by destruction are
   not routes in either; precomputed "breach links" for OPFOR's bot layer are on the TODO list (OPFOR
-  `DEVELOPMENT_NOTES.md`).
+  `DEVELOPMENT_NOTES.md` (private research notes)).
 - **Still open:** sp_003_b (connectivity 93.3: a rocky gully whose rough terrain fails the slope test at 0.2 m almost
   everywhere); soldier spawns on small islands where NavKit has more than DICE (sp_008_b, sp_02, sp_003_b, sp_006,
   sp_01, a few each); ONS_MP_002's power-line pylons and a cliff top that roof pruning keeps (they stand beside each
@@ -584,7 +584,7 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
      2026-10-19, same launch as DICE's file, only the `.hpd` differing): the file loads, the pathfinder
      finds paths (394 of 400 requests), but **the friendly squad does not follow them**, where with DICE's
      file it does. After a found path the game checks whether its last point equals the requested destination
-     exactly, and further checks decide whether it is followed (`DEVELOPMENT_NOTES.md` in Project OPFOR BFBC2);
+     exactly, and further checks decide whether it is followed (`DEVELOPMENT_NOTES.md` (private research notes) in Project OPFOR BFBC2);
      measuring how NavKit's paths end, and which check they fail, is the next step. Leaving the level with NavKit's file also crashes at shutdown (a Kynapse block released after its memory manager was
      destroyed; not with DICE's file) - a separate open bug.
    - Accuracy against DICE's files (`ordercheck.py`: AI order / patrol positions on the areas, and the
@@ -710,7 +710,7 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
      A detour repair pass (`DETOUR_REPAIR`) was tried and rejected: shorter routes did not fix the stairs-top
      failure (removed 2026-11-18, with the `DEDUP_GRAPH_NODES` and `BRIDGE_UNION` switches: one node per
      surface and the exact bridge union are the only builds). How the game uses the file is written up in spec §4.5 and in OPFOR's
-     `research\BFBC2_DECOMP_RESEARCH.md` §9.
+     `research\BFBC2_DECOMP_RESEARCH.md` (private research notes) §9.
    - **13-level regression with the four rules - accepted (2026-10-20):** order nodes in route islands under
      25 nodes are dropped (`ORDER_MIN_ISLAND`; it replaced a per-level exception for sp_009); zero-cost edges
      0 everywhere, sorted sectors 100 %, owners 98-100 %.
@@ -737,12 +737,12 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
        bots there need an AI layer authored on top, as Napisal did; NavKit's part comes after that. (2026-10-26:
        the suite's `bfbc2-stockmp-ai` authors that layer; built for Atacama Conquest and Valparaiso Rush, not yet
        played.)
-     Details: OPFOR's `MP_APPLICATION_LOG.md`, spec section 4.5.
+     Details: battlefield-opfor's `docs/research/opfor/MP_APPLICATION_LOG.md`, spec section 4.5.
    - **Since then (2026-10-21 to 10-23):** combat on ONS_MP_002 fixed (OPFOR's Onslaught import); the sampler's
      south "hole" is beyond the PC terrain (the reference is now clipped to it); detailed zones at 0.2 m, chosen
      from the level alone, sampled and built by default; ladder links; the walkability rules and parity measures in
      the section above; "up" border portals found to be a quirk of DICE's data. The stock-MP AI layer is planned in
-     OPFOR's `STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
+     battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
      rule (all 14 M-COM targets on an area, AI coverage on the two maps 100 / 100; the floor is the sampled layer
      nearest the target with enough hits, so a slab over the terrain and stray hits on the object's sides do not
      mislead it), and what D and F are for at run time (spec §4.5). 2026-10-26: D lines and F cells generated

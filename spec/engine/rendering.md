@@ -41,7 +41,7 @@ reflection (`RDEF`): its `$Globals` variables, textures and samplers by name and
 
 [data: MP_005 Dx11_Single.res: 1,714 entries, 12,850 programs, 1,527 vertex and 2,166 pixel shaders, all vs_5_0 / ps_5_0 from that compiler, 2,112 parameter blocks, 114 vertex layouts, 31 render-state words]
 [data: Wake Island's built Dx9_Single.res: 1,723 vertex and 4,668 pixel shaders, all vs_3_0 / ps_3_0]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:596-612] [doc: opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:26-32]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:596-612] [doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:28-34]
 
 ### RNDR-DB-3: Dx9 limits what a program may use
 
@@ -54,7 +54,7 @@ platform that needs more samplers than that (BF1943's 6-7 layer terrain patches)
 levels draw DICE donor programs there.
 
 [data: Wake Island, Iwo Jima and Guadalcanal: 33 BF1943 terrain patch entries declare 17-22 pixel samplers; DICE's Dx9 programs: s0 the shadow map in 4,360 pixel shaders; patches with stream 0 SHORT2 grid and stream 1 SHORT2N height]
-[doc: opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:33-40] [doc: opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:60]
+[doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:35-42] [doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:62]
 
 ## 2. From a mesh part to a draw
 
@@ -138,7 +138,7 @@ for any layout. An export therefore adds the entries of every mesh it brings in 
 
 [exe: BFBC2Game.exe 0x98BD6E, renderer; 0x98BCE0-0x98BD7B: `mov edx,[ebx+8]` ... `movups xmm0,[edx+8]`]
 [data: OPFOR: the WallWooden port (fixed by giving its parts a same-stride layout and its instanced variant); ONS_MP_004's road / stop signs (open)]
-[doc: opfor:src/tools/ww2/wake_install.py:1416-1429] [doc: opfor:DEVELOPMENT_NOTES.md:1350] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:586]
+[doc: opfor:src/tools/ww2/wake_install.py:1416-1429] [doc: private:opfor-research/DEVELOPMENT_NOTES.md:1350] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:586]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1371]
 
 ### RNDR-DRAW-7: A mesh set's LOD settings must resolve (0x8D59FB)
@@ -151,7 +151,7 @@ therefore be in a bundle the level loads (BF1943's `BeachHouseLodSettings_1`, `T
 in OPFOR's port; Fill_Tree's `Vegetation_Lod1` exists nowhere).
 
 [exe: BFBC2Game.exe 0x8D59FB, null read in the client's mesh set-up]
-[doc: rust/bc2-install/src/levelbuild/closure.rs:233-236] [doc: opfor:research/WW2_SUBSTITUTION_AUDIT.md:48]
+[doc: rust/bc2-install/src/levelbuild/closure.rs:233-236] [doc: bfo:docs/research/opfor/WW2_SUBSTITUTION_AUDIT.md:50]
 
 ### RNDR-DRAW-8: A program's material registers are its block header's window
 
@@ -595,7 +595,7 @@ outside the databases. DICE's objects sample them with four taps around the shad
 comparison).
 
 [data: MP_005's binding tables: outdoorLightShadowTransform0..2; entries' depth-only programs; Dx9 objects: four texldp taps averaged]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:659-661] [doc: opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:39]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:659-661] [doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:41]
 
 ### RNDR-LOD-1: A mesh's levels of detail switch at its LOD settings' distances
 
@@ -625,7 +625,7 @@ render path (2026-11-14). It has not recurred; the crash log records the stack's
 so a recurrence will name its caller. No rule about the data follows yet.
 
 [exe: BFBC2Game.exe: execution at 0x00F30005, outside the image's code, render path]
-[doc: opfor:research/PACIFIC_GAP_ANALYSIS.md:349-351] [doc: opfor:research/QA_SWEEP_2026-11-14.md:76]
+[doc: bfo:docs/research/opfor/PACIFIC_GAP_ANALYSIS.md:351-353] [doc: bfo:docs/research/opfor/QA_SWEEP_2026-11-14.md:78]
 
 ### RNDR-CRASH-2: A released texture view left in a slot crashes the state flush (0x9BC68E)
 

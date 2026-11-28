@@ -8,7 +8,8 @@
     m.mcoms                      # [(guid, name, pos)]: placed mpobjective objects (Rush M-COMs)
     m.rush_stages()              # [Stage]: Rush stages from the level's own stage logic (see below)
 
-Rush stages are read from the stock logic (STOCK_MP_AI_PLAN.md, findings 2026-10-26): each stage has a
+Rush stages are read from the stock logic (battlefield-opfor's docs/plans/opfor/STOCK_MP_AI_PLAN.md, findings
+2026-10-26): each stage has a
 MultipleTriggerEntityData ("Fishing_Port_taken", TriggerAmount 2) fed by its M-COMs' onDestroyed; it is switched on
 by the previous stage's MultipleTrigger (OnTrigger -> Enable) and its OnTrigger enables the next defender
 CombatAreaTrigger. The first stage's trigger is the one no other MultipleTrigger enables.

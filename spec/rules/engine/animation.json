@@ -47,7 +47,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:67-73"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:69-75"
     }
    ],
    "file": "spec/engine/animation.md",
@@ -93,7 +93,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:75-78"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:77-80"
     }
    ],
    "file": "spec/engine/animation.md",
@@ -186,7 +186,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:21"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:23"
     }
    ],
    "file": "spec/engine/animation.md",
@@ -207,7 +207,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:80-84"
+     "ref": "bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:82-86"
     }
    ],
    "file": "spec/engine/animation.md",
@@ -241,7 +241,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_KITS.md:85-92"
+     "ref": "bfo:docs/plans/opfor/WW2_KITS.md:87-94"
     }
    ],
    "file": "spec/engine/animation.md",
@@ -262,7 +262,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WAKE_VEHICLE_SEATED_POSE_2026-11-12.md:14-20"
+     "ref": "bfo:docs/research/opfor/WAKE_VEHICLE_SEATED_POSE_2026-11-12.md:16-22"
     }
    ],
    "file": "spec/engine/animation.md",

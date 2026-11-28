@@ -54,7 +54,7 @@ python aptcheck.py check main_root
   not. With `--patch`, every changed byte must be one the patch file names.
 - **`check <movie>`** runs the rules on one movie by itself.
 
-The rules (OPFOR's DEVELOPMENT_NOTES.md section 3, learned from menus that crashed while loading):
+The rules (OPFOR's DEVELOPMENT_NOTES.md (private research notes) section 3, learned from menus that crashed while loading):
 
 | Finding | Meaning |
 |---|---|

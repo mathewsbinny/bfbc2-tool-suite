@@ -81,7 +81,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:17-21"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:19-23"
     }
    ],
    "file": "spec/engine/destruction.md",
@@ -157,7 +157,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:75-79"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:77-81"
     }
    ],
    "file": "spec/engine/destruction.md",

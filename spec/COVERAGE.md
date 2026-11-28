@@ -394,7 +394,7 @@ keeps SPG2's list as it was. Left:
 4. **The game module's patch points** (`engine/module.md`): one row per hook or patch (address, original bytes, what
    it changes, the rule it serves), from `src/dll`'s constants; the crashes index gets the rows it lacks.
 5. **Animation and characters** (`engine/animation.md`): compiled anim trees (`AnimTreeInfo` and its baked hand IK),
-   skeletons and kinds, AimAnimation use, soldiers and kits as DBX classes (OPFOR `research/WW2_KITS.md`).
+   skeletons and kinds, AimAnimation use, soldiers and kits as DBX classes (`bfo:docs/plans/opfor/WW2_KITS.md`).
 6. **Decals and roads**: the baked road strips and decal entries (RNDR-TERR-4), impact decals per material (MAT-FX).
 7. **Persistence, the rest**: `Persistence/*.dbx` (unlock tree, ranks, awards) as classes, the stats keys, then
    BF1943's award rules for the Pacific War career.

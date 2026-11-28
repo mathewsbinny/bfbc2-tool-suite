@@ -137,7 +137,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WAKE_FOLLOWUP_FIXES_2026-11-11.md:33-35"
+     "ref": "bfo:docs/research/opfor/WAKE_FOLLOWUP_FIXES_2026-11-11.md:35-37"
     }
    ],
    "file": "spec/engine/vehicles.md",
@@ -222,7 +222,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_FIELD_PARITY_AUDIT.md:119-121"
+     "ref": "bfo:docs/research/opfor/WW2_FIELD_PARITY_AUDIT.md:121-123"
     }
    ],
    "file": "spec/engine/vehicles.md",
@@ -255,15 +255,15 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:34"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:36"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:126-127"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:128-129"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_FIELD_PARITY_AUDIT.md:28"
+     "ref": "bfo:docs/research/opfor/WW2_FIELD_PARITY_AUDIT.md:30"
     }
    ],
    "file": "spec/engine/vehicles.md",
@@ -350,7 +350,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VISUAL_PARITY.md:170-176"
+     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:172-178"
     }
    ],
    "file": "spec/engine/vehicles.md",
@@ -371,7 +371,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_CONSOLE_RESEARCH.md:169-170"
+     "ref": "bfo:docs/research/opfor/BFBC2_CONSOLE_RESEARCH.md:171-172"
     }
    ],
    "file": "spec/engine/vehicles.md",

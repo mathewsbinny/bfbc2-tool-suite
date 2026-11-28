@@ -280,7 +280,7 @@ the live view over the level - is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 10.2
   against the level's SectorOffsets asset), `parity` (navparity's measures, taken from saved navparity / navregress
   runs or measured and cached, judged by `navregress.compare`), `level` (AI readiness from the game copy's
   bundles: HasAI, AI spawners, real templates, templates and their partitions in the load set, kits, AreaOrders,
-  the SectorOffsets asset, installed path data - Project OPFOR BFBC2's validation criteria, `STOCK_MP_AI_PLAN.md` 6.3).
+  the SectorOffsets asset, installed path data - Project OPFOR BFBC2's validation criteria, battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md` 6.3).
 - **Comparison:** `harness.py compare <base> <new>` per level, file key, test and metric, each metric with a
   direction (higher / lower / closer to 1.0 better, or a count) and a tolerance; worse beyond it, or a test that
   starts failing, is a regression (exit code 1). The format is section 5.5.
@@ -347,7 +347,7 @@ placeholder folder `bfbc2-ai-behavior-simulator` was deleted in round FM1 (`RETI
 ### 4.10 bfbc2-bf1943-import: the DBX port (rewritten 2026-11-09)
 
 A BF1943 partition is ported onto BFBC2's schema by `dbxport.py`, with BFBC2's own data as the ground truth. The
-rewrite (Project OPFOR's `research\DBXPORT_DEEP_AUDIT.md`) replaced first-of-type templates and silent fallbacks with
+rewrite (battlefield-opfor's `docs/research/opfor/DBXPORT_DEEP_AUDIT.md`) replaced first-of-type templates and silent fallbacks with
 the pieces below. Each piece is a rule written down in the module docstring and tested in
 `tests/test_dbxport_rules.py`.
 
@@ -493,7 +493,7 @@ on the same points compare pair by pair. A newer version is refused by older rea
 | M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search (done 2026-10-16; water added the same day; retired in GR1: `RETIRED.md`) | |
 | M3 | Navigation Studio, viewing: navigation layers, islands, detailed zones, difference view against DICE (done 2026-10-16: `bfbc2-navigation-studio/README.md`, `core/bfbc2core/navdata.py`) | the 3D view for NavKit's parity work |
 | M4 | Navigation Studio, editing: regions, seeds, links, traversal annotations, path test, finished file and side file, `navkit apply` (steps 1-6 done 2026-10-16: `bfbc2-navigation-studio/README.md`; step 7, an in-game check that the game's AI uses a hand-made link, open) | |
-| M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`; NavKit's parity runs and regression - `navparity`, `navregress`, `navboundary` - exist in NavKit, 2026-10-16 to 10-19; the harness, 2026-10-26: `bfbc2-automated-map-and-bot-test-harness/harness.py` - structure, reachability, batteries, orders, sector offsets, parity, AI readiness from the game copy's bundles, saved runs and their comparison, `import-log` for in-game sessions; running `testrun.bat` per level on hold until play-tested) | the harness's level checks for stock-MP bot maps (`STOCK_MP_AI_PLAN.md` 6.3) |
+| M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`; NavKit's parity runs and regression - `navparity`, `navregress`, `navboundary` - exist in NavKit, 2026-10-16 to 10-19; the harness, 2026-10-26: `bfbc2-automated-map-and-bot-test-harness/harness.py` - structure, reachability, batteries, orders, sector offsets, parity, AI readiness from the game copy's bundles, saved runs and their comparison, `import-log` for in-game sessions; running `testrun.bat` per level on hold until play-tested) | the harness's level checks for stock-MP bot maps (battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md` 6.3) |
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
 | E1-E6, S2, S3 | Map editor in the Map Inspector (planning: `bfbc2-map-editor/EDITOR_ARCHITECTURE.md`): edit existing maps, then new maps from imported or randomized terrain, then custom models (2026-11-20: the editor is `rust/bc2-editor`; viewing, map projects and export to any era and mode done, E4-E7 next: `ROADMAP.md`) | |

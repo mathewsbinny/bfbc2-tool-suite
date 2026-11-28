@@ -42,7 +42,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:26-32"
+     "ref": "bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:28-34"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -59,11 +59,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:33-40"
+     "ref": "bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:35-42"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:60"
+     "ref": "bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:62"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -197,11 +197,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1350"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1350"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:586"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:586"
     },
     {
      "kind": "doc",
@@ -226,7 +226,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_SUBSTITUTION_AUDIT.md:48"
+     "ref": "bfo:docs/research/opfor/WW2_SUBSTITUTION_AUDIT.md:50"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -940,7 +940,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:39"
+     "ref": "bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:41"
     }
    ],
    "file": "spec/engine/rendering.md",
@@ -982,11 +982,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:349-351"
+     "ref": "bfo:docs/research/opfor/PACIFIC_GAP_ANALYSIS.md:351-353"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/QA_SWEEP_2026-11-14.md:76"
+     "ref": "bfo:docs/research/opfor/QA_SWEEP_2026-11-14.md:78"
     }
    ],
    "file": "spec/engine/rendering.md",

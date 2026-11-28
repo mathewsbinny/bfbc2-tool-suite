@@ -222,7 +222,7 @@ into the editor's own project, undo and apply, rather than being a separate tool
   - boat legs and shore links;
   - vehicle enter and exit points and seat claims;
   - for WW2, carrier spawns, LCVP boarding and the drop, and beach exits (OPFOR
-    `research/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`).
+    battlefield-opfor's `docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`).
 - **Navmesh coverage:** the navigation layers with their islands, sectors and coverage gaps, drawn over the map.
   Coverage can be edited with walkable and unwalkable regions and seeds, NavKit regenerated from the editor, and the
   result compared with DICE's data where a stock map has it. Navigation Studio's anomaly overlay and path test
@@ -1085,7 +1085,7 @@ his Aurora Conquest).
   - one `CombatAreaTrigger` with its polygon (`AreaGeometryEntityData` points linked by `Next`).
 
   Without such a layer, a campaign level hosted as a match stalls in session state 14 (OPFOR's SP_005 test,
-  `research/BFBC2_NAPISAL_RESEARCH.md` 7).
+  `research/BFBC2_NAPISAL_RESEARCH.md` (private research notes) 7).
 - **The level's fields.**
   - Campaign values: `HasAI` true, `StartLevelFadedToBlack`, a `SubtitleAsset`, `WaypointAnimations`,
     `PathfindingTypes`, `SpawnPointManager`, `InfantryFOVMultiplier` 0.82.
@@ -1810,7 +1810,7 @@ byte for byte but the intended changes, every check line passing; install and re
 ## 7. Still open
 
 1. **The WW2 AI mode's timing:** WW2 bots are still being planned (OPFOR
-   `research/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). WW2 maps are fully editable, including their bot side (3.4a),
+   battlefield-opfor's `docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). WW2 maps are fully editable, including their bot side (3.4a),
    so the editor is where that work will be done. Bots play on them once the WW2 bot runtime (the DLL side) exists.
 2. **Custom modes needing engine work:** some mode rules may need OPFOR's DLL (as Air Superiority's mode tests did).
    The mode definition format needs a way to say so, and the editor a way to report it.
@@ -1823,7 +1823,7 @@ The validation gate checks each of these, or the design avoids it.
 |---|---|
 | A level registered while its bundles are missing, or a new name not registered: the level checksum crashes at start-up | memory note new-level-registration; `wake_install.register` |
 | A placement whose blueprint references resolve nowhere: null blueprint in the checksum (0x6EFCA4) | `wake_install.py` |
-| A model-group member's physics part count differs from the group's (0xAB4E58) | OPFOR DEVELOPMENT_NOTES.md |
+| A model-group member's physics part count differs from the group's (0xAB4E58) | OPFOR DEVELOPMENT_NOTES.md (private research notes) |
 | Streaming wave data placed in a level bundle (0x49EDF4); waves hidden by deleted markers (0xFF2AC2) | `wake_install.py` |
 | A description whose GameMode does not resolve (0x74EAB3, Coral Sea) | `wake_install.py` |
 | A mesh part with no shader vertex layout; console-only shader entries; a mesh brought in without entries in the level's databases (0x98BD6E: a null program read in the draw-record builder 0x98BCE0) - the export adds them and `mapexport check` refuses a mesh without them (round XF1, 3.12; spec SHDB-LVL-1/2, RNDR-DRAW-6) | `wake_install.py`, memory note console-resource-formats |

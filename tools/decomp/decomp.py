@@ -10,7 +10,8 @@ r"""Look things up in the private decompiled database of BFBC2Game.exe (round DC
     python tools/decomp/decomp.py --stats            the database's counts (measure.json)
     python tools/decomp/decomp.py --unconfirmed      the functions nothing confirms (prologue scan, doubtful range)
     options: --all  include unconfirmed functions among callers and callees
-    options: --db <folder> (default BFBC2_DECOMP_DB, else bfbc2-decomp-private beside or above the suite)
+    options: --db <folder> (default BFBC2_DECOMP_DB, else battlefield-decomp-work\bfbc2-decomp beside or above the
+             suite: bfbc2core.paths.decomp_root)
              --limit N (lists; default 50)
 
 Addresses are hex, with or without 0x. The database is private and EA-derived: read it, cite addresses and rule ids
@@ -36,13 +37,15 @@ TRUSTED = '(f.confirmed = 1)'
 
 
 def default_db() -> Path:
+    # bfbc2core.paths.decomp_root's order (round DOC1: the repository moved from bfbc2-decomp-private)
     env = os.environ.get('BFBC2_DECOMP_DB')
     if env:
         return Path(env)
+    rel = Path('battlefield-decomp-work', 'bfbc2-decomp')
     for up in SUITE.parents:
-        if (up / 'bfbc2-decomp-private').is_dir():
-            return up / 'bfbc2-decomp-private'
-    return SUITE.parent / 'bfbc2-decomp-private'
+        if (up / rel).is_dir():
+            return up / rel
+    return SUITE.parent / rel
 
 
 class Db:
