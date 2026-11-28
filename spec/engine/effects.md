@@ -12,7 +12,7 @@ destruction effects are `engine/destruction.md`; impact effects per material pai
 partitions whose names hold `fx/` or `emitters/`, each name once with its `levels/<lv>/` prefix taken off (the first
 copy, DICE's first, Package before Dist), and the level partitions' placements; counted by `spec/probes/lighting.py
 emitters` and `lights` on 2026-11-22. The atlas facts are the suite's `emitteratlas.py` (measured on DICE's atlases)
-and OPFOR's Wake Island build (`opfor:research/EMITTER_ATLAS.md`). Nothing here was measured in game.
+and OPFOR's Wake Island build (`bfo:docs/research/opfor/EMITTER_ATLAS.md`). Nothing here was measured in game.
 
 ## 1. The classes
 
@@ -115,7 +115,7 @@ texel, 780 of 780 normal images pass (602 exactly, the rest correlating at least
 [test: bfbc2-bf1943-import/tests/test_emitteratlas.py::main]
 [test: opfor:src/tools/tests/test_emitter_atlas.py::test_install_swaps_the_atlases_and_emitters]
 [code: opfor:src/tools/ww2/emitter_atlas.py:136-195]
-[doc: opfor:research/EMITTER_ATLAS.md:23-45] [doc: opfor:research/EMITTER_ATLAS.md:132-150]
+[doc: bfo:docs/research/opfor/EMITTER_ATLAS.md:25-47] [doc: bfo:docs/research/opfor/EMITTER_ATLAS.md:134-152]
 
 ### FX-ATL-4: The same rule binds every cross-level copy
 

@@ -13,7 +13,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:464-471"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:464-471"
     }
    ],
    "file": "spec/engine/kynapse_runtime.md",
@@ -116,7 +116,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:429-435"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:429-435"
     }
    ],
    "file": "spec/engine/kynapse_runtime.md",
@@ -286,7 +286,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:450-461"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:450-461"
     }
    ],
    "file": "spec/engine/kynapse_runtime.md",

@@ -4,7 +4,11 @@ Round DC0 (2026-11-27). A Ghidra database of `BFBC2Game.exe` (PC, build 795745, 
 with the spec's types and names applied, every function decompiled to pseudo-C, and an index to query it.
 
 **The database is private and EA-derived.** It lives outside every repo, in
-`C:\Programming\Projects\bfbc2-decomp-private\` (or `BFBC2_DECOMP_DB`): the Ghidra project, the pseudo-C, the index.
+`C:\Programming\Projects\battlefield-decomp-work\bfbc2-decomp\` (or `BFBC2_DECOMP_DB`; `bfbc2-decomp-private` until round DOC1): the
+Ghidra project, the pseudo-C, the index. That folder is the private git repository (no remote, ever):
+the database folders stay untracked by its .gitignore, and `opfor-research\` holds Project OPFOR BFBC2's
+decompiler-derived research (moved there in round DOC1; the spec cites it as `private:`). `run_dc.py` writes
+into no other git checkout.
 Only the scripts in this folder are committed. Never copy pseudo-C, strings or Ghidra output into a repo; cite
 **addresses** and rule ids instead (spec/README.md, "The decompiled database").
 

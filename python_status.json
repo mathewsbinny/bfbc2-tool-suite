@@ -1,4 +1,37 @@
 {
+ "exceptions": [
+  {
+   "files": [
+    "bfbc2-shader-tools/pcbuild.py"
+   ],
+   "what": "the HLSL compiles",
+   "why": "Microsoft's d3dcompiler_47 compiles the shaders (through ctypes); a Rust path would call the same DLL, so there is nothing of ours to port"
+  },
+  {
+   "files": [
+    "bfbc2-shader-tools/renderqa.py",
+    "bfbc2-shader-tools/xdiff.py",
+    "opfor:src/tools/ww2/wake_preview.py",
+    "opfor:src/tools/ww2/weapon_preview.py"
+   ],
+   "what": "the preview tools that launch shaderview",
+   "why": "they drive shaderview.exe (D3D11) and measure its pictures for people looking at them; their command lines and errors are Rust already (bfbc2 renderqa / xdiff)"
+  },
+  {
+   "files": [
+    "opfor:src/tools/testrun/testrun.py"
+   ],
+   "what": "testrun's game launch",
+   "why": "it starts the game (BFBC2Game.exe) with a temporary opfor.ini and watches it; its ini edits are Rust (bc2_native.testrun_*); in-game tests are paused (the user, 2026-11-20)"
+  },
+  {
+   "files": [
+    "opfor:src/tools/testrun/playtest.py"
+   ],
+   "what": "playtest.py",
+   "why": "the unattended in-game test driver (scenarios, the virtual pad, key input, screenshots of the game's window): it only runs beside the game"
+  }
+ ],
  "files": [
   {
    "callers": "bf1943import; tests 2; OPFOR 2 (bf1943_weapons, weapon_preview)",
@@ -2320,7 +2353,7 @@
    "lines": 544,
    "note": "HLSL compiled with d3dcompiler_47 (ctypes), its cache and the database bindings; no Rust compile path",
    "path": "bfbc2-shader-tools/pcbuild.py",
-   "retiring": "OPFOR in Rust stage 3",
+   "retiring": "stays by decision (OR15)",
    "rust": "",
    "status": "live"
   },
@@ -2332,7 +2365,7 @@
    "lines": 2141,
    "note": "left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets",
    "path": "bfbc2-shader-tools/renderqa.py",
-   "retiring": "OPFOR in Rust stage 3",
+   "retiring": "stays by decision (OR15)",
    "rust": "bfbc2 renderqa (argparse, errors); bc2-render (the draw)",
    "status": "partly"
   },
@@ -2490,7 +2523,7 @@
    "lines": 562,
    "note": "the translator's differential test (xenos_exec, WARP draws)",
    "path": "bfbc2-shader-tools/xdiff.py",
-   "retiring": "OPFOR in Rust stage 3",
+   "retiring": "stays by decision (OR15)",
    "rust": "bfbc2 xdiff (argparse, errors only)",
    "status": "live"
   },
@@ -2795,16 +2828,16 @@
    "status": "ported"
   },
   {
-   "callers": "navkit.py, texqa, stockmp pipeline / lib; tests 8; OPFOR 1 (test)",
+   "callers": "navkit.py, texqa, stockmp pipeline / lib, OPFOR opforcore.stages / migrate; tests 8",
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 806,
-   "note": "the Python twin of the install ledger (no install_keep / restate)",
+   "lines": 169,
+   "note": "a client of the one install ledger (round OR15: the 913-line twin retired, OPFOR's ledger.py too)",
    "path": "core/bfbc2core/gameledger.py",
-   "retiring": "IN1",
-   "rust": "bc2_formats::gameledger; bfbc2 gameledger",
-   "status": "twin"
+   "retiring": "OR15",
+   "rust": "bc2_gamefs::ledger, bc2_install::ledgerapi (bc2_native.ledger_call); bfbc2 gameledger",
+   "status": "ported"
   },
   {
    "callers": "13 suite modules; tests 9",
@@ -3411,8 +3444,8 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 397,
-   "note": "Round DF2: the game copy's install ledger (bfbc2core.gameledger, the twin of rust\\bc2-formats\\src\\gameledge...",
+   "lines": 497,
+   "note": "Round DF2: the game copy's install ledger and the installs built on it, on scratch game copies made in a te...",
    "path": "core/tests/test_gameledger.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -4047,7 +4080,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 922,
+   "lines": 962,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4785,7 +4818,7 @@
  "totals": {
   "all": {
    "files": 393,
-   "lines": 115615
+   "lines": 115118
   },
   "by_folder": {
    "(root)": {
@@ -4977,14 +5010,14 @@
    },
    "core": {
     "files": 76,
-    "lines": 20439,
+    "lines": 19902,
     "live": 768,
     "partly": 0,
-    "ported": 1909,
+    "ported": 2078,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15332,
-    "twin": 2430
+    "test": 15432,
+    "twin": 1624
    },
    "design": {
     "files": 1,
@@ -4999,12 +5032,12 @@
    },
    "rust": {
     "files": 38,
-    "lines": 7844,
+    "lines": 7884,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7577,
+    "stays": 7617,
     "test": 267,
     "twin": 0
    },
@@ -5052,8 +5085,8 @@
     "lines": 13587
    },
    "ported": {
-    "files": 23,
-    "lines": 3030
+    "files": 24,
+    "lines": 3199
    },
    "retired-pending": {
     "files": 3,
@@ -5061,15 +5094,15 @@
    },
    "stays": {
     "files": 81,
-    "lines": 17779
+    "lines": 17819
    },
    "test": {
     "files": 193,
-    "lines": 53204
+    "lines": 53304
    },
    "twin": {
-    "files": 57,
-    "lines": 22616
+    "files": 56,
+    "lines": 21810
    }
   }
  }

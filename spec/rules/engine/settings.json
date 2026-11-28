@@ -13,11 +13,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:187-205"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:187-205"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:52-62"
     }
    ],
    "file": "spec/engine/settings.md",
@@ -59,7 +59,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:179"
+     "ref": "bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:181"
     }
    ],
    "file": "spec/engine/settings.md",
@@ -110,7 +110,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:52-62"
     }
    ],
    "file": "spec/engine/settings.md",
@@ -182,7 +182,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:69-86"
+     "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:69-86"
     }
    ],
    "file": "spec/engine/settings.md",

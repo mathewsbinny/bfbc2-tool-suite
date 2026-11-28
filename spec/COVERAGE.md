@@ -298,9 +298,9 @@ questions and here:
    entity classes DICE's graphs do not use (SCR-EVT-2, SCR-CMD-1); whether the debug document server starts.
 3. **Step graph**: the read-before-write steps are fixed (XDEP-STEP-3, round WW2-ORD1), the inputs no step writes
    are declared and the oracle regenerated (XDEP-STEP-5 / -6, round WW2-ORC1), and the rebuild runs as a step graph
-   (XDEP-STEP-8 - 10, round OR7). Left: the install plan's porting as a rebuild step (the rebuild -> plan ->
-   rebuild cycle, XDEP-STEP-5: proposed); the reads the hook cannot see, which are declared by hand (`READS`); the
-   stale records of renamed steps.
+   (XDEP-STEP-8 - 10, round OR7); the install plan's porting is a rebuild step (XDEP-STEP-5, round OR15). Left:
+   the levels' vegetation staging, still the plan's; the reads the hook cannot see, which are declared by hand
+   (`READS`); the stale records of renamed steps.
 4. **Asset graph**: references held inside resources (mesh sets' shader names, shader databases' texture names, the
    VO tables' waves), which the string-table listing does not see (XDEP-RES-1).
 
@@ -394,7 +394,7 @@ keeps SPG2's list as it was. Left:
 4. **The game module's patch points** (`engine/module.md`): one row per hook or patch (address, original bytes, what
    it changes, the rule it serves), from `src/dll`'s constants; the crashes index gets the rows it lacks.
 5. **Animation and characters** (`engine/animation.md`): compiled anim trees (`AnimTreeInfo` and its baked hand IK),
-   skeletons and kinds, AimAnimation use, soldiers and kits as DBX classes (OPFOR `research/WW2_KITS.md`).
+   skeletons and kinds, AimAnimation use, soldiers and kits as DBX classes (`bfo:docs/plans/opfor/WW2_KITS.md`).
 6. **Decals and roads**: the baked road strips and decal entries (RNDR-TERR-4), impact decals per material (MAT-FX).
 7. **Persistence, the rest**: `Persistence/*.dbx` (unlock tree, ranks, awards) as classes, the stats keys, then
    BF1943's award rules for the Pacific War career.

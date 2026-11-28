@@ -9,7 +9,7 @@
     },
     {
      "kind": "code",
-     "ref": "core/bfbc2core/gameledger.py:555-755"
+     "ref": "rust/bc2-install/src/ledgerapi.rs:1-40"
     },
     {
      "kind": "test",
@@ -73,11 +73,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-gamefs/src/ledger.rs:1418-1531"
-    },
-    {
-     "kind": "code",
-     "ref": "core/bfbc2core/gameledger.py:851-913"
+     "ref": "rust/bc2-gamefs/src/ledger.rs:1340-1500"
     },
     {
      "kind": "test",
@@ -97,7 +93,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/opforcore/stages.py:240-312"
+     "ref": "rust/bc2-install/src/stages.rs:280-400"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/opforcore/stages.py:200-240"
     },
     {
      "kind": "code",
@@ -133,15 +133,11 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_exception_at_every_write_step_rolls_back"
-    },
-    {
-     "kind": "test",
      "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_kill_at_every_write_step_is_resumed"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_a_stage_revert_interrupted_at_every_write_leaves_the_bundle_whole"
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_a_stage_revert_killed_at_every_write_leaves_the_bundle_whole"
     },
     {
      "kind": "test",
@@ -165,7 +161,7 @@
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_is_idempotent_and_resumes"
+     "ref": "opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_is_idempotent_and_a_kill_at_every_step_resumes"
     },
     {
      "kind": "test",
@@ -181,11 +177,15 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "opfor:src/tools/opforcore/tests/test_suite_ledger_compat.py::test_opfor_and_the_suites_python_twin_share_one_store"
+     "ref": "core/tests/test_gameledger.py::cross"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/opforcore/tests/test_suite_ledger_compat.py::test_ds1_sequence_across_python_and_rust"
+     "ref": "core/tests/test_gameledger.py::old_disks"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_old_ledgers.py::test_installs_made_by_the_old_code_revert_with_the_new"
     }
    ],
    "file": "spec/transforms/install.md",
@@ -221,7 +221,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/opforcore/stages.py:240-312"
+     "ref": "rust/bc2-install/src/stages.rs:280-400"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/opforcore/stages.py:200-240"
     },
     {
      "kind": "test",
@@ -241,7 +245,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/opforcore/stages.py:220-238"
+     "ref": "rust/bc2-install/src/stages.rs:230-280"
     },
     {
      "kind": "code",
@@ -277,7 +281,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/opforcore/stages.py:240-312"
+     "ref": "rust/bc2-install/src/stages.rs:280-400"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/opforcore/stages.py:200-240"
     },
     {
      "kind": "test",
@@ -521,29 +529,73 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/opforcore/ledger.py:1-40"
+     "ref": "rust/bc2-gamefs/src/ledger_check.rs:1-200"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_six_orders_and_foreign_write"
+     "ref": "core/tests/test_gameledger.py::damaged"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_stacking_and_splice_records"
+     "ref": "core/tests/test_gameledger.py::legacy"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_foreign_edit_of_owned_slot_refused"
-    },
-    {
-     "kind": "test",
-     "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_dry_run_and_read_only"
+     "ref": "opfor:src/tools/opforcore/tests/test_old_ledgers.py::test_installs_made_by_the_old_code_revert_with_the_new"
     }
    ],
    "file": "spec/transforms/install.md",
    "id": "XINST-LED-1",
    "status": "verified",
-   "title": "Any order of installs and uninstalls gives the files back"
+   "title": "The slot kinds are read and kept, never taken out"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-gamefs/src/ledger_check.rs:1-130"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-gamefs/src/ledger.rs:380-395"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-gamefs/src/ledger_check.rs::every_reader_rule_is_kept"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::damaged"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::old_disks"
+    }
+   ],
+   "file": "spec/transforms/install.md",
+   "id": "XINST-LED-2",
+   "status": "verified",
+   "title": "One implementation reads every ledger the three wrote, and refuses a damaged one in words"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::old_disks"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_old_ledgers.py::test_installs_made_by_the_old_code_revert_with_the_new"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_old_ledgers.py::test_a_commit_the_old_code_left_half_written_is_rolled_back"
+    }
+   ],
+   "file": "spec/transforms/install.md",
+   "id": "XINST-LED-3",
+   "status": "verified",
+   "title": "Installs made by the retired implementations revert and recover with the one ledger"
   },
   {
    "evidence": [
@@ -589,7 +641,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:811-893"
+     "ref": "rust/bc2-install/src/run.rs:740-828"
     },
     {
      "kind": "data",
@@ -898,10 +950,6 @@
     {
      "kind": "code",
      "ref": "rust/bc2-install/src/mods/migrate.rs:123-560"
-    },
-    {
-     "kind": "code",
-     "ref": "opfor:src/tools/opforcore/migrate.py:138-146"
     },
     {
      "kind": "test",

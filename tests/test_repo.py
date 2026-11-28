@@ -272,7 +272,7 @@ JSON_ORDER_KEPT = {
     'bfbc2-console-convert/texqa.py': 4, 'bfbc2-navigation-studio/overlay.py': 1,
     'bfbc2-shader-tools/renderqa.py': 1, 'bfbc2-shader-tools/xdiff.py': 1, 'bfbc2-stockmp-ai/config.py': 2,
     'bfbc2-stockmp-ai/pipeline.py': 1, 'bfbc2-stockmp-ai/validate.py': 1, 'core/bfbc2core/atomicio.py': 1,
-    'core/bfbc2core/gameledger.py': 3, 'core/bfbc2core/navdata.py': 1, 'spec/trace.py': 1,
+    'core/bfbc2core/gameledger.py': 1, 'core/bfbc2core/navdata.py': 1, 'spec/trace.py': 1,
 }
 
 

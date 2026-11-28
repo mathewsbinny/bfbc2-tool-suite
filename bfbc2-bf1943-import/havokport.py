@@ -10,7 +10,8 @@ r"""havokport.py - Battlefield 1943's physics (HavokPhysicsData: Havok 4.6.1, Xb
    class layouts in the user's BFBC2Game.exe - a field the layouts do not account for stops it.
 
 What changed from 4.6.1 to 5.5.0, measured on the physics both games ship (the Kurogane, Zero and Corsair; the
-research notes are Project OPFOR's `research\WW2_PORT_PLAN.md`): the physics classes gained a "p" (hkRigidBody ->
+research notes are battlefield-opfor's docs/plans/opfor/WW2_PORT_PLAN.md): the physics classes gained a "p"
+(hkRigidBody ->
 hkpRigidBody); every object kept its size; hkRigidBody's collidable gained a 40-byte cached bounding volume (written
 marked invalid, as BFBC2's files hold it), lost the deactivator pointer, gained the SPU collision callback (BFBC2's
 filters 3 / 1) and extended listeners, and its motion packs the two velocity limits into bytes after the damping;
@@ -267,7 +268,8 @@ def convert(b, template, classes, table=None):
 
 
 # ------------------------------------------------------------------------------------------------ physics materials
-# Where a PC physics resource keeps its materials (Project OPFOR research\MATERIAL_SLOTS_RE.md, the exe's readers):
+# Where a PC physics resource keeps its materials (battlefield-opfor's docs/research/opfor/MATERIAL_SLOTS_RE.md, the
+# exe's readers):
 #   part materials  the wrapper's byte run after the boxes: u16 0 (no material table: BF1943's files may carry one,
 #                   DICE's never do), u8 the number of distinct materials the parts use, u8 the highest index, then one
 #                   byte per part - an index into the material list - left out when every part uses the same one (that

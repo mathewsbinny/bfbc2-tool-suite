@@ -198,7 +198,7 @@ server must agree. A new level under a new name that is not registered in both `
 on both the server and the client, crashes the server while it computes the level checksum.
 
 [data: the user's report of 2026-11-06 (Wake Island, a new level under a new name); recorded in OPFOR's WW2 port plan, phase F]
-[doc: opfor:research/WW2_PORT_PLAN.md:49-55]
+[doc: bfo:docs/plans/opfor/WW2_PORT_PLAN.md:51-57]
 
 ### CSUM-CHK-2: A registered bundle that is missing crashes
 
@@ -209,7 +209,7 @@ registration is written last (REG-NEW-4) and why a new level registers voice-ove
 with targets that are there (REG-NEW-3).
 
 [data: OPFOR's install audit C2: a failed install that left the level registered with absent bundles is the start-up checksum crash]
-[doc: opfor:research/PYTHON_CODE_AUDIT.md:30] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1123]
+[doc: bfo:docs/research/opfor/PYTHON_CODE_AUDIT.md:32] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1123]
 
 ### CSUM-CHK-3: The checksum dereferences every placement's blueprint
 

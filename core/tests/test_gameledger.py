@@ -1,12 +1,17 @@
-r"""Round DF2: the game copy's install ledger (bfbc2core.gameledger, the twin of rust\bc2-formats\src\gameledger.rs)
-and the installs built on it, on scratch game copies made in a temporary folder (never the real game copy).
+r"""Round DF2: the game copy's install ledger and the installs built on it, on scratch game copies made in a temporary
+folder (never the real game copy). Since round OR15 bfbc2core.gameledger is a client of the one implementation
+(rust\bc2-gamefs\src\ledger.rs, through the module's ledger_call); its Python twin was retired.
 
 - AU4-DS-1's sequence (install NavKit, apply stock-MP, restore NavKit, revert stock-MP) ends with DICE's file, and
   DICE's original is answered at every step; every order of the two tools applied and reverted, with and without an
   original, gives each file back byte for byte;
-- an interruption at every write step: a failed write rolls back at once; a crash (a test hook, and a real kill of
-  a process by BC2_LEDGER_CRASH_AT) leaves a journal the next operation rolls back, so the copy is as before and the
-  operation can be run again;
+- a real kill of a process at every write step (BC2_LEDGER_CRASH_AT) leaves a journal the next operation rolls back,
+  so the copy is as before and the operation can be run again (a failed write rolled back at once is the Rust's own
+  test, bc2_gamefs::ledger::tests::an_interruption_at_every_write_step);
+- the ledgers on users' disks (round OR15): installs made by the retired Python twin (its source from git history)
+  read, revert and recover with the one implementation, its records untouched by other owners' commits stay byte
+  for byte, an interrupted commit it left is rolled back; damaged records are refused in words and can be
+  forgotten; Project OPFOR's slot kinds are kept, their revert refused in words, forget drops them;
 - the markers of before the ledger: NavKit's and stock-MP's adopted, other tools' and inconsistent ones refused in
   words; Project OPFOR's records of other kinds kept;
 - with bin\bfbc2.exe: the Rust store and the Python one read each other's records, and the real command lines -
@@ -185,48 +190,6 @@ def python_twin(check: Callable[..., None], tmp: str) -> None:
 
 
 def interruptions(check: Callable[..., None], tmp: str) -> None:
-    seq: list[Callable[[gl.Ledger], gl.Plan]] = [
-        lambda led: led.install('navkit:mp_005', {HPD: NAV}),
-        lambda led: led.install('stockmp:mp_005', {HPD: SMP}),
-        lambda led: led.uninstall('navkit:mp_005'),
-        lambda led: led.uninstall('stockmp:mp_005')]
-    bad, hits = [], 0
-    for crash in (False, True):
-        for i in range(len(seq)):
-            for k in range(1, 9):
-                g = Game(os.path.join(tmp, f'int_{crash}_{i}_{k}'))
-                g.put('Dist/other.fbrb', b'untouched')
-                for s in seq[:i]:
-                    s(g.led())
-                files, recs = g.files(), g.records()
-                led = g.led()
-                n = [0]
-
-                def hook(label: str, k: int = k, n: list[int] = n, crash: bool = crash) -> None:
-                    n[0] += 1
-                    if n[0] == k:
-                        raise gl.Interrupt(crash=crash)
-                led.hook = hook
-                try:
-                    seq[i](led)
-                    shutil.rmtree(g.root)
-                    continue                   # fewer write steps than k
-                except gl.LedgerError:
-                    pass
-                hits += 1
-                if crash:
-                    g.kill()
-                    g.led().recover()
-                if g.files() != files or g.records() != recs:
-                    bad.append(f'op {i} step {k} crash {crash}: not as before')
-                for s in seq[i:]:
-                    s(g.led())
-                if g.get(HPD) != DICE or g.get('Dist/other.fbrb') != b'untouched':
-                    bad.append(f'op {i} step {k} crash {crash}: the sequence did not end with DICE\'s file')
-                shutil.rmtree(g.root)
-    check(not bad and hits > 20, f'an interruption at every write step ({hits} cases, a failed write and a crash): the '
-          'copy as before, the operation run again completes', '; '.join(bad[:3]))
-
     # a real kill: a child process stopped (exit 9) before its k-th write step by BC2_LEDGER_CRASH_AT
     bad, hits = [], 0
     code = ('import sys; sys.path.insert(0, sys.argv[1]); from bfbc2core import gameledger as gl; '
@@ -319,6 +282,158 @@ def legacy(check: Callable[..., None], tmp: str) -> None:
           and 'pacific holds parts of it' in msg,
           "Project OPFOR's records of other kinds kept byte for byte with their blobs; a whole-file install over their "
           'slots refused', str(msg))
+
+
+# ------------------------------------------------------------------------------- the ledgers on users' disks (OR15)
+
+# The last commit of the suite whose bfbc2core.gameledger was the Python twin (913 lines; round OR15 made it a client).
+OLD_REV = '1e92f152'
+
+
+def old_twin(tmp: str) -> str | None:
+    """The retired Python twin (gameledger.py and the atomicio it imports, from git history) as a package bfbc2core in
+    a folder of its own, for a child process; None when the history is not there (a shallow clone)."""
+    root = os.path.join(tmp, 'old_twin')
+    pkg = os.path.join(root, 'bfbc2core')
+    os.makedirs(pkg, exist_ok=True)
+    for name in ('gameledger.py', 'atomicio.py'):
+        r = subprocess.run(['git', '-C', SUITE, 'show', f'{OLD_REV}:core/bfbc2core/{name}'], capture_output=True)
+        if r.returncode != 0:
+            return None
+        with open(os.path.join(pkg, name), 'wb') as f:
+            f.write(r.stdout)
+    with open(os.path.join(pkg, '__init__.py'), 'w') as f:
+        f.write('')
+    return root
+
+
+OLD_INSTALLS = r'''
+import os, sys
+sys.path.insert(0, sys.argv[1])
+from bfbc2core import gameledger as old
+assert old.__file__.startswith(sys.argv[1]), old.__file__
+game = sys.argv[2]
+led = old.Ledger(game)
+led.install('navkit:mp_005', {sys.argv[3]: b"NavKit's build"})
+led.install('stockmp:mp_005', {sys.argv[3]: b"stock-MP's build"})
+led.install('stockmp:mp_007', {'Dist/win32/levels/mp_007/level-00.fbrb': b'stock-MP mp_007'})
+if len(sys.argv) > 4:           # killed in a commit: the journal and the lock left as a crash leaves them
+    led.crash_at = led.steps + int(sys.argv[4])
+    led.install('navkit:mp_007', {'Dist/win32/levels/mp_007/level-00.fbrb': b'killed'})
+'''
+
+
+def old_disks(check: Callable[..., None], tmp: str) -> None:
+    old = old_twin(tmp)
+    if old is None:
+        print(f'skipped: the retired twin (git history at {OLD_REV}) is not in this clone')
+        return
+    g = Game(os.path.join(tmp, 'old_disk'))
+    g.put('Dist/win32/levels/mp_007/level-00.fbrb', b'dice mp_007')
+    start = g.files()
+    r = subprocess.run([sys.executable, '-I', '-c', OLD_INSTALLS, old, g.root, HPD], capture_output=True, text=True)
+    check(r.returncode == 0 and g.get(HPD) == SMP, 'the retired twin installs three owners on a scratch copy',
+          r.stderr[-300:])
+    recs = g.records()
+    st = {e['owner'] + ' ' + e['file']: e['state'] for e in g.led().entries()}
+    rep = g.led().check()
+    check(st == {f'navkit:mp_005 {HPD}': 'buried', f'stockmp:mp_005 {HPD}': 'ok',
+                 'stockmp:mp_007 Dist/win32/levels/mp_007/level-00.fbrb': 'ok'} and rep['healthy'],
+          "the one ledger reads the twin's records (buried / ok) and finds them healthy", f'{st} {rep["lines"]}')
+    g.led().install('navkit:mp_009', {'Output/win32/ai/levels/mp_009/infantry/pathdata.hpd': b'nav 9'})
+    g.led().uninstall('navkit:mp_009')
+    check(g.records() == recs, "the twin's records are byte for byte as it wrote them after another owner's commit")
+    g.led().uninstall('navkit:mp_005')          # out of order: spliced under stock-MP's independent layer
+    g.led().uninstall('stockmp:mp_005')
+    g.led().uninstall('stockmp:mp_007')
+    check(g.files() == start and not g.records(),
+          'every install the twin made reverts with the one ledger, in any order: every file byte for byte as before')
+
+    # the twin killed in a commit (its BC2_LEDGER_CRASH_AT counter): its journal is rolled back by the one ledger
+    bad, hits = [], 0
+    for k in range(1, 12):
+        g = Game(os.path.join(tmp, f'old_kill_{k}'))
+        g.put('Dist/win32/levels/mp_007/level-00.fbrb', b'dice mp_007')
+        r = subprocess.run([sys.executable, '-I', '-c', OLD_INSTALLS, old, g.root, HPD, str(k)], capture_output=True,
+                           text=True)
+        if r.returncode == 0:
+            break                       # past the commit's last write step
+        hits += 1
+        if r.returncode != 9:
+            bad.append(f'step {k}: exit {r.returncode} {r.stderr[-200:]}')
+            continue
+        notes = g.led().recover()
+        if g.get('Dist/win32/levels/mp_007/level-00.fbrb') != b'stock-MP mp_007' or 'navkit:mp_007' in g.led().records():
+            bad.append(f'step {k}: not rolled back ({notes})')
+    check(not bad and hits >= 3, f'a commit the twin left half-written (killed at each of its {hits} write steps) is '
+          'rolled back by the one ledger', '; '.join(bad[:2]))
+
+
+def _record(owner: str, cs: list[dict[str, Any]], fmt: str = gl.FORMAT) -> bytes:
+    return json.dumps({'format': fmt, 'owner': owner, 'txn': 't', 'installed': 'i', 'contributions': cs}).encode()
+
+
+def damaged(check: Callable[..., None], tmp: str) -> None:
+    cases = [('not JSON', b'{"format": "opfor-ledger/1", ', 'not JSON'),
+             ('an old format', _record('navkit:mp_005', [], 'opfor-ledger/0'), 'expected opfor-ledger/1'),
+             ('an unknown kind', _record('navkit:mp_005', [{'kind': 'frob', 'file': HPD, 'slot': ''}]),
+              'an unknown kind'),
+             ('a prior without its blob', _record('navkit:mp_005', [{'kind': 'file', 'file': HPD, 'slot': '',
+                                                                      'value': {'sha': 'a'}, 'prior': {'sha': 'b'}}]),
+              'names no blob')]
+    bad = []
+    for name, body, want in cases:
+        g = Game(os.path.join(tmp, 'damaged_' + name.replace(' ', '_')))
+        smp(g)
+        with open(os.path.join(gl.default_root(g.root), 'navkit~mp_005.json'), 'wb') as fw:
+            fw.write(body)
+        before = g.files()
+
+        def revert(g: Game = g) -> gl.Plan:
+            return g.led().uninstall('stockmp:mp_005')
+        msg = raises(revert)
+        corrupt = [e for e in g.led().entries() if e['state'] == 'corrupt']
+        rep = g.led().check()
+        if (msg is None or 'damaged ledger record' not in msg or want not in msg or 'navkit~mp_005.json' not in msg
+                or 'gameledger forget' not in msg or g.files() != before or len(corrupt) != 1 or rep['healthy']):
+            bad.append(f'{name}: {msg} {corrupt} {rep["lines"]}')
+            continue
+        g.led().forget('navkit:mp_005')
+        g.led().uninstall('stockmp:mp_005')
+        if g.get(HPD) != DICE:
+            bad.append(f'{name}: not reverted after the forget')
+    check(not bad, 'a damaged record is refused in words (which file, why, how to drop it) with nothing written, shown '
+          "as corrupt, and forgotten on request - the healthy owners' reverts then go through", '; '.join(bad[:2]))
+
+    # a missing blob: the check says which revert would be refused
+    g = Game(os.path.join(tmp, 'damaged_blob'))
+    smp(g)
+    blobs = os.path.join(gl.default_root(g.root), 'blobs')
+    for name in os.listdir(blobs):
+        os.remove(os.path.join(blobs, name))
+    rep = g.led().check()
+    msg = raises(lambda: g.led().uninstall('stockmp:mp_005'))
+    check(not rep['healthy'] and any('stockmp:mp_005' in b for b in rep['blobs']) and msg is not None
+          and 'missing from the ledger' in msg and g.get(HPD) == SMP,
+          'a missing blob: the check names the owner whose revert needs it, the revert is refused, the file stays',
+          f'{rep["lines"]} {msg}')
+
+    # Project OPFOR's slot kinds: kept, a revert of their owner refused in words, forget drops them (bytes stay)
+    g = Game(os.path.join(tmp, 'slot_kinds'))
+    ini = b'[dev]\r\nlevel=Levels/X\r\n'
+    g.put('opfor.ini', ini)
+    os.makedirs(gl.default_root(g.root), exist_ok=True)
+    with open(os.path.join(gl.default_root(g.root), 'pacific.json'), 'wb') as fb:
+        fb.write(_record('pacific', [{'kind': 'ini', 'file': 'opfor.ini', 'slot': 'dev/level',
+                                      'value': 'level=Levels/X', 'prior': None, 'below': None, 'stack': True,
+                                      'extra': {'section': 'dev', 'key': 'level'}}]))
+    msg = raises(lambda: g.led().uninstall('pacific'))
+    kept = [e['state'] for e in g.led().entries()]
+    g.led().forget('pacific')
+    check(msg is not None and 'ini slot' in msg and 'gameledger forget' in msg and kept == ['kept']
+          and not g.led().records() and g.get('opfor.ini') == ini,
+          "a slot kind of OPFOR's retired ledger: shown as kept, its revert refused in words, forget drops it and "
+          'leaves the file', f'{msg} {kept}')
 
 
 # ---------------------------------------------------------------------------------------------- with bfbc2.exe
@@ -425,6 +540,74 @@ def cross(check: Callable[..., None], tmp: str) -> None:
     check(r.returncode == 0 and 'nothing installed' in r.stdout, 'gameledger status: nothing left installed', r.stdout)
 
 
+def users(check: Callable[..., None], tmp: str) -> None:
+    """IN1's pieces on the ledger (round OR15): bfbc2 doctor, bfbc2 settings, gameledger check / forget, project
+    share - on scratch folders, the settings in a file of their own (BFBC2_SETTINGS)."""
+    if not os.path.isfile(EXE):
+        print('skipped: the users\' commands (bin\\bfbc2.exe is not built)')
+        return
+    settings = os.path.join(tmp, 'settings', 'settings.json')
+    env = {'BFBC2_SETTINGS': settings}
+    g = Game(os.path.join(tmp, 'users_game'))
+    g.put('BFBC2Game.exe', b'not the real game')
+    for sub in ('Package', 'Dist', 'Output'):
+        os.makedirs(os.path.join(g.root, sub), exist_ok=True)
+    smp(g)
+    r = rust(['settings', 'game-folder', os.path.join(tmp, 'nowhere')], env)
+    check(r.returncode == 1 and 'no such folder' in r.stderr and not os.path.exists(settings),
+          'bfbc2 settings: a folder that is not a game copy is refused, nothing written', r.stderr)
+    r = rust(['settings', 'game-folder', g.root], env)
+    with open(settings, encoding='utf-8') as f:
+        saved = json.load(f)
+    check(r.returncode == 0 and saved == {'format': 'bfbc2-settings/1', 'game_folder': os.path.abspath(g.root)},
+          'bfbc2 settings game-folder: the game copy kept in the settings file', r.stdout + r.stderr)
+    r = rust(['doctor'], env)
+    pc = os.environ.get('COMPUTERNAME', '') or 'no-pc-name'
+    user = os.environ.get('USERNAME', '') or 'no-user-name'
+    out = r.stdout
+    check(r.returncode == 0 and 'the game-folder setting' in out and 'stockmp:mp_005' in out and 'ledger: healthy' in out
+          and pc.lower() not in out.lower() and f'\\{user.lower()}\\' not in out.lower()
+          and 'Nothing to fix.' in out,
+          'bfbc2 doctor: the game folder from the setting, the install state, nothing to fix - no PC or user name',
+          out[-600:] + r.stderr)
+    with open(os.path.join(gl.default_root(g.root), 'navkit~mp_005.json'), 'wb') as fb:
+        fb.write(b'{"format": "opfor-ledger/1", ')
+    r = rust(['doctor'], env)
+    c = rust(['gameledger', 'check', g.root])
+    check(r.returncode == 1 and 'gameledger forget' in r.stdout and c.returncode == 1 and 'damaged record' in c.stdout,
+          'bfbc2 doctor and gameledger check: a damaged record is a fix to make, in words', r.stdout[-400:])
+    fg = rust(['gameledger', 'forget', g.root, 'navkit:mp_005'])
+    c = rust(['gameledger', 'check', g.root])
+    check(fg.returncode == 0 and c.returncode == 0 and 'ledger: healthy' in c.stdout,
+          'bfbc2 gameledger forget drops the damaged record; the check is healthy again', fg.stdout + fg.stderr + c.stdout)
+    r = rust(['settings', 'game-folder', '--clear'], env)
+    with open(settings, encoding='utf-8') as f2:
+        cleared = json.load(f2)
+    check(r.returncode == 0 and cleared['game_folder'] is None, 'bfbc2 settings game-folder --clear', r.stdout)
+
+    # a map project shared: the authors numbered, no PC name or path left, the copy reads as a project
+    src = os.path.join(SUITE, 'rust', 'bc2-levelwrite', 'tests', 'data', 'projects', 'v6.mapedit.json')
+    proj_dir = os.path.join(tmp, 'share_src')
+    os.makedirs(proj_dir)
+    with open(src, encoding='utf-8') as fs:
+        text = fs.read().replace('"OLD-PC"', json.dumps(pc))
+    proj = os.path.join(proj_dir, 'my.mapedit.json')
+    with open(proj, 'w', encoding='utf-8', newline='\n') as fp:
+        fp.write(text)
+    with open(proj + '.lock', 'w') as fl:
+        fl.write(json.dumps({'pc': pc, 'pid': 1, 'since': 'x', 'token': 't'}))
+    out_dir = os.path.join(tmp, 'share_out')
+    r = rust(['project', 'share', proj, out_dir])
+    shared = os.path.join(out_dir, 'my.mapedit.json')
+    body = open(shared, encoding='utf-8').read() if os.path.isfile(shared) else ''
+    check(r.returncode == 0 and '"by": "author 1"' in body and pc.lower() not in body.lower()
+          and sorted(os.listdir(out_dir)) == ['my.mapedit.json'],
+          'bfbc2 project share: the authors numbered, no PC name, the lock left out', r.stdout + r.stderr)
+    r2 = rust(['project', 'share', proj, out_dir])
+    check(r2.returncode == 1 and 'not empty' in r2.stderr, 'bfbc2 project share refuses a folder that is not empty',
+          r2.stderr)
+
+
 def main(argv: list[str]) -> int:
     failed = 0
 
@@ -438,7 +621,10 @@ def main(argv: list[str]) -> int:
         python_twin(check, tmp)
         interruptions(check, tmp)
         legacy(check, tmp)
+        old_disks(check, tmp)
+        damaged(check, tmp)
         cross(check, tmp)
+        users(check, tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print(f'\n{"ALL PASSED" if not failed else f"{failed} FAILED"}')

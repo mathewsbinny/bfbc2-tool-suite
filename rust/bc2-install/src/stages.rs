@@ -96,6 +96,7 @@ fn hit(n: &Cell<u32>, at: Option<CrashAt>, label: &str) -> bool {
 #[derive(Debug)]
 pub struct Stages {
     game: String,
+    root: Option<String>,
     steps: Steps,
     resumed: bool,
 }
@@ -119,9 +120,25 @@ impl Stages {
     pub fn new(game: &str, steps: Steps) -> Self {
         Self {
             game: game.to_owned(),
+            root: None,
             steps,
             resumed: false,
         }
+    }
+
+    /// The ledger kept in `root` instead of `<game>\opfor\ledger` (tests, OPFOR's `Stages(game, root)`).
+    #[must_use]
+    pub fn with_root(game: &str, root: &str, steps: Steps) -> Self {
+        Self {
+            root: Some(root.to_owned()),
+            ..Self::new(game, steps)
+        }
+    }
+
+    /// The game copy (as given).
+    #[must_use]
+    pub fn game(&self) -> &str {
+        &self.game
     }
 
     /// The write steps.
@@ -130,8 +147,13 @@ impl Stages {
         &self.steps
     }
 
-    fn ledger(&self) -> Ledger {
-        let mut led = Ledger::new(Path::new(&self.game));
+    /// The game copy's ledger, its write steps counted.
+    #[must_use]
+    pub fn ledger(&self) -> Ledger {
+        let mut led = match &self.root {
+            Some(r) => Ledger::with_root(Path::new(&self.game), Path::new(&abspath(r))),
+            None => Ledger::new(Path::new(&self.game)),
+        };
         if self.steps.at.is_some() {
             let (n, at) = (Rc::clone(&self.steps.n), self.steps.at);
             led.set_hook(Some(Box::new(move |label: &str| {
@@ -166,21 +188,7 @@ impl Stages {
     /// Another install runs (a live lock), the roll-back failed, or a file has old markers.
     pub fn ready(&mut self, paths: &[&str], log: &mut dyn FnMut(&str)) -> Result<Vec<String>, Stop> {
         if !self.resumed {
-            let mut led = self.ledger();
-            if led.lock_present() || led.interrupted() {
-                if let Some(m) = led.live_lock() {
-                    return Err(m);
-                }
-                let done = led
-                    .recover(false)
-                    .map_err(|e| format!("an interrupted install could not be rolled back: {e}"))?;
-                if done.is_empty() {
-                    log("  resumed: a lock left by an interrupted install was removed (nothing had been written)");
-                }
-                for d in done {
-                    log(&format!("  resumed: an interrupted install was rolled back - {d}"));
-                }
-            }
+            self.resume(log)?;
             self.resumed = true;
         }
         let mut out = Vec::new();
@@ -199,6 +207,31 @@ impl Stages {
             out.push(rel);
         }
         Ok(out)
+    }
+
+    /// `Stages.resume`: an interrupted commit (its process gone) rolled back from the journal, a stale lock without
+    /// one removed; what was rolled back (empty: nothing to do, or only a lock removed).
+    ///
+    /// # Errors
+    /// Another install runs (a live lock), or the roll-back failed.
+    pub fn resume(&mut self, log: &mut dyn FnMut(&str)) -> Result<Vec<String>, Stop> {
+        let mut led = self.ledger();
+        if !(led.lock_present() || led.interrupted()) {
+            return Ok(Vec::new());
+        }
+        if let Some(m) = led.live_lock() {
+            return Err(m);
+        }
+        let done = led
+            .recover(false)
+            .map_err(|e| format!("an interrupted install could not be rolled back: {e}"))?;
+        if done.is_empty() {
+            log("  resumed: a lock left by an interrupted install was removed (nothing had been written)");
+        }
+        for d in &done {
+            log(&format!("  resumed: an interrupted install was rolled back - {d}"));
+        }
+        Ok(done)
     }
 
     /// `Stages.installed`: the game files the owner holds (game-relative, its record's order).
@@ -398,4 +431,274 @@ impl Stages {
             Err(c) => Err(refused(&format!("revert of {owner}"), &c)),
         }
     }
+
+    // ------------------------------------------------------------------------- the rest of opforcore.stages (OR15)
+
+    /// The `file` layers of a game file, bottom first: (owner, contribution).
+    fn layers_of(&self, rel: &str) -> Result<Vec<(String, serde_json::Value)>, Stop> {
+        self.ledger().file_layers(rel).map_err(|e| e.to_string())
+    }
+
+    fn blob_of(&self, prior: Option<&serde_json::Value>) -> Result<Option<String>, Stop> {
+        let Some(b) = prior.and_then(|p| p.get("blob")).and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let p = self.ledger().blob_path(b);
+        if !p.is_file() {
+            return Err(format!(
+                "{}: the ledger's copy of a file before an install is missing",
+                p.display()
+            ));
+        }
+        Ok(Some(p.to_string_lossy().into_owned()))
+    }
+
+    fn here(&self, rel: &str) -> Option<String> {
+        let p = self.ledger().path(rel);
+        p.is_file().then(|| p.to_string_lossy().into_owned())
+    }
+
+    /// `Stages.is_top`: the owner wrote the file last and it is still that write (a redo would rebuild from
+    /// [`Stages::before`]).
+    ///
+    /// # Errors
+    /// Not a game file, a damaged record.
+    pub fn is_top(&self, owner: &str, path: &str) -> Result<bool, Stop> {
+        let rel = self.rel(path)?;
+        let lay = self.layers_of(&rel)?;
+        let Some((top, c)) = lay.last() else {
+            return Ok(false);
+        };
+        let p = self.ledger().path(&rel);
+        let wrote = c
+            .get("value")
+            .and_then(|v| v.get("sha"))
+            .and_then(serde_json::Value::as_str);
+        Ok(top == owner && p.is_file() && sha256::file(&p.to_string_lossy()).ok().as_deref() == wrote)
+    }
+
+    /// `Stages.owners`: the owners installed on the file, bottom first.
+    ///
+    /// # Errors
+    /// Not a game file, a damaged record.
+    pub fn owners(&self, path: &str) -> Result<Vec<String>, Stop> {
+        Ok(self.layers_of(&self.rel(path)?)?.into_iter().map(|(o, _)| o).collect())
+    }
+
+    /// `Stages.before`: the file as it was before the owner installed it - the ledger's copy, None when the owner
+    /// created it, the file itself when the owner holds nothing there (None when it is missing).
+    ///
+    /// # Errors
+    /// Not a game file, a damaged record, the ledger's copy missing.
+    pub fn before(&self, owner: &str, path: &str) -> Result<Option<String>, Stop> {
+        let rel = self.rel(path)?;
+        for (o, c) in self.layers_of(&rel)? {
+            if o == owner {
+                return self.blob_of(c.get("prior"));
+            }
+        }
+        Ok(self.here(&rel))
+    }
+
+    /// `Stages.original`: the file before any recorded install (the bottom layer's prior; None when an install
+    /// created it), the file itself when no owner holds it.
+    ///
+    /// # Errors
+    /// As [`Stages::before`].
+    pub fn original(&self, path: &str) -> Result<Option<String>, Stop> {
+        let rel = self.rel(path)?;
+        match self.layers_of(&rel)?.first() {
+            Some((_, c)) => self.blob_of(c.get("prior")),
+            None => Ok(self.here(&rel)),
+        }
+    }
+
+    /// `stages.before_path` (for readers; never recovers, locks or writes): the old marker backup
+    /// `<file>.opfor-<stage>-orig` while the game copy is not migrated, else the ledger's copy from before the owner,
+    /// else the file itself.
+    #[must_use]
+    pub fn before_path(path: &str, owner: &str) -> String {
+        let stage = owner.split(':').next().unwrap_or(owner);
+        let legacy = format!("{path}.opfor-{stage}-orig");
+        if Path::new(&legacy).is_file() {
+            return legacy;
+        }
+        let st = Self::new(&game_of(path), Steps::new(None));
+        let found = st.rel(path).and_then(|rel| {
+            for (o, c) in st.layers_of(&rel)? {
+                if o == owner {
+                    return st.blob_of(c.get("prior"));
+                }
+            }
+            Ok(None)
+        });
+        found.ok().flatten().unwrap_or_else(|| path.to_owned())
+    }
+
+    /// `Stages.restated`: who rebuilt the owner's file outside the ledger (`restate`'s why), empty when it is the
+    /// owner's own write.
+    ///
+    /// # Errors
+    /// Not a game file, a damaged record.
+    pub fn restated(&self, owner: &str, path: &str) -> Result<String, Stop> {
+        let rel = self.rel(path)?;
+        Ok(self
+            .layers_of(&rel)?
+            .into_iter()
+            .find(|(o, _)| o == owner)
+            .and_then(|(_, c)| {
+                c.pointer("/extra/restated")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+            .unwrap_or_default())
+    }
+
+    /// `Stages.install` in full: one commit of the owner's writes (`derived`: built from the file as the owner found
+    /// it; `keep_others`: the owner's other files stay as recorded, else they are reverted in the same commit).
+    ///
+    /// # Errors
+    /// Any conflict (nothing written), a failed write (rolled back), the test hook.
+    #[allow(clippy::too_many_arguments, reason = "OPFOR's keyword arguments")]
+    pub fn install_with(
+        &mut self,
+        owner: &str,
+        files: &[(String, Vec<u8>)],
+        derived: bool,
+        keep_others: bool,
+        note: &str,
+        dry_run: bool,
+        log: &mut dyn FnMut(&str),
+    ) -> Result<bc2_gamefs::ledger::Plan, Stop> {
+        let paths: Vec<&str> = files.iter().map(|(p, _)| p.as_str()).collect();
+        let rels = self.ready(&paths, log)?;
+        let items: Vec<(String, Vec<u8>)> = rels.into_iter().zip(files.iter().map(|(_, d)| d.clone())).collect();
+        let mut led = self.ledger();
+        let r = if keep_others {
+            led.install_keep(owner, &items, derived, note, dry_run)
+        } else {
+            led.install(owner, &items, derived, note, dry_run)
+        };
+        match r {
+            Ok(p) => Ok(p),
+            Err(LedgerError::Crashed) => Err(CRASHED.to_owned()),
+            Err(LedgerError::Refused(c)) => Err(refused(&format!("install of {owner}"), &c)),
+            Err(e) => Err(format!("install of {owner} refused: {e}")),
+        }
+    }
+
+    /// `Stages.check_revert`: why reverting the owner (its writes to `paths`; None: all) would be refused; empty when
+    /// it would go through (a stop is one of the reasons).
+    pub fn check_revert(&mut self, owner: &str, paths: Option<&[&str]>, log: &mut dyn FnMut(&str)) -> Vec<String> {
+        match self.uninstall(owner, paths, true, log) {
+            Ok(Ok(())) => Vec::new(),
+            Ok(Err(c)) => c,
+            Err(m) => vec![m],
+        }
+    }
+
+    /// `Stages.restate`: the owner (on top of the file) takes the file as it is now for its write; `prior`
+    /// `Some(..)`: the file before the owner becomes that too (`Some(None)`: there was none). Only the record is
+    /// written.
+    ///
+    /// # Errors
+    /// The owner does not hold the file or is not on top, a held lock, a failed write.
+    #[allow(clippy::option_option, reason = "None: the prior kept; Some(None): there was none")]
+    pub fn restate(
+        &mut self,
+        owner: &str,
+        path: &str,
+        prior: Option<Option<&[u8]>>,
+        why: &str,
+        log: &mut dyn FnMut(&str),
+    ) -> Result<(), Stop> {
+        let rel = self.ready(&[path], log)?.remove(0);
+        match self
+            .ledger()
+            .restate(owner, &rel, prior.is_none(), prior.flatten(), why)
+        {
+            Ok(()) => Ok(()),
+            Err(LedgerError::Refused(c)) => Err(c.join("; ")),
+            Err(LedgerError::Crashed) => Err(CRASHED.to_owned()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// `Stages.forget`: the owner dropped from the ledger, no game file touched.
+    ///
+    /// # Errors
+    /// A held lock, a refusal, a failed write.
+    pub fn forget(&mut self, owner: &str, log: &mut dyn FnMut(&str)) -> Result<bc2_gamefs::ledger::Plan, Stop> {
+        self.ready(&[], log)?;
+        self.ledger()
+            .forget(owner, false, false)
+            .map_err(|e| format!("{owner}: {e}"))
+    }
+
+    /// `Stages.forget_under`: every owner whose files all lie under the folders dropped (no file touched).
+    ///
+    /// # Errors
+    /// An owner also holds a file outside them (nothing dropped); a folder outside the game copy.
+    pub fn forget_under(
+        &mut self,
+        folders: &[&str],
+        dry_run: bool,
+        log: &mut dyn FnMut(&str),
+    ) -> Result<Vec<String>, Stop> {
+        let tops: Vec<String> = folders.iter().map(|f| self.rel(f)).collect::<Result<_, _>>()?;
+        if !dry_run {
+            self.ready(&[], log)?;
+        }
+        match self.ledger().forget_under(&tops, dry_run) {
+            Ok(d) => Ok(d),
+            Err(LedgerError::Refused(c)) => Err(c.join("; ")),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// `Stages.status`: per owner and file its state (ok / buried / drift / missing / kept), or only for `paths`.
+    ///
+    /// # Errors
+    /// A path outside the game copy, the store cannot be read.
+    pub fn status(&self, paths: &[&str]) -> Result<Vec<String>, Stop> {
+        let want: Vec<String> = paths
+            .iter()
+            .map(|p| self.rel(p).map(|r| r.to_lowercase()))
+            .collect::<Result<_, _>>()?;
+        let entries = self.ledger().status_entries().map_err(|e| e.to_string())?;
+        Ok(entries
+            .into_iter()
+            .filter(|e| want.is_empty() || want.contains(&e.file.to_lowercase()))
+            .map(|e| {
+                let mut l = format!("{:28} {:11} {}", e.owner, e.state, e.file);
+                if !e.detail.is_empty() {
+                    l.push_str("  (");
+                    l.push_str(&e.detail);
+                    l.push(')');
+                }
+                l
+            })
+            .collect())
+    }
+}
+
+/// `stages.game_of`: the game copy a game file is in - the folder holding its `Package` / `Dist` / `Output`; the
+/// file's folder for a file at the top (`opfor.ini`, `maps.ini`).
+#[must_use]
+pub fn game_of(path: &str) -> String {
+    let full = abspath(path);
+    let parts: Vec<&str> = full.split(['\\', '/']).collect();
+    for i in (1..parts.len().saturating_sub(1)).rev() {
+        if parts
+            .get(i)
+            .is_some_and(|p| ["package", "dist", "output"].contains(&p.to_lowercase().as_str()))
+        {
+            return parts
+                .get(..i)
+                .map_or_else(String::new, |p| p.join(std::path::MAIN_SEPARATOR_STR));
+        }
+    }
+    Path::new(&full)
+        .parent()
+        .map_or_else(String::new, |p| p.to_string_lossy().into_owned())
 }

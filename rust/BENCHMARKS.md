@@ -6404,8 +6404,8 @@ DC0 builds a Ghidra database of `BFBC2Game.exe`: PC build 795745, 32-bit x86, 19
 - every function decompiled to pseudo-C;
 - an SQLite index and a lookup tool.
 
-**The database is EA-derived and private.** It is in `C:\Programming\Projects\bfbc2-decomp-private\` (or
-`BFBC2_DECOMP_DB`), outside every repo; `run_dc.py` refuses a folder inside a git checkout. Only `tools/decomp/` is
+**The database is EA-derived and private.** It is in `C:\Programming\Projects\bfbc2-decomp-private\` (since round DOC1
+`C:\Programming\Projects\battlefield-decomp-work\bfbc2-decomp\`, the private repository; or `BFBC2_DECOMP_DB`), outside every public repo; `run_dc.py` refuses a folder inside a git checkout. Only `tools/decomp/` is
 committed: the scripts, generators and lookup, with no decompiled code, strings or Ghidra output. Use is documented
 in `tools/decomp/README.md`; how rules cite it is in `spec/README.md`, "The decompiled database".
 
@@ -6449,7 +6449,7 @@ in `tools/decomp/README.md`; how rules cite it is in `spec/README.md`, "The deco
   | Source | Citations |
   |---|---|
   | the spec's markdown, each with its rule id | 5,057 |
-  | OPFOR's `research\BFBC2_DECOMP_RESEARCH.md` | 176 |
+  | OPFOR's `research\BFBC2_DECOMP_RESEARCH.md` (private research notes) | 176 |
   | the hook tables (OPFOR's `src\dll\bc2.h`, battlefield-opfor's `bc2_795745` constants) | 53 |
   | the crash reader's `symbols_795745.txt` | 44 |
   | OPFOR's old `research\ghidra_project` | 3 |
@@ -6745,3 +6745,168 @@ side wrote to `game\`; OPFOR's `game\` was only read through junctions.
 - The in-process DbxEdit / FbrbTool commands still write no tool log ("OR9", "What is left").
 - **Unproven until a playtest**: nothing new in game - the bundles are the Python's byte for byte, so the levels play
   as they did with the Python stages.
+
+## OR15: OPFOR in Rust, the leftovers part two - one install ledger, the WW2 install's stages, the ports as rebuild steps, IN1 (2026-11-27, branch `or15`, with Project OPFOR's `or15`)
+
+The ROADMAP's OR15 row: one install ledger instead of three (audit AU5-ARC-3), the WW2 install's own copy of the
+stage operations moved onto `bc2_install::stages`, the install plan's porting as a rebuild step (XDEP-STEP-5), the
+rebuild graph's step times re-derived on an idle PC, and the parts of IN1 that belong with the ledger. Version
+0.37.0 (renumbered at merge: OR15 landed before OR13); Project OPFOR's `SUITE_REQUIRES` ('0.37.0', '0.38.0').
+
+### The one ledger: the design
+
+Until OR15 three programs read and wrote `<game>\opfor\ledger`: Project OPFOR's `opforcore\ledger.py` (1,630
+lines, every slot kind, OPFOR's stages through `stages.py`), the suite's `bfbc2core\gameledger.py` (913 lines, the
+"twin" of the Rust, whole files: NavKit, stock-MP, texqa) and `bc2_gamefs::ledger` (whole files and OPFOR's stage
+operations since OR1 / OR6 / MM1). **All three wrote the same format, `opfor-ledger/1`**: one record per owner,
+blobs by sha256, the lock, the journal. So the one ledger is one *implementation* of that format, not a new format:
+
+- `bc2_gamefs::ledger` is the implementation. `ledger_check.rs` adds what only OPFOR's Python had: `validate` (the
+  union of `Record.from_json`'s, `Contribution.from_json`'s and the Rust's rules), `scan` (every record, the damaged
+  ones reported, none left out), `status_entries` (OPFOR's states, `kept` for a slot kind), `check` (the records, the
+  blobs every revert needs, the journal, the lock), `forget` (a damaged record too) and `forget_under`. The lock now
+  records the host as OPFOR's did.
+- `bc2_install::ledgerapi::call(game, root, op, args, datas)` is the one entry for Python: the ledger's own
+  operations (`ledger_*`) and OPFOR's stage operations (on `bc2_install::stages`, which gained the rest of
+  `opforcore.stages`: `resume`, `owners`, `is_top`, `before`, `original`, `before_path`, `restated`,
+  `install_with`, `check_revert`, `restate`, `forget`, `forget_under`, `status`, `game_of`) and the one-time
+  migration (`bc2_install::mods::migrate`), answered as JSON; `bc2_native.ledger_call` binds it.
+- `bfbc2core.gameledger` (221 lines) and OPFOR's `stages.py` / `migrate.py` are clients with their old APIs; OPFOR's
+  `ledger.py` and its four test files were deleted, `addons.register` gives the registration file to
+  `Stages.install`, `rebuildlock` and `console_common` take `pid_alive` / `retry` from elsewhere.
+
+**Migration of the ledgers on users' disks.** Nothing on disk is converted: every record any of the three wrote is
+read by the one implementation (`validate` holds the strictest rule of each). What a user's ledger can hold:
+
+| Writer | What it wrote | With the one ledger |
+|---|---|---|
+| OPFOR's stages (`Stages.install`), the import scripts, the migration | `file` contributions, `derived`, `restated`, `migrated` | read, revert, restate, forget (the old code's installs in `test_old_ledgers.py`) |
+| `bfbc2core.gameledger` (NavKit, stock-MP) | `file` contributions, independent | read, revert, splice (`test_gameledger.py::old_disks`) |
+| `bc2_gamefs::ledger` (WW2, map export, mods, NavKit / stock-MP in Rust) | `file` contributions | unchanged |
+| OPFOR's `ledger.py` transactions | the slot kinds (`mft_block`, `manifest_line`, `ini`, `bundle_entry`, `bundle_format`, `tree`) | read and kept byte for byte; a revert of the owner refused in words; `forget` drops them (XINST-LED-1) |
+
+The slot kinds were only ever written by OPFOR's own tests: the transaction API had no caller when it landed
+(OPFOR 29a8967, "no callers yet") and every later caller is `stages.py`'s whole-file install. Taking one out would
+need OPFOR's slot texts and its FbrbTool-exact bundle writer in Rust for records no install made, so they are kept,
+refused and forgotten instead.
+
+### What moved
+
+| Before | Now |
+|---|---|
+| `opforcore\ledger.py` (1,630 lines) | deleted; `bc2_gamefs::ledger` (+ `ledger_check.rs`) |
+| `opforcore\stages.py` (496 lines of its own ledger logic) | a client (354 lines, mostly the API's docstrings) of `bc2_install::stages` |
+| `opforcore\migrate.py` (308 lines) | a client (81 lines) of `bc2_install::mods::migrate` |
+| `bfbc2core\gameledger.py` (913 lines, the twin) | a client (221 lines) of `bc2_gamefs::ledger` |
+| `bc2_install::run`'s `ready`, `install_files`, `check_install`, the restate and the revert's checks | `bc2_install::stages` (`Stages::ready`, `install`, `check_install`, `restate`, `require_revert`, `revert`) |
+| the install plan's porting (`wake_install.py --plan` only) | also the rebuild steps `wake_install.py --ports` and `ww2_level_install.py <lv> --ports-only` |
+
+### Ledger tests
+
+- `bc2_gamefs`: `ledger::check::tests::every_reader_rule_is_kept` (each of the readers' rules refuses its case in
+  words), the existing 14 hazard tests unchanged; `bc2_install` (65 + 16 install tests, all features) unchanged.
+- `core\tests\test_gameledger.py` (the suite's quick tier, 32 checks): the twin's DS-1 / order / derived / redo
+  checks through the client; a real kill at every write step; legacy markers; **the retired twin from git history
+  (`1e92f152`)** installs three owners on a scratch copy - the one ledger reads them (buried / ok), finds them
+  healthy, leaves its records byte for byte through another owner's commit and reverts every install in any order
+  to the start byte for byte; the twin killed at each of its 4 write steps, the one ledger rolls its journal back;
+  four damaged records (not JSON, an old format, an unknown kind, a prior without its blob) refused in words naming
+  the file and `gameledger forget`, nothing written, shown `corrupt`, forgotten, the healthy owner reverts; a missing
+  blob named by the check, its revert refused; a slot kind kept, refused, forgotten; the Rust command lines' DS-1
+  and kills; `bfbc2 doctor`, `bfbc2 settings`, `gameledger check` / `forget`, `project share`.
+- OPFOR `opforcore\tests\test_old_ledgers.py`: **OPFOR's retired `opforcore` from git history (`f3a70ec`)** makes
+  derived stages on one bundle, NavKit's and stock-MP's independent layers, a restate and slot contributions (an ini
+  key, a tree) in a scratch game; `stages.py` on the one ledger reads them (`buried` / `ok` / `kept`, the restate's
+  why), keeps the records byte for byte through a new owner's commit, refuses the derived base's revert, splices
+  NavKit, reverts every whole-file install to the start byte for byte, refuses the slot owner's revert in words and
+  forgets it without touching a file; the old code killed at each rename of a further commit is rolled back.
+- OPFOR's `test_stages.py`, `test_migrate.py` and `test_df2_installs.py`: kills at every write step through
+  `BC2_LEDGER_CRASH_AT` / `BC2_MODS_CRASH_AT` (the in-process fault injection into `ledger.py`'s writers went with
+  it; a failed write rolled back in the same run is the Rust's `an_interruption_at_every_write_step`).
+
+### IN1, as far as it belongs with the ledger
+
+- **`bfbc2 doctor`**: the version and source fingerprint, the editor binaries beside it, the settings file, OPFOR
+  when found, the game folder and where it came from (given / the setting / OPFOR's), the game's executable
+  fingerprint (sha256, size), the game's folders, whether it runs, the ledger's owners and check, and the fix for each
+  problem; exit 1 when there is one. Anonymised by `bc2_gamefs::privacy` (the profile folder `%USERPROFILE%`, the PC
+  and user names replaced, whole words only).
+- **The game-folder setting**: `bfbc2 settings game-folder <folder> | --clear` (`bc2_gamefs::settings`,
+  `%APPDATA%\bfbc2-tool-suite\settings.json`, `BFBC2_SETTINGS`); a folder that is not a game copy is refused, a
+  damaged file is never overwritten unasked.
+- **The level installer with no Python and no OPFOR**: `bfbc2 install mapedit` takes `--game` from the setting; for a
+  game copy that is not OPFOR's `<opfor>\game` the shared patches are built in
+  `%LOCALAPPDATA%\bfbc2-tool-suite\work\mapedit`. The editor's Install writes into the setting's folder when set.
+- **Portable, anonymised sharing**: `bfbc2 project share <project> <empty folder>` (`bc2_levelwrite::share`): the
+  edits' authors numbered, absolute paths cut to file names, names replaced, kept files and stroke tiles copied,
+  the autosave and lock left out; the copy checked by `privacy::leaks` and loaded back as a project before it counts.
+
+Left of IN1: the one-button bug-report bundle (the doctor plus the crash reading and logs), the editor's Help >
+Diagnostics (the editor's UI round), the small "install this project" tool for players, the old export stages
+pruned, per-level slots for the map export's shared patch (MM1-rest).
+
+### Stays Python by decision
+
+`rust/python_status.py`'s `EXCEPTIONS` (checked against the table; PYTHON_STATUS.md "Stays Python by decision"):
+the HLSL compiles (`pcbuild.py`, Microsoft's d3dcompiler_47), the preview tools that launch shaderview
+(`renderqa.py`, `xdiff.py`, OPFOR's `wake_preview.py` / `weapon_preview.py`), testrun's game launch
+(`testrun.py`) and `playtest.py`.
+
+### The WW2 rebuild proof (the coordinator's slot, 2026-11-28)
+
+OPFOR's main checkout detached at `or15` (20daea2), the suite the `or15` worktree (`OPFOR_TOOLKIT`), BF1943's data
+re-extracted by the coordinator to `operation-rising-sun\work\extracted` (`BF1943_XENON`, `BF1943_SUITE_FBRB` set: the
+worktree's siblings are not there); `scratchpad\or15\ww2_check_or15.ps1`:
+
+| Check | Result |
+|---|---|
+| `rebuild_all.py`: 59 steps (55 + the four ports steps) | all 59 ran, 13.1 min; at most 4 at once, peaks adding up to 5.5 GB |
+| the rebuild oracle (`compare_oracle.py`) | **7,945 of 7,945 identical** |
+| `wake_install.py --plan`, the install oracle (`compare_oracle.py --install`) | **21,149 of 21,149 identical** (the ports the steps wrote, the plan's staging) |
+| `qa_checks.py` (8 checks, `rebuild_all --qa` after the plan) | **8 of 8 ok** (the run's own QA, before the plan, failed shaders / emitters: the staging was empty, below) |
+| `game\` (1,582 files, sha256) | unchanged |
+
+So the ports step before `wake_translate` reads nothing a later step writes that changes its output: the ports are
+the plan's byte for byte and every rebuilt file is the oracle's (XDEP-STEP-5's open proof).
+
+**The emptied staging.** The slot before (the BF1943 data missing) ran `wake_install.py --plan`, whose `build()`
+removed `work\ww2\install` and then stopped on the missing source: Wake's staging (6,081 files) was gone until this
+run's plan made it again (the install oracle above). `build()` now reads its inputs first (OPFOR 7dd59c5); OPFOR
+main still has the old order until the merge.
+
+**Step times** (`rebuild_all --graph --write`, `rebuild_graph.json` re-derived from this run's records): **measured on
+a loaded PC**, not an idle one - the other rounds held their builds, but the editors, language servers and agents
+ran (about 9.3 GB in use at the start). The ports steps: `wake_install.py --ports` 24.8 s, peak 609 MB (after
+`grime.py --apply` and `material_grid.py`); each level's `--ports-only` 18 - 21 s, about 610 MB. The sum of all step
+times 1,202 s; 13.1 min wall.
+
+## DOC1: Project OPFOR BFBC2's documents superseded, its private research moved (2026-11-27)
+
+No Rust changed; this section records the checks.
+
+**Verification of the moved documents.** Each of the 65 `moved` / `merged into an article` rows of battlefield-opfor's
+`docs/research/opfor/MIGRATION.md` was compared with its original on OPFOR main (f3a70ec, the commit KB0 took):
+the text line by line after normalising links, code spans and paths. Of the 61 moved files (CREDITS.md and
+README.md aside), 41 were identical apart from the origin line; 20 differed only in KB0's documented rewrites (image
+embeds and links into OPFOR's untracked `work\` as code spans, absolute paths as placeholders, two recorded wording
+edits, two added blank lines) - and six of those, whose originals are Windows-1252, in 18 characters (em dashes,
+multiplication and en-dash signs) that KB0's move had turned into U+FFFD: restored from the originals in
+battlefield-opfor's doc1 branch. The two merged rows were checked for their facts:
+`README_UNLOCKS.md` is in `docs/PROMO_UNLOCKS.md` (codes, the offline redemption, the scope), `research/README.md`'s
+index is `docs/research/opfor/README.md` and its private workspace section went to the private repository with the
+files it documents. 62 originals deleted (`CREDITS.md` kept for the shipped WW2 attribution, `README.md` rewritten).
+
+**The private research.** 267 files (research/notes 256, Probe.java, probe.ps1, the eight left-out documents and
+research/README.md) copied from OPFOR main c3ffc8f into the private repository's `opfor-research/`: all 267 git blob
+ids equal OPFOR's. 266 left OPFOR; `DEVELOPMENT_NOTES.md` stays there until the OR13 branch, which edits it, merges.
+
+**Citations.** 127 `opfor:` citations of moved documents became `bfo:docs/...`; their line ranges were remapped
+through a line alignment of original and KB copy, and each cited range was checked to hold the same normalised text
+(one whole-file citation, HAVOK_AABB_W 1-60 -> 1-62, grew by the origin line). 120 citations of the private files
+became `private:opfor-research/...` with the same lines. `trace.py --check`: 1,675 rules pass with the private
+repository present (every `private:` range checked) and with `BFBC2_DECOMP_DB` pointed at an empty folder (`note
+120 private: citation(s) not checked`); `--emit` writes the same shards either way.
+
+**Left as they were.** Help texts pinned by the CLI goldens keep bare document names (stockmp's `STOCK_MP_AI_PLAN.md`,
+aptcheck / aptgraft / aptrefs / apt.py's `DEVELOPMENT_NOTES`): the names still find the documents, in the KB or the
+private repository. Historical CHANGELOG / BENCHMARKS rows keep their paths, marked with the new place where useful.

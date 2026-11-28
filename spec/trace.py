@@ -27,8 +27,13 @@ followed by ` · Variants: PC, Xbox 360, BF1943`), and its evidence anywhere in 
   [doc: path:line]          a document that records a finding (supporting only; counts toward no status)
 
 Paths are relative to the suite's root; `opfor:` before a path names Project OPFOR BFBC2's checkout (its sibling
-folder), checked only when that checkout is there. A status needs its evidence: verified a test, implemented a code
-citation, observed a data or exe item, inferred an inferred item.
+folder) and `bfo:` the battlefield-opfor checkout (BFBC2_BFO_ROOT, else its sibling folder: bfbc2core.paths.bfo_root;
+OPFOR's moved documents are in its docs/ knowledge base since round DOC1), each checked only when that checkout is
+there. `private:` names the private decompilation repository (BFBC2_DECOMP_DB, else
+battlefield-decomp-work/bfbc2-decomp beside or above the suite: bfbc2core.paths.decomp_root), which holds Project
+OPFOR BFBC2's decompiler-derived research under opfor-research/ since round DOC1. It never has a remote, so public CI
+and other machines lack it: --check then skips its citations and says how many it skipped. A status needs its
+evidence: verified a test, implemented a code citation, observed a data or exe item, inferred an inferred item.
 
 A test cites a rule when the index names it as evidence, or when a comment `# spec: ID[, ID ...]` (Python) or
 `// spec: ID[, ID ...]` (Rust) sits on its definition line or the lines directly above it; --check also checks that
@@ -50,6 +55,13 @@ from dataclasses import asdict, dataclass, field
 SPEC = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(SPEC)
 OPFOR = os.path.join(os.path.dirname(SUITE), 'project-opfor-bfbc2')
+sys.path.insert(0, os.path.join(SUITE, 'core'))
+from bfbc2core import paths  # noqa: E402  (only os and sys: importable with core\ alone on sys.path)
+
+BFO = paths.bfo_root(SUITE)
+PRIVATE = paths.decomp_root(SUITE)
+# `private:` citations --check could not look at (the private repository is not on this machine)
+SKIPPED_PRIVATE: list[str] = []
 RULES_DIR = os.path.join(SPEC, 'rules')
 # test_repo's limit for a committed file is 1,000,000 bytes; a shard (one markdown file's rules) past 80% of it fails
 # --check, so the markdown file is split long before a merge meets the limit
@@ -156,9 +168,15 @@ def parse(path: str, problems: list[str]) -> list[Rule]:
 
 
 def resolve(path: str) -> tuple[str, bool]:
-    """(absolute path, whether its absence is a problem): `opfor:` paths only matter with OPFOR's checkout there."""
+    """(absolute path, whether its absence is a problem): `opfor:` / `bfo:` / `private:` paths only matter with that
+    checkout there."""
     if path.startswith('opfor:'):
         return os.path.join(OPFOR, path[len('opfor:'):]), os.path.isdir(OPFOR)
+    if path.startswith('bfo:'):
+        return os.path.join(BFO, path[len('bfo:'):]), os.path.isdir(BFO)
+    if path.startswith('private:'):
+        # there: the repository holds opfor-research/ (a folder without it, an empty one too, is not it)
+        return os.path.join(PRIVATE, path[len('private:'):]), os.path.isdir(os.path.join(PRIVATE, 'opfor-research'))
     return os.path.join(SUITE, path), True
 
 
@@ -191,6 +209,8 @@ def check_evidence(r: Rule, problems: list[str]) -> None:
             if not os.path.isfile(full):
                 if matters:
                     problems.append(f'{r.file}:{r.line}: {r.id}: test file {path} does not exist')
+                elif path.startswith('private:'):
+                    SKIPPED_PRIVATE.append(f'{r.id}: {ref}')
                 continue
             if name:
                 last = name.split('::')[-1]
@@ -203,6 +223,8 @@ def check_evidence(r: Rule, problems: list[str]) -> None:
             if not os.path.isfile(full):
                 if matters:
                     problems.append(f'{r.file}:{r.line}: {r.id}: {kind} file {path} does not exist')
+                elif path.startswith('private:'):
+                    SKIPPED_PRIVATE.append(f'{r.id}: {ref}')
                 continue
             if kind == 'code' and not m:
                 problems.append(f'{r.file}:{r.line}: {r.id}: code citation "{ref}" has no line (path:line)')
@@ -472,6 +494,9 @@ def main(argv: list[str]) -> int:
             print(f'FAIL {len(problems)} problem(s) in the specification')
             return 1
         c = Counter(r.status for r in rules)
+        if SKIPPED_PRIVATE:
+            print(f'note {len(SKIPPED_PRIVATE)} private: citation(s) not checked: the private decompilation '
+                  f'repository is not here ({PRIVATE}; BFBC2_DECOMP_DB)')
         print(f'ok   {len(rules)} rules in {len({r.file for r in rules})} files: '
               + ', '.join(f'{c.get(s, 0)} {s}' for s in STATUSES))
         return 0

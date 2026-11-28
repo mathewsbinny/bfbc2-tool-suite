@@ -72,7 +72,14 @@ Evidence: [test: rust/bc2-formats/src/fbrb/header.rs::read_header_refuses] [code
   | `[doc: path:line]` | a document recording the finding (supporting; counts toward no status) |
 
   Paths are relative to the suite's root. `opfor:` before a path is Project OPFOR BFBC2's checkout
-  (`opfor:research/MATERIAL_SLOTS_RE.md`). Line numbers are those of the commit that last ran `trace.py --emit`;
+  (`opfor:src/dll/probes.cpp`); `bfo:` is the battlefield-opfor checkout (`BFBC2_BFO_ROOT`, else beside the suite),
+  whose `docs/` knowledge base holds the documents moved out of Project OPFOR BFBC2 in round KB0 and deleted there
+  in round DOC1 (`bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md`; the table of what went where:
+  `bfo:docs/research/opfor/MIGRATION.md`). `private:` is the private decompilation repository (`BFBC2_DECOMP_DB`,
+  else `battlefield-decomp-work\bfbc2-decomp` beside or above the suite: `bfbc2core.paths.decomp_root`), which
+  holds Project OPFOR BFBC2's decompiler-derived research under `opfor-research/` since round DOC1
+  (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md`). It never has a remote, so public CI and other
+  machines lack it: `trace.py --check` then skips its citations and prints how many. Line numbers are those of the commit that last ran `trace.py --emit`;
   `trace.py --check` refuses a line past a file's end, so a moved line is caught when a file shrinks, not always when
   it moves: re-check citations of a file you restructure.
 - **Data counts** name their corpus. "The game copy" is Project OPFOR BFBC2's `game\` (DICE's PC files plus the
@@ -126,7 +133,8 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 ## The decompiled database (round DC0)
 
 A Ghidra database of `BFBC2Game.exe` (PC build 795745) with every function decompiled to pseudo-C lives **outside
-every repo**, in `bfbc2-decomp-private` beside the checkouts (`BFBC2_DECOMP_DB`). It is EA-derived and private. Its
+every public repo**, in `battlefield-decomp-work\bfbc2-decomp` beside the checkouts (`BFBC2_DECOMP_DB`; the private repository,
+which never has a remote; `bfbc2-decomp-private` until round DOC1). It is EA-derived and private. Its
 build scripts and the lookup tool are `tools/decomp/` (README there):
 
 ```

@@ -12,7 +12,7 @@ HAVOK-RUN-1, HAVOK-RUN-3); the building-collapse kill zones are GAME-DMG-1.
 444 bundles), each partition once from the first bundle that holds it. "The blueprints" are the 1,262
 `<blueprint>.dbx` partitions that have a `<blueprint>_Havok.dbx` beside them; "the level partitions" the 74
 `Levels/<LV>.dbx` with a `LevelData`. Counted by `spec/probes/destruction.py` (2026-11-22) unless a rule says
-otherwise. Executable findings are OPFOR's static RE (`opfor:research/MATERIAL_SLOTS_RE.md`); nothing was run in game.
+otherwise. Executable findings are OPFOR's static RE (`bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md`); nothing was run in game.
 
 ## 1. Health states
 
@@ -76,7 +76,7 @@ The game reads a destructible part's material per health state: a state's mesh i
 another material than the intact one.
 
 [exe: the part material is read per health state at 0x6D84D0 (vtable+0xE0 at 0xAAED90 for the part)]
-[doc: opfor:research/MATERIAL_SLOTS_RE.md:17-21]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:19-23]
 
 ### DSTR-STATE-6: Object collapse settings
 
@@ -134,7 +134,7 @@ part steps to that state. A part on a material whose relations are x0 (Metal, Co
 materials) never changes state.
 
 [inferred: the part damage paths (0x722990, 0x8D6730, 0x6A19A0) read the part material and the damage relation (0x6E44A0); the health bookkeeping itself was not traced]
-[doc: opfor:research/PHYSICS_MATERIALS.md:75-79]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:77-81]
 
 ## 3. Destroyed meshes
 

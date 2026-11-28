@@ -21,6 +21,7 @@ import build_index  # noqa: E402
 import decomp  # noqa: E402
 import extract_names as en  # noqa: E402
 import gen_types  # noqa: E402
+import run_dc  # noqa: E402
 
 RANGES = [(0x401000, 0x1D12C00)]
 
@@ -80,6 +81,24 @@ def test_types() -> None:
     assert sizes['Array<V>'] == 16 and sizes['RefArray<DataContainer>'] == 20
 
 
+def test_private_repo() -> None:
+    """run_dc writes into a git checkout only when it is the private repository: the database folder is its root,
+    it has no remote and its .gitignore leaves every folder the steps write untracked (round DOC1)."""
+    with tempfile.TemporaryDirectory() as t:
+        repo = Path(t)
+        (repo / '.git').mkdir()
+        (repo / '.git' / 'config').write_text('[core]\n\tbare = false\n', encoding='utf-8')
+        (repo / '.gitignore').write_text('/ghidra/\n/pseudo/\n/index/\n/logs/\n', encoding='utf-8')
+        assert run_dc.in_git(repo / 'index') == repo
+        assert run_dc.private_repo(repo, repo), 'the private repository itself'
+        assert not run_dc.private_repo(repo, repo / 'sub'), 'a folder inside it is not its root'
+        (repo / '.gitignore').write_text('/ghidra/\n/pseudo/\n', encoding='utf-8')
+        assert not run_dc.private_repo(repo, repo), 'index and logs would be tracked'
+        (repo / '.gitignore').write_text('/ghidra/\n/pseudo/\n/index/\n/logs/\n', encoding='utf-8')
+        (repo / '.git' / 'config').write_text('[remote "origin"]\n\turl = x\n', encoding='utf-8')
+        assert not run_dc.private_repo(repo, repo), 'a checkout with a remote'
+
+
 def test_lookup() -> None:
     with tempfile.TemporaryDirectory() as t:
         db = Path(t)
@@ -133,7 +152,7 @@ def test_lookup() -> None:
 
 
 def main() -> int:
-    tests = [test_names, test_precedence, test_types, test_lookup]
+    tests = [test_names, test_precedence, test_types, test_private_repo, test_lookup]
     failed = 0
     for t in tests:
         try:

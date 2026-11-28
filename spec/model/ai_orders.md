@@ -27,7 +27,7 @@ The executable's type registry has fifteen `*OrderEntityData` classes: `AreaOrde
 No class is a game-mode objective (no capture, M-COM, ticket or flag order): see AIO-MODE-1.
 
 [exe: BFBC2Game.exe type-name strings 0x0146ADC0..0x0146B070, type-info records 0x01C02434..0x01C025BC (stride 0x18), base name ">@OrderEntityData" at 0x01419C56]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:236-241]
 
 ### AIO-CLS-2: What DICE's campaign uses
 
@@ -58,7 +58,7 @@ those moments); `ReadinessOnStart` / `ReadinessOnComplete` / `ReadinessOnFail` (
 soldier keeps while it carries the order out: of the campaign's 1,141 patrols 630 run and 171 sprint.
 
 [data: ai_probe field tallies over 4,657 campaign orders; the enumerators listed are every value seen]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:236-241]
 
 ### AIO-FLD-2: The fields of each order class
 
@@ -91,7 +91,7 @@ partition) over the campaign; 110 / 29 / 6 on the Onslaught levels. The order's 
 Napisal's PC-proven orders use boxes of about 3 m half-extent on the objective.
 
 [data: ai_probe "order Area targets by type", campaign and Onslaught]
-[doc: opfor:STOCK_MP_AI_PLAN.md:307-309]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:309-311]
 
 ## 3. Whom an order commands
 
@@ -105,7 +105,7 @@ squads; 1,340 of the 1,497 enabled `SSAiPlayer` spawners (89.5 %) are named by s
 (Onslaught 246 of 275). The rest receive orders through scripting (`ChangeOrder`, cut-scenes) or stand idle.
 
 [data: ai_probe: enabled SSAiPlayer spawners 1,497, named 1,340 (campaign); 275 / 246 (Onslaught); Soldiers 0..7, Squads 0..4 per Area order]
-[doc: opfor:STOCK_MP_AI_PLAN.md:279-291]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:281-293]
 
 ### AIO-ASN-2: The spawner fields an AI soldier takes
 
@@ -119,7 +119,7 @@ true), `Immortal` (174), `FakeImmortal` (33), `HumanTargetPreference` (-1 to 2),
 `TryToSpawnAwayFromSight` (67), `SpawnEnemyRadius` (20 everywhere), `LodDistance` (0-500).
 
 [data: ai_probe SoldierSpawnEntityData tallies over 1,556 campaign spawners]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:229-235]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:229-235]
 
 ## 4. Issuing, completing, chaining
 
@@ -147,7 +147,7 @@ chains), `AreaTrigger.OnEnter` 272 (the player arriving), `ShootAtObjectOrder.On
 starts, not the AI.
 
 [data: ai_probe "IssueOrder sources", campaign and Onslaught]
-[doc: opfor:STOCK_MP_AI_PLAN.md:303-306]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:305-308]
 
 ### AIO-EVT-3: Orders report issue, completion and failure
 
@@ -244,7 +244,7 @@ on the way, while an urgent one (`IsUrgent` true) does not and the soldiers carr
 
 [inferred: the set's name and contents against IsUrgent's use; not traced in the executable]
 [data: ai_probe IsUrgent tallies per class]
-[doc: opfor:STOCK_MP_AI_PLAN.md:307-309]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:309-311]
 
 ### AIO-RDY-4: Readiness levels and their reaction times
 

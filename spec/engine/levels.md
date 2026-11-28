@@ -5,8 +5,8 @@ at run time, and what a level's description declares that the menus and the load
 description partition are layer 2 (`model/level.md`: LEVEL-DATA-1 to LEVEL-DATA-3, LEVEL-DESC-1, LEVEL-DESC-2); the
 mode layer inside a level is `engine/gameplay.md`; the load itself `engine/loading.md`.
 
-**Sources.** Project OPFOR BFBC2's reverse engineering (`research/BFBC2_DECOMP_RESEARCH.md`, build 795745) and its
-logged level catalogue, the Pacific War mode work (`research/WW2_THIRD_MODE.md`), and the map editor's export study
+**Sources.** Project OPFOR BFBC2's reverse engineering (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md`, build 795745) and its
+logged level catalogue, the Pacific War mode work (`bfo:docs/research/opfor/WW2_THIRD_MODE.md`), and the map editor's export study
 (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.12), which compared DICE's own campaign-to-multiplayer conversion
 (MP_SP_005CQ from SP_005) and DICE's mode levels with their maps.
 
@@ -21,7 +21,7 @@ The game addresses a level by the id `Levels/<LV>`: the menus' host command pref
 
 [exe: BFBC2Game.exe host handler 0x77BEC3 builds "Levels/" + argument]
 [data: OPFOR's logged level catalogue: every level id Levels/<LV>; 74 stock levels each with a description in the startup bundles and bundles under levels/<lv>/]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:93] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:602-620]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:93] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:602-620]
 
 ### LVL-MODE-1: Each mode of a map is a level of its own
 
@@ -34,7 +34,7 @@ map's first mode (Conquest on MP_001, MP_003, MP_005, MP_007; Rush on MP_002, MP
 `R` is Rush. The level, not the session, decides the mode: the suite's exports are likewise one mode per level.
 
 [data: OPFOR's logged level catalogue of the stock levels: 10 BFBC2 maps with 2-4 mode levels each (MP_009 all four), Harvest Day and Oasis four each, Cold War three, Heavy Metal two, five Vietnam maps four each]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:604-620] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1256-1258]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:604-620] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1256-1258]
 
 ### LVL-MODE-2: A mode level loads its map's bundles after its own
 
@@ -59,7 +59,7 @@ level's flags (SP_005: 0 0 1 1 1), among them `HasFlyingAI` at +0x3AD and `HasAI
 before any entity is created (LOAD-PH-2).
 
 [exe: BFBC2Game.exe LevelData constructor 0x13A6DA0; HasAI tested at 0x575046 as byte [level+0x3AE]; PathfindingSettings array at LevelData+0x36C (navgen run on SP_009, 2026-10-14)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:222-223] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:222-223] [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:345-347]
 
 ### LVL-DESC-1: The description declares the level's content set
 
@@ -73,7 +73,7 @@ Island, installed from NAM_MP_002CQ's description, was `VIETNAM` until OPFOR cha
 exports take the target era's donor's (XEXP-PRE-2).
 
 [data: descriptions measured: Vietnam's levels MatchmakingModID VIETNAM, Licenses nam, KickIfLicenseMissing true, KIT_*_NAM; BFBC2's levels MatchmakingModID BC2 and no licence]
-[doc: opfor:research/WW2_THIRD_MODE.md:98-103] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1015-1021]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:100-105] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1015-1021]
 
 ### LVL-DESC-2: The loading picture is found by the name key
 

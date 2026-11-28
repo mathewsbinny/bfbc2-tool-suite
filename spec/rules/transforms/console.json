@@ -234,7 +234,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1256-1279"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1256-1279"
     }
    ],
    "file": "spec/transforms/console.md",
@@ -251,11 +251,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1266-1270"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1266-1270"
     },
     {
      "kind": "doc",
-     "ref": "opfor:DEVELOPMENT_NOTES.md:1350"
+     "ref": "private:opfor-research/DEVELOPMENT_NOTES.md:1350"
     }
    ],
    "file": "spec/transforms/console.md",

@@ -33,7 +33,7 @@ reads per-type settings (`PathfindingSettings`: pitch, step, hole, slope, entity
 sectors", "Generating seeds", "Generating maps", "Linking meshes", "Linking graphs", "Building hierarchical database".
 
 [exe: build driver 0x00F299A0 (no caller), step classes created by 0x00F194F0, map-builder callbacks installed by 0x00F13570 (+0x868 point 0x00EFE7F0, +0x870 ray 0x00EFE840, +0x874 capsule 0x00EFE920 or box 0x00EFE980)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:294-332] [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:140-166]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:294-332] [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:140-166]
 
 NavKit today: samples the same queries in game (`[dev] navsample`) or offline from the level's Havok and height field
 (`formats/navsample.md`); `navparity:ground` 98.22 %.

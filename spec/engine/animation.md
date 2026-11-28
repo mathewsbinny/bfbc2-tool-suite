@@ -56,7 +56,7 @@ common tracks where DICE did not re-author them (60 of 533 compared; 473 re-auth
 shared aim animations structurally identical).
 
 [code: bfbc2-anim-tools/granny.py:688-693]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:67-73]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:69-75]
 
 ### ANIM-FRAME-1: Game data is right-handed: a soldier faces +z, his right is -x
 
@@ -84,7 +84,7 @@ replace a delta animation. BFBC2 ships no tree source, so BF1943's tree partitio
 [code: opfor:src/tools/ww2/animswap.py:4-9]
 [code: opfor:src/tools/ww2/animswap.py:48-79]
 [data: DICE's animations/weapons partitions, 2026-11-22: AnimationAsset 1,922, AimAnimationAsset 258, DeltaAnimationAsset 206]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:75-78]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:77-80]
 
 ### ANIM-TREE-2: The compiled tree bakes each hand's IK target
 
@@ -154,7 +154,7 @@ and the focal length NaN; the screen grey for good). WPN-ZOOM's rules do not cov
 
 [data: OPFOR's RenderDoc playtests 2026-11-08 and 2026-11-13: NaN matrices in the zoomed draws]
 [code: opfor:src/tools/ww2/weapons.py:265-302]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:21]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:23]
 
 ### ANIM-UNDEP-1: DICE added 25 tracks to every third-person undeploy
 
@@ -168,7 +168,7 @@ formats from DICE's Garand undeploy; thumbs from a donor).
 
 [test: bfbc2-bf1943-import/tests/test_bf1943import.py::undeploys]
 [code: bfbc2-bf1943-import/bf1943import.py:636-711]
-[doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:80-84]
+[doc: bfo:docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md:82-86]
 
 ## 4. Soldiers and kits
 
@@ -200,7 +200,7 @@ Beside them: 168 `SoldierAnimationTreeData`, 86 `IndexedAnimationData`, 25 `Sold
 
 [data: DICE's bundles, 2026-11-22: the class counts, folders and field values listed]
 [code: opfor:src/tools/ww2/kits.py:27-34]
-[doc: opfor:research/WW2_KITS.md:85-92]
+[doc: bfo:docs/plans/opfor/WW2_KITS.md:87-94]
 
 ### ANIM-KIT-2: A kit's body: one mesh, kit joints and a static pose
 
@@ -215,7 +215,7 @@ vertices to the kit pose and moves their weight to Head.
 
 [code: opfor:src/tools/ww2/kits.py:6-8]
 [code: opfor:src/tools/ww2/soldiers.py:16-26]
-[doc: opfor:research/WAKE_VEHICLE_SEATED_POSE_2026-11-12.md:14-20]
+[doc: bfo:docs/research/opfor/WAKE_VEHICLE_SEATED_POSE_2026-11-12.md:16-22]
 
 ### ANIM-KIT-3: DICE's death pickups draw the weapon, not a bag
 

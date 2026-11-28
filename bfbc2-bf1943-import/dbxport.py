@@ -644,7 +644,8 @@ TEMPLATE = object()                  # a STAND_INS value: the template's value f
 # Classes DICE keeps out of the weapon partitions it brought from BF1943 (their instances left out; what named them is
 # resolved like any reference): BF1943's embedded PersistentWeapon (DICE's live in persistence/weapons: 13 of 13)
 DICE_MOVED_CLASSES = {'GameSharedResources.PersistentWeapon'}
-# DICE's conventions for BF1943's weapons (the 109 weapon partitions both games ship; WW2_WEAPON_ANIM_AUDIT.md and
+# DICE's conventions for BF1943's weapons (the 109 weapon partitions both games ship; battlefield-opfor's
+# docs/research/opfor/WW2_WEAPON_ANIM_AUDIT.md and
 # the user's ruling 2026-11-09: ported weapons follow DICE's BFBC2 conventions). Applied by _conventions:
 #  UseAutoAiming       true -> false (7 of 7 firearms, the planes' guns too)
 #  Bullet Gravity      0 -> -9.81 on firearms (their shot faster than 100 m/s; 5 of 5; the knives keep 0)

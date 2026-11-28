@@ -1134,7 +1134,7 @@ conversions of cells between Python and Rust), `add_order_nodes`, `ladder_ends`,
 **Provisional timings:** OPFOR's WW2 builds (`ww2_level_build.py coral_sea`, `ww2_level_install.py`) and other
 agents' tests ran beside every figure below, at below-normal priority on the 16-thread PC. Ratios hold within a run.
 
-The two targets of OPFOR's round 0 profile (`project-opfor-bfbc2\research\RUST_PORT_PLAN.md`): `pcbuild.compile_hlsl`
+The two targets of OPFOR's round 0 profile (`project-opfor-bfbc2\research\RUST_PORT_PLAN.md`, now battlefield-opfor's `docs/plans/opfor/RUST_PORT_PLAN.md`): `pcbuild.compile_hlsl`
 (2,444 compiles, 147 s in a WW2 level build; 3,652, 365 s in `wake_translate`) and `dbxport._best` (3,510 calls,
 76 s in a level build). **Neither moved to Rust, by measurement:** the compiles are Microsoft's compiler's time, and
 ctypes already lets go of the interpreter for each `D3DCompile` call, so plain Python threads run it on every core (a

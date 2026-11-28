@@ -3,8 +3,8 @@
 Now (offline reading of a finished run):
   sessions(text)        the sessions of an opfor.log (one per "---- opfor.dll loaded" line): level, session states,
                         AI events, SectorOffsets loads and override, unit-counter pathfinder counts, crash, exit
-  evaluate(s, asset)    the three in-game criteria of an AI level (STOCK_MP_AI_PLAN.md 6.3 / 8) as checks.Results:
-                        loads-ai-init, offsets-read, pathfinders
+  evaluate(s, asset)    the three in-game criteria of an AI level (STOCK_MP_AI_PLAN.md 6.3 / 8, in battlefield-opfor's
+                        docs/plans/opfor/) as checks.Results: loads-ai-init, offsets-read, pathfinders
   harness.py import-log <run> --level <lv> [--log <opfor.log>] adds them to a saved run.
 
 ON HOLD - needs playtest (designed, not run by the harness):

@@ -248,8 +248,8 @@ Status: **observed** · Variants: PC
 OPFOR hides a placed control by setting its place-object `y` (offset 36, APT-FRM-1) to -5000.0; the game draws
 nothing and the control's logic still runs.
 
-[data: OPFOR's menu patches hide controls this way in its installed movies (DEVELOPMENT_NOTES.md section 3), confirmed in game]
-[doc: opfor:DEVELOPMENT_NOTES.md:740-743]
+[data: OPFOR's menu patches hide controls this way in its installed movies (DEVELOPMENT_NOTES.md (private research notes) section 3), confirmed in game]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:740-743]
 
 ## Byte code
 
@@ -337,7 +337,7 @@ instruction straddles the end, no operand is misaligned. A body that does not (`
 A top-level End (0x00) ends only top-level streams: an End inside a function body is an error (`end-in-function`),
 and so is a written byte that becomes opcode 0x00 (`zero-opcode`; OPFOR fills with `59 17`, push 0 then pop).
 
-[data: every movie of the game copy's movie sets (128) and the Xbox 360 menus pass; patched menus that broke these crashed while loading (OPFOR DEVELOPMENT_NOTES section 3)]
+[data: every movie of the game copy's movie sets (128) and the Xbox 360 menus pass; patched menus that broke these crashed while loading (OPFOR DEVELOPMENT_NOTES (private research notes) section 3)]
 [test: bfbc2-menu-tools/tests/test_menu_tools.py::quick] [test: rust/bc2-formats/src/aptscan.rs::findings_sorted] [code: rust/bc2-formats/src/aptscan.rs:120-130] [code: rust/bc2-formats/src/aptscan.rs:199-209]
 [doc: bfbc2-menu-tools/README.md:44-53]
 
@@ -351,7 +351,7 @@ pool**: the list of the last ConstantPool executed in the stream; a function bod
 definition. A global index past the table, or a pool index past the current pool, is an error (`const-index`).
 
 [test: bfbc2-menu-tools/tests/test_menu_tools.py::quick] [code: rust/bc2-formats/src/apt.rs:540-555] [code: rust/bc2-formats/src/apt.rs:590-603] [code: rust/bc2-formats/src/aptscan.rs:140-165]
-[doc: opfor:DEVELOPMENT_NOTES.md:730-734]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:730-734]
 
 ### APT-CODE-7: Branches land on an instruction of their own stream
 
@@ -384,9 +384,9 @@ global constant indices to pointers in place (APT-LOAD-1); a second PushData on 
 while the menus load, with no log output (`shared-list`). To add a PushData, a writer reuses the list of one being
 removed or appends a new list; the suite's model copies, never shares, new data.
 
-[data: OPFOR's menu patches crashed the menus when two PushData shared a list (DEVELOPMENT_NOTES.md section 3); no movie of the game copy shares one]
+[data: OPFOR's menu patches crashed the menus when two PushData shared a list (DEVELOPMENT_NOTES.md (private research notes) section 3); no movie of the game copy shares one]
 [test: bfbc2-menu-tools/tests/test_menu_tools.py::quick] [code: rust/bc2-formats/src/aptscan.rs:170-184]
-[doc: opfor:DEVELOPMENT_NOTES.md:735-738]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:735-738]
 
 ### APT-LOAD-3: Externs, FSCommands and events are names the engine resolves
 

@@ -12,8 +12,8 @@ The section **Implementation interface** at the end lists what OPFOR's bot modul
 **Sources.** Round AIS (2026-11-22): static reading of `BFBC2Game.exe` (PC, build 795745, image base 0x400000, no
 RTTI) with the analysed Ghidra project of OPFOR's research (a scratch copy, read only); DICE's AI data through the
 probe `rust/bc2-formats/examples/ai_probe.rs` and its game-tier twin `rust/bc2-formats/tests/ai_corpus.rs`; OPFOR's
-research (`research/BFBC2_DECOMP_RESEARCH.md` section 8, `research/WW2_LANDING_GEAR_RE2_2026-11-14.md` on the input
-path), its DLL probes and the play tests recorded in `STOCK_MP_AI_PLAN.md` and `DEVELOPMENT_NOTES.md`. Nothing here was
+research (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` section 8, `private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md` on the input
+path), its DLL probes and the play tests recorded in `bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md` and `private:opfor-research/DEVELOPMENT_NOTES.md`. Nothing here was
 run in game: every exe rule is **observed** (read in the code) or **inferred** (reasoned from it), never verified, until
 a play test with OPFOR's probes records it. Data values are DICE's shared AI partitions (`AI/*` and the soldier
 templates of `sp_common`), quoted as structure and ranges. Round AIS-rest (2026-11-22) read the rest statically with
@@ -39,7 +39,7 @@ bot list `*(0x018903A8)` (0x9C bytes, 0x5A7D30), the debug draw `*(0x0189427C)` 
 already in the game.
 
 [exe: BFBC2Game.exe AI set-up 0x5B4840 (allocations 0x4A8 / 0x9C / 0x24 / 0x160, globals 0x018903EC, 0x018903A8, 0x0189427C, 0x0189037C; listener registration through 0x547BF0 +0x18 vtable +8); per-player loop over 0x532270 (+0x58) calling 0x5AB6C0(6, player)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:208-221]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:208-221]
 
 ### BOT-RT-2: The server's AI frame
 
@@ -137,7 +137,7 @@ here. The other parts' roles are not named.
 
 [exe: BFBC2Game.exe bot debug print 0xEEF450 (strings " Bot id: " 0x014A7E64, "Squad: ", " - Squad leader" 0x014A7E50, "Readiness: " 0x014A7E44, "Position: "); Kynapse bot entity 0xF27900 ("Entity_", thunk 0x109EAC0, registration 0x109DFF0); the bot +0x8C reads of BehaviourReload 0xEC6650 (target - 4, then +0xC = the AI input object), BehaviourChangePose 0xEC4EE0 / 0xEC4F60, BehaviourFire 0xEC4FE0 (+0x84 +0x88), BehaviourReload 0xEC64E0 (+0x9C +0x4C); no reference to 0xEEF450 in the image (AIS-rest byte scan for E8 / E9 targets and 32-bit pointers)]
 [exe: BFBC2Game.exe bot constructor 0xE6C0B0 (`param_1[5] = index`; allocations 0xB0 / 0x160 / 0x80 / 0x1C / 4 / 0x1430 / 0x38 / 0x50 / 0x48 / 0x48 / 0x58 / 0xC / 0x40 into +0x88 / +0x84 / +0x80 / +0x74 / +0x7C / +0x6C / +0xA0 / +0xA4 / +0xB0 / +0xA8 / +0xAC / +0x00 / +0x94; +0x8C, +0x98, +0x9C zeroed); callers 0xE6C480 (`push 0xF4` per slot, count from `[0x018903EC]` vtable +4) and 0xE6C6C0 (from 0xF10A30); 0xE6C690 (`push 0xB24`, global 0x01890324) from 0xED7C20; senses 0xE8E3E0 (+4 = bot; 0xE87BB0 x 5 with 1.0)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:202-203]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:202-203]
 
 ### BOT-RT-7: Goals, behaviours, plans and squad behaviours
 
@@ -161,7 +161,7 @@ DICE's decision layer is four registries of named creators (each record 0x18 byt
 
 [exe: BFBC2Game.exe creator registries: goals 0x01C08AB4..0x01C08D0C and 0x01C09BAC..0x01C09C3C (IGoal::IGoalCreator), behaviours 0x01C098C4..0x01C09B94 (IBehaviour::IBehaviourCreator), squad behaviours 0x01C0A4A4..0x01C0A4BC and 0x01C0AA0C..0x01C0AACC (ISquadBehaviour::ISquadBehaviourCreator)]
 [data: AI/Behaviours AIVehicleBehaviourData Behaviours.Plan values (ai_probe)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:192-201]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:192-201]
 
 ### BOT-RT-9: The registries' creators and the behaviour objects
 
@@ -224,7 +224,7 @@ controllable-entity update 0x695ED0 reads the seated player's handler and applie
 vehicle 0x697B90). So DICE's AI controls a soldier through the same `EntryInputState` a human's client sends.
 
 [exe: BFBC2Game.exe AI input object 0x5A7F00 (handler 0x623390 / 0x531C20, push 0x6234B0(this+0x28)); vtable 0x014198A8 slot 7 0x586F30 (0x57DB70 copy, 0x612B60 time, 0x6234B0 push)]
-[doc: opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115] [doc: opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:160-195]
+[doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115] [doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:160-195]
 
 ### BOT-CTL-3: The AI input object's actions
 
@@ -275,7 +275,7 @@ A bot module can take control at one of two levels:
 Path finding stays Kynapse's in both (AI-KY-3, KYRT-*), or OPFOR's own on the same path data.
 
 [inferred: from BOT-CTL-2 (the server applies a handler's state whatever filled it), BOT-CTL-3 (what DICE's AI writes and what it does not) and the input path of the landing-gear study (every digital EIA a client sends reaches the server)]
-[doc: opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247] [doc: opfor:STOCK_MP_AI_PLAN.md:263-266]
+[doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:265-268]
 
 ### BOT-CTL-5: Bots are the server's; the in-process client sees replicated soldiers
 
@@ -289,7 +289,7 @@ AI-KY-4) and writes (the AI input object) belong to the server thread, inside or
 hook must hand data across (as the landing-gear study proposes for the height cache).
 
 [inferred: from AI-START-1, BOT-RT-2, NET-SES-2..NET-SES-4 and the server-only creation of AI players (BOT-CTL-1); the replication of an AI player's soldier to the local client was seen in every Onslaught play test (bots visible, fighting) but its code path was not read]
-[doc: opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247]
+[doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247]
 
 ### BOT-CTL-6: The AI body: the proxy and its three interfaces
 
@@ -394,7 +394,7 @@ peripheral 45 / 60 / 90° to 55 m, hearing 48 m, alerting others within 48 m. Th
 (combat field of view 0, no alert range) gives bots that aim and never fire (AI-NEED-3).
 
 [data: 14 SensingTemplateData of sp_common (ai_probe ranges); the grunt template's values]
-[doc: opfor:STOCK_MP_AI_PLAN.md:39-41]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:41-43]
 
 ### BOT-PER-2: The sensing constants
 
@@ -496,7 +496,7 @@ BOT-CMB-1's model alone.
 
 [exe: BFBC2Game.exe AI input aim 0x586E30 -> 0x6A6460 (other callers of 0x6A6460: the soldier's own aim code 0x6A6720, 0x6AAF60, 0x6ABC30)]
 [data: SoldierControlConstantData (ai_probe)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:494-500]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:494-500]
 
 ### BOT-CMB-4: DICE's AI uses no class gadgets
 
@@ -522,7 +522,7 @@ level's `Covers` (LevelData). Templates set `BaseTimeInCover` (1-8 s), `MinEnemy
 goals are `GoalMoveToCoverPosition`, `GoalMoveOutOfCover`, `GoalHide`.
 
 [data: CoverConstantData, BehaviourTemplateData (ai_probe)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:202-204]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:202-204]
 
 ## 5. Movement
 
@@ -581,7 +581,7 @@ unreachable islands. Scripted moves use `SpecialMovement` / `PreSpecialMovement`
 `MaxDynamicObjects` 25 and `LocalPathfindingLoadRadius` 15 m bound local path finding; vehicles are avoided at 10 m.
 
 [data: NavigationConstantData (ai_probe); AIVehicleBehaviourData plans]
-[doc: opfor:DEVELOPMENT_NOTES.md:2084-2088]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:2084-2088]
 
 ### BOT-MOV-5: Formations and following
 
@@ -643,7 +643,7 @@ boats and helicopters on Isla Inocentes are seated the same way; the patrol boat
 
 [data: SoldierSpawnEntityData Vehicle / VehiclePos, PatrolOrderEntityData, BehaviourTemplateData (ai_probe)]
 [exe: BFBC2Game.exe proxy request pump 0x595190 (+0x24 -> 0x58DEC0 -> 0x5725E0; +0x28 -> 0x56D480(1)); proxy slot 23 0x57DAD0 `mov byte [ecx+0x28], 1`]
-[doc: opfor:DEVELOPMENT_NOTES.md:2164-2170]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:2164-2170]
 
 ### BOT-VEH-4: Helicopters fly without path data
 
@@ -725,7 +725,7 @@ to GAME-CQ-8: `OnlyTakeableByTeam` +0x84, `MinNrToTakeControl` +0x88, times +0x9
 BOT-GS-4 (counters and objectives); the event graph stays the simplest interface.
 
 [inferred: from AIO-MODE-1 and the gameplay rules; the capture point data offsets are OPFOR's captureprobe reading]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:582-583] [doc: opfor:src/dll/captureprobe.cpp:3-12]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:582-583] [doc: opfor:src/dll/captureprobe.cpp:3-12]
 
 ### BOT-GS-2: Positions, players and kills
 
@@ -737,7 +737,7 @@ player's soldier (vtable +0x30), team (+0xA8 on a player object), id (+0x154), A
 dispatcher (0x870070, type 3, AI-NEED-5); spawner events (AIO-EVT-4).
 
 [exe: BFBC2Game.exe 0xEEF450 / 0xE8CE80 (vtable +4, +0x30 translation), 0x5AB6C0 (+0x154), 0x531C30 (+0xC38), 0x870070]
-[doc: opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115] [doc: opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:37-38]
+[doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115] [doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:37-38]
 
 ### BOT-GS-3: A capture point's owner and progress
 
@@ -1035,7 +1035,7 @@ its matches.
 
 [test: rust/bc2-formats/tests/ai_corpus.rs::difficulty_has_three_modes]
 [data: AI/Difficulty DifficultyData (ai_probe), identical on Xbox 360 per OPFOR's console research]
-[doc: opfor:DEVELOPMENT_NOTES.md:1833-1836]
+[doc: private:opfor-research/DEVELOPMENT_NOTES.md:1833-1836]
 
 ### BOT-DIF-3: The per-template and per-spawner knobs
 
@@ -1046,11 +1046,11 @@ Below the difficulty, each behaviour template tunes its bots (14 templates, rang
 `StunnedWhenHealthPercentageBelow` 0-0.9, `LowHealthThreshold` 0-1, `FrontLineDistance` 0-10, `AllowSleep`,
 `AlwaysUpdate` (6 of 14: bots of that template are never skipped by BOT-RT-4's bands); each sensing template its skill
 and ranges (BOT-PER-1); each spawner `HumanTargetPreference`, `Immortal`, `FakeImmortal`, `LodDistance`. A template's
-`Rank` (0-5) and its empty `AllowedKits` / `AllowedAppearances` are the hooks for varied kits (`STOCK_MP_AI_PLAN.md`
+`Rank` (0-5) and its empty `AllowedKits` / `AllowedAppearances` are the hooks for varied kits (`bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md`
 section 11).
 
 [data: BehaviourTemplateData (14), SensingTemplateData (14), SoldierSpawnTemplateData (18), SoldierSpawnEntityData (ai_probe)]
-[doc: opfor:STOCK_MP_AI_PLAN.md:218-231]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:220-233]
 
 ### BOT-DIF-4: A multiplayer session's AI difficulty is the session's, Normal by default
 
@@ -1069,7 +1069,7 @@ OPFOR writes the session's +0xC8 before state 5, or replaces the pushed argument
 [exe: BFBC2Game.exe session constructor 0x561C10 (`mov dword [esi+0xC8], 1` at 0x561D88); 0x56A890 case 0x10 `+0xC8 = msg +0x34`, case 0x13 no write; 0x918CA0 (`+0x34 = 1`), 0x918D70; 0x951E00 cases 3 / 4 (`msg +0x34 = local difficulty`); 0x565450 (start parameters `+0x20 = session +0xC8`, then the server create through `+0xDC` vtable slot 0); 0x85FA48 (`push [esi+0x90]` as argument 4 of 0x574FB0); 0x57506E / 0x57507B (`mov edx,[esp+0xF8]; push edx; call 0x5B33C0`)]
 [inferred: that the start parameters' +0x20 becomes the start object's +0x90 (the server create was not followed)]
 [data: OPFOR's live run of Levels/SP_005 through the offline multiplayer path, probe "AI: init (arg1 = difficulty)" = 1]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:225-227]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:225-227]
 
 ## Implementation interface
 
