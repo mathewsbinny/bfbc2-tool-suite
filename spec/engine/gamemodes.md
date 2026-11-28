@@ -245,7 +245,7 @@ instructions address +0xC8C8C (battlefield-opfor's "33 mode-reader sites" is thi
 | | 0x7584A2 (0x758480, from the HUD start 0x775D62 only): `Menu/nam_hudConfig` vs `hudConfig` | |
 | | 0x75AEA1 (0x75AE80, from the setter's reload 0x75F897): `Menu/nam_menuConfig` vs `menuConfig` | |
 | | 0x775D16 (HUD start): the icon set `menu/minimap/icons_nam0` + `icons_nam_data` vs `icons0` + `icons_data` (0xF9C9E0; a failure aborts the HUD) | |
-| | 0x9208D0 (no direct caller) and 0x93D14F (0x93CF40, in-game 0x7866D3): `UISharedConfigAsset.UnlocksDataVietnam` (+0x90) vs `UnlocksData` (+0xB0) | ERA-RES-2 |
+| | 0x9208D0 (no direct caller) and 0x93D14F (0x93D120, from `extern.playerStats` through 0x944D50; GM1 corrected the function, ERA-SITE-1): `UISharedConfigAsset.UnlocksDataVietnam` (+0x90) vs `UnlocksData` (+0xB0) | ERA-RES-2 |
 | | 0x93C4E1 (0x93C4D0) and 0x93C561 (0x93C550, the weapon-data lookup; callers include `extern.kitPrimaryWeapon` / `kitSpecialization` / `wname` / `weaponData`): Vietnam's map +0xC89DC / +0xC89FC first, then the base map | |
 | | 0x9469D5 / 0x946A75 / 0x946B35 (0x9469B0 `extern.unlockGrid`, 0x946A50 `kitRankData`, 0x946B10 `unlockGridChildren`): the list at +0x138 vs +0x134 | |
 | | 0x920CF8 / 0x920E45 / 0x920F88 / 0x9210D5 (0x920CE0, 0x920E30, 0x920F70, 0x9210C0: the `seenItem` / `seenItemHud` externs and FSCommands): the new-item tracker's entries tagged 1 (BFBC2 only) or 2 (Vietnam only), mod 1 skipping 1s and others 2s | |
@@ -460,7 +460,8 @@ So the engine cannot support game mod 2, 3 natively by data. It can by patches: 
 documented patches; rows 4 - 7 are 30 sites whose miss falls back silently to BFBC2's content, so each needs its
 decision; row 6 has no data slot anywhere and needs module-held data whatever the engine value. The user chose
 native eras 2 and 3 on 2026-11-27 (ROADMAP GM1 - GM3: a decision per site, then the patch set and the data);
-ERA-NEW-2 is the layered design those rounds compare against, and its steps are needed by both.
+ERA-NEW-2 is the layered design those rounds compare against; round GM1's decision table and patch set for native eras are
+`engine/eras.md` (ERA-NAT-1 - ERA-RISK-5).
 
 [inferred: from ERA-MOD-1 - ERA-MOD-3, ERA-RES-1, ERA-RES-2, ERA-LIC-1, GMD-PERS-1]
 [doc: opfor:research/WW2_THIRD_MODE.md:257-311]

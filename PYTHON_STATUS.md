@@ -29,9 +29,9 @@ rounds NK4 and NK5.
 | twin | 57 | 22,616 |
 | ported | 23 | 3,030 |
 | retired-pending | 3 | 310 |
-| stays | 81 | 17,536 |
-| test | 193 | 53,193 |
-| **all** | **393** | **115,359** |
+| stays | 81 | 17,741 |
+| test | 193 | 53,203 |
+| **all** | **393** | **115,574** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -52,12 +52,12 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 18 | 11,536 | 1,657 | 3,775 | 984 | 126 |  |  | 4,994 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 20,435 | 766 |  | 2,430 | 1,909 |  |  | 15,330 |
+| `core` | 76 | 20,436 | 766 |  | 2,430 | 1,909 |  |  | 15,331 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 38 | 7,843 |  |  |  |  |  | 7,576 | 267 |
-| `spec` | 23 | 8,247 |  |  |  |  |  | 8,247 |  |
-| `tests` | 30 | 7,750 |  |  |  |  |  |  | 7,750 |
-| `tools` | 5 | 723 |  |  |  |  |  | 723 |  |
+| `spec` | 23 | 8,363 |  |  |  |  |  | 8,363 |  |
+| `tests` | 30 | 7,759 |  |  |  |  |  |  | 7,759 |
+| `tools` | 5 | 812 |  |  |  |  |  | 812 |  |
 
 Lines by status in the folder table.
 
@@ -402,7 +402,7 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 20,435 lines.
+76 files, 20,436 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -478,7 +478,7 @@ Lines by status in the folder table.
 | `core/tests/test_paths.py` | 244 | test | test |  | run_tests.py | Tests in Rust | bfbc2core.paths on a stand-in folder tree (quick tier, no game data): where the suite finds Project OPFOR B... |
 | `core/tests/test_prepare_o4.py` | 194 | test | test |  | run_tests.py | Tests in Rust | Round O4: the editor's level prepare in Rust (bfbc2.exe prepare_level, rust\bc2-cli\src\navkit) against the... |
 | `core/tests/test_scene_native.py` | 103 | test | test |  | run_tests.py | Tests in Rust | level.load through the Rust scene (rust/bc2-scene, bc2_native.scene_load) against what the retired Python l... |
-| `core/tests/test_spec_probes.py` | 865 | test | test |  | run_tests.py | Tests in Rust | The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `... |
+| `core/tests/test_spec_probes.py` | 866 | test | test |  | run_tests.py | Tests in Rust | The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `... |
 | `core/tests/test_terrain.py` | 61 | test | test |  | run_tests.py | Tests in Rust | Checks terrain.py against the in-game terrain samples NavKit took (work\navsample\<level>_navkit.bin or _fu... |
 | `core/tests/test_water.py` | 62 | test | test |  | run_tests.py | Tests in Rust | water.py on every level of Project OPFOR BFBC2's game copy: each .Water.Mesh.res is read to its last byte,... |
 | `core/tests/test_xmlinst_native.py` | 149 | test | test |  | run_tests.py | Tests in Rust | Round F2b (rust/BENCHMARKS.md, "F2b"): bfbc2core.xmlinst in the Rust core against its patterns (instances_r... |
@@ -538,7 +538,7 @@ Lines by status in the folder table.
 
 ## `spec`
 
-23 files, 8,247 lines.
+23 files, 8,363 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -546,7 +546,7 @@ Lines by status in the folder table.
 | `spec/probes/dependencies.py` | 297 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/transforms/dependencies.md (the asset graph; --steps the WW2 step graph); game tier |
 | `spec/probes/destruction.py` | 304 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/destruction.md |
 | `spec/probes/effects_chain.py` | 194 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier |
-| `spec/probes/gamemodes.py` | 304 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/gamemodes.md (game modes, the game mod: data and exe sites); game tier |
+| `spec/probes/gamemodes.py` | 420 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/gamemodes.md (game modes, the game mod: data and exe sites); game tier |
 | `spec/probes/grime.py` | 524 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/materials.md section 5 (grime, dirt, camouflage); checked in the game tier |
 | `spec/probes/level.py` | 320 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/model/level.md, the cull trees, vegetation and terrain splines; checked in the game tier |
 | `spec/probes/lighting.py` | 342 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for the lighting, weather and effects specs |
@@ -568,7 +568,7 @@ Lines by status in the folder table.
 
 ## `tests`
 
-30 files, 7,750 lines.
+30 files, 7,759 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -580,7 +580,7 @@ Lines by status in the folder table.
 | `tests/test_cli_errors.py` | 74 | test | test |  | run_tests.py | Tests in Rust | Every command-line tool's error handling (no game data): each is run with input that must fail - a file tha... |
 | `tests/test_converter_edges.py` | 84 | test | test |  | run_tests.py | Tests in Rust | Edge cases of the converters and readers, without game data (quick tier). |
 | `tests/test_converter_units.py` | 321 | test | test |  | run_tests.py | Tests in Rust | Unit tests of the converters' Stage 3 fixes, without game data (quick tier): - havokport: a model group's s... |
-| `tests/test_decomp_tools.py` | 120 | test | test |  | run_tests.py | Tests in Rust | The decompiled database's tools (tools/decomp) on synthetic input only: the name extraction from spec-style... |
+| `tests/test_decomp_tools.py` | 129 | test | test |  | run_tests.py | Tests in Rust | The decompiled database's tools (tools/decomp) on synthetic input only: the name extraction from spec-style... |
 | `tests/test_deep_scan_fixes.py` | 252 | test | test |  | run_tests.py | Tests in Rust | Regression tests for the suite deep scan of 2026-11-15 (no game data): - C1 stock-MP install --apply is one... |
 | `tests/test_e3o_native.py` | 652 | test | test |  | run_tests.py | Tests in Rust | Round E3o (rust/BENCHMARKS.md, "E3o"): each faster path against the code it replaced, compared exactly (eve... |
 | `tests/test_editor.py` | 89 | test | test |  | run_tests.py | Tests in Rust | The map editor's headless proof (rust\bc2-editor, rounds G1 and E2; rust\bc2-levelwrite): their tests, with... |
@@ -605,12 +605,12 @@ Lines by status in the folder table.
 
 ## `tools`
 
-5 files, 723 lines.
+5 files, 812 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `tools/decomp/build_index.py` | 95 | build or dev script | stays |  | tools/decomp/run_dc.py | stays | the private decompiled database's SQLite index (round DC0) |
-| `tools/decomp/decomp.py` | 157 | tool entry point | stays |  | later rounds (GM1, UI0, RCX0) | stays | lookup in the private decompiled database of BFBC2Game.exe by address, name, string, caller or rule |
+| `tools/decomp/build_index.py` | 132 | build or dev script | stays |  | tools/decomp/run_dc.py | stays | the private decompiled database's SQLite index (round DC0) |
+| `tools/decomp/decomp.py` | 179 | tool entry point | stays |  | later rounds (GM1, UI0, RCX0) | stays | lookup in the private decompiled database of BFBC2Game.exe by address, name, string, caller or rule |
 | `tools/decomp/extract_names.py` | 278 | build or dev script | stays |  | tools/decomp/run_dc.py | stays | the named exe addresses of the spec and Project OPFOR's notes, for Ghidra |
 | `tools/decomp/gen_types.py` | 109 | build or dev script | stays |  | tools/decomp/run_dc.py | stays | spec/typeinfo.json as a Ghidra type plan |
-| `tools/decomp/run_dc.py` | 84 | build or dev script | stays |  | by hand | stays | builds the private decompiled database with Ghidra headless |
+| `tools/decomp/run_dc.py` | 114 | build or dev script | stays |  | by hand | stays | builds the private decompiled database with Ghidra headless |

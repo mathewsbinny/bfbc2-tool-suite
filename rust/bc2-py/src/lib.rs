@@ -102,6 +102,7 @@ mod navtools;
 mod navtrace;
 mod navwalk;
 mod onslaught;
+mod onsport_late;
 mod pathdata;
 mod pefile;
 mod physmat;
@@ -476,6 +477,9 @@ mod bc2_native {
     // round OR7: OPFOR's WW2 rebuild as a step graph (rebuild_all's runner, stepstamps' decisions: bc2_install::rebuild)
     #[pymodule_export]
     use super::rebuild::{rebuild_derive, rebuild_graph, rebuild_run};
+    // round OR12: the console port's stages 11 - 13 (console_cull / console_loading / console_hud)
+    #[pymodule_export]
+    use super::onsport_late::{onsport_cull, onsport_hud, onsport_hud_movie, onsport_loading};
     // round OR2: OPFOR's WW2 level build (wake_install.build's parts, bc2_install::levelbuild)
     #[pymodule_export]
     use super::shaderdb_merge::ShaderMerger;

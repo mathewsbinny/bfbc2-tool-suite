@@ -478,6 +478,101 @@
    "status": "verified",
    "title": "The dependency stage gives the retired Python's work files; stock sources only",
    "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/cull.rs:139-182"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/cull.rs:184-211"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_cull.py:42-58"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/cull.rs::levels_and_paths"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR12, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-11",
+   "status": "verified",
+   "title": "The cull stage gives the retired Python's work files; culltree runs as its own command",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/loading.rs:88-123"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/loading.rs:149-215"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_loading.py:28-41"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/loading.rs::movie_in_startup"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/loading.rs::entries"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR12, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-12",
+   "status": "verified",
+   "title": "The loading stage gives the retired Python's work files",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/hud.rs:266-282"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/hud.rs:317-380"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_hud.py:67-92"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/hud.rs::never_patches_twice"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/hud.rs::records_and_names"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR12, 2026-11-27: the user's four levels, a redo on the entry records and the main menu's loading screen, every work and game file of the Rust stage identical to the Python's"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-13",
+   "status": "verified",
+   "title": "The HUD stage gives the retired Python's work files; its movie edits in process",
+   "variants": "Xbox 360"
   }
  ]
 }

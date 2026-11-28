@@ -3531,7 +3531,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 865,
+   "lines": 866,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -4107,7 +4107,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 304,
+   "lines": 420,
    "note": "read-only probe for spec/engine/gamemodes.md (game modes, the game mod: data and exe sites); game tier",
    "path": "spec/probes/gamemodes.py",
    "retiring": "stays",
@@ -4443,7 +4443,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 120,
+   "lines": 129,
    "note": "The decompiled database's tools (tools/decomp) on synthetic input only: the name extraction from spec-style...",
    "path": "tests/test_decomp_tools.py",
    "retiring": "Tests in Rust",
@@ -4707,7 +4707,7 @@
    "embedded_by": [],
    "folder": "tools",
    "kind": "build or dev script",
-   "lines": 95,
+   "lines": 132,
    "note": "the private decompiled database's SQLite index (round DC0)",
    "path": "tools/decomp/build_index.py",
    "retiring": "stays",
@@ -4719,7 +4719,7 @@
    "embedded_by": [],
    "folder": "tools",
    "kind": "tool entry point",
-   "lines": 157,
+   "lines": 179,
    "note": "lookup in the private decompiled database of BFBC2Game.exe by address, name, string, caller or rule",
    "path": "tools/decomp/decomp.py",
    "retiring": "stays",
@@ -4755,7 +4755,7 @@
    "embedded_by": [],
    "folder": "tools",
    "kind": "build or dev script",
-   "lines": 84,
+   "lines": 114,
    "note": "builds the private decompiled database with Ghidra headless",
    "path": "tools/decomp/run_dc.py",
    "retiring": "stays",
@@ -4785,7 +4785,7 @@
  "totals": {
   "all": {
    "files": 393,
-   "lines": 115359
+   "lines": 115574
   },
   "by_folder": {
    "(root)": {
@@ -4977,13 +4977,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20435,
+    "lines": 20436,
     "live": 766,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15330,
+    "test": 15331,
     "twin": 2430
    },
    "design": {
@@ -5010,34 +5010,34 @@
    },
    "spec": {
     "files": 23,
-    "lines": 8247,
+    "lines": 8363,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 8247,
+    "stays": 8363,
     "test": 0,
     "twin": 0
    },
    "tests": {
     "files": 30,
-    "lines": 7750,
+    "lines": 7759,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7750,
+    "test": 7759,
     "twin": 0
    },
    "tools": {
     "files": 5,
-    "lines": 723,
+    "lines": 812,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 723,
+    "stays": 812,
     "test": 0,
     "twin": 0
    }
@@ -5061,11 +5061,11 @@
    },
    "stays": {
     "files": 81,
-    "lines": 17536
+    "lines": 17741
    },
    "test": {
     "files": 193,
-    "lines": 53193
+    "lines": 53203
    },
    "twin": {
     "files": 57,

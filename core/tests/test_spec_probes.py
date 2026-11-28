@@ -8,7 +8,7 @@ lines of their output that hold a rule's counts (EXPECT; `<head>§<line>` for a 
 was retired by round TG2: the generator and its proofs are Rust's, `rust/bc2-terragen`), and round SPG4's
 `resources.py` and `census.py` (the census as spec/census.json holds it) and round SPG2-rest5's `persistence.py`
 and round SPG4-rest's `typeinfo.py` (the executable's reflection as spec/typeinfo.json holds it) and `runtime.py`
-(the run-time code's constants and the data they read) and round GM0's `gamemodes.py` (game modes and the game mod)
+(the run-time code's constants and the data they read) and round GM0's `gamemodes.py` (game modes and the game mod; since round GM1 also the native-era patch ranges)
 by their own `checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
@@ -888,6 +888,7 @@ def census(game: Path) -> None:
 
 
 # spec: GMD-DATA-1, GMD-DATA-2, GMD-DATA-3, GMD-SW-1, GMD-SW-3, GMD-PERS-1, GMD-MM-1, ERA-MOD-1, ERA-MOD-3, ERA-RES-2
+# spec: ERA-NAT-3, ERA-NAT-4, ERA-NAT-5, ERA-SITE-1, ERA-SITE-2, ERA-SITE-3, ERA-SITE-4, ERA-LIC-2
 def game_modes(game: Path) -> None:
     probe_checks('gamemodes', game)
 
