@@ -426,8 +426,8 @@ the first enabled one with `StartTransitionOnSpawn` true names a `State` (Coral 
 settings say 0; MP_005 2; SP_008_B 36, more states than its system has, so such entities belong to scripted logic
 too). Research round WX0 (all 83 levels): 70 have such a switch, and in 45 it names another state than `ActiveState`;
 the `ActiveState` placeholders (`default`, `state1`, `deafult`) are dark or unlit by value, so the switch's state is
-what players see. Whether the engine applies the transition as the level loads, and which entity wins when several
-do, is still open (no capture, no exe trace). Since round VW2 the editor's game-accurate view opens on the switch's
+what players see. The engine starts in `ActiveState` and fades to the switch's state over its `FadeTime`; when
+several do, the last applied wins (WTH-STATE-6, round DQ7, static). Since round VW2 the editor's game-accurate view opens on the switch's
 state (MP_005: `day_1`, not `default`) and notes it, and an export sets both (RNDR-WTHR-8).
 
 [test: rust/bc2-render/src/weather.rs::weather_entities_and_spawn_states_read_from_a_partition]

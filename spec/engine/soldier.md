@@ -82,6 +82,36 @@ state; not traced), and a tenth class would be ignored.
 [data: spec/probes/runtime.py on DICE's partitions, 2026-11-27: the nine state classes 2 each among the States of DICE's 2 CharacterPhysicsData]
 [exe: BFBC2Game.exe state builder 0xB08CE0 (`push 0x1BF90D8` at 0xB08D5C), state ids at 0xAB7B70 (`xor eax, eax; ret`), 0xA9D590, 0xA9D580, 0xA9D150, 0xA9D570, 0xA9DAC0, 0xA9DAE0, 0xA9CCC0, 0xA9DAD0 (`mov eax, 1` - `8; ret`); factories 0xAB7B00, 0xAB7A90, 0xAB7A20, 0xAB7920, 0xAB79B0, 0xAB8310, 0xAB83F0, 0xABA950, 0xAB8380; context setState 0xD40B80, character setState 0xB095C0]
 
+### SOLD-PHYS-3: What OnGround, InAir and Falling test before they change state
+
+Status: **observed** · Variants: PC
+
+Each state's update gets the character's state input (its second argument), whose fields the tests read: +0x31 the
+character is supported (on the ground), +0x30 a ladder in reach, +0xC0 the parachute asked for, +0xC2 in deep water,
++0xF0 = 1 on a slide surface, +0x94 the vertical velocity. The tests run in this order, the first that holds wins:
+
+| State | Tests (target state) |
+|---|---|
+| OnGround (0), its check 0xAB4750 from the update 0xAB7BD0 | slide surface (8); deep water (6); the jump test 0xAAD180 (1); a ladder in reach with +0x04 not below 0 (3) |
+| InAir (2), 0xAB44E0 | supported (0, with the landing call 0xAF7DA0); slide surface (8); vertical velocity below minus `InAirStateData.FreeFallVelocity` (the state data +0x20) (4); ladder (3); deep water (6) |
+| Falling (4), 0xAB42B0 | supported (0, with the landing call); slide surface (8); deep water (6); parachute asked for (5) |
+
+**Jump.** The jump test refuses while 0xAF8140 returns non-zero or the input's +0x60 and +0x64 differ (inferred: a
+move the animation controls is pending). It needs the jump input (the input's +8); with `OnGroundStateData.JumpDelay`
+set it counts that delay down first (+0x2C, by the frame time +0x78). A jump takes `JumpStaminaPenalty` (the state
+data +0x24) off the stamina (+0x38, not below 0), and before entering Jump the horizontal velocity is scaled by the
+penalty factor (+0x50) when that is below 1. Jump then goes to InAir after two updates (SOLD-PHYS-2).
+
+**A missing state class.** The context's `setState` (0xD40B80) takes the old and new state objects from the manager's
+array (0xD4DE20: +8 + id x 4) with no test and calls the old one's exit (vtable +0x14) and the new one's enter
+(+0x10). A transition into a class the `States` array lacks therefore calls through a null object (inferred: a crash
+at the first such transition), so a converted `CharacterPhysicsData` must list all nine classes (SOLD-PHYS-2's table
+names a transition into each).
+
+[exe: BFBC2Game.exe OnGround check 0xAB4750 (+0xF0, +0xC2, 0xAAD180, +0x30 / +0x04); jump test 0xAAD180 (0xAF8140, +0x60 / +0x64, +0x08, +0x2C, +0x78, [state data]+0x24 against +0x38); InAir 0xAB44E0 (+0x31, +0xF0, +0x94 against data +0x20, +0x30, +0xC2); Falling 0xAB42B0 (+0x31, +0xF0, +0xC2, +0xC0); setState 0xD40B80, lookup 0xD4DE20]
+[doc: private:pseudo/00AB.c:3626-3875] [doc: private:pseudo/00AA.c:10745-10811] [doc: private:pseudo/00D4.c:556-578]
+[doc: private:pseudo/00D4.c:12113-12123]
+
 ### SOLD-SPR-1: Sprint is a power budget and a field-of-view change
 
 Status: **verified** · Variants: PC
@@ -243,6 +273,7 @@ orders (`CanSpotAndOrder`), the score (`SpotAssistScore`) and the voice-over eve
 - The order the engine applies the FOV sources (SOLD-FOV-1) and whether `settings.ini`'s `Fov` replaces or scales
   `DefaultFOV`.
 - How the spotting cone's angles combine with `SpottingConeFov` / `SpottingDistance` (SOLD-SPOT-1).
-- The character controller (SOLD-PHYS-2): where Jump (1) is entered (OnGround's input path), the conditions behind
-  InAir's and Falling's exits (`WaterDepthLimit` to swimming), what a `States` array missing a class does; a playtest
-  of the parachute closing into falling.
+- The character controller: Jump's entry, InAir's and Falling's exits and a missing class are settled statically
+  (SOLD-PHYS-3, round DQ7). Open: who sets the state input's fields (`WaterDepthLimit` against +0xC2, the slide
+  surface +0xF0, the ladder +0x30), what 0xAF8140 and the landing call 0xAF7DA0 do; a playtest of the parachute
+  closing into falling.

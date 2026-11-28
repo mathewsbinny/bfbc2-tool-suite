@@ -200,11 +200,37 @@ The client system raises the capture-point lines (`ETWonCapturePoint` / `ETLostC
 state, the lost line for every enemy capture), the ticket lines (from the replicated ticket counter), soldier killed,
 spotted, entering a vehicle and the attack / defend focus points. The server system raises round won / lost (when a
 ticket counter reaches 0, with the first player found on each team), avenge and saviour kills, vehicle killed,
-grenade thrown / incoming and soldier fire. In multiplayer the chatter players hear is the client set; whether a
-server raise is heard on the in-process host is open.
+grenade thrown / incoming and soldier fire. In multiplayer the chatter players hear is the client set; a server
+raise reaches the players through the speaking soldier (SND-EVT-5).
 
 [exe: BFBC2Game.exe client: capture point 0x8C7190, ticket counter 0x8E9AF0, message handler 0x800CF0, focus points 0x76E430; server: round end 0x67E3F0, kill scoring 0x86C070, message handler 0x5756A0, 0x5ACA80]
 [doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:61-89]
+
+### SND-EVT-5: A server line is played through the speaking soldier's ghost
+
+Status: **observed** · Variants: PC
+
+The two systems are one base class (constructor 0x633330) with a server subclass (vtable 0x1416910, built by the
+server's level load 0x567DF0 into the server context +0x54) and a client one (vtable 0x1431578, the client's level
+load 0x829B00, client +0x30). A raise queues each matched line as a record of the players' ids (+0x154 of inflictor,
+victim and listener) and a due time (sink 0x636C80); the system's vtable slot 1 plays a due line:
+
+- **server** (0x66AD20): the speaker's player from the server's player table (server context +0x2C, +0x6C by id),
+  its soldier (player vtable +0x30), then the server soldier's line set 0x6B93C0. The soldier holds one line at a
+  time: while a line of higher priority is still playing (+0x33C, time left +0x338) the new one is refused; otherwise
+  the line's five keys go to +0x324 - +0x334, its priority and length to +0x33C / +0x338, and the soldier's ghost is
+  marked with the dirty bit 0x200 (0xC1D8D0 on +0x16C);
+- **client** (0x8C4EF0): the same through the client's players (0x7EDA60, vtable +0x34) to the client soldier
+  (0x8AE2F0), which plays it. The client soldier's ghost update (0x8BF720) calls 0x8AE2F0 with the five keys when the
+  bit 0x200 is in the update.
+
+So a server-raised line (round won / lost, avenge and saviour kills, vehicle killed, grenades, soldier fire, the AI's
+chatter) is heard by every client that has the speaking soldier's ghost: on the in-process host its own client
+included, with no separate voice-over message (SND-EVT-4's sites). A line whose speaker has no soldier (dead, not yet
+spawned) or no player is dropped (0x66AD20 returns), and a soldier speaking a line blocks lower-priority ones.
+
+[exe: BFBC2Game.exe base constructor 0x633330; server subclass vtable 0x1416910 (slot 1 0x66AD20), built in 0x567DF0 (a 0x60-byte object, stored into the server context +0x54); client vtable 0x1431578 (slot 1 0x8C4EF0), built in 0x829B00; sink 0x636C80 (player +0x154); server soldier line set 0x6B93C0 (`cmp ebp, [esi+0x33C]`, stores +0x320 - +0x334, `push 0x200; call 0xC1D8D0` at 0x6B9468); client soldier ghost 0x8BF720 (bit 0x200 -> 0x8AE2F0)]
+[doc: private:pseudo/0063.c:5458-5549] [doc: private:pseudo/008B.c:11853-12145] [doc: private:pseudo/008A.c:10458-10562]
 
 ## 5. Vehicle sounds
 
@@ -231,8 +257,10 @@ fields null).
   whether in-memory voice-over (OPFOR's 476 BF1943 lines as EA-XAS) plays at all: no listening test yet.
 - **Bank lookup order.** BF1943's Japanese side has the same 40 hashed line names in `vo_en` and `vo_common`; which
   bank the engine looks up first (English or Japanese speech) is unverified.
-- **Server raises on the host.** Whether the server system's lines are heard on the in-process host
-  (hostMultiplayerLocal), and whether its database loads the level's `VoiceOvers` at all.
+- **Server raises on the host.** How a server line reaches the player is settled statically (SND-EVT-5, round DQ7:
+  through the speaking soldier's ghost). Open: whether the server system's database (its +4, which the matcher walks)
+  holds the level's `VoiceOvers` (`LevelData.VoiceOvers` +0x32C; the filling is not traced; the `vo_probe` matcher count
+  answers it) and a listening test on the host.
 - **Null person conditions.** Whether a trigger whose person condition is a null reference matches every soldier or
   none.
 - **Missing registered voice-over bundles.** Every stock level's `vo/<lang>` source is absent and the game runs; what

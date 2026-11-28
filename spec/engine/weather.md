@@ -132,6 +132,38 @@ not a weather feature.
 
 [data: research round WX0: the other state entities per level (inventory_tables "other state entities")]
 
+### WTH-STATE-6: The engine starts in ActiveState; a switch fades from it, set on the server, applied by the client
+
+Status: **observed** · Variants: PC
+
+- **The start.** The level's `WeatherSystemEntity` registers its `WeatherSystemSettings` as the engine's
+  `WeatherSystem` settings object, with `WeatherData` and `WeatherState` (the system's `States[ActiveState]`) beside it
+  (0x101B8D0). The weather update (0x1015310) reads that object's `ActiveState` (+0x28) and `StateFadeTimeSeconds`
+  (+0x20) every frame, so the first frame draws `ActiveState`.
+- **The switch, server side.** A `WeatherStateEntityData` (FadeTime +0x80, State +0x84, DefaultState +0x88,
+  StartTransitionOnSpawn +0x8C, TriggerEventFromClient +0x8D) makes a `ServerWeatherStateEntity` (0x6FE140; its own
+  state word +0x84 starts as DefaultState). The entity starts its transition (0x6757F0) when it initialises (0x67B250)
+  with `StartTransitionOnSpawn` set, unless it is being restored from a save (+0x8B, CAMP-SAVE-3), and on the input
+  event `StartTransition` (hash 0xDEC1A06A) while enabled (0x67B290). Starting sets the time to 0 and transitioning
+  (+0x88), registers for updates and, unless `TriggerEventFromClient`, marks the entity's ghost dirty for the clients
+  (+0x8A, 0xC1D8D0(1)). Its update (0x6758A0) adds the frame time and at `FadeTime` ends the transition (+0x88 0,
+  +0x89 1).
+- **The switch, client side.** The client applies it (0x8D3A70): the `WeatherSystem` settings object's
+  `StateFadeTimeSeconds` becomes the entity's `FadeTime` and its `ActiveState` the entity's `State` (the data's, not
+  the server's word). It applies it when the ghost says the transition started (0x8D3AE0) or, with
+  `TriggerEventFromClient`, on its own `StartTransition` event (0x8DCDF0).
+
+So a level starts in `ActiveState` and, with a spawn switch, fades to the switch's `State` over its `FadeTime` (a
+`FadeTime` of 0 is a cut); the spawn switch needs the server (in battlefield-opfor's host, the in-process server) to
+reach the client. Every switch writes the same `ActiveState`: with several enabled spawn switches the last one the
+client applies wins, in the order their ghosts arrive (not fixed by the data; inferred). A state written by the suite
+into both `ActiveState` and the first switch (WTH-SUITE-1) is therefore what the player sees whichever wins.
+
+[exe: BFBC2Game.exe 0x101B8D0 (the settings named `WeatherSystem` 0x1432A28); 0x1015310 (settings +0x28, +0x20); ServerWeatherStateEntity: constructor 0x6FE140, init 0x67B250 (+0x8B, data +0x8C), event 0x67B290 (`cmp [...+0xC], 0xDEC1A06A`), start 0x6757F0 (data +0x8D), update 0x6758A0 (data +0x80); client apply 0x8D3A70, ghost 0x8D3AE0, event 0x8DCDF0]
+[inferred: 0xDEC1A06A is `StartTransition` under the hash h = h * 33 ^ c from 5381, the hash that gives CAMP-SAVE-1's `Save` 0x7C8A0784]
+[doc: private:pseudo/0101.c:8037-8131] [doc: private:pseudo/0067.c:4471-4527] [doc: private:pseudo/0067.c:9241-9271]
+[doc: private:pseudo/006F.c:11471-11509] [doc: private:pseudo/008D.c:2933-2980] [doc: private:pseudo/008D.c:10336-10351]
+
 ## 3. Weather effects and sounds
 
 ### WTH-FX-1: Rain and snow are camera-proximity area effects
@@ -191,8 +223,9 @@ sky needs the system swap or a texture swap of the static cloud layer (no setup 
 
 ## Open questions
 
-- **Which state the engine starts in** (RNDR-WTHR-6): ActiveState, then the spawn switch, or the switch's state at
-  once; and which switch wins when several are enabled. A playtest or RE of the state entity's spawn handler.
+- **The start** is settled statically (WTH-STATE-6, round DQ7): ActiveState, then a fade to the spawn switch's
+  State. Open: the order of several enabled spawn switches (ghost arrival; a capture of a level with two), and
+  whether an entity whose data has `Enabled` false is initialised at all.
 - **The `WeatherSystem` resource's 72** (WTH-RES-1): what the engine reads it as (a size, a version); harmless while
   every system carries the same value.
 - **The two states missing components** (WTH-CLS-2): which, and whether the engine tolerates a null component.

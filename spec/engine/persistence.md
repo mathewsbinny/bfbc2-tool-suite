@@ -59,6 +59,30 @@ listener (`*(0x01566B68)`, vtable slot +0x20), whose job online is the upload to
 [exe: 0x84CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20]
 [code: opfor:src/dll/persistence.cpp:120-130]
 
+### PERS-SAVE-2: Checkpoints every 300 seconds, a finalize at round end and at each campaign save
+
+Status: **observed** · Variants: PC
+
+The server's stats manager (the server context +0x4C) keeps the players' stats objects in a tree (+0xC head, +0x10
+first); each object has a changed flag (+0x140F0). The manager hands every changed object to the stats listener
+(PERS-SAVE-1, vtable +0x20) with a second argument that says which hand-over it is:
+
+| Hand-over | Function | Argument | Switch that turns it off | When |
+|---|---|---|---|---|
+| checkpoint | 0x84CAE0 | 0 | `Server.DisableCheckpoints` | the server's update 0x86FF40 counts a timer down (its object +0x38, field +4) and at 0 checkpoints and sets it back to 300.0 seconds (0x43960000) |
+| finalize | 0x84CB90 | 1 | `Server.DisableFinalize` | round end 0x86FAD0 (with the scoring flag +0x2A, PERS-SCORE-1, and the manager present); every campaign save (CAMP-SAVE-4); four virtual callers (0x84F2E0, 0x853AA0, 0x858560, 0x858590) |
+
+Where the round's results are before a hand-over (KB Q6): in the scoring record (its running score +0x18) and, through
+the record's stats pointer, in the stats object (PERS-SCORE-2); the hand-overs pass on the stats object only. Offline
+that is the object as filled from `stats.txt` plus whatever reached it. A listener that replaces slot +0x20 sees a
+checkpoint every 300 seconds of a round and a finalize at each campaign save, besides the round's end, unless it tests
+the second argument: battlefield-opfor's host's commit detour writes `stats.txt` and ends the Onslaught round's clock on
+every call, whatever the argument.
+
+[exe: BFBC2Game.exe checkpoint 0x84CAE0 (`Server.DisableCheckpoints` 0x14334DC; listener = server +0x50; flag +0x140F0; vtable +0x20 with 0); finalize 0x84CB90 (`Server.DisableFinalize` 0x14334F8; with 1); 0x86FF40 (the timer, 1e-06 test, `mov dword [...+4], 0x43960000`); 0x86FAD0 (server +0x4C and +0x2A tested before 0x84CB90); 0x687EC0 (server +0x4C, then 0x84CB90)]
+[code: bfo:crates/opfor-host/src/persistence.rs:249-267]
+[doc: private:pseudo/0084.c:11007-11075] [doc: private:pseudo/0086.c:12090-12197] [doc: private:pseudo/0086.c:12298-12345]
+
 ## 2. What OPFOR's module does
 
 ### PERS-OPF-1: Local stats in game\stats.txt drive the game's own computation

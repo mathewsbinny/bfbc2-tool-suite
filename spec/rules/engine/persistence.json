@@ -80,6 +80,35 @@
   {
    "evidence": [
     {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe checkpoint 0x84CAE0 (`Server.DisableCheckpoints` 0x14334DC; listener = server +0x50; flag +0x140F0; vtable +0x20 with 0); finalize 0x84CB90 (`Server.DisableFinalize` 0x14334F8; with 1); 0x86FF40 (the timer, 1e-06 test, `mov dword [...+4"
+    },
+    {
+     "kind": "code",
+     "ref": "bfo:crates/opfor-host/src/persistence.rs:249-267"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0084.c:11007-11075"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0086.c:12090-12197"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0086.c:12298-12345"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-SAVE-2",
+   "status": "observed",
+   "title": "Checkpoints every 300 seconds, a finalize at round end and at each campaign save",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
      "kind": "code",
      "ref": "opfor:src/dll/persistence.cpp:104-119"
     },

@@ -2902,7 +2902,7 @@
 "decided": false,
 "depends": [],
 "id": "dq7",
-"lane": "run",
+"lane": "done",
 "note": "DQ0's round DQ7 (campaign save body, weather, audio, network, soldier questions) and a checklist of what the stock campaign needs in OPFOREngine.exe, with the fix and the verification for each; spec rules on branch dq7",
 "onRoadmap": true,
 "repo": "suite · bfo",

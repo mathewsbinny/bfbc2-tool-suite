@@ -46,6 +46,35 @@
   {
    "evidence": [
     {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe OnGround check 0xAB4750 (+0xF0, +0xC2, 0xAAD180, +0x30 / +0x04); jump test 0xAAD180 (0xAF8140, +0x60 / +0x64, +0x08, +0x2C, +0x78, [state data"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/00AB.c:3626-3875"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/00AA.c:10745-10811"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/00D4.c:556-578"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/00D4.c:12113-12123"
+    }
+   ],
+   "file": "spec/engine/soldier.md",
+   "id": "SOLD-PHYS-3",
+   "status": "observed",
+   "title": "What OnGround, InAir and Falling test before they change state",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
      "kind": "test",
      "ref": "core/tests/test_spec_probes.py::census"
     },

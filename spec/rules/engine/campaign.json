@@ -127,6 +127,93 @@
    "status": "verified",
    "title": "The campaign save: a `header` and a `body` stream in `GameSettings.bin`",
    "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe save 0x687EC0 (the map 0x531430 = +0x2C; per entry GUID 0x507480, the bool at slot +0x2C, vtable +0x88); ServerEntity base 0x68F6B0 / 0x68F650; ServerWeatherStateEntity 0x66A490 / 0x66EE90; ServerEventGateEntity 0x668D10 / 0x668CE0; ServerPlayVideoEntity 0x669C40 / 0x669C20; ServerCutsceneEntity reader 0x6A9410; context records 0x66EFF0 / 0x66F160; AI 0x5B1DF0 (markers `push 0x1926FFE0`, `push 0x911E4E5`), 0x58F770, 0x5ADA10, reader 0x599820"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0068.c:5953-6150"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0068.c:11976-12014"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0066.c:7831-7844"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0066.c:11422-11444"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0066.c:11490-11559"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/005B.c:1542-1566"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0058.c:11182-11219"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/005A.c:11497-11607"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-SAVE-2",
+   "status": "observed",
+   "title": "The body's entries: the server's entity map, each class's own record",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x574FB0 -> 0x54EDB0 (the type test against 0x1BF1800) -> 0x67E030 (the reads through slot +0x3C at 0x67E0BB; +0x54 = 1, server +0x64 = 1; 0x568710; vtable +0x84; 0x62D810 with the types 0x1BF0EB0 / 0x1BF1B80; 0x66F160; 0x599820); ServerCutsceneEntity 0x6A9410; ServerLogicUtilEntity 0x698FF0"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0054.c:13459-13496"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0067.c:12261-12371"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-SAVE-3",
+   "status": "observed",
+   "title": "The restore runs at the server's level load and does not replay what had happened",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x687EC0 (0x53F560, vtable +0x30, [+0xC0"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0068.c:5953-6150"
+    },
+    {
+     "kind": "doc",
+     "ref": "private:pseudo/0084.c:11007-11075"
+    }
+   ],
+   "file": "spec/engine/campaign.md",
+   "id": "CAMP-SAVE-4",
+   "status": "observed",
+   "title": "A save needs a living soldier and finalizes the stats",
+   "variants": "PC"
   }
  ]
 }
