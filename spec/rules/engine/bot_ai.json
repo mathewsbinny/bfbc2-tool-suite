@@ -86,7 +86,7 @@
     },
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe bot constructor 0xE6C0B0 (`param_1[5"
+     "ref": "BFBC2Game.exe bot constructor 0xE6C0B0 (the index stored at the first argument's +0x14; allocations 0xB0 / 0x160 / 0x80 / 0x1C / 4 / 0x1430 / 0x38 / 0x50 / 0x48 / 0x48 / 0x58 / 0xC / 0x40 into +0x88 / +0x84 / +0x80 / +0x74 / +0x7C / +0x6C / +0xA0 / +0xA4 / +0xB0 / +0xA8 / +0xAC / +0x00 / +0x94; +0x8C, +0x98, +0x9C zeroed); callers 0xE6C480 (`push 0xF4` per slot, count from `[0x018903EC"
     },
     {
      "kind": "doc",
@@ -799,7 +799,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe 0x86C070 (`[param_1+8"
+     "ref": "BFBC2Game.exe 0x86C070 (the record at [first argument + 8"
     }
    ],
    "file": "spec/engine/bot_ai.md",

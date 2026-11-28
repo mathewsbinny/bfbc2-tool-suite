@@ -136,7 +136,7 @@ The proxy (+0x8C), squad member (+0x90), name (+0x98) and template (+0x9C) are s
 here. The other parts' roles are not named.
 
 [exe: BFBC2Game.exe bot debug print 0xEEF450 (strings " Bot id: " 0x014A7E64, "Squad: ", " - Squad leader" 0x014A7E50, "Readiness: " 0x014A7E44, "Position: "); Kynapse bot entity 0xF27900 ("Entity_", thunk 0x109EAC0, registration 0x109DFF0); the bot +0x8C reads of BehaviourReload 0xEC6650 (target - 4, then +0xC = the AI input object), BehaviourChangePose 0xEC4EE0 / 0xEC4F60, BehaviourFire 0xEC4FE0 (+0x84 +0x88), BehaviourReload 0xEC64E0 (+0x9C +0x4C); no reference to 0xEEF450 in the image (AIS-rest byte scan for E8 / E9 targets and 32-bit pointers)]
-[exe: BFBC2Game.exe bot constructor 0xE6C0B0 (`param_1[5] = index`; allocations 0xB0 / 0x160 / 0x80 / 0x1C / 4 / 0x1430 / 0x38 / 0x50 / 0x48 / 0x48 / 0x58 / 0xC / 0x40 into +0x88 / +0x84 / +0x80 / +0x74 / +0x7C / +0x6C / +0xA0 / +0xA4 / +0xB0 / +0xA8 / +0xAC / +0x00 / +0x94; +0x8C, +0x98, +0x9C zeroed); callers 0xE6C480 (`push 0xF4` per slot, count from `[0x018903EC]` vtable +4) and 0xE6C6C0 (from 0xF10A30); 0xE6C690 (`push 0xB24`, global 0x01890324) from 0xED7C20; senses 0xE8E3E0 (+4 = bot; 0xE87BB0 x 5 with 1.0)]
+[exe: BFBC2Game.exe bot constructor 0xE6C0B0 (the index stored at the first argument's +0x14; allocations 0xB0 / 0x160 / 0x80 / 0x1C / 4 / 0x1430 / 0x38 / 0x50 / 0x48 / 0x48 / 0x58 / 0xC / 0x40 into +0x88 / +0x84 / +0x80 / +0x74 / +0x7C / +0x6C / +0xA0 / +0xA4 / +0xB0 / +0xA8 / +0xAC / +0x00 / +0x94; +0x8C, +0x98, +0x9C zeroed); callers 0xE6C480 (`push 0xF4` per slot, count from `[0x018903EC]` vtable +4) and 0xE6C6C0 (from 0xF10A30); 0xE6C690 (`push 0xB24`, global 0x01890324) from 0xED7C20; senses 0xE8E3E0 (+4 = bot; 0xE87BB0 x 5 with 1.0)]
 [doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:202-203]
 
 ### BOT-RT-7: Goals, behaviours, plans and squad behaviours
@@ -956,7 +956,7 @@ no path gives a bot score (kills, captures, objectives, assists). The per-player
 players.
 To give bots scoreboard scores, OPFOR would patch these three tests and create the records (0x8634E0) itself.
 
-[exe: BFBC2Game.exe 0x86C070 (`[param_1+8][victim id]` record, "deaths" through 0x7D27A0; killer tests at 0x86C125 / 0x86C12D; award `0x86BE20(killer, *param_1 + 0x360)`); 0x865D70 (test 0x865D7F; 0x8634E0 allocates the 0x570-byte record into +8[id]); 0x86A7E0 (test 0x86A7EE; adds to record +0x18); 0x865F60 (test 0x865F66)]
+[exe: BFBC2Game.exe 0x86C070 (the record at [first argument + 8][victim id], "deaths" through 0x7D27A0; killer tests at 0x86C125 / 0x86C12D; award 0x86BE20 called with the killer and the first argument's object + 0x360); 0x865D70 (test 0x865D7F; 0x8634E0 allocates the 0x570-byte record into +8[id]); 0x86A7E0 (test 0x86A7EE; adds to record +0x18); 0x865F60 (test 0x865F66)]
 
 ### BOT-SCO-3: Scoring offline: what the patch changes
 
