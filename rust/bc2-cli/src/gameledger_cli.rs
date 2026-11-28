@@ -6,7 +6,13 @@
 //! bfbc2 gameledger holders  <game> <file>   the owners holding a file whole, bottom first
 //! bfbc2 gameledger original <game> <file>   the path holding what was there before any install (exit 1: none)
 //! bfbc2 gameledger recover  <game> [--force]   an interrupted install / revert rolled back
+//! bfbc2 gameledger check    <game>          the ledger's health: every record, the bytes each revert needs
+//!                                           (exit 1: needs attention, in words)
+//! bfbc2 gameledger forget   <game> <owner> [--only-missing] [--dry-run]   an owner dropped, no game file touched
 //! ```
+//!
+//! Round OR15: `check` and `forget` (Project OPFOR's `ledger.py` retired; `bc2_gamefs::ledger` is the one
+//! implementation of the store).
 //!
 //! `<game>` is the game copy (the folder holding `Package`, `Dist`, `Output`); `<file>` is relative to it.
 
@@ -26,7 +32,9 @@ macro_rules! say {
 const USAGE: &str = "usage: bfbc2 gameledger status <game>\n       \
                      bfbc2 gameledger holders <game> <file>\n       \
                      bfbc2 gameledger original <game> <file>\n       \
-                     bfbc2 gameledger recover <game> [--force]\n\
+                     bfbc2 gameledger recover <game> [--force]\n       \
+                     bfbc2 gameledger check <game>\n       \
+                     bfbc2 gameledger forget <game> <owner> [--only-missing] [--dry-run]\n\
                      The game copy's install ledger (<game>\\opfor\\ledger): what each tool installed, the file from \
                      before any install, and the recovery of an interrupted install or revert.\n";
 
@@ -89,6 +97,38 @@ pub fn main(args: &[String]) -> ExitCode {
             }
             Err(e) => fail(&e.to_string()),
         },
+        ("check", None) => match led.check() {
+            Ok(r) => {
+                for l in r.lines() {
+                    say!("{l}");
+                }
+                if r.healthy() {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::from(1)
+                }
+            }
+            Err(e) => fail(&e.to_string()),
+        },
+        ("forget", Some(owner)) => {
+            let flags: Vec<&str> = a.get(3..).unwrap_or_default().to_vec();
+            if flags.iter().any(|f| !matches!(*f, "--only-missing" | "--dry-run")) {
+                eprint!("{USAGE}");
+                return ExitCode::from(2);
+            }
+            match led.forget(owner, flags.contains(&"--only-missing"), flags.contains(&"--dry-run")) {
+                Ok(p) => {
+                    for w in &p.writes {
+                        say!("{}{w}", if p.applied { "" } else { "would write: " });
+                    }
+                    for n in &p.notes {
+                        say!("{n}");
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(e) => fail(&e.to_string()),
+            }
+        }
         _ => {
             eprint!("{USAGE}");
             ExitCode::from(2)

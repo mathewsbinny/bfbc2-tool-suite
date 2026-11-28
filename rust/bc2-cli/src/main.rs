@@ -95,6 +95,8 @@ mod graft;
 mod harness;
 #[cfg(feature = "import")]
 mod import;
+// round OR15: the users' doctor and the game-folder setting (IN1)
+mod doctor_cli;
 // round EX1: LevelDiff's command line (LevelDiff.exe retired)
 mod gameledger_cli;
 // round OR1: the game-copy installer (Project OPFOR's WW2 install)
@@ -130,8 +132,11 @@ mod meshview;
 mod mapedit_cli;
 #[cfg(feature = "mods")]
 mod mods_cli;
+// round OR15: a map project made ready to share (`bfbc2 project share`)
 #[cfg(feature = "nav")]
 mod nav;
+#[cfg(feature = "mods")]
+mod project_cli;
 // round TG1: a new terrain from a seed (`bfbc2 terrain generate`)
 #[cfg(feature = "navkit")]
 mod navkit;
@@ -224,7 +229,10 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      fbrbtool unpack|pack|list|big ...   FbrbTool's commands (bfbc2-fbrb-tool\\fbrbtool.py)\n  \
      dbxedit xml|edit|import|check|roundtrip|fixslots ...   DbxEdit's commands (bfbc2-dbx-tools\\dbxedit.py)\n  \
      leveldiff <a.dbx> <b.dbx> [options]   two .dbx files compared instance by instance (LevelDiff's)\n  \
-     gameledger status|holders|original|recover <game> ...   the game copy's install ledger\n  \
+     gameledger status|holders|original|recover|check|forget <game> ...   the game copy's install ledger\n  \
+     doctor [--game <folder>]   the setup, versions, install state and the fix for each problem (anonymised)\n  \
+     settings [game-folder <folder> | --clear]   the game folder the installs write into\n  \
+     project share <project.mapedit.json> <folder>   a map project copied to share: no PC name, no paths\n  \
      install plan|apply|revert|marks <plan.json> ...   the game-copy installer: Project OPFOR's WW2 install\n  \
      install mapedit plan|apply|revert|status ...   the map export's install\n  \
      mods list|status|enable|disable|install|uninstall|verify|restore-original|migrate ...   OPFOR's mod manager\n  \
@@ -354,12 +362,22 @@ fn main() -> ExitCode {
     if first == "gameledger" {
         return gameledger_cli::main(rest);
     }
+    if first == "doctor" {
+        return doctor_cli::doctor(rest, VERSION, SOURCE_HASH);
+    }
+    if first == "settings" {
+        return doctor_cli::settings_main(rest);
+    }
     if first == "install" {
         return install_cli::main(rest);
     }
     #[cfg(feature = "mods")]
     if first == "mods" {
         return mods_cli::main(rest);
+    }
+    #[cfg(feature = "mods")]
+    if first == "project" {
+        return project_cli::main(rest);
     }
     #[cfg(feature = "menu")]
     if first == "aptpatch" {

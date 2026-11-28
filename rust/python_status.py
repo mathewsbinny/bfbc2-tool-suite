@@ -467,10 +467,10 @@ TABLE: tuple[Row, ...] = (
 
     # --- bfbc2-shader-tools
     R('bfbc2-shader-tools/pcbuild.py', LIB, 'live', '', 'renderqa, xdiff; tests 6; OPFOR 10',
-      'OPFOR in Rust stage 3',
+      'stays by decision (OR15)',
       'HLSL compiled with d3dcompiler_47 (ctypes), its cache and the database bindings; no Rust compile path'),
     R('bfbc2-shader-tools/renderqa.py', TOOL, 'partly', 'bfbc2 renderqa (argparse, errors); bc2-render (the draw)',
-      'meshview, xdiff; tests 7; OPFOR 6', 'OPFOR in Rust stage 3',
+      'meshview, xdiff; tests 7; OPFOR 6', 'stays by decision (OR15)',
       'left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets'),
     R('bfbc2-shader-tools/shaderdb.py', TOOL, 'partly',
       'bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate, shadercmd; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb',
@@ -482,7 +482,7 @@ TABLE: tuple[Row, ...] = (
       "the needs and merge commands are also a library (OR10: bc2_convert::shadercmd, from bfbc2 shaderdb, for OPFOR's "
       "console port stage 7, which no longer runs this script); left: path glue, level_meshes (DBX reading)"),
     R('bfbc2-shader-tools/xdiff.py', TOOL, 'live', 'bfbc2 xdiff (argparse, errors only)',
-      'tests 5; OPFOR 4 (xdiff.main in process)', 'OPFOR in Rust stage 3',
+      'tests 5; OPFOR 4 (xdiff.main in process)', 'stays by decision (OR15)',
       "the translator's differential test (xenos_exec, WARP draws)"),
     R('bfbc2-shader-tools/xenos.py', LIB, 'twin', 'bc2_shader::xenos (decoder, disasm)',
       'xdiff, xenos_exec, xenos_hlsl; tests 5; OPFOR 4', 'OPFOR in Rust stage 3',
@@ -550,9 +550,9 @@ TABLE: tuple[Row, ...] = (
       'a thin module over the core (the bundle cache in Rust)'),
     R('core/bfbc2core/fbrbtool.py', LIB, 'ported', 'bc2_formats::fbrb::tool; bfbc2 fbrbtool',
       'fbrbtool.py, navkit.py, hub; tests 11', 'PR1b-2', "FbrbTool's commands in process"),
-    R('core/bfbc2core/gameledger.py', LIB, 'twin', 'bc2_formats::gameledger; bfbc2 gameledger',
-      'navkit.py, texqa, stockmp pipeline / lib; tests 8; OPFOR 1 (test)', 'IN1',
-      'the Python twin of the install ledger (no install_keep / restate)'),
+    R('core/bfbc2core/gameledger.py', LIB, 'ported', 'bc2_gamefs::ledger, bc2_install::ledgerapi (bc2_native.ledger_call); '
+      'bfbc2 gameledger', 'navkit.py, texqa, stockmp pipeline / lib, OPFOR opforcore.stages / migrate; tests 8',
+      'OR15', "a client of the one install ledger (round OR15: the 913-line twin retired, OPFOR's ledger.py too)"),
     R('core/bfbc2core/level.py', LIB, 'ported', 'bc2_scene (scene_load)', '13 suite modules; tests 9', 'PR1b-1c',
       "the level loader in Rust (E1a); the Python builds the tools' Entity / Level objects"),
     R('core/bfbc2core/native.py', LIB, 'live', 'bc2-cli pyproc (RETIRED list mirrored)',
@@ -862,6 +862,32 @@ def embedded(root: str = SUITE) -> dict[str, list[str]]:
     return {k: sorted(set(v)) for k, v in sorted(out.items())}
 
 
+class Exception_(NamedTuple):
+    what: str
+    files: tuple[str, ...]  # suite paths, or 'opfor:<path>' for Project OPFOR BFBC2's
+    why: str
+
+
+# What stays Python by decision (the user, 2026-11-27: round OR15's brief), each with its files and why. A suite file
+# named here has its TABLE row's retiring 'stays by decision (OR15)' (table_problems checks it).
+EXCEPTIONS: tuple[Exception_, ...] = (
+    Exception_('the HLSL compiles', ('bfbc2-shader-tools/pcbuild.py',),
+               "Microsoft's d3dcompiler_47 compiles the shaders (through ctypes); a Rust path would call the same DLL, "
+               'so there is nothing of ours to port'),
+    Exception_('the preview tools that launch shaderview',
+               ('bfbc2-shader-tools/renderqa.py', 'bfbc2-shader-tools/xdiff.py', 'opfor:src/tools/ww2/wake_preview.py',
+                'opfor:src/tools/ww2/weapon_preview.py'),
+               'they drive shaderview.exe (D3D11) and measure its pictures for people looking at them; their command '
+               'lines and errors are Rust already (bfbc2 renderqa / xdiff)'),
+    Exception_("testrun's game launch", ('opfor:src/tools/testrun/testrun.py',),
+               'it starts the game (BFBC2Game.exe) with a temporary opfor.ini and watches it; its ini edits are Rust '
+               '(bc2_native.testrun_*); in-game tests are paused (the user, 2026-11-20)'),
+    Exception_('playtest.py', ('opfor:src/tools/testrun/playtest.py',),
+               "the unattended in-game test driver (scenarios, the virtual pad, key input, screenshots of the game's "
+               'window): it only runs beside the game'),
+)
+
+
 def folder_of(path: str) -> str:
     return path.split('/', 1)[0] if '/' in path else '(root)'
 
@@ -943,7 +969,12 @@ def markdown(rows: list[dict[str, object]], tot: dict[str, object]) -> str:
     for folder, v in by_folder.items():
         out.append(f'| `{folder}` | {v["files"]} | {v["lines"]:,} | '
                    + ' | '.join(f'{v[s]:,}' if v[s] else '' for s in STATUSES) + ' |')
-    out += ['', 'Lines by status in the folder table.', '']
+    out += ['', 'Lines by status in the folder table.', '', '## Stays Python by decision', '',
+            'The user, 2026-11-27 (round OR15): these jobs stay Python, recorded here as exceptions rather than port '
+            'work.', '(`opfor:` paths are Project OPFOR BFBC2\'s files.)', '', '| What | Files | Why |', '|---|---|---|']
+    for e in EXCEPTIONS:
+        out.append(f'| {cell(e.what)} | {", ".join(f"`{f}`" for f in e.files)} | {cell(e.why)} |')
+    out.append('')
     order = {s: i for i, s in enumerate(STATUSES)}
     for folder in by_folder:
         mine = sorted((r for r in rows if r['folder'] == folder), key=lambda r: (order[str(r['status'])], r['path']))
@@ -961,8 +992,23 @@ def markdown(rows: list[dict[str, object]], tot: dict[str, object]) -> str:
     return '\n'.join(out)
 
 
+def exception_problems(table: tuple[Row, ...] = TABLE) -> list[str]:
+    rows = {r.path: r for r in table}
+    out = []
+    for e in EXCEPTIONS:
+        for f in e.files:
+            if f.startswith('opfor:'):
+                continue
+            r = rows.get(f)
+            if r is None:
+                out.append(f'{f}: an exception ({e.what}) with no row')
+            elif r.retiring != 'stays by decision (OR15)':
+                out.append(f'{f}: an exception ({e.what}) whose row retires it in {r.retiring!r}')
+    return out
+
+
 def main(argv: list[str]) -> int:
-    problems = table_problems(python_files(), TABLE)
+    problems = table_problems(python_files(), TABLE) + exception_problems()
     if problems:
         sys.stderr.write('python_status: the table does not match the files:\n' + ''.join(f'  {p}\n' for p in problems))
         return 1
@@ -973,7 +1019,7 @@ def main(argv: list[str]) -> int:
         sys.stdout.write(md)
         return 0
     data = {'generator': 'rust/python_status.py', 'statuses': list(STATUSES), 'kinds': list(KINDS), 'files': rows,
-            'totals': tot}
+            'totals': tot, 'exceptions': [e._asdict() for e in EXCEPTIONS]}
     for name, text in ((MD, md), (JSON, json.dumps(data, indent=1, sort_keys=True) + '\n')):
         with open(os.path.join(SUITE, name), 'w', encoding='utf-8', newline='\n') as f:
             f.write(text)

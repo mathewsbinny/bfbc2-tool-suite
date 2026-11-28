@@ -6,18 +6,15 @@
 //! its record, then `ww2_common`, the DLL's markers, the shared bundles (one ledger commit each), the ini files, and the
 //! registration (package.mft, bundleManifest) last - a level registered with bundles that are not there is the
 //! start-up checksum crash; then every level verified. Every shared file goes through the install ledger as owner
-//! `wake` with the records OPFOR's Python wrote ([`Ledger::install_keep`]). The printed lines and report files are
+//! `wake` with the records OPFOR's Python wrote (`Ledger::install_keep`, through [`crate::stages`] since round OR15). The printed lines and report files are
 //! the Python's.
 
-use std::cell::Cell;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::LazyLock;
 use std::time::UNIX_EPOCH;
 
 use bc2_formats::{dbx, fbrb};
-use bc2_gamefs::ledger::{Ledger, LedgerError};
 use bc2_gamefs::sha256;
 use regex::Regex;
 
@@ -25,6 +22,7 @@ use crate::marks::Guard;
 use crate::plan::{Level, Plan};
 use crate::pytext::{basename, latin1, to_latin1};
 use crate::staged;
+use crate::stages::{Stages, Steps};
 use crate::text::{
     bm_line, bm_with_level, ini_with_key, ini_with_level, manifest_line_broken, maps_with_levels, mft_with_level,
     py_list_repr, py_repr,
@@ -47,7 +45,6 @@ static FIELD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"<item>([^<]*)</item>").expect("valid")
 });
 
-const MIGRATE_HINT: &str = r"python src\tools\opforcore\migrate.py --apply";
 /// Windows FILETIME of the Unix epoch (100 ns ticks since 1601).
 const FILETIME_EPOCH: u128 = 116_444_736_000_000_000;
 
@@ -57,11 +54,11 @@ pub struct Run<'a> {
     guard: Guard,
     game: PathBuf,
     log: &'a mut dyn FnMut(&str),
-    resumed: bool,
-    /// `BC2_INSTALL_CRASH_AT=<n>` (tests): the process ends (exit 9) before the n-th write step of the run, as a
-    /// kill would - the level copies, records and markers, and every ledger step (its journal, blobs, files, records).
-    crash_at: Option<u32>,
-    steps: Rc<Cell<u32>>,
+    /// The ledger's stage operations (round OR15: `bc2_install::stages`, which the run kept its own copies of until
+    /// then). `BC2_INSTALL_CRASH_AT=<n>` (tests): the process ends (exit 9) before the n-th write step of the run, as
+    /// a kill would - the level copies, records and markers, and every ledger step (its journal, blobs, files,
+    /// records).
+    stages: Stages,
 }
 
 impl std::fmt::Debug for Run<'_> {
@@ -164,11 +161,7 @@ impl<'a> Run<'a> {
             guard,
             game,
             log,
-            resumed: false,
-            crash_at: std::env::var("BC2_INSTALL_CRASH_AT")
-                .ok()
-                .and_then(|v| v.trim().parse().ok()),
-            steps: Rc::new(Cell::new(0)),
+            stages: Stages::new(&plan.game, Steps::from_env()),
         })
     }
 
@@ -184,129 +177,28 @@ impl<'a> Run<'a> {
         self.guard.marks(Path::new(path))
     }
 
-    fn ledger(&self) -> Ledger {
-        let mut led = Ledger::new(&self.game);
-        if let Some(at) = self.crash_at {
-            let steps = Rc::clone(&self.steps);
-            led.set_hook(Some(Box::new(move |label: &str| {
-                crash_step(&steps, at, label);
-                Ok(())
-            })));
-        }
-        led
-    }
-
     /// A write step outside the ledger (the crash hook's count).
     fn step(&self, label: &str) {
-        if let Some(at) = self.crash_at {
-            crash_step(&self.steps, at, label);
-        }
+        // an exit (BC2_INSTALL_CRASH_AT) ends the process inside; the run's steps never return a stop
+        let _ = self.stages.steps().step(label);
     }
 
-    fn rel(&self, path: &str) -> Result<String, Stop> {
-        let r = Path::new(path)
-            .strip_prefix(&self.game)
-            .map_err(|_| format!("{path}: not inside the game copy {}", self.game.display()))?;
-        bc2_gamefs::ledger::norm_rel(&r.to_string_lossy()).map_err(|e| e.to_string())
-    }
-
-    /// `Stages._ready`: an interrupted commit rolled back first (once a run), then the files' old markers refused.
+    /// `Stages._ready` (`bc2_install::stages`): an interrupted commit rolled back first (once a run), then the
+    /// files' old markers refused.
     fn ready(&mut self, paths: &[&str]) -> Result<Vec<String>, Stop> {
-        if !self.resumed {
-            let mut led = self.ledger();
-            if led.lock_present() || led.interrupted() {
-                if let Some(m) = led.live_lock() {
-                    return Err(m);
-                }
-                let done = led
-                    .recover(false)
-                    .map_err(|e| format!("an interrupted install could not be rolled back: {e}"))?;
-                if done.is_empty() {
-                    self.say("  resumed: a lock left by an interrupted install was removed (nothing had been written)");
-                }
-                for d in done {
-                    self.say(&format!("  resumed: an interrupted install was rolled back - {d}"));
-                }
-            }
-            self.resumed = true;
-        }
-        let mut out = Vec::new();
-        for p in paths {
-            let rel = self.rel(p)?;
-            let full = self.ledger().path(&rel);
-            let old = legacy_markers(&full);
-            if !old.is_empty() {
-                return Err(format!(
-                    "{} has install markers from before the install ledger ({}): migrate them first - {MIGRATE_HINT} \
-                     (nothing was written)",
-                    full.display(),
-                    old.join(", ")
-                ));
-            }
-            out.push(rel);
-        }
-        Ok(out)
+        self.stages.ready(paths, &mut *self.log)
     }
 
     /// `cc.install(owner, {path: data})`: one commit through the ledger, the owner's other files kept.
     fn install_files(&mut self, owner: &str, files: &[(&str, Vec<u8>)]) -> Result<(), Stop> {
-        let paths: Vec<&str> = files.iter().map(|(p, _)| *p).collect();
-        let rels = self.ready(&paths)?;
-        let items: Vec<(String, Vec<u8>)> = rels.into_iter().zip(files.iter().map(|(_, d)| d.clone())).collect();
-        match self.ledger().install_keep(owner, &items, true, "", false) {
-            Ok(_) => Ok(()),
-            Err(LedgerError::Refused(c)) => Err(format!(
-                "install of {owner} refused - nothing was written:\n{}",
-                c.iter().map(|x| format!("  {x}")).collect::<Vec<_>>().join("\n")
-            )),
-            Err(e) => Err(format!("install of {owner} refused: {e}")),
-        }
+        let items: Vec<(String, Vec<u8>)> = files.iter().map(|(p, d)| ((*p).to_owned(), d.clone())).collect();
+        self.stages.install(owner, &items, &mut *self.log)
     }
 
     /// `Stages.check_install`: why installing the owner's write of path would be refused.
     fn check_install(&mut self, path: &str) -> Result<Vec<String>, Stop> {
         let owner = self.plan.owner.clone();
-        let rel = self.ready(&[path])?.remove(0);
-        let led = self.ledger();
-        let mixed = led.slot_holders(&rel).map_err(|e| e.to_string())?;
-        if let Some((o, what)) = mixed.into_iter().find(|(o, _)| *o != owner) {
-            return Ok(vec![format!("{rel}: {o} holds {what} in it (revert {o} first)")]);
-        }
-        let lay = led.file_layers(&rel).map_err(|e| e.to_string())?;
-        if let Some(i) = lay.iter().position(|(o, _)| *o == owner)
-            && i + 1 != lay.len()
-            && let Some((above, _)) = lay.get(i + 1)
-        {
-            return Ok(vec![format!(
-                "{rel}: {above} was installed after {owner} - revert {above} first (an install of {owner} now \
-                 would go under a layer built on it)"
-            )]);
-        }
-        if let Some((o, c)) = lay.last() {
-            let p = led.path(&rel);
-            let now = if p.is_file() {
-                sha256::file(&p.to_string_lossy()).ok()
-            } else {
-                None
-            };
-            let wrote = c
-                .get("value")
-                .and_then(|v| v.get("sha"))
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("");
-            if now.as_deref() != Some(wrote) {
-                return Ok(vec![format!(
-                    "{rel}: changed outside the install ledger since {o} installed it ({}, {o} wrote sha {}) - put \
-                     back what {o} wrote, or revert {o}",
-                    now.map_or_else(
-                        || "missing".to_owned(),
-                        |n| format!("sha {}", n.get(..12).unwrap_or(&n))
-                    ),
-                    wrote.get(..12).unwrap_or(wrote)
-                )]);
-            }
-        }
-        Ok(Vec::new())
+        self.stages.check_install(&owner, &[path], &mut *self.log)
     }
 
     /// `refresh_ini`: opfor.ini edited since the install - the ledger's copy from before it gets those edits.
@@ -314,17 +206,14 @@ impl<'a> Run<'a> {
         let Some(new) = self.guard.ini_refresh(path)? else {
             return Ok(());
         };
-        let rel = self.ready(&[path])?.remove(0);
         let owner = self.plan.owner.clone();
-        self.ledger()
-            .restate(
-                &owner,
-                &rel,
-                false,
-                Some(new.as_bytes()),
-                "opfor.ini edited since the WW2 install",
-            )
-            .map_err(|e| e.to_string())?;
+        self.stages.restate(
+            &owner,
+            path,
+            Some(Some(new.as_bytes())),
+            "opfor.ini edited since the WW2 install",
+            &mut *self.log,
+        )?;
         self.say(&format!(
             "  {}: the copy from before the WW2 install refreshed with the edits made since (its WW2 keys at their \
              pre-WW2 values)",
@@ -833,30 +722,11 @@ impl<'a> Run<'a> {
             }
         }
         let owner = p.owner.clone();
-        let held = self.ledger().owner_files(&owner).map_err(|e| e.to_string())?;
+        let held = self.stages.installed(&owner)?;
         if !held.is_empty() {
             self.refresh_ini(&p.ini.file)?;
-            let paths: Vec<String> = held
-                .iter()
-                .map(|r| self.ledger().path(r).to_string_lossy().into_owned())
-                .collect();
-            let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
-            self.ready(&refs)?;
-            match self.ledger().uninstall(&owner, true) {
-                Ok(_) => {}
-                Err(LedgerError::Refused(c)) => return Err(format!("{owner}: not reverted - {}", c.join("; "))),
-                Err(e) => return Err(format!("{owner}: not reverted - revert of {owner} refused: {e}")),
-            }
-            match self.ledger().uninstall(&owner, false) {
-                Ok(_) => {}
-                Err(LedgerError::Refused(c)) => {
-                    return Err(format!(
-                        "revert of {owner} refused - nothing was written:\n{}",
-                        c.iter().map(|x| format!("  {x}")).collect::<Vec<_>>().join("\n")
-                    ));
-                }
-                Err(e) => return Err(format!("revert of {owner} refused: {e}")),
-            }
+            self.stages.require_revert(&owner, None, &mut *self.log)?;
+            self.stages.revert(&owner, None, &mut *self.log)?;
             for rel in &held {
                 self.say(&format!("restored {rel}"));
             }
@@ -897,15 +767,6 @@ fn text_mode(text: &str) -> String {
         text.replace('\n', "\r\n")
     } else {
         text.to_owned()
-    }
-}
-
-/// Counts a write step; the process ends (exit 9) at the n-th, before the step, as a kill would.
-fn crash_step(steps: &Cell<u32>, at: u32, label: &str) {
-    steps.set(steps.get() + 1);
-    if steps.get() == at {
-        eprintln!("BC2_INSTALL_CRASH_AT={at}: stopped before {label}");
-        std::process::exit(9);
     }
 }
 

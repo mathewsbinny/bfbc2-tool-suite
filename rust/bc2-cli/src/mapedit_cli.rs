@@ -8,11 +8,15 @@
 //!                                    install it (every check first, the registration last)
 //! bfbc2 install mapedit revert <LEVEL>... | --all --game <folder> [--work <folder>]
 //!                                    take exported levels out (every shared file back byte for byte)
-//! bfbc2 install mapedit status --game <folder>
+//! bfbc2 install mapedit status [--game <folder>]
 //!                                    the exported levels installed
+//!   --game        the game copy (round OR15: default the game-folder setting, bfbc2 settings game-folder)
 //!   --check-game  the game copy the stage is checked against (only read; default --game)
-//!   --work        where the shared patches are built (default <game>\..\work\mapedit; removed when the run ends)
+//!   --work        where the shared patches are built (default <game>\..\work\mapedit for Project OPFOR's
+//!                 <opfor>\game, else %LOCALAPPDATA%\bfbc2-tool-suite\work\mapedit; removed when the run ends)
 //! ```
+//!
+//! No Python and no Project OPFOR are needed (round OR15, IN1): a game folder and an exported stage are enough.
 //!
 //! Exit codes: 0 done; 1 refused or failed (the reason on stderr; nothing half written); 2 usage.
 //! `BC2_INSTALL_CRASH_AT=<n>` (tests) ends the run before its n-th write step, as a kill would.
@@ -62,14 +66,22 @@ pub fn main(args: &[String]) -> ExitCode {
         i += 1;
     }
     let [(_, game), (_, check), (_, work)] = opts;
-    let Some(game) = game else {
-        return usage();
+    // round OR15 (IN1): without --game, the game-folder setting (bfbc2 settings game-folder)
+    let game = match bc2_gamefs::settings::game_folder(game.as_deref(), None) {
+        Ok((g, _)) => g.to_string_lossy().into_owned(),
+        Err(e) => {
+            eprintln!("bfbc2 install mapedit: {e}");
+            return usage();
+        }
     };
     let work = work.unwrap_or_else(|| {
         let up = std::path::Path::new(&game)
             .parent()
             .map_or_else(String::new, |p| p.to_string_lossy().into_owned());
-        default_work(&up)
+        let opfor_layout = std::path::Path::new(&game)
+            .file_name()
+            .is_some_and(|n| n.eq_ignore_ascii_case("game"));
+        default_work(&up, opfor_layout)
     });
     let Some((cmd, names)) = rest.split_first() else {
         return usage();
@@ -95,8 +107,18 @@ pub fn main(args: &[String]) -> ExitCode {
     }
 }
 
-/// `<folder>\work\mapedit`.
-fn default_work(up: &str) -> String {
+/// `<folder>\work\mapedit` beside Project OPFOR's game copy (`<opfor>\game`: `opfor_layout`); for any other game copy
+/// (round OR15, IN1: a plain install of the game) `%LOCALAPPDATA%\bfbc2-tool-suite\work\mapedit`, never a folder of
+/// the suite's next to the game's own.
+fn default_work(up: &str, opfor_layout: bool) -> String {
     let base = if up.is_empty() { "." } else { up };
+    if !opfor_layout && let Some(local) = std::env::var_os("LOCALAPPDATA").filter(|v| !v.is_empty()) {
+        return std::path::PathBuf::from(local)
+            .join("bfbc2-tool-suite")
+            .join("work")
+            .join("mapedit")
+            .to_string_lossy()
+            .into_owned();
+    }
     format!("{}\\work\\mapedit", base.trim_end_matches(['\\', '/']))
 }

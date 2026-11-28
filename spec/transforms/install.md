@@ -9,8 +9,9 @@ again. Its inverse, **revert**, must give the game copy back byte for byte. Thre
   the last-writer record `<file>.opfor-last` (`<stage> <sha1>`), `-applied` records; used by the console stages,
   the WW2 install (`ww2\wake_install.py`; its game-copy side `bc2-install` since round OR1) and the map export's
   install (`mapedit\mapedit_install.py`; `bc2_install::mapedit` since round OR6);
-- the **ledger** (`opforcore\ledger.py`), per-slot contributions to shared files, which replaces whole-file backups
-  where adopted (`bfo:docs/research/opfor/PACIFIC_BOUNDARY_AUDIT.md` 6.2);
+- the **ledger** (`bc2_gamefs::ledger` since round OR15; before it also `opforcore\ledger.py`), contributions to
+  shared files recorded per owner, which replaces whole-file backups (`bfo:docs/research/opfor/PACIFIC_BOUNDARY_AUDIT.md`
+  6.2);
 - the registration order of REG-NEW-4.
 
 The suite's editor writes the game copy only through the map export's install (section 2; round OR6: in process,
@@ -18,9 +19,10 @@ before it ran OPFOR's installer: EDITOR_ARCHITECTURE 3.12, E3d).
 
 ## 0. The install ledger: one record of every install (round DF2)
 
-The game copy's install ledger (`<game>\opfor\ledger`, OPFOR's `opforcore.ledger` format `opfor-ledger/1`) is the one
-install record of every tool that writes the game copy: the suite's NavKit and stock-MP installs (whole files,
-`bc2_gamefs::ledger` and its Python twin `bfbc2core.gameledger`) and OPFOR's stages (section 1 and 4 below).
+The game copy's install ledger (`<game>\opfor\ledger`, format `opfor-ledger/1`) is the one install record of every
+tool that writes the game copy: the suite's NavKit and stock-MP installs, OPFOR's stages, the WW2 and map export
+installs and the mod manager (sections 1 - 5 below). Since round OR15 it has one implementation, `bc2_gamefs::ledger`
+(XINST-LED-2): `bfbc2core.gameledger` and OPFOR's `opforcore.stages` call it (`bc2_native.ledger_call`).
 One record per owner (`navkit:<lv>`, `stockmp:<lv>`, OPFOR's stages), the bytes each install replaced kept once by
 sha256 in `blobs\`, a lock while an operation runs, a journal while one writes.
 
@@ -39,7 +41,7 @@ independent tools applied and reverted gives every file back byte for byte. Ever
 other owners' records of other kinds are kept as they are, and a whole-file install over a file another owner holds
 slots in is refused.
 
-[code: rust/bc2-gamefs/src/ledger.rs:863-1249] [code: core/bfbc2core/gameledger.py:555-755]
+[code: rust/bc2-gamefs/src/ledger.rs:863-1249] [code: rust/bc2-install/src/ledgerapi.rs:1-40]
 [test: rust/bc2-gamefs/src/ledger_tests.rs::ds1_sequence_keeps_dices_file] [test: rust/bc2-gamefs/src/ledger_tests.rs::every_order_of_two_tools]
 [test: rust/bc2-gamefs/src/ledger_tests.rs::a_derived_layer_refuses_its_base_leaving] [test: rust/bc2-gamefs/src/ledger_tests.rs::opfors_records_are_kept]
 [test: core/tests/test_gameledger.py::python_twin] [test: core/tests/test_gameledger.py::cross]
@@ -67,7 +69,7 @@ stock-MP's `.opfor-stockmp-*`) adopts them into the ledger in one journalled com
 prior) and removes them; another tool's markers, or markers that do not describe one finished install, are refused
 in plain words before anything is written (OPFOR's migration moves the rest).
 
-[code: rust/bc2-gamefs/src/ledger.rs:1418-1531] [code: core/bfbc2core/gameledger.py:851-913]
+[code: rust/bc2-gamefs/src/ledger.rs:1340-1500]
 [test: rust/bc2-gamefs/src/ledger_tests.rs::legacy_markers_are_adopted] [test: core/tests/test_gameledger.py::legacy]
 
 ### XINST-OPF-1: OPFOR's stages are layers of the ledger, built on the file below
@@ -83,7 +85,7 @@ reverting it while a later layer sits on it, is refused in words naming the stag
 (`console_port.py --from N` reverts N..14 first). A file changed outside the ledger since its top owner wrote it is
 refused before anything is written.
 
-[code: opfor:src/tools/opforcore/stages.py:240-312] [code: opfor:src/tools/onslaught/console_common.py:191-300]
+[code: rust/bc2-install/src/stages.rs:280-400] [code: opfor:src/tools/opforcore/stages.py:200-240] [code: opfor:src/tools/onslaught/console_common.py:191-300]
 [test: opfor:src/tools/opforcore/tests/test_stages.py::test_derived_stages_revert_in_order_only]
 [test: opfor:src/tools/opforcore/tests/test_stages.py::test_ds1_sequence_keeps_dices_file]
 [test: opfor:src/tools/opforcore/tests/test_stages.py::test_every_order_of_two_independent_tools]
@@ -99,9 +101,8 @@ journal; a killed process leaves the lock and the journal, and the next run of a
 before it starts. After each, every file is the start or the expected stage, never truncated. No OPFOR tool writes a
 game file in place (a lint test).
 
-[test: opfor:src/tools/opforcore/tests/test_stages.py::test_exception_at_every_write_step_rolls_back]
 [test: opfor:src/tools/opforcore/tests/test_stages.py::test_kill_at_every_write_step_is_resumed]
-[test: opfor:src/tools/tests/test_df2_installs.py::test_a_stage_revert_interrupted_at_every_write_leaves_the_bundle_whole]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_a_stage_revert_killed_at_every_write_leaves_the_bundle_whole]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_no_tool_writes_the_game_copy_outside_the_ledger]
 
 ### XINST-OPF-3: The old markers migrate into the ledger without losing an original
@@ -118,19 +119,20 @@ its old backup byte for byte.
 
 [code: opfor:src/tools/opforcore/migrate.py:1-40]
 [test: opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_then_revert_gives_every_backup_back]
-[test: opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_is_idempotent_and_resumes]
+[test: opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_is_idempotent_and_a_kill_at_every_step_resumes]
 [test: opfor:src/tools/opforcore/tests/test_migrate.py::test_inconsistent_markers_are_refused_and_left]
 
 ### XINST-OPF-4: OPFOR and the suite read and stack on each other's records
 
 Status: **verified**
 
-OPFOR's `opforcore.ledger` and the suite's store (`bc2_formats::gameledger`, `bfbc2core.gameledger`) read each
-other's records and blobs: a NavKit layer under an OPFOR stage is refused a splice (the stage is derived), and
-audit AU4's DS-1 sequence across the three implementations ends with DICE's file.
+OPFOR's stages and the suite's tools share one store and, since round OR15, one implementation (XINST-LED-2): a
+NavKit layer under an OPFOR stage is refused a splice (the stage is derived), and audit AU4's DS-1 sequence through
+the Rust command lines and the Python clients ends with DICE's file. Records the retired implementations wrote read
+and revert (XINST-LED-3).
 
-[test: opfor:src/tools/opforcore/tests/test_suite_ledger_compat.py::test_opfor_and_the_suites_python_twin_share_one_store]
-[test: opfor:src/tools/opforcore/tests/test_suite_ledger_compat.py::test_ds1_sequence_across_python_and_rust]
+[test: core/tests/test_gameledger.py::cross] [test: core/tests/test_gameledger.py::old_disks]
+[test: opfor:src/tools/opforcore/tests/test_old_ledgers.py::test_installs_made_by_the_old_code_revert_with_the_new]
 
 
 ## 1. The stage protocol
@@ -155,7 +157,7 @@ Status: **verified**
 file before each stage is the ledger's prior, kept once by sha, and a redo keeps it. A file that matches no recorded
 state (truncated, or changed by a tool that keeps no record) is refused before anything is written.
 
-[code: opfor:src/tools/opforcore/stages.py:240-312]
+[code: rust/bc2-install/src/stages.rs:280-400] [code: opfor:src/tools/opforcore/stages.py:200-240]
 [test: opfor:src/tools/opforcore/tests/test_stages.py::test_outside_change_is_refused_and_files_created_are_removed]
 [test: opfor:src/tools/opforcore/tests/test_stages.py::test_derived_stages_revert_in_order_only]
 
@@ -169,7 +171,7 @@ since DF2 that re-run is refused while a later layer sits on it (revert that one
 forwarded `-applied` records of before DF2 are retired (audit AU4, DS-10: a forwarded record let an earlier tool's revert
 put its old backup over a later stage).
 
-[code: opfor:src/tools/opforcore/stages.py:220-238] [code: opfor:src/tools/onslaught/console_linux_base.py:46-54]
+[code: rust/bc2-install/src/stages.rs:230-280] [code: opfor:src/tools/onslaught/console_linux_base.py:46-54]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_linux_base_redo_builds_on_the_first_stage_and_a_later_stage_refuses]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_hud_source_is_the_current_bundle_unless_a_redo]
 [test: rust/bc2-install/src/onslaught/hud.rs::never_patches_twice]
@@ -184,7 +186,7 @@ Status: **verified**
 another stage's layer sits on it (naming that stage) or a file changed outside the ledger since the stage wrote it.
 `--force` of the Napisal-level tools is no longer needed (every install they make is recorded).
 
-[code: opfor:src/tools/opforcore/stages.py:240-312]
+[code: rust/bc2-install/src/stages.rs:280-400] [code: opfor:src/tools/opforcore/stages.py:200-240]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_combat_squads_revert_refused_after_an_outside_change]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_an_earlier_tools_revert_never_goes_under_a_later_stage]
 [test: opfor:src/tools/tests/test_console_common.py::test_install_and_revert_wrappers_refuse_in_words]
@@ -326,19 +328,55 @@ after each full revert the one before the first apply.
 
 ## 3. The ledger
 
-### XINST-LED-1: Any order of installs and uninstalls gives the files back
+### XINST-LED-1: The slot kinds are read and kept, never taken out
 
 Status: **verified**
 
-Each owner's contribution is to one slot of one file found by key (a `package.mft` block, a `bundleManifest` line,
-an ini key, a bundle entry, a whole file, a folder), recorded with the slot's prior value. Uninstall gives each slot
-its prior, or splices when another owner's contribution sits on top; so any order of installs and uninstalls of two
-owners gives the files back byte for byte, and a foreign writer's change to other slots survives. A conflict (a slot
-a foreign edit changed) is reported and nothing is written.
+Format `opfor-ledger/1` has slot kinds besides whole files: a `package.mft` block, a `bundleManifest` line, an ini
+key, a bundle entry, a bundle's container format and a folder (`tree`), each found by key with its prior. Only
+OPFOR's retired `opforcore.ledger` (round P1) wrote them, and only its own tests did: every install that shipped
+wrote whole files (`Stages.install`'s `file` contributions, the migration, NavKit, stock-MP, the WW2 and map export
+installs). The one ledger reads them with the retired reader's rules, shows them (`kept`), keeps them byte for byte
+through every other owner's commit (a splice rewrites only `prior` / `below`), refuses a revert of their owner in
+words (what to do instead) and a whole-file install over a file they hold, and drops them on request (`forget`, no
+file touched: what they wrote stays as if written outside the ledger).
 
-[code: opfor:src/tools/opforcore/ledger.py:1-40]
-[test: opfor:src/tools/opforcore/tests/test_ledger.py::test_six_orders_and_foreign_write] [test: opfor:src/tools/opforcore/tests/test_ledger.py::test_stacking_and_splice_records]
-[test: opfor:src/tools/opforcore/tests/test_ledger.py::test_foreign_edit_of_owned_slot_refused] [test: opfor:src/tools/opforcore/tests/test_ledger.py::test_dry_run_and_read_only]
+[inferred: OPFOR's history - commit 29a8967 "no callers yet"; every later caller of Ledger.transaction is
+stages.py's whole-file install or a test]
+[code: rust/bc2-gamefs/src/ledger_check.rs:1-200]
+[test: core/tests/test_gameledger.py::damaged] [test: core/tests/test_gameledger.py::legacy]
+[test: opfor:src/tools/opforcore/tests/test_old_ledgers.py::test_installs_made_by_the_old_code_revert_with_the_new]
+
+### XINST-LED-2: One implementation reads every ledger the three wrote, and refuses a damaged one in words
+
+Status: **verified**
+
+Until round OR15 three programs read and wrote the store: `opforcore.ledger`, `bfbc2core.gameledger` and
+`bc2_gamefs::ledger` (audit AU5, ARC-3). The format did not change, so no ledger on a user's disk is converted: the one
+implementation reads each record by the union of the three readers' rules (the format, the owner and its file name,
+`txn` and `installed`, each contribution's kind, file, slot, below, extra, the text kinds' text, a whole file's sha,
+a prior's blob, a tree's files) and refuses the first that breaks one naming the file, why and how to drop it; the
+status lists every damaged record as `corrupt` beside the healthy owners, and the check (`bfbc2 gameledger check`,
+`bfbc2 doctor`) also names every revert whose blob is missing or damaged. A record another implementation wrote stays
+byte for byte while other owners commit.
+
+[code: rust/bc2-gamefs/src/ledger_check.rs:1-130] [code: rust/bc2-gamefs/src/ledger.rs:380-395]
+[test: rust/bc2-gamefs/src/ledger_check.rs::every_reader_rule_is_kept] [test: core/tests/test_gameledger.py::damaged]
+[test: core/tests/test_gameledger.py::old_disks]
+
+### XINST-LED-3: Installs made by the retired implementations revert and recover with the one ledger
+
+Status: **verified**
+
+The retired Python implementations, run from their last commits (the suite's `1e92f152`, OPFOR's `f3a70ec`) on
+scratch game copies: their installs - derived stages stacked on one bundle, NavKit's and stock-MP's independent
+layers, a restated file - revert with the one ledger under the same rules (a derived layer refuses its base leaving,
+an independent one is spliced), every file back byte for byte; a commit either left half-written by a kill at any
+of its write steps is rolled back by the one ledger's first operation, and the next install and revert go through.
+
+[test: core/tests/test_gameledger.py::old_disks]
+[test: opfor:src/tools/opforcore/tests/test_old_ledgers.py::test_installs_made_by_the_old_code_revert_with_the_new]
+[test: opfor:src/tools/opforcore/tests/test_old_ledgers.py::test_a_commit_the_old_code_left_half_written_is_rolled_back]
 
 ## 4. The WW2 install in the suite (round OR1, "OPFOR in Rust" stage 1)
 
@@ -376,7 +414,7 @@ and this one ran revert, apply of the real staging and revert: every file identi
 two markers name their own bundle's write time), every ledger record identical but its id and time, the printed
 lines identical, and each copy after the second revert byte for byte the one before the apply.
 
-[code: rust/bc2-gamefs/src/ledger_keep.rs:83-440] [code: rust/bc2-install/src/run.rs:811-893]
+[code: rust/bc2-gamefs/src/ledger_keep.rs:83-440] [code: rust/bc2-install/src/run.rs:740-828]
 [data: round OR1 scratch proof, 2026-11-21: 37 / 74 / 37 files and 5-6 records identical per step (rust/BENCHMARKS.md OR1)]
 [test: rust/bc2-install/tests/main.rs::install_keep_orders_and_restate]
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_revert_gives_the_files_back]
@@ -562,7 +600,7 @@ lines. A run interrupted while archiving the markers resumes: the backups left m
 written, so a file is refused only when a backup's owner holds no record (before MM1, a kill after the first backup
 moved left the file refused for good, in OPFOR's Python too).
 
-[code: rust/bc2-install/src/mods/migrate.rs:123-560] [code: opfor:src/tools/opforcore/migrate.py:138-146]
+[code: rust/bc2-install/src/mods/migrate.rs:123-560]
 [test: rust/bc2-install/tests/mods.rs::migrate_plans_applies_resumes_and_reverts_to_the_backups]
 [test: rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_the_migration_is_finished]
 [data: round MM1: two scratch copies of the author's 182 affected files, one migrated by OPFOR's migrate.py, one by bfbc2 mods migrate: the plan's 36 lines and the apply's lines identical, 288 files (game files, records less their id and time, blobs, archived markers) identical with their write times]
@@ -570,11 +608,13 @@ moved left the file refused for good, in OPFOR's Python too).
 ## Open questions
 
 - Since round DF2 every whole-file install is on the ledger; the game copies with old markers are migrated by
-  `opforcore\migrate.py` (XINST-OPF-3). The slot contributions (XINST-LED-1) are used by OPFOR's add-ons only; moving
+  `opforcore\migrate.py` (XINST-OPF-3). The slot contributions (XINST-LED-1) were never written by a shipped install; moving
   the registration writes (package.mft blocks, bundleManifest lines, ini keys) onto slots is IN1's.
 - The installer is in the suite: the WW2 install's game-copy side is `bc2-install` since round OR1 (section 4), the
-  map export's install since round OR6 (section 2). IN1 builds the installer's other parts on `bc2_install::stages`
-  and `bc2_install::mapedit` (the doctor, the bug-report bundle, the game-folder setting, anonymised sharing).
-- Three implementations of the ledger format remain (audit AU5, ARC-3): `bc2_gamefs::ledger`, the suite's Python twin
-  `bfbc2core.gameledger` (NavKit's and stock-MP's Python, texqa) and OPFOR's `opforcore.ledger` (every OPFOR stage
-  but the WW2 install and the map export's install, which are Rust since OR1 / OR6).
+  map export's install since round OR6 (section 2). Round OR15 added IN1's doctor (`bfbc2 doctor`), the game-folder
+  setting (`bfbc2 settings game-folder`, which `bfbc2 install mapedit` and the editor's Install use) and anonymised
+  sharing (`bfbc2 project share`); left of IN1: the bug-report bundle, the editor's Help > Diagnostics, a small
+  "install this project" tool for players, the old export stages pruned.
+- One implementation of the ledger since round OR15 (audit AU5 ARC-3 closed, XINST-LED-2); the slot kinds
+  (XINST-LED-1) are kept and forgotten but never taken out: a revert of one would need OPFOR's slot texts and bundle
+  entry edits in Rust, for records no shipped install wrote.

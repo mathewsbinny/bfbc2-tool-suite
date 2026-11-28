@@ -28,5 +28,7 @@ pub mod ledger;
 pub mod liveness;
 pub mod meshindex;
 pub mod points;
+pub mod privacy;
+pub mod settings;
 pub mod sha256;
 pub mod workers;
