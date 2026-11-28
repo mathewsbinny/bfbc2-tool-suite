@@ -24,18 +24,18 @@ rounds NK4 and NK5.
 
 | Status | Files | Lines |
 |---|---:|---:|
-| live | 17 | 5,085 |
+| live | 17 | 5,087 |
 | partly | 19 | 13,587 |
 | twin | 57 | 22,616 |
 | ported | 23 | 3,030 |
 | retired-pending | 3 | 310 |
-| stays | 76 | 16,918 |
-| test | 192 | 53,072 |
-| **all** | **387** | **114,618** |
+| stays | 81 | 17,741 |
+| test | 193 | 53,203 |
+| **all** | **393** | **115,574** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,443 | 56 |  |  |  |  |  | 1,387 |
+| `(root)` | 2 | 1,445 | 56 |  |  |  |  |  | 1,389 |
 | `bfbc2-anim-tools` | 8 | 2,717 |  | 1,027 |  | 106 |  |  | 1,584 |
 | `bfbc2-auto-navkit` | 56 | 14,860 | 1,873 | 4,418 | 2,821 | 273 |  |  | 5,475 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,835 | 636 | 743 | 1,108 | 40 |  |  | 1,308 |
@@ -52,22 +52,23 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 18 | 11,536 | 1,657 | 3,775 | 984 | 126 |  |  | 4,994 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 20,434 | 764 |  | 2,430 | 1,909 |  |  | 15,331 |
+| `core` | 76 | 20,436 | 766 |  | 2,430 | 1,909 |  |  | 15,331 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 38 | 7,832 |  |  |  |  |  | 7,565 | 267 |
+| `rust` | 38 | 7,843 |  |  |  |  |  | 7,576 | 267 |
 | `spec` | 23 | 8,363 |  |  |  |  |  | 8,363 |  |
-| `tests` | 29 | 7,630 |  |  |  |  |  |  | 7,630 |
+| `tests` | 30 | 7,759 |  |  |  |  |  |  | 7,759 |
+| `tools` | 5 | 812 |  |  |  |  |  | 812 |  |
 
 Lines by status in the folder table.
 
 ## `(root)`
 
-2 files, 1,443 lines.
+2 files, 1,445 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 56 | library | live |  | every Python tool and test; OPFOR 2 | the last Python | the one sys.path bootstrap |
-| `run_tests.py` | 1387 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1389 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
@@ -401,12 +402,12 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 20,434 lines.
+76 files, 20,436 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `core/bfbc2core/__init__.py` | 25 | library | live |  | every Python tool; OPFOR | the last Python | the package; __version__ from VERSION |
-| `core/bfbc2core/envvars.py` | 173 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
+| `core/bfbc2core/envvars.py` | 175 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
 | `core/bfbc2core/native.py` | 566 | library | live | bc2-cli pyproc (RETIRED list mirrored) | 63 suite modules, CI workflows; tests 53; OPFOR 11 | PR1b-2 (one registry), then the last Python | finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI |
 | `core/bfbc2core/appicon.py` | 35 | library | twin | rust/app_icon.rs, bc2-editor appicon | hub (.pyw); tests 1 | proposed: with the hub | the icon lookup the Rust builds also make |
 | `core/bfbc2core/atomicio.py` | 150 | library | twin | bc2_formats' one whole-file writer (PR1a) | 17 suite modules; tests 5 | PR1b-2 | atomic whole-file writes for the Python tools |
@@ -492,7 +493,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-38 files, 7,832 lines.
+38 files, 7,843 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -531,7 +532,7 @@ Lines by status in the folder table.
 | `rust/parity_pacific_menu.py` | 462 | benchmark or parity script | stays |  | by hand | stays | round OR14's Pacific War menu edits (bc2_menu::pacific) and texts (bc2_menu::loc) against menu_install.py's Python on aptgraft.py and bc2loc.py: movies, damaged movies, the whole menu step, every language file |
 | `rust/parity_silhouette.py` | 350 | benchmark or parity script | stays |  | by hand | stays | round OR14's side silhouettes (bc2_convert::pictures::side, Pillow's polygon fill) against OPFOR's type95_icon.silhouette and Pillow: random polygons, synthetic and game meshes |
 | `rust/parity_texwrite_axes.py` | 233 | benchmark or parity script | stays |  | by hand | stays | round OR14's texwrite principal axes (bc2_convert::eigh3) against numpy.linalg.eigh, bit for bit, and the encoded blocks |
-| `rust/python_status.py` | 910 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 921 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 
@@ -567,7 +568,7 @@ Lines by status in the folder table.
 
 ## `tests`
 
-29 files, 7,630 lines.
+30 files, 7,759 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -579,6 +580,7 @@ Lines by status in the folder table.
 | `tests/test_cli_errors.py` | 74 | test | test |  | run_tests.py | Tests in Rust | Every command-line tool's error handling (no game data): each is run with input that must fail - a file tha... |
 | `tests/test_converter_edges.py` | 84 | test | test |  | run_tests.py | Tests in Rust | Edge cases of the converters and readers, without game data (quick tier). |
 | `tests/test_converter_units.py` | 321 | test | test |  | run_tests.py | Tests in Rust | Unit tests of the converters' Stage 3 fixes, without game data (quick tier): - havokport: a model group's s... |
+| `tests/test_decomp_tools.py` | 129 | test | test |  | run_tests.py | Tests in Rust | The decompiled database's tools (tools/decomp) on synthetic input only: the name extraction from spec-style... |
 | `tests/test_deep_scan_fixes.py` | 252 | test | test |  | run_tests.py | Tests in Rust | Regression tests for the suite deep scan of 2026-11-15 (no game data): - C1 stock-MP install --apply is one... |
 | `tests/test_e3o_native.py` | 652 | test | test |  | run_tests.py | Tests in Rust | Round E3o (rust/BENCHMARKS.md, "E3o"): each faster path against the code it replaced, compared exactly (eve... |
 | `tests/test_editor.py` | 89 | test | test |  | run_tests.py | Tests in Rust | The map editor's headless proof (rust\bc2-editor, rounds G1 and E2; rust\bc2-levelwrite): their tests, with... |
@@ -600,3 +602,15 @@ Lines by status in the folder table.
 | `tests/test_rust_skip.py` | 120 | test | test |  | run_tests.py | Tests in Rust | tests\test_rust.py's own rules (round TS1), on a stand-in workspace in a temp folder (no cargo run): - a cr... |
 | `tests/test_sd1_native.py` | 608 | test | test |  | run_tests.py | Tests in Rust | Round SD1: the shader database reader's last Python in the Rust core - ShaderDb.parse's dispatch (the byte... |
 | `tests/test_types.py` | 31 | test | test |  | run_tests.py | Tests in Rust | Types (quick tier): mypy, as pyproject.toml sets it up, finds nothing in any of the suite's Python folders. |
+
+## `tools`
+
+5 files, 812 lines.
+
+| File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
+|---|---:|---|---|---|---|---|---|
+| `tools/decomp/build_index.py` | 132 | build or dev script | stays |  | tools/decomp/run_dc.py | stays | the private decompiled database's SQLite index (round DC0) |
+| `tools/decomp/decomp.py` | 179 | tool entry point | stays |  | later rounds (GM1, UI0, RCX0) | stays | lookup in the private decompiled database of BFBC2Game.exe by address, name, string, caller or rule |
+| `tools/decomp/extract_names.py` | 278 | build or dev script | stays |  | tools/decomp/run_dc.py | stays | the named exe addresses of the spec and Project OPFOR's notes, for Ghidra |
+| `tools/decomp/gen_types.py` | 109 | build or dev script | stays |  | tools/decomp/run_dc.py | stays | spec/typeinfo.json as a Ghidra type plan |
+| `tools/decomp/run_dc.py` | 114 | build or dev script | stays |  | by hand | stays | builds the private decompiled database with Ghidra headless |
