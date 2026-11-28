@@ -1,8 +1,8 @@
 # Xbox 360 and PC resource formats
 
-What the converter knows about Bad Company 2's resources on the two platforms, and how each conversion was
-checked. Every rule here was learnt from, and is tested against, resources that exist on both platforms (the
-console's `mp2_common` / level bundles and the PC's `mp_common`).
+What the converter knows about Bad Company 2's resources on the two platforms, and how each conversion was checked
+(normative rules: `spec/formats/havok.md`, `texture.md`, `mesh.md`, `spec/transforms/console.md`; this file is their evidence
+record, cited by line: edit it line-neutrally). Learnt from, and tested against, resources on both platforms (the console's `mp2_common` / level bundles and the PC's `mp_common`).
 
 ## 1. HavokPhysicsData (physics)
 
