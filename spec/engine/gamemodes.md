@@ -7,7 +7,9 @@ BFBC2 has two meanings of "mode", and this file covers both:
   (`engine/gameplay.md`, GAME-MODE-1 - GAME-LAYER-5);
 - an **era**, the engine's *game mod*: BFBC2 (0) or Vietnam (1), held by the UI manager, with its own menus, music,
   HUD configuration, icon set, unlock tree, weapon presentation and licence checks. Project OPFOR BFBC2's further
-  eras (the WW2 / BF1943 "Pacific War", later BFBC1) ride on these two values today (MOD-MODE-1).
+  eras (the WW2 / BF1943 "Pacific War", later BFBC1) ride on these two values today (MOD-MODE-1); the user's ruling
+  of 2026-11-27 makes them native eras 2 and 3 instead (`engine/eras.md`, `engine/eras_n.md`; the patch set is round
+  GM2's, not yet built).
 
 For each field and each value it says what reads it in `BFBC2Game.exe` (PC build 795745, image base 0x400000), what
 DICE's data holds, which parts are pure data, and what needs code. Sections 4 and 5 turn this into a design for

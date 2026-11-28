@@ -7,7 +7,7 @@ bad data. The byte layouts are layer 1 (`formats/shaderdb.md`, `formats/terrain.
 `formats/mesh.md`, `formats/texture.md`); this file is what the engine does with them.
 
 **Sources.** Round R5 of the map editor read the game's data and reproduced its frame (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md`
-3.11; `rust/BENCHMARKS.md` "R5" and "R5c"): `rust/bc2-render` draws DICE's own compiled shaders on a Direct3D 11
+3.11; `rust/BENCHMARKS_ARCHIVE_1.md` "R5" and "R5c"): `rust/bc2-render` draws DICE's own compiled shaders on a Direct3D 11
 device and is held pixel for pixel against the suite's older C++ harness (`renderqa.py` / `shaderview.cpp`), which
 had been compared with the game's look (15 of 16 stock meshes, 33 of 33 terrain patch entries of mp_009cq, DICE's
 road strips). **No in-game capture has been taken yet**: the values the engine computes per frame (the sun's

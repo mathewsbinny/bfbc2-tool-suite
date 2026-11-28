@@ -92,7 +92,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe FUN_006EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h"
+     "ref": "BFBC2Game.exe 0x6EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h"
     },
     {
      "kind": "doc",

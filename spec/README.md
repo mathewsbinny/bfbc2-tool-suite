@@ -7,9 +7,13 @@ it, and what is not known yet is listed as an open question instead of being gue
 
 The specification is the suite's own description. The format knowledge comes from the suite's readers and writers
 (themselves built on the BC2 modding community's research, first of all Frankelstner's), their tests, the rounds
-recorded in `rust/BENCHMARKS.md`, and Project OPFOR BFBC2's research notes. **It contains no EA game data**: no
-extracted strings, textures or bytes. It describes structure, counts and observed value ranges; worked examples use
-data the suite's tests build.
+recorded in `rust/BENCHMARKS.md`, and Project OPFOR BFBC2's research notes (since round DOC1 in battlefield-opfor's
+`docs/` knowledge base, `bfo:`, and the private research repository, `private:`; section "Reading a rule"). **It
+contains no EA game data**: no extracted strings, textures or bytes. It describes structure, counts and observed value
+ranges; worked examples use data the suite's tests build.
+
+The suite's other documents (tool manuals, design, release process, audits) are indexed in `docs/README.md`; the
+narrative, plans and decisions behind the rules live in battlefield-opfor's knowledge base, which cites rules by ID.
 
 ## Scope
 
@@ -17,7 +21,7 @@ data the suite's tests build.
 |---|---|---|---|
 | 1 | Container and file formats: byte layouts, encodings, platform variants | `formats/` | round SP1 |
 | 2 | The data model: DBX types and values, instances, GUIDs and references, partitions and bundles, the level structure, registration, precedence | `model/` | round SP1 |
-| 3 | Engine subsystems: what the game does with the data (loading and the checksum, levels, gameplay and modes, AI / Kynapse, rendering, sound, networking and hosting, the menus) and the crashes it gives on bad data | `engine/` | round SP2; physics and streaming later (plan below) |
+| 3 | Engine subsystems: what the game does with the data (loading and the checksum, levels, gameplay and modes, AI / Kynapse, rendering, sound, networking and hosting, the menus) and the crashes it gives on bad data | `engine/` | round SP2, extended by rounds SPG - SPG4-rest, NET2, AIS, GM0 - GM4 (`COVERAGE.md`) |
 | 4 | The suite's transformations: each conversion and port as a function from input to output with its pre- and postconditions and the tests that prove them | `transforms/` | round SP2 started it; grown by each porting round (plan below) |
 
 The platforms and games covered:
@@ -229,6 +233,8 @@ How rules use it:
 | [engine/animation.md](engine/animation.md) | the soldier skeleton, compiled animation trees and their baked hand IK, zoom rules, kits, skinning kinds, the ragdoll (SPG2) |
 | [engine/module.md](engine/module.md) | OPFOR's game module: every patch point in `BFBC2Game.exe` (221 addresses), how hooks are checked and installed (SPG2) |
 | [engine/gamemodes.md](engine/gamemodes.md) | game modes and eras: GameModeData's readers, the exe's mode-id and game-mod sites, per-era resources, licence checks, authoring a new mode or era (GM0) |
+| [engine/eras.md](engine/eras.md) | native eras 2 (Pacific War) and 3 (BFBC1): a decision and patch range for every reader of the game mod, the menus' contract, Vietnam's checks kept (GM1) |
+| [engine/eras_n.md](engine/eras_n.md) | N native eras: every limit on the era count, the menu tracker's pages, the launcher pipe, a host era table (GM4) |
 | [engine/onslaught.md](engine/onslaught.md) | Onslaught: the mode in DICE's data, what the PC engine does with it, Napisal's and OPFOR's console ports (SPG2) |
 | [engine/streaming.md](engine/streaming.md) | the async, streaming and on-demand bundles: mounting, contents, registry, the suite (SPG2) |
 | [engine/settings.md](engine/settings.md) | options and settings: `settings.ini`, `GameSettings.ini` and its defaults partition, the engine settings objects, the command line, the options screens' getters and commands (SPG3) |
@@ -369,7 +375,7 @@ Filled in at the end of each round.
 files - 82 verified, 2 implemented, 2 observed; REG-NEW-3 corrected to E3c's behaviour; 272 rules without a test, 115
 of them new; 335 of the suite's 556 test functions cite no rule):
 
-- **Question 1, narrowed.** The level checksum that faults on bad `Objects` is Md5Buffer (FUN_006EFBC0), run when a
+- **Question 1, narrowed.** The level checksum that faults on bad `Objects` is Md5Buffer (0x6EFBC0), run when a
   level loads (LOAD-CSUM-1). Whether the start-up crash of a wrongly registered level (CSUM-CHK-1, CSUM-CHK-2) is the
   same function run over every registered level, and what it reads of `package.mft` / `bundleManifest`, is still
   open.

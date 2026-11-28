@@ -359,8 +359,10 @@ other numbers.
 
 ## Open questions
 
-- The class layouts: the executable's type registry (field offsets, defaults, enum tables) is not yet read; the
-  suite's types are learnt from data, so a field no stock instance sets to a nonzero value has an unknown type.
+- The class layouts: the executable's type registry was read by round SPG4-rest (every record's members, run-time
+  offsets and enumeration tables: `engine/typeinfo/`, RTTI-REG-1, RTTI-MEM-1), but the suite's DBX types are still
+  learnt from data, so a field no stock instance sets to a nonzero value has an unknown type to the readers; the
+  defaults and the step from the registry to the readers' types are open.
 - Whether the engine reads the scalar's first byte (always 1) or the container byte (always 0); both are kept.
 - The meaning of `exportMode` and whether any value but `All` is accepted.
 - Which Vec3 fields the engine reads the fourth word of (none is known to be read).

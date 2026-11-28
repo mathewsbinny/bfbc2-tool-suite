@@ -5,7 +5,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "FUN_00865D70 join; FUN_0085F7B0 stats defaults; 0x7E9960 stats constructor; 0x8639D0 Unlocks::compute"
+     "ref": "0x865D70 join; 0x85F7B0 stats defaults; 0x7E9960 stats constructor; 0x8639D0 Unlocks::compute"
     },
     {
      "kind": "code",
@@ -26,7 +26,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "FUN_0086BEB0 stats handler; Unlocks manager +0x12F8 buckets, +0x1324 / +0x1328 rank table"
+     "ref": "0x86BEB0 stats handler; Unlocks manager +0x12F8 buckets, +0x1324 / +0x1328 rank table"
     },
     {
      "kind": "code",
@@ -64,7 +64,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "FUN_0084CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20"
+     "ref": "0x84CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20"
     },
     {
      "kind": "code",

@@ -8,8 +8,8 @@ The Pacific War content of Project OPFOR is made from the user's own Battlefield
   `formats/havok.md` HAVOK-V461-1, `mesh.md`, `audio.md` WAVE-HDR-2). Outputs go under OPFOR's `work\`, never into a
   game folder.
 - **OPFOR's WW2 builds** (`src\tools\ww2\`): about forty build steps that make the levels (`wake_level`,
-  `ww2_level_build`), shaders, weapons, soldiers, kits, UI and sounds under `work\ww2`, run in a fixed order by
-  `rebuild_all.py`, then installed by `wake_install.py` / `ww2_level_install.py` under the stage protocol
+  `ww2_level_build`), shaders, weapons, soldiers, kits, UI and sounds under `work\ww2`, run by `rebuild_all.py`
+  (as a step graph in the suite's Rust core since round OR7, XDEP-STEP-8), then installed by `wake_install.py` / `ww2_level_install.py` under the stage protocol
   (`transforms/install.md`).
 
 Two kinds of oracle hold the port to the truth: **DICE's own ports** (BF1943 assets BFBC2 itself shipped, converted

@@ -1,8 +1,8 @@
 # Unpack and pack: `.fbrb` bundle <-> folder
 
-The suite turns a bundle into a folder of entry files and back. **Unpack** (`fbrb::unpack_path`, the command line
-`bfbc2-cli fbrb unpack`, `bfbc2core.fbrb.unpack`) takes a bundle and writes every live entry to `<folder>/<name>`
-plus `fbrb.manifest` (FBRB-MAN-1). **Pack** (`fbrb::pack_path`, `pack_many`, `bfbc2core.fbrb.pack`) takes such a
+The suite turns a bundle into a folder of entry files and back. **Unpack** (`bc2_tools::unpack::unpack_path`, the command line
+`bfbc2.exe fbrbtool unpack`, `bfbc2core.fbrb.unpack`) takes a bundle and writes every live entry to `<folder>/<name>`
+plus `fbrb.manifest` (FBRB-MAN-1). **Pack** (`bc2_gamefs::bundles::pack_path`, `pack_many`, `bfbc2core.fbrb.pack`) takes such a
 folder and writes a bundle (FBRB-MAN-2). Both were ported from FbrbTool (C#, retired in round R4) and are held to
 the bytes FbrbTool wrote, recorded before it was deleted (`core/tests/fbrbtool_golden*.json`), but where DICE's
 bytes differ from FbrbTool's (XPACK-PCK-3).
