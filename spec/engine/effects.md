@@ -115,7 +115,7 @@ texel, 780 of 780 normal images pass (602 exactly, the rest correlating at least
 [test: bfbc2-bf1943-import/tests/test_emitteratlas.py::main]
 [test: opfor:src/tools/tests/test_emitter_atlas.py::test_install_swaps_the_atlases_and_emitters]
 [code: opfor:src/tools/ww2/emitter_atlas.py:136-195]
-[doc: bfo:docs/research/opfor/EMITTER_ATLAS.md:25-47] [doc: bfo:docs/research/opfor/EMITTER_ATLAS.md:134-152]
+[doc: bfo:docs/research/opfor/EMITTER_ATLAS.md:27-49] [doc: bfo:docs/research/opfor/EMITTER_ATLAS.md:136-154]
 
 ### FX-ATL-4: The same rule binds every cross-level copy
 

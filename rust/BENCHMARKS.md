@@ -6925,3 +6925,163 @@ repository present (every `private:` range checked) and with `BFBC2_DECOMP_DB` p
 **Left as they were.** Help texts pinned by the CLI goldens keep bare document names (stockmp's `STOCK_MP_AI_PLAN.md`,
 aptcheck / aptgraft / aptrefs / apt.py's `DEVELOPMENT_NOTES`): the names still find the documents, in the KB or the
 private repository. Historical CHANGELOG / BENCHMARKS rows keep their paths, marked with the new place where useful.
+
+## OR13: OPFOR in Rust - the rest of the Onslaught console port (2026-11-27, branch `or13`, with Project OPFOR's `or13`)
+
+The plan's last round ("OR9", "The plan"): stage 14 `console_icons`, `console_shader_audit`, the Napisal-level fixes
+(`apply_ai_template`, `apply_combat_squads`, `apply_sector_offsets`), `console_port.py`'s driver and
+`console_common`'s leftovers (about 1,730 lines of OPFOR Python); and ONS4-S7, ONS_MP_004's stage 7 merge that OR10
+left open. Version 0.38.0 (OPFOR's `SUITE_REQUIRES` 0.38.0 to below 0.39.0; OR15 merged first with 0.37.0). Nothing was written to OPFOR's `game\`;
+the game never launched.
+
+### ONS4-S7: why ONS_MP_004's Dx9 merge refused, and the fix
+
+OR10 found both sides refusing ONS_MP_004's Dx9 merge ("the merged file does not read back consistently: 32 programs
+in no entry group") and suspected OR3a's self-clone accident. It was neither the merger's merge nor the clone:
+
+- The stage's input in OR10's proof is the legacy marker `level-00.fbrb.opfor-soldiers-orig` (2026-10-30 03:16). Its
+  `Levels/ONS_MP_004/Shaders/Dx9_Single.res` **already** fails the read-back check (`bfbc2 shaderdb roundtrip`: 1,901
+  entries, 24,011 programs, "32 programs in no entry group"). The merger only carried them through.
+- The markers before it tell the story: `.opfor-deps-orig` (10-30 02:10) has 1,904 entries and 24,011 programs and is
+  consistent; `.opfor-soldiers-orig` an hour later has 1,901 entries and the same 24,011 programs. The three entries
+  gone are `Objects/Objects/RoadSigns/SpeedSign_40/SpeedSign_40_Mesh/...RoadSign_Concrete / _Metal / _Signs`, taken
+  out by hand after the 0x98BD6E crash of 2026-10-30 (OPFOR 679024b: "the level loads with the entries left out"),
+  their groups with them and their 10 + 12 + 10 programs left: each of the 32 orphans' keys names one of those three
+  entries.
+- That file is byte for byte the clean `.opfor-shaders-orig` base (2026-11-13: 23,979 programs, consistent) plus those
+  32 programs and keys: every other section identical, the groups the same once renumbered.
+
+**The fix** (spec SHDB-MRG-1): a program no entry group owns is never drawn (the engine reaches programs through their
+entry's group) and no DICE database has one, so the merger's `finish` leaves the base's unowned programs out
+(`Merger::unowned_base_programs`; its shaders and tables stay, as the hand edit left them) and the report says how
+many. `shaderdb.py merge` (the Python command over the same merger) prints the same line
+(`ShaderMerger.unowned_base_programs`).
+
+**Evidence against DICE's and the user's data:**
+
+| Base | Merged with the nine donors | Result |
+|---|---|---|
+| `.opfor-soldiers-orig` (hand-edited, 24,011 programs) | before the fix | refused: 32 programs in no entry group |
+| `.opfor-soldiers-orig` | after the fix | 20,538,511 bytes, consistent; **identical** to the user's installed `Dx9_Single.res` (merged 2026-11-13 by the Python merger) |
+| `.opfor-shaders-orig` (clean, 23,979 programs) | after the fix | the same bytes (no program left out) |
+
+The fix cannot change a merge whose base has no unowned program, so it cannot change the WW2 rebuild's databases
+unless such a base exists there. Before it, such programs went through every merge (the old `finish` kept every base
+program), so a WW2 base with one would leave one in its output: `bfbc2 shaderdb roundtrip --levels` over the game
+copy's 828 Dx9 / Dx10 / Dx11 databases (the WW2 levels, the console ports, Napisal's, every stock level) finds none.
+The WW2 rebuild against the oracle (OPFOR's main checkout on its branch `or13`, merged with main; `OPFOR_TOOLKIT` a
+folder of junctions, `bfbc2-tool-suite` to this worktree merged with main and its module built from it;
+`rebuild_all.py --jobs 2 --memory-gb 4`, both build slots): all 59 steps in 11.5 min, `compare_oracle` **7,945 of
+7,945 identical** (differ 0, missing 0, extra 0), `qa_checks.py` 8 of 8; `wake_install.py --plan` then
+`compare_oracle --install` **21,149 of 21,149 identical**; the game copy's 1,582 files unchanged (path, size, time and
+sha256 before and after). Every merge of the rebuild and the install plan gives the bytes it gave before the fix.
+
+### What moved
+
+| OPFOR Python (until OR13) | Lines | now | Lines left |
+|---|---|---|---|
+| `console_icons.build` / `apply` / `names` / `coverage` / `staged_movies` (and `type95_icon.atlas_place` / `meta_with` / `silhouette` as it used them) | 403 | `bc2_install::onslaught::icons` (`bc2_native.onsport_icons`, `onsport_icons_coverage`, `onsport_icons_staged`) | 137 (command line, the ledger, the gate's verdict, scratch) |
+| `console_shader_audit` (every function) | 509 | `bc2_install::onslaught::audit` (`onsport_audit`) | 56 (command line) |
+| `apply_sector_offsets.offsets` / `reference` / `build` / `present` and the bundle edit | 267 | `bc2_install::onslaught::sectoroff` (`onsport_sectoroff_*`) | 129 (command line, the ledger, scratch) |
+| `apply_ai_template.decide` / `sources` / `edit` / `check` / `pack_parts` and the bundle edit | 340 | `bc2_install::onslaught::napisal` (`onsport_aitemplate_*`) | 151 |
+| `apply_combat_squads.plan` / `edit` / `check` and the bundle edit | 215 | `bc2_install::onslaught::squads` (`onsport_squads_*`) | 99 |
+| `console_port.main`'s plan (the stages, their command lines, the reverts, the earlier registration) | 113 | `bc2_install::onslaught::driver` (`onsport_driver_plan`, `onsport_driver_blocks`) | 86 (the ledger's calls, the backup check, the runs) |
+| `console_common`'s leftovers: `linux_level`, `suite_fbrb`, `suite_dbx`, `copy_atomic`, `xml_of`, `find`, `tree_info`, `need`, `sha_bytes`, the XML patterns | 71 | gone (nothing calls them; the stages' own copies are `onslaught::port`'s) | - |
+
+What stays Python: the command lines, the install ledger's calls (`opforcore.stages`, until OR15's one ledger),
+`drop_scratch` and `console_input.role_inputs` / `seat_edits` (thin wrappers over OR11's bindings, which the
+retired audit's twin reads).
+
+### Decided
+
+- **The icon's review picture** (`work\console_icons\preview\MRKV.png`) keeps the Python's pixels but is the `png`
+  crate's encoding, not Pillow's zlib stream: nothing reads it back (XCONS-ONS-14).
+- **The audit's placed-part lines** named the database twice (`DxDx9`, the f-string's `Dx{dx}` with `dx = 'Dx9'`);
+  they say `Dx9` (XCONS-ONS-15). The proof compares the Python's lines with that one substitution.
+- **A sector-offset or squad position that does not parse** refuses with the Python's words (`ValueError` /
+  `IndexError` texts); `Counter.most_common` and `min` keep the first of equal values, as Python's.
+
+### Proof
+
+Parity scripts in the round's scratchpad (`or13\fixes_parity.py`, `stage_parity.py`, `stages57.py`,
+`driver_parity.py`): one scratch OPFOR root per run at the same path (`C:\Programming\Projects\_rounds\or13\s\<tag>`),
+the Python twins (OPFOR f3a70ec's scripts, loaded by path with their own `console_common`) first, their files
+recorded as digests and the tree deleted, then the wrappers on the Rust at the same path (disk: one tree at a time).
+`game\` is junctions into OPFOR main's `game\` (read only) with the levels the run writes as real copies.
+
+**The Napisal-level fixes** (Napisal's ONS_MP_002 / 004 / 005GR from the user's backup `work\backups\napisal_ons_
+2026-10-29`, each level's Dist and Package `level-00.fbrb` its `.opfor-sectoroff-orig`, Napisal's own; his
+`package.mft` and path data; the user's console `ONS_MP_002.dbx`): the sector offsets, then the AI template (ONS_MP_008,
+a console port, takes its "skip"), then the squads, in the order `import_onslaught.bat` runs them, each level's
+scratch recorded and deleted before the next: **73,106 of 73,106 work and game files identical**, every printed line
+the same. Beyond the Python: ONS_MP_004's and ONS_MP_005GR's Dist and Package bundles after the two fixes are byte for
+byte the user's October install (the backup's `level-00.fbrb`).
+
+Damaged inputs (6): the Package bundle cut to half and one byte changed (sector offsets: FbrbTool's refusal), cut to
+99.5 % (the AI template), ONS_MP_004's path data missing, the console level file missing (the squads), `package.mft`
+without ONS_MP_004's block (the AI template): **6 of 6 end alike**, the same files written; the printed refusals
+differ only in a failing tool's "details:" line (the day's log under the Python, "(no log file)" under the Rust, as
+OR9 - OR12) and a missing file's exception name and OS words (`FileNotFoundError` against `OSError`).
+
+**Stage 14, the audit and the gate** (`stage_parity.py`: the level's installed bundles, stage 14's inputs after stage
+13; `work\` hard links of `build_<lv>\pc` and `console_shaders\shared`; the bundles' times kept, as `pc_pairs.txt`'s
+stamp holds them):
+
+| Level | Steps | Files compared (work and game) | Written or changed | Identical | Python / Rust |
+|---|---|---|---|---|---|
+| ONS_MP_002 | `--plan`, `--apply`, the audit, `--check-all` | 85,182 | 111 | **85,182** | 40 s / 76 s |
+| ONS_MP_004 | the audit, `--check-all` | 85,719 | 6 | **85,719** | 38 s / 44 s |
+| ONS_MP_005 | the audit, `--check-all` | 86,240 | 6 | **86,240** | 42 s / 39 s |
+| ONS_MP_008 | the audit, `--check-all` | 90,860 | 6 | **90,860** | 43 s / 36 s |
+
+Every printed line the same but the decided prefix (`DxDx9` / `Dx-`): ONS_MP_002's two movies (the Mark V's image 486,
+WeaponIcon frame, atlas box `[0.0, 0.1523, 0.9072, 0.9424]`, 12 vehicle Names labelled), the audits (ONS_MP_002, 004
+and 005 without a gap; ONS_MP_008 with 10 vehicle and 2 placed-object part gaps, mesh sets the reader does not read,
+alike), the gate (0 multiplayer levels with a skull) over every registered level. The first ONS_MP_002 run differed in
+`pc_pairs.txt` alone: its stamp holds the level bundles' times, and the parity script had copied the level's bundles
+without them for each side; with the times kept the files are identical.
+Damaged inputs (5, ONS_MP_002): `ingame-00` cut to half, `loader-00` with one byte changed (stage 14: FbrbTool's
+refusal at that bundle, after `ingame-00`'s lines in the second), `level-00` cut to half (the audit's unpack), no PC
+map unpacks (the audit's control: `StopIteration`), no shared unpacks (unpacked again from the game, 43,722 files
+written): **5 of 5 alike**, the same files written; the printed refusals differ only in the "details:" line and one
+exception's name (`ValueError: StopIteration`).
+
+**The driver**: `driver_parity.py` runs the retired `console_port.main` and the wrapper with every action recorded
+instead of done (the ledger's `installed` / `revert` / `install`, the backup check, `package.mft`'s edit, each stage's
+command line): 5 levels (the four ports and `mp_001`) x 11 restarts (`--from` none, 0 - 3, 7, 8, 13 - 15, `x`) x
+`--xbox` / `--linux` given or not x three ledger states x built or not x the backup or not x two `package.mft`
+texts, and the usage cases: **5,282 of 5,282 alike** (the same actions, lines and return or exception).
+
+**ONS_MP_004's stages 5 - 7 again** (OR10's proof, its twins from OPFOR 5f6fdac, stage 5's input
+`.opfor-soldiers-orig`): both sides now **succeed**, 98,210 of 98,210 files identical (2,023 written), 76 s / 70 s;
+the merged Dx9, Dx10 and Dx11 databases are byte for byte the user's installed ones (`work\console_shaders\
+ons_mp_004\merged`, 2026-11-13). With OR10's three levels (stage 7 consistent there already), all four console
+levels' stage 7 now reads back consistent.
+
+### Tests
+
+- `cargo test -p bc2-install --features onslaught` (54 unit tests, 14 new: the sector offsets' GUIDs and states,
+  the AI template's spawners and counts, the squads' positions and lines, the icons' references and chains, the
+  audit's instances and an unreadable mesh set as a gap, the driver's plan and Napisal's blocks), `-p bc2-formats`
+  (204; the merger's `a_base_with_programs_no_entry_owns_merges_without_them` new), `-p bc2-convert`: all pass.
+- clippy `--all-targets -D warnings` on bc2-formats, bc2-convert, bc2-install (all features), bc2-py; each of
+  `bfbc2.exe`'s 19 tool groups alone (`--no-default-features --features <g>`): clean. cargo fmt.
+- Project OPFOR: `python src\tools\tests\run_tests.py` 376 passed, 0 failed (`test_onslaught_icons` and
+  `test_onslaught_qa` keep the gate's verdict, the levels given pictures and the AI seats; the moved behaviour's tests
+  are the suite's); ruff and mypy clean on `src\tools\onslaught` and the changed tests.
+- `spec/trace.py --emit` then `--check`: 1,680 rules (SHDB-MRG-1, XCONS-ONS-14 - 17 new).
+- `python run_tests.py quick -j 2` (on the branch merged with main, TK0 included; `OPFOR_ROOT` OPFOR's main checkout):
+  139 of 140 passed in 874 s; the one failure is `native-census`, which reads OPFOR's main checkout for the callers
+  of the 14 new `onsport_*` exports: against Project OPFOR's `or13` (their callers) it passes, 430 exports, 0 without
+  a caller, and on main once OPFOR's `or13` is merged. `shaderdb-queries` needs a game copy (`OPFOR_ROOT`): in a
+  round's `_rounds` layout without it, it stops at `level:mp_008cq`.
+- After the merges with main (OR15, DOC1, TK0): clippy, the 19 groups, cargo fmt and the three crates' tests again,
+  all clean; OPFOR's tests 376 of 376.
+
+### What is left
+
+- The in-process DbxEdit / FbrbTool commands still write no tool log ("OR9", "What is left").
+- `console_input.role_inputs` / `seat_edits` and their bindings: used by nothing in OPFOR now but the retired audit's
+  twin; to go with the twins (PR1c).
+- **Unproven until a playtest**: nothing new in game - the bundles are the Python's byte for byte (ONS_MP_004's and
+  ONS_MP_005GR's Napisal fixes the user's own October bundles; ONS_MP_004's Dx9 merge the user's installed database).

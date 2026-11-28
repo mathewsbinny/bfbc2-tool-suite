@@ -409,7 +409,7 @@ suggests never reaches the engine. The native contract (ERA-NAT-1) uses DICE's f
 `BFBC2Beach`.
 
 [data: scratch dump of DICE's Package main_nav (OPFOR's work/aptgraft copy), 2026-11-27: frame labels of 438 (3), 466 (4), 477 (4); sprite 471's listener at 0x052019 - 0x0520B4 (`EA_PushByte 2`, `EA_PushByte 3`); setGameMod at 0x01AD24]
-[doc: bfo:docs/research/opfor/WW2_MENU.md:131-140]
+[doc: bfo:docs/research/opfor/WW2_MENU.md:145-154]
 
 ### ERA-UI-2: Every movie reads extern.gameMod as "1 or not"
 
@@ -615,16 +615,7 @@ Status: **inferred** · Variants: PC
 
 ## Pending playtests (in-game tests are paused)
 
-- ERA-NAT-3: a BFBC2, a Vietnam and a Pacific level in one session, each loading in its own era (icon set, HUD sounds).
-- ERA-NAT-4: switching to eras 2 and 3 offline with no session (the menu switches; no sign-in request); era 1 unchanged
-  with and without `[patches] vietnam`.
-- ERA-NAT-5: the `gameModChange` labels reaching DICE's `BFBC2143` and `BFBC2Beach` frames; no redeem pop-up outside
-  era 1.
-- ERA-SITE-2: each era's menu music, HUD stings, tips and icons from its own table entry.
-- ERA-SITE-3: the stats page, unlock grid and weapon names of an era asset; a miss falling back to BFBC2's weapons.
-- ERA-SITE-4: the offline level list filtered by `PACIFIC` and `BC1`.
-- ERA-UI-2: the main menu after a level of each era (load-time picks with no `gameModChange`).
-- ERA-RISK-3: whether the in-process server's level list drops an era's levels when its +0xB8 string is `BC2`.
+The list (each rule with the playtest that would prove it) moved to `bfo:docs/tasks/spec-task-notes.md` in round KB2.
 
 ## Open questions
 

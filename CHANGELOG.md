@@ -39,6 +39,24 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+
+- An MIT-only build: `bfbc2.exe` (bc2-cli) and the Rust module (bc2-py) built with `--no-default-features` link no
+  `bc2-xma`, the LGPL-2.1-or-later XMA2 decoder; in that build EA-XMA streams do not decode. The checks workflow's
+  `mit-only` job proves it with `cargo tree` on every push.
+
+### Changed
+
+- `bc2-xma` is behind an `xma` Cargo feature (bc2-convert's, on by default in bc2-cli and bc2-py). The published
+  `bfbc2.exe` and module are built with it, so they combine the suite's MIT code with the LGPL-2.1-or-later decoder;
+  README.md ("Licence"), RELEASING.md and the native release notes say so.
+
+## [0.38.0] - 2026-11-28
+
+Round OR13 retires the rest of Project OPFOR's Python of the console Onslaught port: OPFOR now needs this version's
+`bc2_native.onsport_icons*` / `onsport_audit` / `onsport_driver_*` / `onsport_aitemplate_*` / `onsport_sectoroff_*` /
+`onsport_squads_*`, so its `SUITE_REQUIRES` moves to 0.38.0 - 0.39.0. Round DOC1, merged before it unreleased, is in this version too.
+
 Round DOC1: Project OPFOR BFBC2's documents left it. The ones battlefield-opfor's knowledge base superseded (62)
 are cited there, and its decompiler-derived research (research/notes, the Ghidra probe scripts, the left-out RE
 documents) is cited in the private decompilation repository:
@@ -54,6 +72,29 @@ documents) is cited in the private decompilation repository:
   checkout (its root, no remote, the written folders ignored; new test `test_private_repo`), and
   `extract_names.py` reads OPFOR's `BFBC2_DECOMP_RESEARCH.md` there (`--private`).
 - New environment variable `BFBC2_BFO_ROOT`; `BFBC2_DECOMP_DB` also names where `private:` citations resolve.
+
+### Added
+
+- **The rest of the console port in Rust** (round OR13, `rust/BENCHMARKS.md` "OR13"; spec XCONS-ONS-14 - 17):
+  `bc2_install::onslaught::icons` (stage 14: the Mark V's HUD / kill-feed silhouette on round OR14's polygon fill,
+  its atlas entry and WeaponIcon frame, the checks, and the icon gate's findings over every registered level),
+  `audit` (the shader audit), `driver` (`console_port.py`'s plan: the stages a level runs, their command lines, what
+  a restart reverts, the earlier registration dropped), and the Napisal-level fixes `sectoroff` (the path data's
+  `SectorOffsets` assets), `napisal` (the campaign grunt template for DefaultSoldier AI spawners) and `squads`
+  (ONS_MP_002's combat squads). On the user's levels every work and game file identical to the retired Python's.
+
+### Fixed
+
+- **A shader merge on a base with programs no entry group owns** (spec SHDB-MRG-1): the merger leaves them out and
+  the report says how many (`base: N programs no entry group owns left out`); before, they went into the merged file
+  and its read-back check refused it. ONS_MP_004's stage 7 refused its Dx9 merge this way ("32 programs in no entry
+  group", round OR10's open question): its input held the level's Dx9 database as hand-edited on 2026-10-30 (the 40
+  km/h sign's three entries taken out after the 0x98BD6E crash, their 32 programs left). Its merge is now byte for
+  byte the user's installed database. `ShaderMerger.unowned_base_programs` tells a Python caller the count.
+
+### Changed
+
+- The shader audit names a placed part's database once (`Dx9`; it printed `DxDx9`).
 
 ## [0.37.0] - 2026-11-27
 

@@ -13,8 +13,8 @@ DICE's - dated before 2013 as the install leaves them), each partition once from
 DICE's first and Package before Dist; counted by `spec/probes/lighting.py` on 2026-11-22 unless a rule says
 otherwise. Research rounds WX0 (weather and baked lighting, 83 levels, DICE's Dx11 databases disassembled) and WX1
 (light fixtures, DICE's day / night pair: PC MP_002 against the Xbox 360 Onslaught DLC's ONS_MP_002 partition, which
-OPFOR keeps unpacked under `work\xbox_dlc`) measured the shader-side facts; their reports are in the coordinator's
-scratchpad, not in a repository, so their findings are cited as data with the round named. Nothing here was measured
+OPFOR keeps unpacked under `work\xbox_dlc`) measured the shader-side facts; their reports were not kept (a session
+scratchpad, gone by round KB2: `bfo:docs/research/rounds/README.md`), so their findings are cited as data with the round named. Nothing here was measured
 in game.
 
 ## 1. What is baked

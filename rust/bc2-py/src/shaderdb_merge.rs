@@ -143,6 +143,8 @@ pub struct ShaderMerger {
     /// The donors read last, the most recent last.
     donors: Mutex<Vec<Donor>>,
     shared: Mutex<usize>,
+    /// The base's programs no entry group owned, left out by `finish` (SHDB-MRG-1).
+    unowned: Mutex<usize>,
     /// The entry names of the merged file (`Merger.entry_names`).
     #[pyo3(get)]
     entry_names: Py<PySet>,
@@ -424,6 +426,7 @@ impl ShaderMerger {
             error_cls: error,
             donors: Mutex::new(Vec::new()),
             shared: Mutex::new(0),
+            unowned: Mutex::new(0),
             entry_names: entry_names.unbind(),
             part_names: part_names.unbind(),
             added: PyList::empty(py).unbind(),
@@ -455,6 +458,13 @@ impl ShaderMerger {
             .shared
             .lock()
             .map_err(|_| PyRuntimeError::new_err("the merger's lock is poisoned"))?)
+    }
+
+    /// The base's programs that no entry group owned, which `finish` left out (0 before `finish`; none in any of
+    /// DICE's databases: an entry taken out of the base by hand with its programs left, SHDB-MRG-1).
+    #[getter]
+    fn unowned_base_programs(&self) -> PyResult<usize> {
+        Ok(*self.unowned.lock().map_err(|_| poisoned())?)
     }
 
     /// `add_donor(donor, label)`: every donor entry of a needed mesh the base has no entry for (any, with
@@ -528,6 +538,7 @@ impl ShaderMerger {
                 &MergeError::Msg("the merge has finished: make a new merger for more".into()),
             ));
         };
+        *self.unowned.lock().map_err(|_| poisoned())? = cell.borrow_dependent().m.unowned_base_programs().len();
         let (programs, keys, groups) = match cell.borrow_dependent().m.finished() {
             Ok(db) => {
                 let groups = PyList::empty(py);

@@ -584,7 +584,7 @@ pub struct RushStage {
 }
 
 /// The Rush stages in play order, each with the state while it is played, and whether the order was ambiguous
-/// (round VW2; L1's `simulate`, `bfbc2-map-editor/placement/L1_placement_report.md` 3.2). The play starts from every
+/// (round VW2; L1's `simulate`, `bfo:docs/research/suite/L1_placement_report.md` 3.2). The play starts from every
 /// instance's `Enabled`; a stage is played while all of its counters (`MultipleTriggerEntityData`) are enabled;
 /// its M-COMs' `onDestroyed` events are followed through the event glue, applying `Enable` / `Disable` (and the
 /// target's `OnEnabled` / `OnDisabled`), never through another stage's counters. Trigger counts are not modelled

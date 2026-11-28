@@ -23,7 +23,7 @@ mode key. The menus' level lists, the server browser's rows (NET-SB-1) and the m
 is in no `LevelListQuery` item is in no menu (LEVEL-DESC-1).
 
 [exe: BFBC2Game.exe catalogue builder 0x951480 into UiManager+0xC3F34; mode keys CONQUEST, RUSH, SQRUSH, SQDM]
-[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:131-133] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:849-851]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:131-133] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1038-1040]
 
 ### MENU-EVT-1: The engine talks to the movies by events and extern getters
 
@@ -64,7 +64,7 @@ to the next node) crashed the menu unload at 0x13046DA (the Pacific War `main_na
 movie patcher attaches a frames node only when it adds frames.
 
 [exe: BFBC2Game.exe movie unload 0x1304690, fault at 0x13046DA (the first Pacific War menu install, 2026-11-06)]
-[code: bfbc2-menu-tools/aptgraft.py:1094-1104] [doc: bfo:docs/research/opfor/WW2_MENU.md:7-10]
+[code: bfbc2-menu-tools/aptgraft.py:1094-1104] [doc: bfo:docs/research/opfor/WW2_MENU.md:21-24]
 
 ## The action script DICE ships
 
@@ -541,6 +541,22 @@ pass (MENU-EVT-4 step 2) never runs in this build: an event is called in the fra
 same event reaches the movie as many times as it was sent.
 
 [exe: BFBC2Game.exe pool 0x9202D0 (+0x01, +0x02, +0x08 cleared at 0x9202E7 - 0x9202F0); getter 0x920360 (`mov byte [eax], 1` at 0x920384); round SPG2-rest5's scans: the 92 calls of 0x920360 (80 instructions after each) and every function calling 0x9299B0 or 0x929A70 (252 sites) for a store at +1, +2 or +8 of a register other than esp: only stores to other objects (0x94E9EA, 0x95B01D, 0x9644D9 ...)]
+
+### MENU-WPN-1: A weapon's name on screen comes from the shared UI config, by the weapon's Name
+
+Status: **observed** · Variants: PC
+
+A weapon's own `Name` (its `SoldierWeaponData`: `Garand`, `M1A1 Thompson`, `40mmgl`) is the key into
+`Menu/shared_config.dbx`, a `UISharedConfigAsset` in `Package/async/startup-00.fbrb`. Its `PersistentWeapon` entry for
+that name gives the `NameSID`, `DescriptionSID` and `Abbreviation` keys and the unlock picture (`Garand`: `NAME_M1`,
+"WWII M1 GARAND"); its kill-message entry gives the `PresentationSID` (`KILL_MSG_M1`, "{0:s}<WWII M1 GARAND>"). The
+stats screens group the names by `Awards/WeaponCategories.dbx` (`ABBR_M1`, "M1"). The HUD movies take the text from
+the engine (`extern.kitWeapons`, MENU-EVT-3); the weapon-name lists inside the HUD movies are debug mock data. A weapon
+whose `Name` has no entry has no text on screen, and two weapons with one `Name` show one text: a ported weapon needs
+its own entry (BF1943's Type 5 rifle grenade, `JAP_riflegrenade`, has none in OPFOR's port, and the Type 5 rifle
+shares the Garand's `Name`).
+
+[data: the startup bundle's `Menu/shared_config.dbx` (UISharedConfigAsset: the `PersistentWeapon` and kill-message entries named), `Awards/WeaponCategories.dbx`, and the English language file's NAME_M1, KILL_MSG_M1 and ABBR_M1 texts, read with `bfbc2-menu-tools/bc2loc.py`; the HUD movies' `extern.kitWeapons` reads by `bfbc2 aptrefs`; moved from the menu tools' README in round KB2]
 
 ## The HUD
 

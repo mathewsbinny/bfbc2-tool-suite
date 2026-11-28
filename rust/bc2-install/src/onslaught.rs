@@ -37,19 +37,25 @@ use std::path::Path;
 
 use regex::Regex;
 
+pub mod audit;
 pub mod cull;
 pub mod deps;
+pub mod driver;
 mod files;
 pub mod hud;
+pub mod icons;
 pub mod input;
 pub mod linux;
 pub mod loading;
 pub mod loadset;
 pub mod markv;
 pub mod mode;
+pub mod napisal;
 pub mod port;
+pub mod sectoroff;
 pub mod shaders;
 pub mod soldiers;
+pub mod squads;
 pub mod vehicles;
 
 /// What went wrong: a tool's failure (its command line and output) or a file.

@@ -1809,10 +1809,15 @@ def cmd_merge(a: argparse.Namespace) -> int:
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     open(a.out, 'wb').write(out)
     still = coverage(again, need)
+    # the base's programs no entry group owns (an entry taken out of the base by hand): left out (SHDB-MRG-1)
+    unowned = getattr(m, 'unowned_base_programs', 0)
     lines = [f'merged {a.out} (Dx{base.dx}, {len(out):,} bytes)', f'base {base.label}: {before[0]} entries, '
-             f'{before[1]} programs', *m.report,
+             f'{before[1]} programs',
+             *([f'base: {unowned} programs no entry group owns left out (an entry taken out of the file by hand, its '
+                'programs left; no DICE database has one)'] if unowned else []), *m.report,
              f'result: {len(again.entries)} entries (+{len(again.entries) - before[0]}), {len(again.programs)} '
-             f'programs (+{len(again.programs) - before[1]}), {len(again.vs)} vertex shaders (+{len(again.vs) - before[2]}), '
+             f'programs (+{len(again.programs) - (before[1] - unowned)}), {len(again.vs)} vertex shaders '
+             f'(+{len(again.vs) - before[2]}), '
              f'{len(again.ps)} pixel shaders (+{len(again.ps) - before[3]}), {len(again.params)} parameter blocks '
              f'(+{len(again.params) - before[4]})',
              'read back: consistent, writes identical bytes; every entry uses the same programs, shaders, '
@@ -1830,7 +1835,7 @@ def cmd_merge(a: argparse.Namespace) -> int:
     lines.append(f'needed names with no entry in the result: {len(nomesh)}')
     lines += ['  ' + k for k in nomesh]
     open(a.out + '.merge.txt', 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
-    print('\n'.join(lines[:len(m.report) + 5 + (1 if m.conflicts else 0)]))
+    print('\n'.join(lines[:len(m.report) + 5 + (1 if m.conflicts else 0) + (1 if unowned else 0)]))
     print(f'{len(m.added)} entries added; {len(nomesh)} needed names still have no entry; report: {a.out}.merge.txt')
     return 0
 

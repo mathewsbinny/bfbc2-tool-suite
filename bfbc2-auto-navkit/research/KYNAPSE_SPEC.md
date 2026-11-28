@@ -141,12 +141,12 @@ proven).
 
 - **The loaded level's collision world.** The tool never reads source assets; it asks the running
   engine's physics world (Havok) through five callbacks:
-  - point query – is a position inside geometry / where is the ground (`FUN_00EFE7F0`),
-  - ray cast from a point along a direction for a length – hit position and normal (`FUN_00EFE840`;
+  - point query – is a position inside geometry / where is the ground (the point-query callback at 0xEFE7F0),
+  - ray cast from a point along a direction for a length – hit position and normal (the ray-cast callback at 0xEFE840;
     used for ground height and obstacle edges),
   - capsule query with the entity radius and height – does a standing agent fit here
-    (`FUN_00EFE920`, collision model `PCMSweptSphere` for infantry),
-  - box query – the alternative volume test (`FUN_00EFE980`, used with `UseBoxApproximation`),
+    (the capsule-query callback at 0xEFE920, collision model `PCMSweptSphere` for infantry),
+  - box query – the alternative volume test (the box-query callback at 0xEFE980, used with `UseBoxApproximation`),
   - exclusion / forbidden-volume predicates supplied by the level (`ForbidPathfinding`,
     `ExcludeFromPathfinding`, water below `WaterLevelAdjustment`, `ForbidHeight`).
 - **Settings** per pathfinding type (`AI/Pathfinding/Infantry`, `…/Vehicles`): pitch, step and hole

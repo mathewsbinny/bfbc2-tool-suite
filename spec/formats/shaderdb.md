@@ -310,6 +310,25 @@ oracle.
 [test: rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_refusals_add_nothing]
 [test: bfbc2-shader-tools/tests/test_shaderdb_merge.py::main]
 
+### SHDB-MRG-1: A merge leaves out the base's programs no entry group owns
+
+Status: **verified** · Variants: PC, Xbox 360
+
+Every program of a database belongs to exactly one entry group (its key's first 16 bytes name that entry): the
+engine reaches a program only through its entry's group, so a program no group owns is never drawn. None of DICE's
+databases has one. A base edited by hand can: ONS_MP_004's Dx9 database of 2026-10-30 (the legacy marker
+`level-00.fbrb.opfor-soldiers-orig`) had the three `SpeedSign_40` entries and their groups taken out after the
+0x98BD6E crash, and their 32 programs left. The merger leaves such programs out when it finishes (their shaders and
+tables stay, as the hand edit left them) and the merge report says how many (`base: N programs no entry group owns
+left out`); before round OR13 they went through to the merged file and its read-back check refused it ("32 programs
+in no entry group"), under the Python twin as well, whose merge has been this merger since OR3a. The merge of that
+base is byte for byte the user's installed ONS_MP_004 Dx9 database, which the Python merger made on 2026-11-13 from
+a base without those programs; a base with no such program merges exactly as before.
+
+[code: rust/bc2-formats/src/shaderdb/merge.rs:970-1012] [code: rust/bc2-convert/src/shadercmd.rs:789-835]
+[test: rust/bc2-formats/src/shaderdb/merge.rs::a_base_with_programs_no_entry_owns_merges_without_them]
+[data: round OR13, 2026-11-27: ONS_MP_004's stage 7 input (opfor-soldiers-orig, 1,901 entries, 24,011 programs) merged with the nine donors gives 20,538,511 bytes identical to the user's installed Dx9_Single.res and to the merge of the clean base (.opfor-shaders-orig, 23,979 programs)]
+
 ## Render state
 
 ### SHDB-RS-1: The program's state word

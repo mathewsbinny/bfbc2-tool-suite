@@ -17,7 +17,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-culltree/README.md:53-58"
+     "ref": "bfbc2-culltree/README.md:61-66"
     }
    ],
    "file": "spec/formats/culltree.md",
@@ -49,7 +49,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-culltree/README.md:60-66"
+     "ref": "bfbc2-culltree/README.md:68-74"
     }
    ],
    "file": "spec/formats/culltree.md",
@@ -221,7 +221,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-culltree/README.md:94-105"
+     "ref": "bfbc2-culltree/README.md:102-113"
     }
    ],
    "file": "spec/formats/culltree.md",
@@ -245,7 +245,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-culltree/README.md:106-108"
+     "ref": "bfbc2-culltree/README.md:114-116"
     }
    ],
    "file": "spec/formats/culltree.md",
@@ -261,7 +261,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-culltree/README.md:110-117"
+     "ref": "bfbc2-culltree/README.md:118-125"
     }
    ],
    "file": "spec/formats/culltree.md",
@@ -277,7 +277,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-culltree/README.md:75-76"
+     "ref": "bfbc2-culltree/README.md:83-84"
     }
    ],
    "file": "spec/formats/culltree.md",
@@ -357,7 +357,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-culltree/README.md:119-133"
+     "ref": "bfbc2-culltree/README.md:127-141"
     }
    ],
    "file": "spec/formats/culltree.md",
@@ -373,7 +373,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-culltree/README.md:142-143"
+     "ref": "bfbc2-culltree/README.md:150-151"
     }
    ],
    "file": "spec/formats/culltree.md",
