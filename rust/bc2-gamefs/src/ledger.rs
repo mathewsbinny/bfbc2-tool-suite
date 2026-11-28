@@ -1,10 +1,13 @@
 //! The game copy's install ledger (round DF2): what each tool installed into the game copy, so a revert gives back
 //! exactly what was there before that tool, in any order, and an interrupted install or revert can be finished.
 //!
-//! The store is Project OPFOR's `opforcore.ledger` (format `opfor-ledger/1`), shared by every tool that writes the
-//! game copy: OPFOR's stages and the suite's NavKit and stock-MP installs (spec `transforms/install.md`, XINST-LED).
-//! This module reads and writes its **whole-file** contributions (kind `file`); records of other kinds, written by
-//! OPFOR, are kept as they are (only a contribution's `prior` / `below` is rewritten when a splice moves it).
+//! The store (format `opfor-ledger/1`) is shared by every tool that writes the game copy: OPFOR's stages, the WW2
+//! and map export installs, the mod manager, the suite's NavKit and stock-MP (spec `transforms/install.md`,
+//! XINST-LED). Since round OR15 this is its only implementation: Project OPFOR's `opforcore.ledger` was retired and
+//! `bfbc2core.gameledger` calls this one (the `check` module holds both Python readers' rules). It writes
+//! **whole-file** contributions (kind `file`); records of the slot kinds, which only OPFOR's retired ledger wrote, are
+//! read, kept as they are (only a contribution's `prior` / `below` is rewritten when a splice moves it) and forgotten
+//! on request.
 //!
 //! ```text
 //! <game>\opfor\ledger\<owner>.json   one record per owner (':' in the name is '~' in the file name)
@@ -384,50 +387,11 @@ impl Ledger {
     /// # Errors
     /// A record that cannot be read ([`LedgerError::Damaged`], naming the file).
     pub fn records(&self) -> Result<Records, LedgerError> {
-        let mut out = Records::new();
-        let rd = match fs::read_dir(&self.root) {
-            Ok(rd) => rd,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(out),
-            Err(e) => return Err(ioe(&self.root, &e)),
-        };
-        let mut names: Vec<String> = rd
-            .flatten()
-            .map(|e| e.file_name().to_string_lossy().into_owned())
-            .filter(|f| Path::new(f).extension().is_some_and(|e| e.eq_ignore_ascii_case("json")) && !f.starts_with('.'))
-            .collect();
-        names.sort();
-        for f in names {
-            let p = self.root.join(&f);
-            let bad = |why: &str| {
-                LedgerError::Damaged(format!(
-                    "damaged ledger record: {} ({why}) - restore it from a backup, or drop it with Project OPFOR's \
-                     ledger forget",
-                    p.display()
-                ))
-            };
-            let data = fs::read(&p).map_err(|e| ioe(&p, &e))?;
-            let v: Value = serde_json::from_slice(&data).map_err(|e| bad(&e.to_string()))?;
-            if s(&v, "format") != Some(FORMAT) {
-                return Err(bad("not an opfor-ledger/1 record"));
-            }
-            let owner = s(&v, "owner").unwrap_or_default().to_owned();
-            if !valid_owner(&owner) || owner_file(&owner) != f {
-                return Err(bad("its owner does not match its name"));
-            }
-            let Some(cs) = v.get("contributions").and_then(Value::as_array) else {
-                return Err(bad("no contributions list"));
-            };
-            for c in cs {
-                if s(c, "kind").is_none() || s(c, "file").is_none() {
-                    return Err(bad("a contribution without kind / file"));
-                }
-                if s(c, "kind") == Some("file") && sha_of(c.get("value").unwrap_or(&Value::Null)).is_none() {
-                    return Err(bad("a file contribution without its value's sha"));
-                }
-            }
-            out.insert(owner, v);
+        let (recs, bad) = self.scan()?;
+        if let Some((f, why)) = bad.iter().next() {
+            return Err(self.damaged(f, why));
         }
-        Ok(out)
+        Ok(recs)
     }
 
     fn contributions(rec: &Value) -> &[Value] {
@@ -584,7 +548,7 @@ impl Ledger {
                         }
                     }
                 } else {
-                    format!("{kind} (Project OPFOR's ledger)")
+                    format!("{kind} slot, kept as written (no shipped install wrote this kind)")
                 };
                 out.push(format!("{o} {file} {state}"));
             }
@@ -637,7 +601,8 @@ impl Ledger {
         for _ in 0..2 {
             match fs::OpenOptions::new().write(true).create_new(true).open(&p) {
                 Ok(mut f) => {
-                    let body = json!({ "pid": std::process::id(), "started": utc_now().0 });
+                    let body = json!({ "pid": std::process::id(), "host": crate::liveness::host_name().unwrap_or_default(),
+                                      "started": utc_now().0 });
                     if let Err(e) = f.write_all(body.to_string().as_bytes()) {
                         drop(f);
                         let _ = fs::remove_file(&p);
@@ -880,7 +845,7 @@ impl Ledger {
         let rel = s(c, "file").unwrap_or_default().to_owned();
         if s(c, "kind") != Some("file") {
             conflicts.push(format!(
-                "{rel}: {owner} holds a {} slot there, which only Project OPFOR's ledger takes out",
+                "{rel}: {owner} holds a {} slot there (Project OPFOR's slot ledger, which no shipped install used):                  it is kept as written and not taken out - drop {owner} with bfbc2 gameledger forget <game> {owner}                  (the game files stay as they are)",
                 s(c, "kind").unwrap_or("?")
             ));
             return Ok(());
@@ -1546,3 +1511,8 @@ mod keep;
 // migration's records)
 #[path = "ledger_part.rs"]
 mod part;
+
+// round OR15: the one ledger - every reader's rules, status, the health check, forget (audit AU5-ARC-3)
+#[path = "ledger_check.rs"]
+mod check;
+pub use check::{Entry, KINDS, Report, validate};

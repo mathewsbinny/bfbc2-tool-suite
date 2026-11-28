@@ -87,6 +87,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
     # paths
     'BFBC2_DBXEDIT_EXE': ('paths', "a DbxEdit.exe to record answers from (the retired exe's tests)"),
     'BFBC2_FBRBTOOL_EXE': ('paths', "an FbrbTool.exe to record answers from (the retired exe's tests)"),
+    'BFBC2_SETTINGS': ('paths', "the suite's settings file (the game folder installs write into; default "
+                                "%APPDATA%\\bfbc2-tool-suite\\settings.json)"),
     'BF1943_XENON': ('paths', "Battlefield 1943's extracted Xbox 360 data (default: beside the suite)"),
     'BF1943_SUITE_FBRB': ('paths', "the BF1943 tool suite's bundle reader folder (bf1943-fbrb-tool)"),
     'OPFOR_ROOT': ('paths', 'the Project OPFOR BFBC2 checkout (default: found beside or above the suite)'),

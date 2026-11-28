@@ -295,22 +295,26 @@ seeded with them:
 3. **Caches** keyed by their sources: `install_*.pkl` (untracked, XDEP-STEP-3), `material_grid*\effects_cache.pickle`
    and `grime_refs.json`.
 
-Since round WW2-ORC1 (2026-11-23), `rebuild_all.EXTERNAL_INPUTS` declares (1) and (2), 14 paths, each with where it
+Since round WW2-ORC1 (2026-11-23), `rebuild_all.EXTERNAL_INPUTS` declares (1) and (2), 14 paths (6 since round OR15: the ports are a step's), each with where it
 comes from. A run checks them at start and stops (exit 2) on a missing one, naming its source; `--without-inputs`
 runs anyway, for the first rebuild of an empty `work\ww2` (then the plan, then a rebuild). `--hash`, `--qa` and
 `--dry` do not stop. The caches are left out of the hashes (`rebuild_all.CACHES`, XDEP-STEP-6). A rebuild from a
 `work\ww2` seeded with only these inputs (599 files) gives the oracle, 7,945 of 7,945.
 
-Not done (proposal, for the user): move the plan's porting into the rebuild as its own step, which would break the
-cycle. Today the plan both ports (`install_ports*`, the vegetation staging) and builds the install staging. A step
-`wake_install.py --ports` before `wake_translate` (and each level's chain) would write only the ports from the
-rebuild's outputs. The staging would become a step's output, the cycle would become an order, and an empty
-`work\ww2` would rebuild with only the hand-placed files. That needs proof that the ports read nothing the later
-steps write (`wake_translate`, `emitter_atlas` and the level builds read them).
+Since round OR15 the plan's porting is a rebuild step of its own: `wake_install.py --ports` after `material_grid`
+(the last OURS producer; its `build_roots` leaves the ports out) and before `wake_translate`, and
+`ww2_level_install.py <lv> --ports-only` before each level's chain. Each writes the ports (`install_ports\`,
+`install_ports_<lv>\`: the missing resources of our partitions, `PORT_PARTS`' partitions, the meshes' shader plans)
+from the rebuild's outputs, as the plan's `build()` ports them, so the ports are no longer declared inputs; the plan
+ports again from the same outputs (the same bytes). Left of the cycle: the levels' vegetation staging
+(`install_<lv>\level\objects\vegetation`, read by `tree_billboards`), still the plan's. The ports stay out of the
+rebuild's hashes (they are the install oracle's, `INSTALL_STAGING`); whether they read nothing a later step writes
+is proven by the OR15 rebuild: the ports read every OURS root, `wake` among them, before `wake_translate` and
+`wake_sky` write it, and the rebuild still gives the oracle's 7,945 files and the plan the install oracle's 21,149.
 
 [data: OPFOR's 55 step records of the rebuild of 2026-11-22 / 23 joined with every step's outputs: inputs under work\ww2 that no step writes, by folder (install_ports, install_ports_<lv>, install_<lv>\level\objects\vegetation, the caches); a rebuild from a work\ww2 seeded with fonts\, weapon_icons\confirmed, install_ports\, install_ports_<lv>\ and install_<lv>\level\objects\vegetation only (599 files, round WW2-ORD1, 2026-11-23) ran all 55 steps in one pass]
 [data: round WW2-ORC1, 2026-11-23: a rebuild from a work\ww2 seeded with the 14 declared inputs (599 files): 55 steps in 19.0 min, 7,945 files, --changed --dry afterwards 0 of 55; the same 7,945 digests as OPFOR's main checkout after its relics were moved]
-[code: opfor:src/tools/ww2/rebuild_all.py:198-219] [code: opfor:src/tools/ww2/rebuild_all.py:609-619]
+[code: opfor:src/tools/ww2/rebuild_all.py:128-160] [code: opfor:src/tools/ww2/rebuild_all.py:205-225] [code: opfor:src/tools/ww2/wake_install.py:2205-2220]
 [test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_external_inputs_cover_the_hand_placed_files_and_the_plan_staging]
 [test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_a_run_stops_on_a_missing_external_input_unless_told]
 
@@ -497,7 +501,7 @@ The same records gave a step graph in which no level's chain waits for another's
 - Edges held outside the string table: measured by round SPG3-rest (XDEP-RES-2). Left: the 70 voice-over waves no
   bank names, the resources' names that resolve nowhere (most are their own entry names), and the types read
   only as strings (Havok data, animation trees and the soot and water meshes held no asset names).
-- Whether the rebuild should own the install plan's porting (XDEP-STEP-5: proposed, not done), or the plan's
-  staging should stay a declared external input.
+- Whether the levels' vegetation staging (XDEP-STEP-5's last plan output a rebuild reads) should become a step's
+  output too, as the ports did in round OR15.
 - The stale records of steps renamed since (`ww2_level_build.py <level>` without its parts) are ignored by the probe;
   the runner should prune them.

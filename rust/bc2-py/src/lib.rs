@@ -85,6 +85,7 @@ mod granny;
 mod harness;
 mod importer;
 mod kymesh;
+mod ledger;
 mod loc;
 mod menuart;
 mod menuedits;
@@ -480,6 +481,9 @@ mod bc2_native {
     // round OR7: OPFOR's WW2 rebuild as a step graph (rebuild_all's runner, stepstamps' decisions: bc2_install::rebuild)
     #[pymodule_export]
     use super::rebuild::{rebuild_derive, rebuild_graph, rebuild_run};
+    // round OR15: the one install ledger (bc2_install::ledgerapi) for bfbc2core.gameledger and opforcore.stages
+    #[pymodule_export]
+    use super::ledger::ledger_call;
     // round OR12: the console port's stages 11 - 13 (console_cull / console_loading / console_hud)
     #[pymodule_export]
     use super::onsport_late::{onsport_cull, onsport_hud, onsport_hud_movie, onsport_loading};

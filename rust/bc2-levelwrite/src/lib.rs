@@ -55,6 +55,7 @@ pub mod rules;
 pub mod rushstage;
 pub mod schema;
 pub mod shaders;
+pub mod share;
 pub mod site;
 pub mod terrainedit;
 pub mod terrainpaint;

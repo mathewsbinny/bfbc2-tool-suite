@@ -233,8 +233,15 @@ pub fn install_command(opfor: &Path, step: &str, target: &str) -> Vec<String> {
         step.to_owned(),
         target.to_owned(),
         "--game".to_owned(),
-        opfor.join("game").display().to_string(),
+        install_game(opfor).display().to_string(),
     ]
+}
+
+/// The game copy the Install writes into (round OR15, IN1): the game-folder setting (`bfbc2 settings
+/// game-folder`) when there is one, else Project OPFOR's game folder.
+#[must_use]
+pub fn install_game(opfor: &Path) -> PathBuf {
+    bc2_gamefs::settings::game_folder(None, Some(opfor)).map_or_else(|_| opfor.join("game"), |(g, _)| g)
 }
 
 /// One step of the map export's install, in process (round OR6: [`bc2_install::mapedit`], what OPFOR's
@@ -244,7 +251,7 @@ pub fn install_command(opfor: &Path, step: &str, target: &str) -> Vec<String> {
 #[must_use]
 pub fn install_step(opfor: &Path, step: &str, target: &str) -> (bool, String) {
     use bc2_install::mapedit::{Game, Installer};
-    let game = opfor.join("game").display().to_string();
+    let game = install_game(opfor).display().to_string();
     let work = opfor.join("work").join("mapedit").display().to_string();
     let mut lines: Vec<String> = Vec::new();
     let r = {

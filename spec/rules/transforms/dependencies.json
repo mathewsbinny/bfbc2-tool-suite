@@ -253,11 +253,15 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:198-219"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-160"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:609-619"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:205-225"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2205-2220"
     },
     {
      "kind": "test",

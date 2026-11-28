@@ -94,20 +94,17 @@ def stockmp_rollback(c, work):
         open(os.path.join(out, rel), 'wb').write(b'new ' + rel.encode())
         open(os.path.join(game, rel), 'wb').write(b'original ' + rel.encode())
     write_build_report(pipeline, paths)
-    real = os.replace
-    calls = []
-
-    def failing_replace(a, b):
-        # the Package file's move over its target fails (a lasting lock): Dist is already in by then (round DF2: the
-        # install ledger's journal puts it back)
-        if b.replace(os.sep, '/').endswith('Package/level.fbrb'):
-            calls.append(a)
-            raise PermissionError('locked')
-        return real(a, b)
+    # the Package file's move over its target fails (a lasting lock: a handle open on it, as the game holds its
+    # bundles; the install ledger is the suite's Rust since round OR15, so the lock is a real one, not a patched
+    # os.replace): Dist is already in by then and the ledger's journal puts it back
     err = io.StringIO()
-    with (unittest.mock.patch.object(gameledger.os, 'replace', failing_replace),
-          contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err)):
-        code = stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--apply'])
+    held = open(os.path.join(game, 'Package', 'level.fbrb'), 'rb')  # noqa: SIM115 (held for the install)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--apply'])
+    finally:
+        held.close()
+    calls = [err.getvalue()] if 'level.fbrb' in err.getvalue() else []
     left = sorted(os.path.relpath(os.path.join(d, f), game).replace(os.sep, '/') for d, ds, fs in os.walk(game)
                   for f in fs if 'opfor' not in os.path.relpath(d, game).split(os.sep))
     c.check(code == 1 and calls and 'nothing changed' in err.getvalue(), 'stock-MP install: the failure is reported, '

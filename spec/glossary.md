@@ -173,7 +173,7 @@ Terms as the specification uses them. The rule that defines a term in full is na
 | recorded golden | a retired Python or C# tool's answers, recorded before it was deleted: the parity oracle of the Rust ports |
 | stage protocol | OPFOR's install bookkeeping: `<file>.opfor-<stage>-orig` backups, last-writer records, atomic writes (XINST-STG-1 to XINST-STG-5) |
 | last writer | the stage whose record names a shared file's current sha1; only it may rebuild from its backup or revert (XINST-STG-3, XINST-STG-4) |
-| ledger | opforcore's per-slot install records, giving files back byte for byte in any order of installs and uninstalls (XINST-LED-1) |
+| ledger | the game copy's install records (bc2_gamefs::ledger): each owner's whole files stacked with what was there before, giving files back byte for byte in any order of installs and uninstalls (XINST-GL-1, XINST-LED-2) |
 | stage (map export) | the folder `mapexport build` writes: the bundles, `stage.json`, `report.txt`, `registration.txt`; `mapexport check` proves it (XEXP-CHK-1) |
 | closure (export) | the walk of the partitions a new level names; what does not resolve is copied into the level's bundle, never registered (XEXP-CLO-1) |
 | reslot | the export's step giving moved or duplicated objects new exclusive cull-tree leaves (XCULL-RES-1) |

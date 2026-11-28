@@ -28,6 +28,63 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-27
+
+Round OR15 makes the install ledger one implementation (audit AU5-ARC-3): `bfbc2core.gameledger`'s Python twin is
+retired - the module is now a client of `bc2_gamefs::ledger` through `bc2_native.ledger_call` - and Project OPFOR's
+own `opforcore\ledger.py` with it, so OPFOR needs this version's `ledger_call`: its `SUITE_REQUIRES` moves to
+0.37.0 - 0.38.0. The store's format (`opfor-ledger/1`) did not change; every ledger the three implementations
+wrote reads, reverts and recovers. With IN1's first pieces: `bfbc2 doctor`, a game-folder setting, the level
+installer with no Python and no OPFOR needed, and `bfbc2 project share`.
+
+### Added
+
+- **The one install ledger** (round OR15, `rust/BENCHMARKS.md` "OR15"; spec XINST-LED-1 - 3):
+  - `bc2_gamefs::ledger::validate`: every rule either retired Python reader refused a record by, and this crate's own;
+    a damaged record is refused in words (which file, why, `bfbc2 gameledger forget <game> <owner>` to drop it),
+    `Ledger::scan` reports them all;
+  - `Ledger::status_entries` (OPFOR's per-contribution states: ok / buried / drift / missing / kept / corrupt /
+    interrupted), `Ledger::check` (the records, the blobs every revert needs, the journal, the lock), `Ledger::forget`
+    and `Ledger::forget_under` (an owner dropped, no game file touched; a damaged record too);
+  - `bc2_install::ledgerapi::call` and `bc2_native.ledger_call(game, root, op, args, datas)`: the ledger's and
+    OPFOR's stage operations as one JSON call, for `bfbc2core.gameledger` and `opforcore.stages`;
+  - `bc2_install::stages`: the rest of `opforcore.stages` (`resume`, `owners`, `is_top`, `before`, `original`,
+    `before_path`, `restated`, `install_with` with `derived` / `keep_others` / `note` / `dry_run`, `check_revert`,
+    `restate`, `forget`, `forget_under`, `status`, `game_of`, a ledger folder of its own for tests);
+  - `bfbc2 gameledger check <game>` and `bfbc2 gameledger forget <game> <owner> [--only-missing] [--dry-run]`.
+- **`bfbc2 doctor [--game <folder>] [--opfor <folder>]`** (IN1): the suite's version and source fingerprint, the
+  editor binaries, the settings, the game folder and where it came from, the game's executable fingerprint, whether
+  the game runs, the install ledger's health, and the fix for each problem in plain words (exit 1 when there is one).
+  Anonymised (`bc2_gamefs::privacy`): no PC name, no user name, the profile folder as `%USERPROFILE%`.
+- **`bfbc2 settings [game-folder <folder> | --clear]`** (IN1, `bc2_gamefs::settings`): the game copy installs write
+  into, kept in `%APPDATA%\bfbc2-tool-suite\settings.json` (`BFBC2_SETTINGS`: another file); a folder that is not a
+  copy of the game is refused.
+- **`bfbc2 project share <project.mapedit.json> <empty folder>`** (IN1, `bc2_levelwrite::share`): a map project
+  copied to give to others - the edits' authors numbered (`author 1`, ...), every absolute path cut to its file name,
+  the PC's and user's names replaced, the kept files and stroke tiles beside it, the autosave and the lock left out;
+  refused in words when the copy would still name a place or a person.
+- `PYTHON_STATUS.md` gets "Stays Python by decision": the HLSL compiles (d3dcompiler), the preview tools that launch
+  shaderview, testrun's game launch and `playtest.py` (`rust/python_status.py`'s `EXCEPTIONS`, checked against the
+  table).
+
+### Changed
+
+- `bfbc2core.gameledger` is a client of the Rust ledger: the same `Ledger` (`install`, `uninstall`, `holders`,
+  `owner_files`, `original`, `before`, `status`, `recover`), `adopt_legacy` and `legacy_markers`, plus `entries`,
+  `check`, `forget` and `call`; it needs the module (`NativeMissing` without it).
+- The WW2 install's run (`bc2_install::run`) uses `bc2_install::stages` instead of its own copies of the stage
+  operations (`ready`, `install`, `check_install`, `restate`, the revert's checks): the same lines and records.
+- `bfbc2 install mapedit`: `--game` defaults to the game-folder setting; for a game copy outside Project OPFOR the
+  shared patches are built in `%LOCALAPPDATA%\bfbc2-tool-suite\work\mapedit`. The map editor's Install writes into
+  the setting's game folder when there is one.
+- The ledger's lock records the host as OPFOR's did, so a lock from another PC is never taken for a stale one.
+
+### Removed
+
+- `bfbc2core.gameledger`'s Python implementation (913 lines): `Ledger.hook`, `Interrupt`, `Adopt`, `norm_rel`,
+  `valid_owner`, `legacy_refusal` and the private helpers; a failed write rolled back in the same run is the Rust's
+  own test (`bc2_gamefs::ledger::tests::an_interruption_at_every_write_step`).
+
 ## [0.36.0] - 2026-11-27
 
 Round OR10 retires Project OPFOR's Python of the console Onslaught port's stages 5 - 7: OPFOR now needs this
