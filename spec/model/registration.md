@@ -141,7 +141,7 @@ whose registration misses a kind, names one twice, or targets a missing bundle.
 [code: rust/bc2-levelwrite/src/export.rs:563-601] [code: rust/bc2-levelwrite/src/export.rs:1536-1571]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:843-851]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1052-1060]
 
 ### REG-NEW-2: A new name only
 
@@ -151,7 +151,7 @@ A new level's name must not be a level of the game copy (no `levels/<lv>/level-0
 must not already be a `package.mft` source of another tool's level. Its id is `Levels/<LV>` with letters, digits and
 `_`.
 
-[code: rust/bc2-levelwrite/src/export.rs:649-660] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:835-838]
+[code: rust/bc2-levelwrite/src/export.rs:649-660] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1044-1047]
 
 ### REG-NEW-3: Voice-over: the donor's blocks, no bundle of its own
 
@@ -163,7 +163,7 @@ level, their sources are absent and their targets are the set's common voice-ove
 (SND-VO-3); a WW2 donor's own `vo/en-00` bundle is staged byte for byte and installed with the level. (Corrected in
 round SP2: the rule first said a new level registers no voice-over block at all, which was E3's behaviour.)
 
-[code: rust/bc2-levelwrite/src/export.rs:40-44] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:855-858]
+[code: rust/bc2-levelwrite/src/export.rs:40-44] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1064-1067]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
 
 ### REG-NEW-4: Registration is written last and removed first
@@ -175,7 +175,7 @@ menus), and writes `package.mft` and `bundleManifest` **last**, so that at no po
 bundles are not there; a revert takes the registration out first.
 
 [code: rust/bc2-install/src/mapedit.rs:1038-1055] [code: rust/bc2-install/src/run.rs:718-731] [code: rust/bc2-install/src/run.rs:419-455]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:900-916]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1116-1132]
 
 ### REG-NEW-5: The menus need the startup bundle too
 
@@ -184,7 +184,7 @@ Status: **observed**
 Registration makes a level loadable, not visible: the level also needs its description partition and two
 `LevelListQuery` items in `async/startup-00.fbrb` (LEVEL-DESC-1), and OPFOR's `maps.ini` section for the launcher.
 
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:823-827] [code: rust/bc2-levelwrite/src/export.rs:49-50]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1032-1036] [code: rust/bc2-levelwrite/src/export.rs:49-50]
 [data: OPFOR's SP_005 and Onslaught installs: a level without the description crashed in state 13; without the list items it was in no menu]
 
 ## 4. The level checksum
@@ -198,7 +198,7 @@ server must agree. A new level under a new name that is not registered in both `
 on both the server and the client, crashes the server while it computes the level checksum.
 
 [data: the user's report of 2026-11-06 (Wake Island, a new level under a new name); recorded in OPFOR's WW2 port plan, phase F]
-[doc: bfo:docs/plans/opfor/WW2_PORT_PLAN.md:51-57]
+[doc: bfo:docs/plans/opfor/WW2_PORT_PLAN.md:53-59]
 
 ### CSUM-CHK-2: A registered bundle that is missing crashes
 
@@ -209,7 +209,7 @@ registration is written last (REG-NEW-4) and why a new level registers voice-ove
 with targets that are there (REG-NEW-3).
 
 [data: OPFOR's install audit C2: a failed install that left the level registered with absent bundles is the start-up checksum crash]
-[doc: bfo:docs/research/opfor/PYTHON_CODE_AUDIT.md:32] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1123]
+[doc: bfo:docs/research/opfor/PYTHON_CODE_AUDIT.md:38] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1344]
 
 ### CSUM-CHK-3: The checksum dereferences every placement's blueprint
 
@@ -218,7 +218,7 @@ Status: **observed**
 The checksum walks the level's placements and reads each one's blueprint; a placement whose blueprint was not
 created (its references resolve nowhere, REF-RES-5) is a null read at 0x6EFCA4.
 
-[exe: BFBC2Game.exe 0x6EFCA4] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1124]
+[exe: BFBC2Game.exe 0x6EFCA4] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1345]
 
 ### CSUM-CHK-4: Client and server need the same registration
 

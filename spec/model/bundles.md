@@ -42,7 +42,7 @@ the animation sound map. A level under a new name needs its own copies of them. 
 all of them under its own name, with markers hiding MP_005's.
 
 [code: rust/bc2-levelwrite/src/export.rs:457-480] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:816-820]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1025-1029]
 
 ### PART-EMPTY-1: An empty partition file is a marker
 
@@ -107,7 +107,7 @@ with them absent.
 
 [test: core/tests/test_spec_probes.py::registries]
 [data: stock package.mft: 518 vo/lang sources with no file in Dist or Package; streaming_vo de, es, fr, it, pl, ru absent; OPFOR's English copy]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:830-831]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1039-1040]
 
 ## 3. `*deleted*` markers
 
@@ -132,7 +132,7 @@ bundle has 4,334 markers among 6,692 entries) and to let a level's own copy repl
 
 [code: rust/bc2-levelwrite/src/export.rs:254-273] [code: rust/bc2-editor/src/package.rs:448-470]
 [test: rust/bc2-editor/tests/g3.rs::stand_in_package_levels]
-[doc: bfbc2-fbrb-tool/README.md:29-31] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3720-3722]
+[doc: bfbc2-fbrb-tool/README.md:33-35] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3720-3722]
 
 ### BNDL-DEL-3: A live entry beats a marker of the same bundle
 
@@ -151,7 +151,7 @@ When a new level loads a base level's bundle, it inherits that bundle's markers.
 the base hid (SP_01's level bundle hides `mp_common`'s neutral flag and spawn camera) must be copied into the new
 level's own bundle, which comes before the base's in the stack.
 
-[code: rust/bc2-levelwrite/src/export.rs:1085-1101] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:846-847]
+[code: rust/bc2-levelwrite/src/export.rs:1085-1101] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1055-1056]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 
 ## 4. Precedence

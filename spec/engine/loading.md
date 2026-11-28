@@ -55,7 +55,7 @@ kept sorted as DICE keeps them). A tool that adds a level patches this bundle: t
 description and its two list items and leaves every other entry as it was.
 
 [code: rust/bc2-levelwrite/src/export.rs:351-358] [code: rust/bc2-levelwrite/src/export.rs:3111-3470]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:848-852] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:655-659]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1057-1061] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:864-868]
 
 ### LOAD-START-2: A game mode the description names must be in the startup bundle
 
@@ -67,7 +67,7 @@ Coral Sea without it in the shared startup patch crashed at load at 0x74EAB3 (LE
 the mode partition goes into the startup patch whenever an installed level runs it.
 
 [exe: BFBC2Game.exe 0x74EAB3, Coral Sea's load, play test 2026-11-14]
-[code: opfor:src/tools/ww2/wake_install.py:2675-2676] [doc: bfo:docs/plans/opfor/WW2_PORT_PLAN.md:420-422]
+[code: opfor:src/tools/ww2/wake_install.py:2675-2676] [doc: bfo:docs/plans/opfor/WW2_PORT_PLAN.md:422-424]
 
 ## 3. The level checksum
 

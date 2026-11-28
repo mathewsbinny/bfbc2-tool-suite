@@ -44,7 +44,7 @@ its name and `Hash` (MAT-GRID-3).
 [test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: 121 distinct MaterialData names in DICE's 74 grids; 114 of them at more than one index of MaterialGridData.Materials]
 [exe: the runtime material id (grid index plus flag bits) is built at 0x10029E0]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:19-23]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:25-29]
 
 ### MAT-GRID-3: MaterialData and its Hash
 
@@ -141,7 +141,7 @@ against Brick "1/290"); `CollisionDamageMultiplier` / `Threshold` play the same 
 "bullets x0.8").
 
 [inferred: from DICE's assignments read against the grid in OPFOR's physics-material review (every indestructible, metal and concrete relation x0; Bridge x0 against every vehicle ram) and the field names; no executable function was followed for the arithmetic]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:77-81]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:83-87]
 
 ### MAT-GRID-9: Material properties DICE leaves at constants
 
@@ -186,7 +186,7 @@ disagree.
 
 [data: spec/probes/materials.py, 2026-11-22: 4,454 of 4,454 parts in 1,183 of 1,183 files; run forms d = 1 x 904 (84 with 2+ parts), one byte per part x 279]
 [code: rust/bc2-convert/src/physmat.rs:146-312]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:25-30]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:31-36]
 
 ### MAT-SLOT-3: DICE's part materials
 
@@ -200,7 +200,7 @@ their faces show (hangar walls: Brick parts, metal_light faces).
 
 [test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: PartInfoDatas of the 1,183 DICE physics assets: 4,454 parts, 65 distinct materials, none outside DICE's grids]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:143-147]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:149-153]
 
 ### MAT-SLOT-4: Face lists
 
@@ -222,7 +222,7 @@ damage to an entity without parts reads the entity's default material at `entity
 `Material` field (`Default` on DICE's `StaticModelEntityData` and `TerrainEntityData`) is presumably that default.
 
 [exe: part damage 0x722990 (server), 0x8D6730 (client), 0x6122B0; explosions 0x6A19A0; whole-entity damage reads entity+0x30]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:40-49]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:46-55]
 
 ### MAT-SLOT-6: A model-group member's slots are the group's
 
@@ -235,7 +235,7 @@ material of every member (HAVOK-MAT-2). Changing how a group member is hit means
 
 [exe: the face material read at 0xAAEEE0 / 0xAADE10 is the hit material of a group member]
 [code: rust/bc2-convert/src/physmat.rs:324-385]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:105]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:111]
 
 ## 3. Penetration
 
@@ -248,7 +248,7 @@ damage data does not set `NeverPenetrate`. SeeThrough (0x20000000) is a separate
 
 [exe: penetration test 0x6F6570; runtime id flags built at 0x10029E0]
 [data: spec/probes/materials.py, 2026-11-22: NeverPenetrate true on 11,246 of 162,950 damage items; 23 Penetrable materials (MAT-GRID-4)]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:45]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:51]
 
 ### MAT-PEN-2: SeeThrough lets the AI see through
 
@@ -259,7 +259,7 @@ moved open metal (ladders, harbour fences) from Metal to Metal_Seethrough withou
 makes sense if the flags are read.
 
 [inferred: DICE's re-assignment R5 (Metal to Metal_Seethrough on indestructible open metal, the same x0 damage) and the flag's name; the AI's use of the flag was not traced in the executable]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:60-64]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:66-70]
 
 ### MAT-PEN-3: On a plain placed object the hit material is probably the part
 
@@ -271,7 +271,7 @@ face (MAT-SLOT-6). If it is the face instead, faces drive penetration and effect
 
 [inferred: the hit path 0x8F47F0 -> 0xB059D0 -> 0xAB5430 leads to the part material but was not followed to its end]
 [exe: 0x8F47F0, 0xB059D0, 0xAB5430]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:59-64]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:65-70]
 
 ## 4. Impact effects and contacts
 
@@ -285,7 +285,7 @@ nothing (ChickenWire has no bullet effect or sound in DICE's grids).
 
 [exe: impact 0x822D60; effect and sound relation lookup 0x6F0550; relation read 0x1005730]
 [data: spec/probes/materials.py, 2026-11-22: DICE's grids: ImpactEffect set on 69,547 of 70,241 effect items, ImpactSound on 30,228 of 57,871 sound items, Decal on 17,338 of 19,730 decal items]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:32-36]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:38-42]
 
 ### MAT-FX-2: Vehicle contacts and ground effects
 
@@ -308,8 +308,8 @@ against anything. A ported object must use materials the target level's grid hol
 (OPFOR's merged grid lacks Wood_Log and Glass_NoPenetrate, which DICE files it installs name).
 
 [inferred: relations are looked up per material pair in the level's grid (0x1005730), and a grid holds only its level's materials (MAT-GRID-2)]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:166-171]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:285-287]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:172-177]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:291-293]
 
 ## 5. Texture side: grime, dirt, camouflage, material masks
 
@@ -336,7 +336,7 @@ DICE names a texture by its role with a suffix: colour `_C` / `_D` / `_Df` / `_C
 [data: spec/probes/materials.py, 2026-11-22: 2,852 distinct DICE ITexture names; _C 375, _D 253, _N 219, _RGB 127, _Nm 123, _Oc 118, _S 73, _Df 45, _OcRGB 43, _M 27, _Occ 27, _RGBM 24, _Occlusion 23, _RGBmask 22, _Mask 20, _AO 15, _SkyOc 14, _CM 14; no suffix 445; names containing dt_ 113, dirt 45, camo 20, rust 8, msk_ 7, grime 1]
 [code: rust/bc2-formats/src/shaderdb/query.rs:211-226]
 [test: rust/bc2-formats/src/shaderdb/query.rs::kinds]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:736-739]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:877-880]
 
 ### MAT-TEX-2: Grime and dirt are shader layers over the asset's maps
 
@@ -354,7 +354,7 @@ are painted, but as separate layers, not into the colour map.)
 
 [data: spec/probes/materials.py, 2026-11-22: of 74 DICE Dx11 shader databases, texture_DirtMask in 69, texture_DirtMask2 54, texture_MaterialMask 48, texture_MaterialMask2 47, DirtColor and DirtFactor 36, DirtColor2 10, DirtFactor2 6, texture_OcclusionTexture 74]
 [data: spec/probes/grime.py, 2026-11-22: (entry, slot) bindings over the distinct entries: DirtMaskRGB in texture_DirtMask* 84 and in texture_Texture<N> 310; Dt_Dirt_001 in texture_Layer2_Detail2 372, texture_Layer1_Detail2 171, texture_Texture<N> 136; DirtMap_01 in texture_Texture<N> 394, DirtMap_01_C 360; the per-vehicle dirt maps BMD3_Dirt, Cav_dirt, Cobra_dirt, M1A2_Dirt, M3Bradley_Dirt, T90_dirt, Truck_Dirt, Vodnik_Dirt only in texture_Texture<N> (or a register the pixel shader does not read)]
-[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:12-26]
+[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:14-28]
 
 ### MAT-TEX-3: OcRGB maps: occlusion in red, blend masks in green and blue
 
@@ -367,7 +367,7 @@ extra texture-coordinate sets. The green channel is thus a material mask, not oc
 
 [inferred: OPFOR's channel study of three DICE OcRGB maps (detail_layers.py --masks) and the textures those props' shader entries list; the shaders' channel reads were not disassembled]
 [doc: opfor:src/tools/ww2/detail_layers.py:12-15]
-[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:28-31]
+[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:30-33]
 
 ### MAT-TEX-4: Camouflage is a texture, not a parameter
 
@@ -637,7 +637,7 @@ ports do not have (MAT-TEX-3).
 [code: opfor:src/tools/ww2/detail_layers.py:45-66]
 [code: opfor:src/tools/ww2/detail_layers.py:96-135]
 [doc: opfor:src/tools/ww2/detail_layers.py:1-25]
-[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:39-55]
+[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:41-57]
 
 ### MAT-TEX-20: Dirt builds up while a vehicle moves over a dirt-trigger material
 
@@ -679,7 +679,7 @@ place: an airframe against a shotgun pellet takes Attack_Helo's).
 [code: rust/bc2-install/src/levelbuild/materialgrid.rs:656-742]
 [code: opfor:src/tools/ww2/material_grid.py:53-61]
 [data: spec/probes/materials.py, 2026-11-22: 4 materials_xenon grids, 104 - 111 materials, 4,049 - 4,706 relations]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:86]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:92]
 
 ### MAT-WW2-2: DICE's re-assignment of the shared objects
 
@@ -692,7 +692,7 @@ Metal -> Metal_Seethrough (R5), thin metal tanks -> Metal_Light (R6), razor wire
 (R7); R8 (airframes to Metal_Light) was forced by DICE's grid lacking airframe materials.
 
 [data: OPFOR's physics-material census of 2026-11-09 (physmat scripts): 88 shared HavokPhysicsData, 48 differing, 31 part-material changes]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:91-164]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:97-170]
 
 ### MAT-WW2-3: OPFOR's part-material decisions
 
@@ -706,7 +706,7 @@ part byte and `PartInfoData.MaterialName` together (MAT-SLOT-2).
 
 [code: opfor:src/tools/ww2/bf1943_objects.py:122-133]
 [code: opfor:src/tools/ww2/bf1943_vehicles.py:352-392]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:21-37]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:27-43]
 
 ### MAT-WW2-4: Wire members of the WW2 groups hit as RazorWire
 

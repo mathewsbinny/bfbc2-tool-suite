@@ -91,7 +91,7 @@ samples per level only with this split.
 
 [code: rust/bc2-formats/src/terrain.rs:257-278]
 [test: core/tests/test_terrain.py::check]
-[doc: DESIGN.md:503]
+[doc: DESIGN.md:511]
 
 ### TERR-HF-4: Main block tail: the depth map, a min / max tree, a lower envelope
 

@@ -23,7 +23,7 @@ mode key. The menus' level lists, the server browser's rows (NET-SB-1) and the m
 is in no `LevelListQuery` item is in no menu (LEVEL-DESC-1).
 
 [exe: BFBC2Game.exe catalogue builder 0x951480 into UiManager+0xC3F34; mode keys CONQUEST, RUSH, SQRUSH, SQDM]
-[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:131-133] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:849-851]
+[doc: private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:131-133] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1058-1060]
 
 ### MENU-EVT-1: The engine talks to the movies by events and extern getters
 
@@ -64,7 +64,7 @@ to the next node) crashed the menu unload at 0x13046DA (the Pacific War `main_na
 movie patcher attaches a frames node only when it adds frames.
 
 [exe: BFBC2Game.exe movie unload 0x1304690, fault at 0x13046DA (the first Pacific War menu install, 2026-11-06)]
-[code: bfbc2-menu-tools/aptgraft.py:1094-1104] [doc: bfo:docs/research/opfor/WW2_MENU.md:7-10]
+[code: bfbc2-menu-tools/aptgraft.py:1094-1104] [doc: bfo:docs/research/opfor/WW2_MENU.md:15-18]
 
 ## The action script DICE ships
 

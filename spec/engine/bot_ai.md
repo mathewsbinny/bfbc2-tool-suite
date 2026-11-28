@@ -275,7 +275,7 @@ A bot module can take control at one of two levels:
 Path finding stays Kynapse's in both (AI-KY-3, KYRT-*), or OPFOR's own on the same path data.
 
 [inferred: from BOT-CTL-2 (the server applies a handler's state whatever filled it), BOT-CTL-3 (what DICE's AI writes and what it does not) and the input path of the landing-gear study (every digital EIA a client sends reaches the server)]
-[doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:265-268]
+[doc: private:opfor-research/research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:272-275]
 
 ### BOT-CTL-5: Bots are the server's; the in-process client sees replicated soldiers
 
@@ -394,7 +394,7 @@ peripheral 45 / 60 / 90° to 55 m, hearing 48 m, alerting others within 48 m. Th
 (combat field of view 0, no alert range) gives bots that aim and never fire (AI-NEED-3).
 
 [data: 14 SensingTemplateData of sp_common (ai_probe ranges); the grunt template's values]
-[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:41-43]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:48-50]
 
 ### BOT-PER-2: The sensing constants
 
@@ -1050,7 +1050,7 @@ and ranges (BOT-PER-1); each spawner `HumanTargetPreference`, `Immortal`, `FakeI
 section 11).
 
 [data: BehaviourTemplateData (14), SensingTemplateData (14), SoldierSpawnTemplateData (18), SoldierSpawnEntityData (ai_probe)]
-[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:220-233]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:227-240]
 
 ### BOT-DIF-4: A multiplayer session's AI difficulty is the session's, Normal by default
 

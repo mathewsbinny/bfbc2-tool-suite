@@ -131,7 +131,7 @@ the last `HealthStates` entry and compares its `Health` with the float 100000. B
 100000; OPFOR sets it to 99999 so the scripted release can destroy it.
 
 [exe: BFBC2Game.exe ServerStaticModelEntity event handler 0x714C90 (Destroy hash 0xEFA23F67) calls 0x70F400; predicate 0x7A7EF0 compares the final HealthStates entry with 100000.0 at 0x1423798; Destroy skips such parts at 0x70F528]
-[doc: bfo:docs/research/opfor/WAKE_FOLLOWUP_FIXES_2026-11-11.md:35-37]
+[doc: bfo:docs/research/opfor/WAKE_FOLLOWUP_FIXES_2026-11-11.md:37-39]
 
 ## 4. Seats and input
 
@@ -201,7 +201,7 @@ at -9.81. The port applies the weapon conventions only to partitions under `obje
 
 [code: bfbc2-bf1943-import/dbxport.py:662-664]
 [data: spec/probes/vehicles.py on the game copy, 2026-11-22: DICE's beach/ vehicles' guns: Zero 4 bullets 480 m/s gravity 0 damage 30 rate 500, Corsair 4 bullets 480 m/s gravity 0 damage 35 rate 400, bombs gravity -20; Bofors 600 m/s gravity 0; Chi-Ha cannon 875 at 120 m/s gravity -12; machine guns 150-600 m/s at -9.81; UseAutoAiming false on all 20]
-[doc: bfo:docs/research/opfor/WW2_FIELD_PARITY_AUDIT.md:121-123]
+[doc: bfo:docs/research/opfor/WW2_FIELD_PARITY_AUDIT.md:123-125]
 
 ### VEH-MAT-1: The entity's material per class
 
@@ -226,8 +226,8 @@ physics with each part on BF1943's material of the part of that name (`Aircraft_
 materials DICE's list lacks; the bombers keep their own `Bomber_Airframe` physics.
 
 [code: opfor:src/tools/ww2/bf1943_vehicles.py:352-395]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:36] [doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:128-129]
-[doc: bfo:docs/research/opfor/WW2_FIELD_PARITY_AUDIT.md:30]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:42] [doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:134-135]
+[doc: bfo:docs/research/opfor/WW2_FIELD_PARITY_AUDIT.md:32]
 
 ## 6. Spawners
 
@@ -297,7 +297,7 @@ identity matrices the Sherman's turret and wheels sat inside the hull; with part
 propeller drew at the plane's origin.
 
 [code: opfor:src/tools/ww2/wake_preview.py:407-420]
-[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:172-178]
+[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:174-180]
 
 ### VEH-CON-1: The Mark V boat is console-only
 
@@ -310,7 +310,7 @@ V (Valparaiso Onslaught) exists only in the Xbox 360 data; OPFOR builds it from 
 
 [test: core/tests/test_spec_probes.py::spg_vehicles]
 [data: spec/probes/vehicles.py on the game copy, 2026-11-22: 47 entry names containing markv in DICE's bundles: animations/cutscenes/rome 32, objects/objects/distant_ships 8 (2 level folders), objects/mesh_particles/specific 3 (2 level folders), sound 2, textures 2; under objects/vehicles/ 0; VehicleEntityData 0]
-[doc: bfo:docs/research/opfor/BFBC2_CONSOLE_RESEARCH.md:171-172]
+[doc: bfo:docs/research/opfor/BFBC2_CONSOLE_RESEARCH.md:178-179]
 
 ## Open questions
 

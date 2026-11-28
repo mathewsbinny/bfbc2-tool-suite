@@ -113,7 +113,7 @@ objects share a slot and every slot names a leaf of the tree (CULL-SLOT-3). On t
 objects got slots 8,248 and 8,250 (leaves 4,612 -> 4,615) and no slot was shared.
 
 [code: rust/bc2-levelwrite/src/export.rs:2608-2654] [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:982]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1198]
 
 ## Open questions
 
