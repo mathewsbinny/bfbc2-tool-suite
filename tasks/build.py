@@ -6,7 +6,8 @@ the trackers people read are written from it.
     python tasks\build.py --check         fail if the registry is invalid or a generated file is stale (quick tier)
     python tasks\build.py --fmt           rewrite tasks\registry.toml in its canonical form (after a hand edit)
     python tasks\build.py show <code>     print one task (its code, an alias or an old code)
-    python tasks\build.py merge <code> [--date D]     at a round's merge: Done, its CHANGELOG fragment, its version
+    python tasks\build.py merge <code> [--date D] [--version V]   at a round's merge: Done, its CHANGELOG fragment,
+                                          its version (--version V: a branch that wrote its version the old way)
     python tasks\build.py cut [--version X.Y.Z] [--date D]   release CHANGELOG's Unreleased as a version
 
 Options: --bfo <path> names the battlefield-opfor checkout (default: BFBC2_BFO_ROOT, else battlefield-opfor beside
@@ -68,7 +69,7 @@ SEMVER = re.compile(r'^\d+\.\d+\.\d+$')
 # canonical key order of a task; '' / [] values are left out of the file
 TASK_KEYS = ('id', 'code', 'title', 'lane', 'repos', 'category', 'tags', 'raised', 'started', 'done', 'owner',
              'parent', 'depends', 'merged_into', 'aliases', 'renamed_from', 'version', 'benchmarks', 'kb', 'spec',
-             'links', 'reason', 'body', 'scope', 'source', 'decisions')
+             'links', 'score', 'reason', 'body', 'scope', 'source', 'decisions')
 LIST_KEYS = ('repos', 'tags', 'depends', 'merged_into', 'aliases', 'renamed_from', 'benchmarks', 'kb', 'spec', 'links')
 REQUIRED = ('id', 'code', 'title', 'lane', 'repos', 'category')
 DECISION_KEYS = ('date', 'by', 'source', 'choice', 'note')
@@ -105,6 +106,8 @@ def _value(v: Any) -> str:
         return 'true' if v else 'false'
     if isinstance(v, int):
         return str(v)
+    if isinstance(v, float):
+        return repr(v)
     if isinstance(v, str):
         if '\n' in v:
             return '"""\n' + _esc(v, multiline=True) + '"""'
@@ -120,7 +123,7 @@ def _table(name: str, keys: tuple[str, ...], d: dict[str, Any]) -> list[str]:
     lines = [f'[[{name}]]']
     for k in keys:
         v = d.get(k)
-        if v in (None, '', []):
+        if v in (None, '', [], {}):
             continue
         if k == 'decisions':
             lines.append('decisions = [')
@@ -157,6 +160,7 @@ def load(path: str = REGISTRY) -> dict[str, Any]:
     for t in reg['task']:
         for k in LIST_KEYS + ('decisions',):
             t.setdefault(k, [])
+        t.setdefault('score', {})
         for k in TASK_KEYS:
             t.setdefault(k, '' if k not in LIST_KEYS + ('decisions',) else [])
     return reg
@@ -297,6 +301,9 @@ def problems(reg: dict[str, Any], text: str, root: str = SUITE, bfo: str | None 
             out.append(f'{where}: version {t["version"]!r} is not X.Y.Z or "unreleased"')
         if t['version'] and t['lane'] != 'done':
             out.append(f'{where}: a version but lane {t["lane"]} (versions are assigned at the merge)')
+        sc = t['score']
+        if sc and (set(sc) != {'d', 't', 'h'} or not all(isinstance(x, (int, float)) for x in sc.values())):
+            out.append(f'{where}: score is not {{ d = <1-5>, t = <1-5>, h = <agent-hours> }}')
         for d in t['decisions']:
             for k in ('date', 'by', 'source', 'choice'):
                 if not d.get(k):
@@ -558,6 +565,7 @@ def board(reg: dict[str, Any]) -> str:
                    'repo': ' · '.join(t['repos']), 'category': t['category'], 'tags': t['tags'],
                    'note': t['body'], 'date': t['done'] or t['started'] or t['raised'], 'version': t['version'],
                    'depends': t['depends'], 'decided': bool(t['decisions']), 'onRoadmap': on_roadmap(t),
+                   'score': t['score'] or None,
                    'contention': False}
                   for t in sorted(reg['task'], key=lambda t: t['id'])],
     }
@@ -613,7 +621,7 @@ def next_minor(v: str) -> str:
     return f'{major}.{minor + 1}.0'
 
 
-def merge(reg: dict[str, Any], code: str, date: str) -> None:
+def merge(reg: dict[str, Any], code: str, date: str, version: str = '') -> None:
     t = index(reg).get(code.lower())
     if t is None:
         raise SystemExit(f'no task {code!r}')
@@ -633,6 +641,13 @@ def merge(reg: dict[str, Any], code: str, date: str) -> None:
         print(f'CHANGELOG.md: {os.path.basename(frag)} added to Unreleased')
         if re.search(r'^### Removed', body, re.M):
             cut(reg, next_minor(read(VERSION).strip()), date)
+    elif version:
+        # a branch that wrote CHANGELOG / VERSION the old way (before TK0): its version, and the Unreleased
+        # entries its version heading took in
+        for u in reg['task']:
+            if u['version'] == 'unreleased':
+                u['version'] = version
+        t['version'] = version
     else:
         print(f'{t["code"]}: no tasks/changes/{t["id"]}.md, so no CHANGELOG entry (nothing a user notices)')
     print(f'{t["code"]}: done {date}' + (f', version {t["version"]}' if t['version'] else ''))
@@ -688,7 +703,7 @@ def main(argv: list[str]) -> int:
             if len(args) < 2:
                 print('usage: build.py merge <code> [--date YYYY-MM-DD]')
                 return 2
-            merge(reg, args[1], date)
+            merge(reg, args[1], date, argv[argv.index('--version') + 1] if '--version' in argv else '')
         else:
             version = argv[argv.index('--version') + 1] if '--version' in argv else next_minor(read(VERSION).strip())
             cut(reg, version, date)

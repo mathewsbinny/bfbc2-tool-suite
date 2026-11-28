@@ -198,6 +198,7 @@ repos = ["suite"]
 category = "editor"
 tags = ["pacific", "navai", "terrain"]
 raised = "2026-11-22"
+score = { d = 3, t = 3, h = 4.8 }
 body = "A sculpted terrain sampled from the stage, NavKit for Package-only (WW2) levels, the stock-MP AI layer for a staged level, a later Rush stage's vehicles, engine limits."
 scope = "what rounds A2 and NK6 left (`rust/BENCHMARKS.md` \"A2\", \"NK6\"; ~~NavKit's build in process with the project's spawns and objectives~~, ~~its navigation edits~~, ~~the stage sampled offline~~ (a Python step), ~~OPFOR's install of the staged `path_data`~~: NK6): the offline sampler in Rust, a sculpted terrain sampled from the stage, NavKit for Package-only levels (the WW2 levels), the stock-MP AI layer for the staged level (HasAI, PathfindingTypes, SectorOffsets, AI spawners, orders; `stockmp` takes a stock level's name today), the rest of the export's install (IN1: `bc2_install::mapedit` since OR6); a later Rush stage's vehicles (their stage events); A1's other leftovers: engine limits (instances, spawns, connections: RE first), the level's memory against the stock levels', Xbox 360 meshes in a stage, L1-HT-001"
 source = "TR0; ROADMAP Queued A2-rest"
@@ -211,6 +212,7 @@ repos = ["suite"]
 category = "editor"
 tags = ["navai"]
 raised = "2026-11-22"
+score = { d = 5, t = 5, h = 90.0 }
 body = "A real generator, travel-time balance, Rush flow, sightlines and cover, a held-out score against DICE's layouts."
 scope = "after A2 and NK5, once real path data exists (the user, 2026-11-22): proposals from \"valid\" to \"plays like DICE\" - a real generator instead of a transformed donor layer (objectives anchored on the level's own structures: buildings, compounds, hilltops, bridges, choke points; combat areas shaped from the terrain: coastline, ridges); balance by travel time over the path data (foot and vehicle, each team's spawns to each objective), not straight-line distance; Rush flow (stages moving forward with growing areas, attackers' spawns close enough, defenders not on the next M-COM, an M-COM height-difference statistic); sightlines and cover (line of sight from bases and spawns to objectives, a cover score along approaches, a spawn-camping warning, from the scene's collision and HG1's ray grid); engine limits once reverse-engineered (V1's leftovers), WW2 kit and faction rules, Air Superiority and Onslaught; a held-out score against DICE's actual layouts (anchor distance, area overlap, travel-time balance) tracked over time"
 source = "TR0; ROADMAP Queued A3"
@@ -236,6 +238,7 @@ repos = ["bfo", "OPFOR"]
 category = "pacific"
 raised = "2026-11-12"
 kb = ["docs/research/bfbc/BF1943_SOFTWARE_SPECIFICATION_AND_PORT_GAPS.md"]
+score = { d = 5, t = 5, h = 90.0 }
 body = "Branch ww2/air-raid parked (34 ahead / 176 behind, last 2026-11-15) with a 19.7 GB game / work copy in _rounds/airraid; next a human run. Repair stations and Air Superiority / Coral Sea were done 2026-11-14 (the ROADMAP line is stale). Also: the Guadalcanal and Iwo Jima raid bunkers. The ww2/air-raid branch (Project OPFOR) stays as the reference; the ROADMAP hold line \"the air raid, then repair stations, then Air Superiority / Coral Sea\" was stale (only the air raid was left). BF1943 port gap G3 (from BFBC-G)"
 source = "TR0; ROADMAP On hold; memory pacific-war-queue-order, air-raid-exact-fidelity; OPFOR git ww2/air-raid 99db092; PACIFIC_GAP_ANALYSIS G3; OPFOR git 85b4a81; PACIFIC_GAP_ANALYSIS roadmap 1"
 decisions = [
@@ -279,6 +282,7 @@ repos = ["suite"]
 category = "navai"
 tags = ["docs", "tooling"]
 raised = "2026-11-22"
+score = { d = 4, t = 4, h = 16.0 }
 body = "The play-test plan steps 1-10 wait for in-game tests; statically the fire site, M-COM armed state, order issue."
 scope = "what round AIS-rest left (`spec/engine/bot_ai.md` \"Reverse engineering still needed\"; the static half was done by round SPG2-rest3): the play test when in-game tests resume (the checklist in `bot_ai.md`, \"Play-test plan for item 1\", steps 1 - 10: probes on the AI input object's slots and the soldier interface, a held-EIA write test, a seated driver, the kill probe for BOT-SCO-*, tickets and Rush lives for BOT-GS-6 / BOT-GS-8, the fire behaviour's action object), which turns BOT-CTL-2 / BOT-CTL-3 / BOT-CTL-7 verified and decides between driving DICE's AI and own decisions on DICE's body; statically still open: the combat fire site (RE item 8, narrowed to `BehaviourFire`'s action object), the M-COM's armed state (item 3), the bot's unnamed parts (item 4), the order issue 0x5A5490 and the urgency sum, who sets the proxy's seat-entry request"
 source = "TR0; ROADMAP Queued AIS-rest2"
@@ -292,6 +296,7 @@ repos = ["suite", "OPFOR"]
 category = "navai"
 tags = ["editor"]
 raised = "2026-11-16"
+score = { d = 4, t = 5, h = 48.0 }
 body = "Named in the ROADMAP's priority text and EDITOR_ARCHITECTURE section 10, but no queued row. Includes OPFOR's planned suite milestones M6 / M7 (bot AI debugger with OPFOR telemetry, tactical authoring, raised 2026-10-26)."
 source = "TR0; ROADMAP Priority order 2 (GUIs); bfo docs/architecture/opfor-readme.md Status"
 
@@ -329,6 +334,7 @@ category = "tooling"
 tags = ["navai", "editor"]
 raised = "2026-11-21"
 depends = ["px7"]
+score = { d = 3, t = 3, h = 4.8 }
 body = "Read-only, after PR1a-c and NK2-NK5. Rescoped to the suite, xenolith and battlefield-opfor; it runs after PX7, from its measured baselines"
 scope = "after PR1a-c and NK2-NK5 (the user, 2026-11-21): a read-only audit for algorithm and speed improvements across the suite, the editor and OPFOR once the post-Rust rounds and NavKit's build are in Rust - hot paths measured (profiles, timings, peak memory), asymptotic and I/O costs, caching, parallelism, start-up and interactive latency, the test tiers' time; findings with measurements and a value-per-effort order"
 source = "TR0; ROADMAP Queued AU6"
@@ -358,6 +364,7 @@ category = "editor"
 tags = ["tooling"]
 raised = "2026-11-16"
 depends = ["mv0-12"]
+score = { d = 3, t = 2, h = 1.8 }
 body = "Waits for in-game tests. Includes the first in-game test of any exported level (OPFOR, raised 2026-11-19). OPFOR's 2026-11-05 hold (no Aurora reuse until a full map editor) was lifted by the 2026-11-16 editor ruling. Tested through battlefield-opfor after MV0-12 (the export's install there)"
 source = "TR0; ROADMAP On hold; memory map-editor-planning; DEVELOPMENT_NOTES section 4 'Map editor exports'; PACIFIC_GAP_ANALYSIS 3.1"
 decisions = [
@@ -373,6 +380,7 @@ repos = ["suite"]
 category = "editor"
 tags = ["menus", "formats"]
 raised = "2026-11-27"
+score = { d = 5, t = 5, h = 90.0 }
 body = "After CM0; scope ruled 2026-11-27: vehicles / weapons / fx / sound / anim only chosen and modified; SP missions out."
 source = "TR0; ROADMAP Queued AUT0 - AUT7; memory authoring-scope-ruling"
 
@@ -447,6 +455,7 @@ repos = ["bf1943"]
 category = "bf1943-native"
 tags = ["formats"]
 raised = "2026-10-22"
+score = { d = 3, t = 3, h = 4.8 }
 body = "Verify the user's copy and convert it to the native PC build; never created, and its target client is retired (probably obsolete)"
 source = "bf1943-tool-suite README.md layout table"
 decisions = [
@@ -486,6 +495,7 @@ repos = ["bf1943"]
 category = "bf1943-native"
 tags = ["docs"]
 raised = "2026-11-27"
+score = { d = 1, t = 1, h = 0.5 }
 body = "Kept on hold. First move anything unique in bf1943-tool-suite to the suite or xenolith; afterwards write one document describing its peculiarities, as a reference for later. (Was: the README still describes the retired client.)"
 source = "bf1943-tool-suite README.md"
 decisions = [
@@ -501,6 +511,7 @@ repos = ["bf1943"]
 category = "bf1943-native"
 tags = ["navai", "tooling"]
 raised = "2026-10-23"
+score = { d = 3, t = 3, h = 4.8 }
 body = "Xenia run tools are ready; map and bot tests are planned and not written"
 source = "bf1943-tool-suite README.md layout table"
 decisions = [
@@ -564,6 +575,7 @@ repos = ["bf1943"]
 category = "bf1943-native"
 tags = ["pacific", "navai", "editor"]
 raised = "2026-10-31"
+score = { d = 3, t = 3, h = 4.8 }
 body = "Only partly adapted (its prepare needs OPFOR's FbrbTool); meant for the retired PC port's converted levels"
 source = "bf1943-tool-suite README.md layout table"
 decisions = [
@@ -591,6 +603,7 @@ repos = ["bf1943"]
 category = "bf1943-native"
 tags = ["navai"]
 raised = "2026-10-22"
+score = { d = 1, t = 1, h = 0.5 }
 body = "ai-behavior-simulator, bot-ai-debugger, tactical-map-authoring-tool are empty OPFOR placeholders; the retired-tools policy says no placeholder folders"
 source = "bf1943-tool-suite README.md layout table"
 decisions = [
@@ -724,6 +737,7 @@ lane = "bfo"
 repos = ["bfo", "xenolith"]
 category = "bfbc1"
 raised = "2026-11-27"
+score = { d = 4, t = 4, h = 16.0 }
 body = "Three-repo plan step 3 (DICE's PC bc1_* maps as oracle); conversion-depth rule."
 source = "TR0; KB TASKS Queued; memory three-repo-plan"
 
@@ -986,6 +1000,7 @@ category = "pacific"
 tags = ["bfbc1", "navai", "shaders"]
 raised = "2026-11-24"
 merged_into = ["airraid", "dx9-port", "ingame", "pac-awards", "veh-ai", "ww2-deferred", "ww2-nav"]
+score = { d = 5, t = 5, h = 90.0 }
 reason = "split into the cards that own each open gap: G1 WW2-NAV; G2 VEH-AI; G3 AIRRAID; G15 PAC-AWARDS; G22 DX9-PORT; G23 WW2-DEFERRED; G12, G19, G20, G21 (built, not yet seen in game) INGAME. The other gaps of G1-G22 are done (PACIFIC_GAP_ANALYSIS, \"Done since 2026-11-09\"); G18, the tutorial, is excluded"
 body = "Pacific War gaps (navmeshes and bots, Dx9 shader port, others) from the BF1943 gap spec; tracked in bfo"
 source = "bfo docs/research/bfbc/BF1943_SOFTWARE_SPECIFICATION_AND_PORT_GAPS.md section 5"
@@ -1003,6 +1018,7 @@ category = "bfbc1"
 tags = ["docs", "formats"]
 raised = "2026-11-27"
 merged_into = ["kb2-kb4"]
+score = { d = 2, t = 2, h = 1.5 }
 reason = "the BFBC1 spec contradictions belong to the knowledge base rounds; K7 (which map is Oasis) was settled by KB1-bfo: Oasis exists in both BFBC1 and BFBC2, as separate versions"
 body = "Guard counts, HPD v1 handling, 256x256 tiles, height-field header, which map is Oasis, Havok version, target client disagree between specs; tracked in bfo docs/issues/contradictions.md"
 source = "bfo docs/issues/contradictions.md"
@@ -1020,6 +1036,7 @@ category = "bfbc1"
 tags = ["pacific"]
 raised = "2026-11-26"
 merged_into = ["ep1-ep4", "airraid"]
+score = { d = 5, t = 4, h = 30.0 }
 reason = "the entity factory extension: the carrier classes to EP1-EP4, the air-raid classes to AIRRAID"
 body = "Register custom entity adapters via Frostbite's reflection for BFBC1-only and BF1943-only classes (carrier, air raid); tracked in bfo"
 source = "bfo docs/research/bfbc/OPFOR_REHOSTED_ENGINE_ARCHITECTURE.md"
@@ -1108,6 +1125,7 @@ repos = ["bfo"]
 category = "bfbc1"
 tags = ["formats"]
 raised = "2026-11-27"
+score = { d = 3, t = 3, h = 4.8 }
 body = "B21 BFBC1 VO stubbed (6,449 of 6,570 Waves), B26 BFBC1 saved-games list (to confirm; or LS3), B15 / B17 rest / B18 root (to confirm), B34 dead opfor.ini keys."
 source = "TR0; KB issues/README.md"
 
@@ -1171,6 +1189,7 @@ tags = ["bfbc1", "eras", "editor"]
 raised = "2026-11-28"
 started = "2026-11-28"
 owner = "bfo-fix4 (bfo)"
+score = { d = 3, t = 2, h = 1.8 }
 body = "Worktree bfo-fix4: about 15 uncommitted files (display mode, overlay, era names / era_ui, levelfix, window thread, VFS modes, BFBC1 port, opfor.ini); 0 commits; scope not written down anywhere."
 source = "TR0; session only"
 
@@ -1219,6 +1238,7 @@ category = "navai"
 raised = "2026-10-23"
 parent = "stockmp-next"
 depends = ["ais-rest2"]
+score = { d = 4, t = 3, h = 6.4 }
 body = "Precomputed links enabled when a wall part is destroyed; bfo tracks it now"
 source = "DEVELOPMENT_NOTES section 7; STOCK_MP_AI_PLAN 11"
 decisions = [
@@ -1235,6 +1255,7 @@ category = "navai"
 raised = "2026-10-15"
 parent = "stockmp-next"
 depends = ["ais-rest2"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "Issue native AI orders at runtime; first experiment: inject one order"
 source = "DEVELOPMENT_NOTES resume note 2026-10-15"
 decisions = [
@@ -1251,6 +1272,7 @@ category = "navai"
 raised = "2026-10-21"
 parent = "stockmp-next"
 depends = ["ais-rest2"]
+score = { d = 2, t = 2, h = 1.5 }
 body = "All four classes with varied loadouts; bfo tracks it now"
 source = "OPFOR git 3f6ecbc; STOCK_MP_AI_PLAN 11"
 decisions = [
@@ -1268,6 +1290,7 @@ tags = ["menus"]
 raised = "2026-10-20"
 parent = "stockmp-next"
 depends = ["ais-rest2"]
+score = { d = 3, t = 2, h = 1.8 }
 body = "Both teams listed like players; bfo tracks it now"
 source = "OPFOR git 716faf6; DEVELOPMENT_NOTES section 7"
 decisions = [
@@ -1311,6 +1334,7 @@ category = "repos"
 tags = ["pacific", "tooling"]
 raised = "2026-11-27"
 merged_into = ["da0-apply"]
+score = { d = 1, t = 1, h = 0.5 }
 reason = "the move is one of DA0-apply's steps"
 body = "DP1's post-merge step (create _data/extracted first; the first read rebuilds the source index). The folder must stay until then: deleting it broke the WW2 rebuild once."
 source = "TR0; session; BENCHMARKS DP1 Left; memory bf1943-repos-retired"
@@ -1327,6 +1351,7 @@ repos = ["OPFOR", "private"]
 category = "repos"
 tags = ["re"]
 raised = "2026-11-27"
+score = { d = 1, t = 1, h = 0.5 }
 body = "DOC1 left it in OPFOR because OR13's branch edits it; it is one of the 8 decompiler-tainted documents."
 source = "TR0; session; BENCHMARKS DOC1; bfo docs/research/opfor/MIGRATION.md"
 
@@ -1338,6 +1363,7 @@ lane = "next"
 repos = ["private"]
 category = "repos"
 raised = "2026-11-27"
+score = { d = 1, t = 1, h = 0.5 }
 body = "It points at battlefield-decomp-work/bfbc2-decomp; DOC1 moved the suite's defaults. Remove the link only (rmdir), never delete through it."
 source = "TR0; memory decomp-private-repo; session"
 
@@ -1350,6 +1376,7 @@ repos = ["OPFOR"]
 category = "repos"
 tags = ["onslaught", "editor", "tooling"]
 raised = "2026-11-27"
+score = { d = 1, t = 1, h = 0.5 }
 body = "JS0 rows: console_* / combat_a/b / sectoroff scratch (tier B), work/levels 15.9 GB regenerable (tier C). OR13's byte-for-byte proofs read them, so only after OR13 merges."
 source = "TR0; session; _rounds/js0 actions.tsv"
 
@@ -1362,6 +1389,7 @@ repos = ["all"]
 category = "repos"
 tags = ["formats"]
 raised = "2026-11-27"
+score = { d = 1, t = 1, h = 0.5 }
 body = "xbm0, mc0, xb3d0, ca0, mv0 reports have KB copies; xm0's REPORT.md has no KB copy yet (copy first). Merged worktrees still present: or15, doc1, kb0, xm0, hk0, bfo-fix3, bfo-live; airraid stays (parked)."
 source = "TR0; session; memory worktree-junction-cleanup"
 
@@ -1374,6 +1402,7 @@ repos = ["suite"]
 category = "editor"
 tags = ["pacific", "eras"]
 raised = "2026-11-23"
+score = { d = 4, t = 5, h = 48.0 }
 body = "Feasibility round at the end of the queue; awaits the user's go-ahead."
 scope = "end of the queue, and awaits the user's go-ahead (the user's idea, 2026-11-23): feasibility of remaking classic Battlefield 1942 maps for the WW2 (Pacific War) roster and Battlefield Vietnam maps for Vietnam in the map editor, with BFBC2 (incl. its Vietnam DLC) and BF1943 assets only - no Refractor-engine assets, no BF1942 / BFV files converted; per map: size against the 1,024 / 2,048-sample terrain, the assets it needs (vehicles, soldiers, weapons, buildings, vegetation, naval) against what exists, the missing items, the editor rounds it depends on (E6 / E7, TG3, RD1, A2-rest, NavKit for Package-only levels)"
 source = "TR0; ROADMAP Queued CM0; memory classic-maps-goal"
@@ -1387,6 +1416,7 @@ repos = ["bfo"]
 category = "host"
 raised = "2026-11-27"
 depends = ["vr-fix4"]
+score = { d = 4, t = 3, h = 6.4 }
 body = "Until the user asks. Re-checked after VR-fix4; closed (dropped) if the crash does not reproduce"
 source = "TR0; KB TASKS On hold; KB decisions"
 decisions = [
@@ -1488,6 +1518,7 @@ category = "repos"
 raised = "2026-11-27"
 started = "2026-11-27"
 owner = "da0 (suite, bfo)"
+score = { d = 1, t = 1, h = 0.5 }
 body = "Suite da0 2 ahead / 4 behind (OR15 merged in), bfo da0 1 ahead / 20 behind, worktrees clean; Done row written on the branch. The migration itself is the DA0-apply card."
 source = "TR0; da0 branch ROADMAP Done row; BENCHMARKS DA0 (branch); OPFOR git 5e8f791 (branch da0)"
 
@@ -1501,6 +1532,7 @@ category = "repos"
 tags = ["tooling"]
 raised = "2026-11-27"
 depends = ["da0", "dp1", "or13", "px1", "sc1"]
+score = { d = 2, t = 2, h = 1.5 }
 body = "155-step plan: 102 GB moved by renames, 25.9 GB stale scratch deleted, about 12 GB of game copies hard-linked to retail, 92 dangerous junctions removed (links only); waits for OR13, PX1, DP1 and SC1 (bfo-fix3 done)."
 source = "TR0; session; suite docs/DATA_ARCHITECTURE.md section 10 (da0 branch)"
 
@@ -1549,6 +1581,7 @@ repos = ["suite"]
 category = "docs"
 tags = ["re", "release", "formats"]
 raised = "2026-11-28"
+score = { d = 1, t = 1, h = 0.5 }
 body = "ERA-LIC-1 (0x652380 / 0x6524C0) and spec formats/animtree.md (0xF69140)."
 source = "TR0; session only"
 
@@ -1561,6 +1594,7 @@ repos = ["private", "suite"]
 category = "re"
 tags = ["pacific", "navai", "host"]
 raised = "2026-11-27"
+score = { d = 3, t = 4, h = 12.0 }
 body = "DC0 left: names on 1.8 % of functions (reflection getters / setters, EASTL / CRT signatures, the WW2 DLL hook tables), 596 signatures, RecoverClassesFromRTTI not run, 27,050 unconfirmed functions. Feeds NKM / ER / RCX."
 source = "TR0; BENCHMARKS DC0 What is left"
 
@@ -1604,6 +1638,19 @@ body = "Install and revert safety (audit AU4, 23 findings): one install ledger f
 source = "ROADMAP Done (Process and specification); TR0 group PROCESS; OPFOR git merge b991a25"
 
 [[task]]
+id = "dl1"
+code = "DL1"
+title = "The GUIs brought in line with the design tokens"
+lane = "next"
+repos = ["suite", "bfo", "xenolith"]
+category = "tooling"
+tags = ["design"]
+raised = "2026-11-28"
+score = { d = 2, t = 3, h = 4.0 }
+body = "xenolith's apps/xenolith/src/theme.rs reads only 19 colour tokens, uses egui's default fonts instead of Plex, and its token mapping breaks the rules (inputs on ground, all text ink, control borders line, pressed = accent, window border, 4px corners, inactive tabs); the bfo opfor-launcher and opfor-apt hub hold hand-copied Dark constants (no Light theme, no Plex, literal sizes, four era accents #3ba6a8 #d96b27 #e0a82e #f07b19 to become real tokens, one near `selection`); opfor-setup has its own palette; the map editor: 10.5px history timestamps, literal sizes / radii, 2-4px start-screen icon strokes against the 1.5px rule, Light not following the system setting, no reduced motion; the editor's shipped Plex TTFs registered in tokens.json type.fonts and the design-system artifact"
+source = "the user, 2026-11-28 (queued by the coordinator); the design language sync of 2026-11-28 (its README's code against the token list)"
+
+[[task]]
 id = "doc1"
 code = "DOC1"
 title = "OPFOR's superseded documents removed, its private research moved"
@@ -1628,6 +1675,7 @@ tags = ["repos"]
 raised = "2026-11-27"
 started = "2026-11-27"
 owner = "the coordinator"
+score = { d = 1, t = 1, h = 0.5 }
 body = "DOC1 is merged in the suite, OPFOR and bfo; the coordinator's post-merge checks (references, private: and bfo: prefixes, the junction) are open."
 source = "TR0; session only; ROADMAP Done DOC1"
 
@@ -1654,6 +1702,7 @@ tags = ["pacific"]
 raised = "2026-11-27"
 started = "2026-11-27"
 owner = "dp1 (suite)"
+score = { d = 1, t = 1, h = 0.5 }
 body = "Branch dp1 4 ahead / 4 behind, worktree clean; quick tier 136/139 (3 layout-only failures pass with OPFOR_ROOT); Done row and a DP1-rest row drafted on the branch."
 source = "TR0; dp1 branch ROADMAP; BENCHMARKS DP1 (branch)"
 
@@ -1667,6 +1716,7 @@ category = "repos"
 tags = ["pacific", "docs", "tooling"]
 raised = "2026-11-27"
 depends = ["da0-apply", "dp1"]
+score = { d = 1, t = 1, h = 0.5 }
 body = "Once the data sits in _data/extracted/bf1943: BF1943_OLD_XENON / BF1943_WORKSPACE, bf1943src::OLD_XENON and their test go; spec B43-SRC-1."
 source = "TR0; dp1 branch ROADMAP row; BENCHMARKS DP1 Left"
 
@@ -1681,6 +1731,7 @@ tags = ["pacific", "editor", "formats"]
 raised = "2026-11-15"
 depends = ["sc1"]
 kb = ["docs/research/bfbc/BF1943_SOFTWARE_SPECIFICATION_AND_PORT_GAPS.md"]
+score = { d = 5, t = 5, h = 90.0 }
 body = "Planned 24-35 days; SC1's SM3 emission mode may change the estimate. BF1943 port gap G22 (from BFBC-G). Kept; re-estimated after SC1 (its SM3 emission mode)"
 source = "TR0; ROADMAP On hold; memory dx9-shader-port-queued; bfo docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md"
 decisions = [
@@ -2215,6 +2266,7 @@ repos = ["suite"]
 category = "terrain"
 tags = ["shaders", "editor"]
 raised = "2026-11-27"
+score = { d = 4, t = 3, h = 6.4 }
 body = "A per-shader tiled-slot model for the 16 mixed-layer terrains, growing the mask atlas, clones' undergrowth, SP_04 / SP_006 colour maps."
 source = "TR0; BENCHMARKS E5-rest Left"
 
@@ -2227,6 +2279,7 @@ repos = ["suite"]
 category = "terrain"
 tags = ["editor", "formats"]
 raised = "2026-11-16"
+score = { d = 4, t = 4, h = 16.0 }
 body = "Custom-model import gives new models their own occlusion data."
 scope = "vegetation (E4, E5, E5-rest and E7 done; custom-model import gives new models their own occlusion data)"
 source = "TR0; ROADMAP Queued E6"
@@ -2268,6 +2321,7 @@ repos = ["bfo"]
 category = "eras"
 tags = ["persistence", "host"]
 raised = "2026-11-27"
+score = { d = 5, t = 4, h = 30.0 }
 body = "EP1 static (S), EP2 era-table columns + 0x459530 redirect + repoint + KitConfig thunk + validator (with GM2), EP3 bucket-to-slot cave (only for >4 kit ranks), EP4 career per era and PERS-SCORE-2 attach; live runs EP-L1 to EP-L6."
 source = "TR0; EP0 report (KB research/rounds)"
 
@@ -2280,6 +2334,7 @@ repos = ["suite"]
 category = "re"
 tags = ["shaders"]
 raised = "2026-11-27"
+score = { d = 4, t = 5, h = 48.0 }
 body = "Also answers CA0's ER0 questions (Q9: null assets, package.mft targets, big-endian DB typed Dx9, atlas suffix)."
 scope = "after DC0, beside NKM0 (the user, 2026-11-27): the engine's reading side as a second proof of every conversion - for each format the suite writes (DBX partitions and their instances, meshes, Havok, textures, shaders, terrain, level bundles, manifests), its loader in BFBC2Game.exe found on DC0's database and read: the fields it reads (offsets, types, sizes), defaults, ranges and checks, what it rejects or crashes on (the road-sign and checksum crashes as test cases), and the fields nothing reads (the \"fields nothing reads\" quirk settled); each fact a spec rule citing the address; then a static checker in the suite (bc2-formats, a `bc2 check` tool) that tests every converted file against those rules, run in CI on the synthetic corpus and on the WW2 / Onslaught builds; DICE's own files stay the first oracle (conversion-depth rule), the reader the second; no EA-derived code published, only facts, addresses and the checker; ER0 surveys the formats and orders them, ER1 ... one format family each"
 source = "TR0; ROADMAP Queued ER0 - ERn"
@@ -2475,6 +2530,7 @@ repos = ["suite", "bfo"]
 category = "eras"
 tags = ["menus"]
 raised = "2026-11-27"
+score = { d = 3, t = 3, h = 4.8 }
 body = "Static first; plus GM1 / GM4's open questions (0x9381F0's Vietnam keys, the Store writer)."
 scope = "after GM0, beside GM1 (rust/BENCHMARKS.md \"GM0\", spec engine/gamemodes.md), static first: the readers GM0 did not find - `GameModeData.AddToIngameBundleRefs` / `AddToLoaderBundleRefs` and `LevelDescription.KickIfLicenseMissing` (a reflection-path search, not operand scans), the mode-kind objects' virtual functions (0x1418048, 0x14169B0, 0x14169C4: what kind 0 / 1 / 2 changes), the server's +0xB8 / +0x118 game-mod strings' writers; then OPFOR's module work ERA-OPF-1 lists (era-aware HUD configuration 0x7584AD / 0x758510 and icon set 0x775D1F / 0x775D47 for Pacific levels; ERA-OPF-1's header comment) and the battlefield-opfor fix (ERA-OPF-2: its 0x8FF330 detour must parse the level's string), each with GM0's pending playtests when in-game tests resume"
 source = "TR0; ROADMAP Queued GM0-rest; BENCHMARKS GM0 / GM1 / GM4"
@@ -2502,6 +2558,7 @@ repos = ["bfo"]
 category = "eras"
 tags = ["host"]
 raised = "2026-11-27"
+score = { d = 4, t = 3, h = 6.4 }
 body = "Fixes B10 (parser forces the active era, ERA-OPF-2) and B11 (era numbers); every range digest-checked first; with EP2."
 scope = "battlefield-opfor phase, after GM1; built on GM4's host era table (ruled by the user, 2026-11-27) (spec engine/eras.md): the engine patch set for native eras in battlefield-opfor's host, exactly as ERA-SITE-1 lists it - the 0x8FF330 detour parsing the level's tag (`BC2` 0, `VIETNAM` 1, `PACIFIC` 2, `BC1` 3; ERA-NAT-3, replacing today's active-era return), the setter clamp and the sign-in gate cave (era 1 byte-identical, eras 2 / 3 no sign-in; the `[patches] vietnam` opt-in as an era-1 flag: ERA-NAT-4), the label thunk (`BFBC2143` / `BFBC2Beach`: ERA-NAT-5), the four name tables (menu config, HUD config, tips, icon set: ERA-SITE-2), the per-era `UISharedConfigAsset` getters at the unlock / grid / weapon slot reads with host-built era weapon maps (ERA-SITE-3), the tag thunks (`maps`: ERA-SITE-4; `search` left unpatched, ERA-N-13); built on a host era table (spec engine/eras_n.md, round GM4: ERA-N-8 / ERA-N-9) so a further era is a table row plus data, with `setter.labels`, the menu tracker's page bound / writer / page caves (era k >= 2 on page k + 2, page 3 is the Store: ERA-N-2) and, for a tag of neither 3 nor 7 characters, `maps.builder` (ERA-N-5); first trace 0x9381F0's Vietnam map keys (the tracker's writer is 0x9573F0, found by GM4); every range checked against spec/probes/gamemodes.py's digests before writing and none touching ERA-LIC-2's kept ranges; battlefield-opfor's `ModeId` values, menu codes, BFBC1 tag and label moved to ERA-NAT-1 (ERA-RISK-4); in-game proof (eras.md's pending playtests) when tests resume"
 source = "TR0; ROADMAP Queued GM2"
@@ -2515,6 +2572,7 @@ repos = ["bfo"]
 category = "eras"
 tags = ["pacific", "menus", "persistence"]
 raised = "2026-11-27"
+score = { d = 4, t = 4, h = 16.0 }
 body = "Mode partitions, menu / HUD config, tips, icons, shared-config clone, award / stats categories; WW2 level descriptions drop nam (ERA-LIC-3); fixes B13."
 scope = "battlefield-opfor phase, with GM2: each era's complete data set as ERA-SITE-2 / ERA-SITE-3 name it - game-mode partitions with the era's HUD root, loading movies, `<era>_menuConfig` (main menu bundle), `<era>_hudConfig`, `Menu/GameTips/<era>_GameTips`, the `icons_<era>0` / `icons_<era>_data` icon set, `Menu/<era>_shared_config` (a full UISharedConfigAsset clone with the era's tree and weapons in the Vietnam-position slots), award / stats categories, the `_PW` / `_BC1` suffix strings and `*_ANY` pictures - registered as the engine expects (package.mft, bundleManifest, startup bundle); the era's level descriptions with their own tag and no licence (ERA-LIC-3: the WW2 levels drop `nam`); table entries keep their borrowed default until the data is registered (ERA-RISK-1); the menus through UI0 - UI7 on ERA-UI-3's contract (`extern.gameMod` 0 - 3, `changeGameMod` 2 / 3, main_nav's `BFBC2143` / `BFBC2Beach` frames, every load-time `== 1` test)"
 source = "TR0; ROADMAP Queued GM3"
@@ -2598,6 +2656,7 @@ repos = ["bfo"]
 category = "menus"
 tags = ["shaders", "formats"]
 raised = "2026-11-27"
+score = { d = 5, t = 4, h = 30.0 }
 body = "Renamed from GR0-GR4 (2026-11-27): GRK0 static, GRK1 meshes / textures, GRK2 per-scene shaders, GRK3 host glue and weapon row, GRK4 polish; fixes B24. KB TASKS still lists 'GR0-GR4, name to confirm'."
 source = "TR0; XB3D0 report A; KB plans/bfo-phase.md"
 
@@ -2638,6 +2697,7 @@ repos = ["bfo", "suite"]
 category = "host"
 tags = ["bfbc1", "shaders", "formats"]
 raised = "2026-11-28"
+score = { d = 4, t = 5, h = 48.0 }
 body = "R1 character physics, R2 AI settings, R3 Havok packfiles, R4 ANT animation, R5 BFBC1 reference closure (~100), R6 shader-database staging, R7 stock-map AI data; a guard goes when L3 shows zero hits. Absorbs TASKS 'Triage the 272 BFBC1 guards'."
 source = "TR0; HK0 report sections 3 and 5; KB TASKS; memory three-repo-plan"
 
@@ -2664,6 +2724,7 @@ tags = ["docs"]
 raised = "2026-11-28"
 started = "2026-11-28"
 owner = "hk0 (suite)"
+score = { d = 1, t = 1, h = 0.5 }
 body = "Suite branch hk0 1 ahead / 4 behind, unmerged; HK0's bfo side (the host-patching trail, 17 articles) is merged (38085e2)."
 source = "TR0; HK0 report section 4; hk0 branch"
 
@@ -2678,6 +2739,7 @@ tags = ["pacific", "eras", "editor"]
 raised = "2026-11-28"
 started = "2026-11-28"
 owner = "hk1 (bfo)"
+score = { d = 3, t = 2, h = 1.8 }
 body = "Branch hk1 (9 commits, 2026-11-28): HK1a-1 opfor-dll retired, era-setter caller check, per-level era tag parser, UI frame hook never calls a freed screen, the exe's TLS slot, the LB/FL list over-read shim, WW2 handler fault guards; HK1b-1/2 guard hit counters and one pointer rule. Its 'licence detour per era' item conflicts with the licensing-deferred ruling."
 source = "TR0; HK0 report section 5; KB plans/README HK row; bfo branch hk1 (863d3ca..f41f5bb)"
 
@@ -2690,6 +2752,7 @@ repos = ["bfo"]
 category = "host"
 tags = ["pacific", "input", "menus"]
 raised = "2026-11-28"
+score = { d = 3, t = 3, h = 4.8 }
 body = "era_ui onto the HUD 0x7764F0 / the command registry (with XBM2), intro watchdog and pad aimer as pointer walks, stats listener redirect, the ports, IcmpSendEcho / IPv6 in the network guard, WW2 ini switches. Size M-L; live run L4."
 source = "TR0; HK0 report section 5"
 
@@ -2702,6 +2765,7 @@ repos = ["bfo"]
 category = "menus"
 tags = ["host"]
 raised = "2026-11-28"
+score = { d = 4, t = 3, h = 6.4 }
 body = "userLogin / settingsLoaded senders, menu callback pointer 0x1BEAAF8, HUD getter 0x777B30, generic getter 0x95A1B0, the event filter; with XBM2 / XBM3. Size M; live run L5."
 source = "TR0; HK0 report section 5"
 
@@ -2714,6 +2778,7 @@ repos = ["bfo"]
 category = "menus"
 tags = ["host"]
 raised = "2026-11-28"
+score = { d = 4, t = 3, h = 6.4 }
 body = "loadScene 0xFA8D80, bind body 0xFA4BF0, createView 0xFA4550, 0xFA7EB0; with the GRK rounds. Size M."
 source = "TR0; HK0 report section 5"
 
@@ -2725,6 +2790,7 @@ lane = "bfo"
 repos = ["bfo"]
 category = "menus"
 raised = "2026-11-27"
+score = { d = 5, t = 5, h = 90.0 }
 body = "HUB0 static (with UI0), HUB1 mutable router (UI6a), HUB2 superset registration (UI6b), HUB3 hub v0 via host overlay, HUB4 APT hub movie, HUB5 grafted Back buttons."
 scope = "battlefield-opfor phase (the user, 2026-11-27; research round XBM0, its report `_rounds/xbm0/REPORT.md`, kept outside the repos): the in-engine 4-blade hub in OPFOR.exe's style (battlefield-opfor `opfor-launcher` `ui_hub()`), leading to every game's own menu and back - **HUB0** static (part of UI0): the front-end bundle's lifetime and reload trigger, digests for the +0xC3F20 patch ranges (S - M); **HUB1** (UI6a) a mutable router, era hooks always installed and gated at run time, the era codes aligned, a host-only hub era (M); **HUB2** (UI6b) superset bundle registration, the bundle-name thunk, a front-end reload with no level, a hidden soft-restart fallback (M); **HUB3** (UI5 v0) the hub drawn by the host overlay, `opforEnterMode`, back by remapping each game's own quit (BF1943 `quit`, BFBC2 `quitgame`) and a chord for BFBC1 (S - M); **HUB4** (UI5 v1) an APT hub movie from OPFOR's own art, own class names, aptcheck-gated (M - L); **HUB5** grafted Back buttons, append-only and verified against the pristine movie (S per game)"
 source = "TR0; ROADMAP Queued HUB0 - HUB5"
@@ -2752,6 +2818,7 @@ category = "release"
 tags = ["editor", "formats"]
 raised = "2026-11-20"
 aliases = ["IN1"]
+score = { d = 2, t = 3, h = 4.0 }
 body = "Done in OR15: mapedit install, settings, project share, doctor. Left: a small player install tool, old export stages pruned, a one-button anonymised bug-report bundle, Help > Diagnostics. Kept for modders only; the players' half belongs to MV0-12 and battlefield-opfor's release"
 scope = "before the public release (the user, 2026-11-20; audit AU1 R42-R49). Done in OR15: the level installer with no Python and no OPFOR (`bfbc2 install mapedit`, its `--game` from the game-folder setting), the game-folder setting (`bfbc2 settings`), anonymised project sharing (`bfbc2 project share`), `bfbc2.exe doctor`. Left: a small \"install this project\" tool for players, old export stages pruned; the users' diagnostics (the user, 2026-11-21): a one-button anonymised bug-report bundle (doctor, crash reading, logs), Help > Diagnostics in the editor"
 source = "TR0; ROADMAP Queued IN1"
@@ -2769,6 +2836,7 @@ category = "tooling"
 tags = ["onslaught", "pacific", "navai"]
 raised = "2026-11-20"
 kb = ["docs/research/bfbc/BF1943_SOFTWARE_SPECIFICATION_AND_PORT_GAPS.md"]
+score = { d = 3, t = 5, h = 36.0 }
 body = "Paused 2026-11-20; approved verification runs only. Backlog: terrain_edit section 5 (E5 / E7 / TG), E4's gameplay edits, AIS-rest2 steps 1-10, SPG2-rest7's probes, the stock-MP AI play test and experiment 0, Wake / air raid, the Pacific human checks, W&G / My Stats / prompts / seats, the console Onslaught ports, NavKit builds, a full-round stats test. BF1943 port gap G12, G19, G20, G21 (built, not yet seen in game) (from BFBC-G)"
 source = "TR0; ROADMAP On hold; BENCHMARKS Left sections; PACIFIC_GAP_ANALYSIS 2 'Built, waiting for a human check'; DEVELOPMENT_NOTES section 4 status per map; STOCK_MP_AI_PLAN 14; DEVELOPMENT_NOTES section 7; DEVELOPMENT_NOTES where to resume 2026-10-26"
 
@@ -2781,6 +2849,7 @@ repos = ["bfo", "OPFOR"]
 category = "input"
 tags = ["eras"]
 raised = "2026-11-27"
+score = { d = 4, t = 4, h = 16.0 }
 body = "Standard scheme first, then each game's own as default with a switch; data from the user's discs, never shipped; supersedes OPFOR's CONTROLLER_PLAN (aim assist, rumble, presets, PS pads). Also covers OPFOR's rumble, console presets and PlayStation pads (CONTROLLER_PLAN)."
 scope = "battlefield-opfor phase (the user, 2026-11-27; research round XBM0, its report `_rounds/xbm0/REPORT.md`, kept outside the repos): controller and keyboard / mouse input for every era - standardised first (BFBC2 Xbox layout and aimer in every era), then each game's own scheme as the per-era default with a `scheme = faithful | standard` switch, the games' data imported from the user's discs and never shipped; keyboard / mouse always BFBC2 PC's aimer with no assist - **INP0** static: where the aimer applies the Suck* terms, the pad dead zone (0x7D2480), plane input, the source of the 5000 yaw / pitch values in the WW2 port (S); **INP1** port OPFOR's MOD-IN-1 pad read (the 0x7CC4A0 replacement: separate triggers, radial dead zones) (M); **INP2** port make_pad_bindings and the HUD prompt names (M); **INP3** the standard scheme complete (S); **INP4** per-era aimer / auto-aim / binding sets swapped on era and device change (M); **INP5** BFBC1's weapon cycle, BF1943's planes and bombing raid, a prone decision (M - L); **INP6** rumble and the presets (M)"
 source = "TR0; ROADMAP Queued INP0 - INP6; bfo docs/plans/opfor/CONTROLLER_PLAN.md 1; bfo docs/plans/opfor/CONTROLLER_PLAN.md 3"
@@ -2806,6 +2875,7 @@ repos = ["all"]
 category = "repos"
 tags = ["re", "tooling"]
 raised = "2026-11-27"
+score = { d = 1, t = 1, h = 0.5 }
 body = "74 rows: tier A deletes (stale cargo targets ~4 GB, merged round folders, research scratch, retired C# binaries, merged branches, pycaches); tier B/C reviews (OPFOR work scratch, navsample_offline 11.4 GB, bfo engine Output QA dumps 4.5 GB)."
 source = "TR0; _rounds/js0 actions.tsv"
 
@@ -2847,6 +2917,7 @@ category = "docs"
 tags = ["bfbc1", "onslaught", "shaders"]
 raised = "2026-11-27"
 aliases = ["KB1-KB4"]
+score = { d = 2, t = 2, h = 1.5 }
 body = "KB2-KB3 named only in the session so far; KB4 cleaned copies of DOC1's moved documents. KB1 itself merged on 2026-11-28 (its own card)."
 source = "TR0; KB TASKS ('KB1 and later'); session; bfo branch kb1b (48a4e8b), suite kb1s (36b869c6)"
 
@@ -2871,6 +2942,7 @@ repos = ["bfo"]
 category = "release"
 tags = ["eras", "persistence"]
 raised = "2026-11-27"
+score = { d = 2, t = 2, h = 1.5 }
 body = "persistence.rs grants, the promo bits, the Vietnam opt-in gate on 0x75FCC9, the 0x75FE35 redeem popup (B3, B4, MV0 rank 2); not until the user asks."
 source = "TR0; memory console-menu-offline-ruling; KB TASKS On hold"
 
@@ -2883,6 +2955,7 @@ repos = ["bfo"]
 category = "host"
 tags = ["onslaught", "menus", "re"]
 raised = "2026-11-27"
+score = { d = 2, t = 3, h = 4.0 }
 body = "XBM0 L1-L15, MC0 L-MC1 to L-MC3, XB3D0 L-GRK1 to L-GRK4, HK0 L1-L5, EP0 EP-L1 to EP-L6, MV0's three checks (DNS / Winsock blocked, which Documents folder, Onslaught without gated guards); none done. bfo-phase lists only the first four sets."
 source = "TR0; XBM0, MC0, XB3D0, HK0, EP0, MV0 reports"
 
@@ -2896,6 +2969,7 @@ category = "menus"
 tags = ["bfbc1", "pacific", "persistence"]
 raised = "2026-11-27"
 kb = ["docs/research/rounds/xb3d0-summary.md"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "LS0 static, LS1 service core, LS2 BFBC1 server list, LS3 BFBC1 saves (B26), LS4 leaderboards and friends, LS5 careers and BF1943's grid, LS6 BFBC1 award import, LS7 BFBC1 dog tags; on XBM2 / XBM4."
 source = "TR0; XB3D0 report C; KB plans/bfo-phase.md"
 
@@ -2909,6 +2983,7 @@ category = "menus"
 tags = ["persistence"]
 raised = "2026-11-27"
 kb = ["docs/research/rounds/xb3d0-summary.md"]
+score = { d = 3, t = 3, h = 4.8 }
 body = "LV0 static, LV1 host answers and command remaps (B28), LV2 operand patch table, LV3 appended filters, LV4 live runs. Decided 2026-11-27: keep the achievements blade (trophies) and quick match; hide leaderboards and dog tags until LS4 / LS7. Ownership checks never touched."
 source = "TR0; XB3D0 report D; memory console-menu-offline-ruling"
 
@@ -2934,6 +3009,7 @@ repos = ["OPFOR"]
 category = "menus"
 raised = "2026-10-15"
 merged_into = ["mv0-9"]
+score = { d = 2, t = 2, h = 1.5 }
 body = "Resize the dropdown background and re-space items (size-preserving APT edits)"
 source = "OPFOR git 35afd26; DEVELOPMENT_NOTES section 7"
 decisions = [
@@ -2949,6 +3025,7 @@ repos = ["suite", "bf1943", "all"]
 category = "repos"
 tags = ["bfbc1", "persistence", "editor"]
 raised = "2026-11-22"
+score = { d = 5, t = 5, h = 90.0 }
 body = "After the BFBC2 editor is complete; keep a game layer meanwhile. bf1943-tool-suite and xenolith's ECOSYSTEM_ROADMAP plan to fold the tool suites into one frostbite-tool-suite with per-game profiles. MOH 2010 (moh-tool-suite / project-opfor-moh folders exist). MOH Warfighter (Frostbite 2) comes late; its project folder is empty. Rewritten around the GameProfile design; the frostbite-tool-suite rename is a question for the user"
 scope = "after the BFBC2 editor is complete (the user, 2026-11-22): the multi-game plan - the suite and editor extended to Medal of Honor (2010, multiplayer: Frostbite 1.5), Battlefield: Bad Company (Frostbite 1.0, Xbox 360 / PS3), Battlefield 3 and Medal of Honor: Warfighter (Frostbite 2: superbundles and catalogs, EBX / RES / chunks) and Battlefield 4 (Frostbite 3). A planning round: per game, what the user's copy holds and its formats surveyed read-only, the game layer designed (per-game format readers / writers, export and install, the renderer's shaders, AI and navigation, a spec namespace per game), offline / local play's reverse engineering scoped, and the work estimated; suggested order MOH 2010 MP, BFBC1, BF3, MOH Warfighter, BF4. No game data shipped"
 source = "TR0; ROADMAP Queued MG0; memory multi-game-goal; bfo docs/architecture/retired-and-planned.md; project-opfor-moh README.md, BOT_PLAN.md; moh-tool-suite README.md; project-opfor-moh-warfighter folder (empty, mtime)"
@@ -2979,6 +3056,7 @@ repos = ["suite", "bfo"]
 category = "release"
 tags = ["onslaught", "pacific", "editor"]
 raised = "2026-11-22"
+score = { d = 2, t = 2, h = 1.5 }
 body = "Help > Diagnostics, one export disabled while others stay (per-level slots), a kept layer re-based, WW2 / Onslaught installs from the hub. The editor-side items stay (Help > Diagnostics, per-level export slots); the OPFOR hub items move to battlefield-opfor's modules / Setup.exe"
 scope = "the rest of round MM1 (`rust/BENCHMARKS.md` \"MM1\", \"Left\"): the editor's Help > Diagnostics entry beside IN1's doctor; one map editor export disabled while the others stay (the shared patch is one owner, `mapedit`: rebuilt by `bc2_install::mapedit` from each level's kept copy since OR6, or per-level slots with IN1); a kept layer re-based onto a changed file other than a settings file (IN1's registration slots); the WW2 install's and the Onslaught port's install run from the hub"
 source = "TR0; ROADMAP Queued MM1-rest"
@@ -2995,6 +3073,7 @@ repos = ["bfo"]
 category = "menus"
 tags = ["bfbc1", "editor"]
 raised = "2026-11-27"
+score = { d = 4, t = 3, h = 6.4 }
 body = "Renamed from MM0-MM2: MMAP0 static, MMAP1 one level (the cheaper first proof of the scene path), MMAP2 the other 14 levels; answers Q5."
 source = "TR0; XB3D0 report B; KB plans/bfo-phase.md"
 
@@ -3043,6 +3122,7 @@ repos = ["bfo"]
 category = "persistence"
 tags = ["host"]
 raised = "2026-11-27"
+score = { d = 3, t = 2, h = 1.8 }
 body = "all_progression, the PERS-SCORE-2 kills fix (C10), the stats screens' ini keys, stats per era; atomic stats.txt and save_ini's [unlocks] / [redeemed] done in bfo-fix3. Licence grants excluded (deferred)."
 source = "TR0; MV0 report ranked list 11"
 
@@ -3055,6 +3135,7 @@ repos = ["bfo", "suite"]
 category = "editor"
 tags = ["release", "formats"]
 raised = "2026-11-27"
+score = { d = 2, t = 2, h = 1.5 }
 body = "bfo has no install path for the editor's exports; build on bc2_install::mapedit / IN1. Size M."
 source = "TR0; MV0 report ranked list 12"
 
@@ -3067,6 +3148,7 @@ repos = ["bfo", "suite"]
 category = "host"
 tags = ["input", "re", "formats"]
 raised = "2026-11-27"
+score = { d = 2, t = 2, h = 1.5 }
 body = "The 51 diagnostic probes, [dev] virtual_pad, testrun / playtest and the crash-reader format pointed at OPFOREngine.exe. Size M."
 source = "TR0; MV0 report ranked list 13"
 
@@ -3079,6 +3161,7 @@ repos = ["bfo", "OPFOR"]
 category = "tooling"
 tags = ["re"]
 raised = "2026-11-27"
+score = { d = 2, t = 2, h = 1.5 }
 body = "The research / notes move is done (DOC1); the C++ tests are left. Size M."
 source = "TR0; MV0 report ranked list 15"
 decisions = [
@@ -3094,6 +3177,7 @@ repos = ["bfo", "OPFOR"]
 category = "menus"
 tags = ["onslaught", "host"]
 raised = "2026-11-27"
+score = { d = 3, t = 3, h = 4.8 }
 body = "OPFOR's 12 BFBC2 menu patches (B9: the BFBC2 blade shows the online login), Ad-Hoc list 0x9421F0, digitless names 0x95178F, mode-name redirect 0x956C2F, the Onslaught menu picture and loading text. Size M."
 source = "TR0; MV0 report ranked list 9, Missing (c)"
 
@@ -3230,6 +3314,7 @@ repos = ["OPFOR"]
 category = "host"
 raised = "2026-10-14"
 merged_into = ["live-runs"]
+score = { d = 1, t = 1, h = 0.5 }
 reason = "one traffic check, on battlefield-opfor's live runs"
 body = "Wireshark check not yet done"
 source = "DEVELOPMENT_NOTES section 7"
@@ -3343,6 +3428,7 @@ repos = ["suite"]
 category = "navai"
 tags = ["editor"]
 raised = "2026-11-22"
+score = { d = 3, t = 2, h = 1.8 }
 body = "Conditional round: stage a reduced, stage b traced in sector chunks."
 scope = "if a level grows past the memory budget (`rust/BENCHMARKS.md` \"NK5\", \"What is left\" item 3; NK5-rest retired `navbuild.py`): stage a reduced to what the merge reads before stage b, stage b's tracing in chunks of sectors"
 source = "TR0; ROADMAP Queued NK5-rest2"
@@ -3370,6 +3456,7 @@ repos = ["suite"]
 category = "navai"
 raised = "2026-11-22"
 merged_into = ["nkm0-nkmn", "ingame"]
+score = { d = 4, t = 4, h = 16.0 }
 reason = "the static items to NKM0-NKMn, the sample runs to INGAME"
 body = "DICE_DETAILED stays off until offline 0.2 m samples build as well as in-game ones; vehicle D / F needs a sample run; mostly folded into NKS-deep."
 scope = "what rounds NKG2 and NKG3 left (`rust/BENCHMARKS.md` \"NKG2\", \"NKG3\"): DICE's detailed sector choice (now sampleable at 0.2 m offline, NKS-deep C) and the coarse build that must match before `DICE_DETAILED` goes on, the rectangle on DICE's own levels (needs DICE's seeding rule: NKS-deep D), object-side and detailed D / F rules, vehicle D / F (needs an in-game vehicle-shaped sample run: a playtest item) - most of it folded into NKS-deep B and D. The user's ruling (2026-11-23, after NKS-deep E): `DICE_DETAILED` stays off until the offline 0.2 m samples build as well as the in-game ones (offline against in-game on the same sector choice: connectivity 98.33 against 99.06, ai_pairwise 93.84 against 95.57); `dice_seeds` and `midline_cut` stay off until NavKit has DICE's sector margins with a linking stage and DICE-sized area records (rust/BENCHMARKS.md \"NKS-deep E\")"
@@ -3426,6 +3513,7 @@ lane = "later"
 repos = ["suite"]
 category = "navai"
 raised = "2026-11-27"
+score = { d = 5, t = 5, h = 90.0 }
 body = "Clean-room rule removed; nothing translated from Kynapse is published; FLEXnet not bypassed."
 scope = "after DC0 (the user, 2026-11-27; the clean-room rule is removed): **NKM0** reads Kynapse's map builder in BFBC2Game.exe end to end on DC0's database (sector set-up and margins, seeding, node propagation, the linking stage, area records and the midline cut, edge costs, the walkability / slope test, D / F lines, portals) and explains, measure by measure, why NavKit is off (extra_ground 8.3 %, over_connection 15.7 %, ai_pairwise 95.9 %, nodes_paired 23 %, edges_paired ~5 %, costs_paired ~2 %, portals ~6 %, D / F recall ~24 / 33 %); then **NKM1 ...** implement the stages in the builder's own order in bc2-navbuild (our own code; nothing translated from Kynapse is published), each measured on all 35 DICE files and kept only if no measure gets worse; the FLEXnet licence check is not bypassed and the licence-locked generator is not run"
 source = "TR0; ROADMAP Queued NKM0 - NKMn; memory navkit-dice-parity-goal"
@@ -3521,6 +3609,7 @@ category = "navai"
 tags = ["terrain", "formats"]
 raised = "2026-11-22"
 merged_into = ["nkm0-nkmn"]
+score = { d = 4, t = 4, h = 16.0 }
 reason = "the same open rules, answered by reading the map builder instead of fitting"
 body = "A narrower terrain_fill, mesh_corners at area boundaries, DICE seeds needing sector margins and a linking stage, the midline cut needing DICE-sized records; largely superseded by NKM once DC0 is read."
 scope = "the user, 2026-11-22: go deeper on the Kynapse specification to raise NavKit's accuracy, in three parts, each finding measured on all 35 DICE files and kept only if no measure gets worse (or ruled by the user). **A** (done 2026-11-22, see Done: KYG-PAR-1 to 3, KYN-FILE-2, KYG-NODE-6, HPD-TAB-4, KYG-DOC-1). **B** (done 2026-11-23, see Done: KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5, KYG-AREA-4; DICE's placement in NavKit behind `Switches::placement`, on by the user's ruling 2026-11-23). Left from B (D: sp_007's `over_connection` rise 10.87 -> 17.47 %, a 142-node DICE island joined by short detailed edges); KYG-AREA-4's record size fitted on C's 0.2 m samples before NavKit cuts; DICE's detailed sectors measured again with C's samples; the rectangle on the Onslaught files; the vehicle D / F rule (a vehicle sample run); the runtime's LPF (KYRT-DYN-2) and node +0x14. **C** (done 2026-11-23, see Done: the offline sampler in Rust, `bfbc2 navkit sample --offline`; DICE's 502 detailed sectors sampled at 0.2 m; a vehicle-shaped run, unvalidated). **E** (done 2026-11-23, see Done: XNAV-MEAS-1, KYG-SEED-2, KYG-AREA-5; the seeds, the cut and DICE's detailed sectors measured and left off for the user's ruling). Left from E: DICE's seed list needs NavKit's sectors to have DICE's margins and a linking stage (its border nodes stand in), and the DICE seeds' build of sp_005 ran past 50 minutes; the midline cut needs NavKit's area records DICE-sized first (its detailed records reach 48 KB); `DICE_DETAILED` with the offline 0.2 m samples (better on 11 means, worse on portals, outline, costs, nodes_paired: a ruling); the old exact-match measures (`nodes_same`, `edges_same`, `costs`) to be dropped from navregress after one round. Was: **E** (the user, 2026-11-23; after B, before D): node placement's remaining inputs and better measures - DICE's exact per-sector seed list decoded from the map builder in `BFBC2Game.exe` (NavKit seeds from border nodes and order positions; a different start shifts the whole 3.35 m lattice, likely the largest cause of `nodes_near` 56.2 %), the midline cut implemented (KYG-AREA-4: its record-size trigger fitted on C's 0.2 m samples), DICE's detailed sector choice re-measured with C's sampler, and the measure rework: `costs` and exact-node / exact-edge scores over all edges by nearest-node pairing instead of the handful matched within 5 cm, so D is judged on numbers that mean something. **D** (done 2026-11-27, see Done: KYG-RECT-1 corrected - the player's alternate spawns are not in DICE's box, all 52 campaign sides at it; KYG-SEED-3, KYG-PAR-4, KYG-NODE-9, XNAV-BLD-5; four switches measured and left off and ruled by the user 2026-11-27: `lip_object_flat_all` on (its dips named exceptions in spec/transforms/navkit.md), `terrain_fill`, `mesh_corners` and `RECT_ON_DICE_LEVELS` off). Left from D: a narrower `terrain_fill` (fill only under the objects the sampler got stuck on: sp_003_b's gain, `ai_pairwise` 74.4 -> 93.4, without the extra ground on sp_008 / sp_008_b or sp_03's dip); `mesh_corners` at area boundaries only (the next test); the exploration's walkable test (the edge speckle of `extra_ground`), DICE's graph gaps on open ground, the sp_003_b sector-line corner break."
@@ -3660,6 +3749,7 @@ repos = ["OPFOR", "xenolith", "bfo"]
 category = "onslaught"
 tags = ["shaders", "release", "formats"]
 raised = "2026-11-19"
+score = { d = 5, t = 5, h = 90.0 }
 body = "Keep the mod install and its backups for now; the night lamps of ONS_MP_002 to be converted, not dropped."
 source = "TR0; ROADMAP On hold; memory onslaught-without-napisal-goal; OPFOR git 3f6ecbc; STOCK_MP_AI_PLAN 11"
 
@@ -3758,6 +3848,7 @@ repos = ["OPFOR", "xenolith"]
 category = "onslaught"
 tags = ["pacific", "navai", "terrain"]
 raised = "2026-10-31"
+score = { d = 3, t = 3, h = 4.8 }
 body = "C1 Isla Inocentes road signs (0x98BD6E), C2 Onslaught explosives disabled, C3 Nelson Bay stage 2 hand-run merge, C5 ONS_MP_002 bot routes, C7 Wake hut floor / seats / MG inputs, C8 Coral Sea plane-death crash, C9 11 dbxport defects; best fixed in the ports after XM6 / XM7. Also: Nelson Bay's level faults. Also: the cull-slot remap for the community mod's Valparaiso / Isla Inocentes."
 source = "TR0; KB issues/README.md; QA_SWEEP_2026-11-14; PACIFIC_GAP_ANALYSIS open faults; DEVELOPMENT_NOTES section 4; DEVELOPMENT_NOTES section 4; tooling backlog; DEVELOPMENT_NOTES section 7; MP_APPLICATION_LOG; DEVELOPMENT_NOTES section 4 / 7"
 
@@ -4014,6 +4105,7 @@ started = "2026-11-27"
 owner = "or13 (suite, OPFOR)"
 aliases = ["ONS4-S7"]
 kb = ["docs/eras/onslaught.md"]
+score = { d = 2, t = 1, h = 0.5 }
 body = "Branch or13 5 ahead and 0 behind suite main, worktree clean; Done row and version 0.38.0 written; ONS_MP_004's stage 7 merge fixed (the base's unowned programs left out). ONS4-S7 row merged into this card."
 scope = """
 OR13: OPFOR in Rust, the leftovers (the user, 2026-11-27): the rest of the Onslaught console port, proven like OR9 against the Python's work files byte for byte (the plan: `rust/BENCHMARKS.md` \"OR9\", \"The plan\"; OR10, OR11 and OR12 done): stage 14 (`console_icons`, with OR14's polygon fill), `console_shader_audit` and the Napisal-level fixes (`apply_ai_template`, `apply_combat_squads`, `apply_sector_offsets`; ~1,730), then `console_port.py`'s driver and `console_common`'s leftovers; the user's console content only from the user's own Xbox files, never committed
@@ -4762,6 +4854,7 @@ category = "persistence"
 tags = ["pacific"]
 raised = "2026-11-15"
 kb = ["docs/research/bfbc/BF1943_SOFTWARE_SPECIFICATION_AND_PORT_GAPS.md"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "Decided 2026-11-15: a separate career, BF1943's 50 ranks, its 12 Xbox achievements as trophies, our own stars, gated awards shown; MV0: 'not built'. Builds on EP4. BF1943 port gap G15 (from BFBC-G)"
 source = "TR0; memory pacific-awards-decisions; MV0 rulings check; OPFOR git 4a0b259; PACIFIC_GAP_ANALYSIS G15"
 
@@ -5015,6 +5108,7 @@ repos = ["suite", "OPFOR"]
 category = "release"
 tags = ["menus", "tooling"]
 raised = "2026-11-20"
+score = { d = 2, t = 3, h = 4.0 }
 body = "Round codes out of names, one naming scheme, the installable package, wake_* -> ww2_*, hpdview deletion, the menu / console-readers Python deleted (OR14 list). The Python items (hpdview, the Python package) end with PX and XM instead"
 scope = "names and packaging, before the release: the round-code renames (NAM-1, NAM-3: the Rust test files, test data and runner entries grandfathered in `tests/test_repo.py`, keyed by stable id and path since PR1a), module docs by function as they are touched (NAM-2), one naming scheme for the CLI, binaries, environment variables, editor modules and folders (NAM-5, NAM-6, NAM-7, NAM-9), the installable package (PR0 14), `wake_*` leftovers (PR0 16). Moved out of PR1 (AU5): ARC-3 + ALG-7 (one typed ledger, streamed installs) to IN1 and OPFOR in Rust stage 1; ARC-9 (the Merger's `clone_entry` / `add_part`) to OPFOR in Rust stage 3a; ALG-10 (WW2 build memory) to stage 0; ARC-11 (data inputs in the green-crate fingerprint) to Tests in Rust; ARC-13 (a \"Python left\" table: each remaining Python folder and its retiring round) is written with PR1c"
 source = "TR0; ROADMAP Queued PR1c; memory post-rust-improvements-queued"
@@ -5031,6 +5125,7 @@ repos = ["OPFOR"]
 category = "host"
 tags = ["re", "formats"]
 raised = "2026-10-31"
+score = { d = 1, t = 1, h = 0.5 }
 reason = "the user chose to drop it (the probes stay where MV0-13 leaves them)"
 body = "Stats get/set, killprobe, captureprobe, VO walk probe once answered"
 source = "DEVELOPMENT_NOTES where to resume 2026-10-31"
@@ -5050,6 +5145,7 @@ raised = "2026-11-27"
 started = "2026-11-27"
 owner = "px1 (suite)"
 aliases = ["OR16", "OR16-rest"]
+score = { d = 3, t = 3, h = 4.8 }
 body = "Worktree px1 sits on OR16's WIP commit (1 ahead, 11 behind main); sub-worktrees harness (16 files) and navdiag (14 files) hold uncommitted work. Absorbs OR16."
 scope = "the Python exit, part 1 (the user, 2026-11-27: \"complete our porting ... delete any and all python leftover and establish functionality, performance, and accuracy/parity baselines from the Rust tool suite\"): OR16-rest - navregress run in Rust (inputs, build_level on bc2_navbuild::build, estimates, compare; sp_009 / sp_004_b byte for byte, then one full regression), the harness's run and testharness libraries (classify, levelchecks, levelinfo), `dbxparitylib.instances`, the NavKit diagnostics (navboundary, navwater, navwater_mesh, navsample flood / compare, detailed --score), hpdview deleted (PR1c)"
 source = "TR0; ROADMAP Queued PX1; memory python-exit-goal"
@@ -5063,6 +5159,7 @@ repos = ["suite"]
 category = "tooling"
 tags = ["pacific", "formats"]
 raised = "2026-11-27"
+score = { d = 3, t = 4, h = 12.0 }
 body = "PYTHON_STATUS: 18 files, 13,160 lines (BF1943 import steps, audio / texqa, granny / shapes references), each with parity on real data."
 scope = "the Python exit, part 2 (the user, 2026-11-27: \"complete our porting ... delete any and all python leftover and establish functionality, performance, and accuracy/parity baselines from the Rust tool suite\"): every \"partly\" file finished (PYTHON_STATUS: 18 files, 13,160 lines) - the BF1943 import's Python steps, audio / texqa leftovers, granny / shapes references, the rest; each with parity on real data, then its Python retired"
 source = "TR0; ROADMAP Queued PX2"
@@ -5076,6 +5173,7 @@ repos = ["suite"]
 category = "tooling"
 tags = ["shaders", "re"]
 raised = "2026-11-27"
+score = { d = 4, t = 4, h = 16.0 }
 body = "pcbuild (d3dcompiler from Rust), xdiff, xenos_exec, shaderview previews (wake_preview / weapon_preview), testrun and playtest.py, sample_all. Absorbs the OPFOR-in-Rust rows' last leftovers."
 scope = "the Python exit, part 3 (the user, 2026-11-27: \"complete our porting ... delete any and all python leftover and establish functionality, performance, and accuracy/parity baselines from the Rust tool suite\"): the files OR15 recorded as staying Python, reversed by the user's goal - the HLSL compiles (`pcbuild`: d3dcompiler_47 called from Rust), `xdiff` and the Xenos reference interpreter `xenos_exec` (a Rust reference interpreter, proven on the same programs), the shaderview previews (renderqa, wake_preview, weapon_preview), testrun's game launch and `playtest.py`, `sample_all` (a game launch: Rust process control; launching stays gated by the in-game-test rules)"
 source = "TR0; ROADMAP Queued PX3"
@@ -5090,6 +5188,7 @@ category = "tooling"
 tags = ["docs"]
 raised = "2026-11-21"
 aliases = ["PY1"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "Duplicate of the ROADMAP's PY1 row (merged here): DICE behaviour kept with evidence, Python-isms made spec rules or decided against DICE data; ONS4-S7's self-clone suspicion settled by OR13."
 scope = """
 PX4: the Python exit, part 4 (the user, 2026-11-27: \"complete our porting ... delete any and all python leftover and establish functionality, performance, and accuracy/parity baselines from the Rust tool suite\"): PY1 - every bc2-pyrt use replaced (DICE behaviour kept with evidence, Python-only behaviour replaced by spec rules, the rest decided against DICE ground truth), the oracles updated once with every changed byte explained, the 58 twins retired, bc2-pyrt deleted
@@ -5106,6 +5205,7 @@ category = "tooling"
 tags = ["docs"]
 raised = "2026-11-19"
 aliases = ["Tests in Rust"]
+score = { d = 4, t = 5, h = 48.0 }
 body = "Duplicate of the ROADMAP's 'Tests in Rust' row (merged here): 193 test files (53,204 lines), corpus generated from the spec so CI runs without the game."
 scope = """
 PX5: the Python exit, part 5 (the user, 2026-11-27: \"complete our porting ... delete any and all python leftover and establish functionality, performance, and accuracy/parity baselines from the Rust tool suite\"): Tests in Rust - the 193 test files (53,204 lines) ported to cargo tests and the Rust test runner, with the synthetic test corpus generated from the specification so tests run without the game; the golden files kept as data
@@ -5120,6 +5220,7 @@ lane = "next"
 repos = ["suite", "OPFOR"]
 category = "tooling"
 raised = "2026-11-27"
+score = { d = 3, t = 3, h = 4.8 }
 body = "suite_paths, bfbc2core, bc2-py / maturin, run_tests.py, the stays scripts as Rust benches; OPFOR's callers switched to bfbc2.exe; test_repo refuses new .py."
 scope = "the Python exit, part 6 (the user, 2026-11-27: \"complete our porting ... delete any and all python leftover and establish functionality, performance, and accuracy/parity baselines from the Rust tool suite\"): the plumbing last - `suite_paths.py`, `bfbc2core` (`__init__`, envvars, native, paths, caches), bc2-py's Python bindings and the maturin build, `run_tests.py`, the \"stays\" scripts (benchmarks and parity measurements re-expressed as Rust benches against recorded baselines); OPFOR's callers switched to bfbc2.exe; then every remaining .py deleted and `tests/test_repo.py` (as a Rust check) refusing any new one"
 source = "TR0; ROADMAP Queued PX6"
@@ -5133,6 +5234,7 @@ repos = ["suite"]
 category = "tooling"
 tags = ["onslaught", "pacific", "navai"]
 raised = "2026-11-27"
+score = { d = 3, t = 3, h = 4.8 }
 body = "Feature matrix with golden runs, idle-PC timings and peak memory, the WW2 / Onslaught oracles and NavKit's DICE rows; run in CI where no game data is needed."
 scope = "the baselines (the user, 2026-11-27: \"complete our porting ... delete any and all python leftover and establish functionality, performance, and accuracy/parity baselines from the Rust tool suite\"): functionality (a feature matrix of every bfbc2.exe tool and option with golden runs), performance (each tool timed on an idle PC: wall time, peak memory, per level / per input; recorded as the baseline every later change is measured against), accuracy and parity (the WW2 rebuild and install oracles, the Onslaught levels, NavKit's DICE-parity rows, DICE ground-truth comparisons for each converter, the spec's verified rules); one `bfbc2 baseline` command that re-measures and diffs against the recorded set, run in CI where it needs no game data"
 source = "TR0; ROADMAP Queued PX7"
@@ -5206,6 +5308,7 @@ lane = "bfo"
 repos = ["bfo"]
 category = "menus"
 raised = "2026-11-27"
+score = { d = 3, t = 3, h = 4.8 }
 body = "From the LV decision to keep quick match; new-screen work (MC0 option 3) once UI1 / UI3 exist."
 source = "TR0; memory console-menu-offline-ruling; session"
 
@@ -5219,6 +5322,7 @@ category = "docs"
 tags = ["editor"]
 raised = "2026-10-16"
 merged_into = ["release"]
+score = { d = 2, t = 3, h = 4.0 }
 reason = "a beginner guide for bfbc2.exe and the editor is one of the release's deliverables"
 body = "Expected after the suite is complete; the 'GUIs for every tool' half is now the editor-folding policy."
 source = "TR0; memory tooling-phase-rationale"
@@ -5393,6 +5497,7 @@ repos = ["suite"]
 category = "re"
 tags = ["bfbc1", "pacific", "navai"]
 raised = "2026-11-27"
+score = { d = 4, t = 4, h = 16.0 }
 body = "RC0 BF1943 Reborn's source (facts only), RC1 a BFBC1 trace harness, RC2 a render oracle (needs the user's go-ahead to run Reborn), RC3 a bot cross-check."
 scope = "after ER0 (the user, 2026-11-27): the third-party recompilations as source-side oracles - **RC0** reads BF1943 Reborn's source (GPL-3: facts only, no code into the MIT suite) for how BF1943 reads what we port (Xenos shader constants, weapon values, materials, the air raid: air-raid exact fidelity); **RC1** a BFBC1 trace harness logging how its loader reads each asset (BC1 content, native era 3); **RC2** a render oracle - the same asset drawn in Reborn and in BFBC2, pictures compared (running Reborn needs the user's go-ahead); **RC3** a bot cross-check against BFBC1 / BF1943 AI behaviour"
 source = "TR0; ROADMAP Queued RC0 - RC3"
@@ -5405,6 +5510,7 @@ lane = "later"
 repos = ["private", "suite"]
 category = "re"
 raised = "2026-11-27"
+score = { d = 5, t = 5, h = 90.0 }
 body = "Readable, modifiable, private; an end-user replay tool; no EA-derived code distributed."
 scope = "later (the user, 2026-11-27): static recompilation of BFBC2Game.exe to x64 on DC0's database - the lifter chosen and proven function by function (a 32-bit DLL replacing originals behind hooks, each compared with the original on the same inputs), then the 64-bit guest-space build with its Win32 / D3D9-11 / middleware bridges, then readable (names, types, structure) and modifiable code kept private, NavKit tuned against it, and an end-user tool that replays the recipe on the user's own executable (no EA-derived code distributed)"
 source = "TR0; ROADMAP Queued RCX0 - RCXn; memory x64-recompilation-goal"
@@ -5417,6 +5523,7 @@ lane = "later"
 repos = ["suite"]
 category = "terrain"
 raised = "2026-11-23"
+score = { d = 3, t = 3, h = 4.8 }
 body = "End of the queue, after E5-rest; Catmull-Rom / Bezier, baked to the road blocks."
 scope = "end of the queue (the user, 2026-11-23); after E5-rest, whose paint and sculpt layers it uses: a road / track drawing tool in the map editor for asphalt, dirt, gravel and tyre-track roads. **Drawing:** straight segments (a polyline with optional corner rounding at a set radius), Catmull-Rom splines through the clicked points (centripetal by default; uniform and chordal as options), and cubic Bezier - any Catmull-Rom or polyline road converts exactly to Bezier segments with editable handles (uniform: P1 + (P2 - P0) / 6 and P2 - (P3 - P1) / 6; the centripetal / chordal forms from each segment's own parameter spacing); Bezier back to Catmull-Rom only while the handles still match; the kinds mix along one road with continuous joins. The project keeps the curve (points, kind, handles), never only the bake. **Bake:** strips sampled by arc length (density independent of the drawing), conformed to the ground, written to both road blocks of the visual terrain (DECAL-STRIP-1, TERR-VT-2) with a donor road strip's shader entries of the strip vertex layout (DECAL-STRIP-2), a width, a road type from DICE's own road strips in the content set, and a layer 0 - 7 for overlaps. **Ground:** optional flatten / smooth along the road through E5's sculpt layer, the matching physics material painted under it (E5's material map), undergrowth cleared by the mask (VEG-UG-5), the road reaching NavKit's road cost (BOT-MOV-4: RoadCostModifier 0.5). **Edits:** re-bake on every sculpt, undo / redo and point move (DECAL-STRIP-3: nothing re-bakes in game). **Export:** the terrain bundle, read back by a new XVAL rule. **Proof:** Catmull-Rom and its Bezier conversion agree point for point and round-trip unchanged; arc-length sampling stable in the point count; DICE's own roads re-baked from splines fitted to their strips and compared with DICE's strips; the look in game once in-game tests resume"
 source = "TR0; ROADMAP Queued RD1"
@@ -5442,6 +5549,7 @@ repos = ["suite"]
 category = "release"
 tags = ["tooling"]
 raised = "2026-11-17"
+score = { d = 3, t = 3, h = 4.8 }
 body = "The final suite task; ask the user before starting; ships without tests, with the IN1 diagnostics."
 scope = "started only after asking the user (the user, 2026-11-22: \"check in with me before full release\"): the full suite release: standalone, WITHOUT the tests (tests, goldens, replays, BENCHMARKS and spec tooling stay in the repo and CI; the user, 2026-11-21); `RELEASING.md` gets an include list and a check that nothing from `tests\\` reaches the zip; users get the IN1 diagnostics instead"
 source = "TR0; ROADMAP Queued Release; memory suite-full-release-last"
@@ -5454,6 +5562,7 @@ lane = "later"
 repos = ["suite"]
 category = "shaders"
 raised = "2026-11-19"
+score = { d = 4, t = 3, h = 6.4 }
 body = "Also R5d's capture leftovers: StreamInstancingFloat programs, panoramic clouds' composite, MinScreenArea, far-water pixels."
 scope = "exact sun, exposure and fog"
 source = "TR0; ROADMAP Queued RenderDoc; Priority order 3 (R5d)"
@@ -5609,6 +5718,7 @@ raised = "2026-11-27"
 started = "2026-11-27"
 owner = "bfo-shaders (bfo), sc1 (xenolith)"
 kb = ["docs/research/rounds/ca0-summary.md"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "xenolith branch sc1: 2 commits (hlsl.rs synced with bc2-shader, an SM3 / Dx9 emission mode) plus an uncommitted frostbite-shaders crate; bfo-shaders worktree 3 files. Targets: Gunrack shaders, mp_beachhead_day1's PC path, BF1943 hand-held weapons and Dx9 soldiers, Wake water, minimap, rifle grenades, provenance of installed translations (Q8)."
 scope = "The WW2 hand-held weapons and soldiers (K26, with WW2-TRANSLATE merged in): translated fully with BF1943's own shaders on Dx9, Dx10 and Dx11, for completeness, as switchable output; the working donor weapons with their own shaders stay the in-game default (they aim down sights in first person). What SC1 does not finish becomes SC1-rest."
 source = "TR0; KB plans/bfo-phase.md SC; KB TASKS Issued; CA0 report"
@@ -5626,6 +5736,7 @@ category = "shaders"
 raised = "2026-11-27"
 parent = "sc1"
 depends = ["sc1"]
+score = { d = 3, t = 2, h = 1.8 }
 body = "XM0 prerequisite before XM4: the shader translator has forked (XM0 high #3)."
 source = "TR0; session; _rounds/xm0 REPORT prerequisites"
 
@@ -5664,6 +5775,7 @@ repos = ["OPFOR"]
 category = "host"
 raised = "2026-10-14"
 merged_into = ["aut0-aut7"]
+score = { d = 2, t = 2, h = 1.5 }
 reason = "the same presets, one owner: AUT0-AUT7's AUT7 (text and server presets)"
 body = "Allowlisted engine settings; on hold, do not implement until asked"
 source = "DEVELOPMENT_NOTES section 4 'Server settings file'"
@@ -5717,6 +5829,7 @@ repos = ["suite"]
 category = "docs"
 tags = ["formats"]
 raised = "2026-11-19"
+score = { d = 3, t = 5, h = 36.0 }
 reason = "the layers exist (SP2); \"each porting round adds its spec rules\" is a standing rule in RELEASING.md"
 body = "Grows with each porting round."
 source = "TR0; ROADMAP Queued"
@@ -5747,6 +5860,7 @@ category = "docs"
 tags = ["shaders", "menus", "formats"]
 raised = "2026-11-27"
 aliases = ["SPG2-rest7", "SPG3-rest2", "SPG4-rest2"]
+score = { d = 3, t = 4, h = 12.0 }
 body = "Undergrowth sway, particle shaders, menu message ids, anim-tree elements; renderer fallbacks, event factories; sound graph, Jump / InAir, squad readers, kill cam, save body. Playtest items wait."
 scope = """
 SPG2-rest7: what round SPG2-rest6 left (`spec/COVERAGE.md` section 2): the Dx9 undergrowth programs' sway (counted, not read) and the engine's default `UndergrowthWindSpeed` / `UndergrowthMaxHeight` (VEG-UG-10, 11); the particle shaders (the quad from the corner index, the frame lookup, the alpha levels, the clip scale), other emittable types through the mesh spawn, the turbulence draws' axes, who sets the emitter parameters (FX-PROC-9 - 11); the server message ids' names and the dispatcher's job numbers (MENU-RT-8); the criterion factory's other callers 0x8617B0 / 0x8489A0 and the 0x51 test's +0xA8 (PERS-AWD-6, 8); the anim-tree array elements of types 2, 3, 6, 7, 13, 23, the If node's expression record, block C's curve names (ATREE-NODE-4, ATREE-BLK-6); OPFOR's PERS-SCORE-2 fix is an OPFOR round; the playtests when in-game tests resume: `transforms/terrain_edit.md` section 5 (E5 / E7), ONS-CAP-3's patch, MAT-TEX-20's capture, BOT-GS-5, the kill probe, a save with kills after the PERS-SCORE-2 fix, a save with an award (PERS-AWD-7), a burst of one menu event (MENU-EVT-5), a suicide and a team kill with the award log (PERS-AWD-6), a `WindScale` 0 type and a mesh taller than `UndergrowthMaxHeight` (VEG-UG-10, 11), `LocalForce`'s sign (FX-PROC-10)
@@ -5990,6 +6104,7 @@ repos = ["OPFOR"]
 category = "persistence"
 raised = "2026-10-26"
 merged_into = ["mv0-11", "ls0-ls7"]
+score = { d = 3, t = 3, h = 4.8 }
 reason = "awards to MV0-11, dog tags to LS0-LS7 (LS7)"
 body = "Still empty offline"
 source = "DEVELOPMENT_NOTES section 7"
@@ -6018,6 +6133,7 @@ repos = ["bfo"]
 category = "navai"
 raised = "2026-10-26"
 depends = ["ais-rest2"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "Conquest re-targeting on capture, squads, vehicles, patrols; bfo tracks it now"
 source = "STOCK_MP_AI_PLAN 13.4"
 decisions = [
@@ -6178,6 +6294,7 @@ repos = ["suite"]
 category = "terrain"
 tags = ["pacific", "editor", "formats"]
 raised = "2026-11-27"
+score = { d = 3, t = 3, h = 4.8 }
 body = "Shores and partial water bodies (TGEN-WATER-1), the bright shallow sea floor, temperate's ridged / terraced option, jungle's slope percentile, multi-ring terrains, generated terrain shown in the views before export, WW2 bases."
 source = "TR0; BENCHMARKS TG1, TG2, TG4, E7-TG3 Left"
 
@@ -6244,6 +6361,7 @@ repos = ["suite"]
 category = "terrain"
 tags = ["pacific", "tooling"]
 raised = "2026-11-23"
+score = { d = 4, t = 4, h = 16.0 }
 body = "After TG4 and A3; in-game proof when tests resume."
 scope = "after TG4 and A3: gameplay on generated terrain (objectives on the generator's pads, combat areas from its flat region: TGEN-PLAY-1 - 3) and the WW2 (pacific) biome under WW2 mode (TGEN-BIOME-3); the in-game proof (terrain_edit.md section 5 step 7) once in-game tests resume"
 source = "TR0; ROADMAP Queued TG5"
@@ -6282,6 +6400,7 @@ repos = ["OPFOR", "suite"]
 category = "release"
 tags = ["editor", "tooling"]
 raised = "2026-10-15"
+score = { d = 2, t = 2, h = 1.5 }
 reason = "superseded by MM1 and battlefield-opfor's modules"
 body = "Open 11-20; partly covered by the mod manager and install ledger"
 source = "DEVELOPMENT_NOTES tooling backlog"
@@ -6298,6 +6417,7 @@ repos = ["OPFOR", "suite"]
 category = "formats"
 tags = ["onslaught"]
 raised = "2026-10-15"
+score = { d = 3, t = 3, h = 4.8 }
 reason = "superseded by xenolith's ports and the editor's export"
 body = "Generalise the Nelson Bay recipe; still open 11-20"
 source = "DEVELOPMENT_NOTES tooling backlog"
@@ -6313,6 +6433,7 @@ lane = "dropped"
 repos = ["OPFOR", "suite"]
 category = "host"
 raised = "2026-10-15"
+score = { d = 2, t = 2, h = 1.5 }
 reason = "superseded"
 body = "Stack sampler, crash / debug-output logging as a [debug] option"
 source = "DEVELOPMENT_NOTES tooling backlog"
@@ -6351,6 +6472,7 @@ lane = "done"
 repos = ["all"]
 category = "repos"
 done = "2026-11-28"
+score = { d = 1, t = 1, h = 0.5 }
 body = "Read-only: tasks_all.json from every repo's history, the trackers, the memory notes and OPFOR's log; categories and a contention list."
 source = "session"
 
@@ -6389,6 +6511,7 @@ repos = ["suite"]
 category = "menus"
 tags = ["editor", "repos", "formats"]
 raised = "2026-11-27"
+score = { d = 4, t = 5, h = 48.0 }
 body = "Suite half of the UI family, after the OR rounds with the xenolith migration; UI3 is MC0's option 3 back end."
 scope = "the user, 2026-11-27: an APT menu viewer and editor (2D UI only) and the in-engine 4-blade hub. **UI0** static RE: the FSCommand callback 0xFA4930 / pointer 0x1BEAAF8, unknown command ids per screen, the HUD and generic extern getters, UIMenuNameTranslation / MenuConfigAsset aliasing, the main-menu bundle lifetime, GotoFrame2 label case, Morph and Button layouts. **UI1** formats: Morph (+ Button) in aptmodel, an aptscan rule for opcodes the PC cannot run and for the FSCommand vocabulary, byte-exact round trips of the BFBC2 Xbox, BF1943 Xbox and BFBC1 Xbox menus and their re-conversion against xenolith's output. **UI2** viewer: display-list evaluator, wgpu renderer, atlas and glyph text, frame scrubber, binding inspector, per-target / per-variant previews (a Menu tool in the editor). **UI3** edit + export: an action / binding IR compiled by graft::Builder, layout edits, per-variant data, recipes (never EA content) -> movie -> bundle -> registration. **UI4** battlefield-opfor: a callback-level FSCommand registry, extern registry, event sender; era_ui moved off the loading screen's 0x753540. **UI5** the in-engine hub (hub main_root, opforEnterMode) and splash, restart hidden first. **UI6** era switch without restart (superset registration, mutable router, era hooks always installed). **UI7** console / PC variants by input device (extern.opforDevice + event). UI0 - UI3 are suite work (after the OR rounds, with the xenolith migration); UI4 - UI7 are in the battlefield-opfor phase. Research report: the coordinator's analysis of 2026-11-27; GM0's findings for these rounds (the era and mode externs, the HUD getter's table, what an era switch reloads and what follows the level): spec engine/gamemodes.md, last section"
 source = "TR0; ROADMAP Queued UI0 - UI7; MC0 staged plan"
@@ -6402,6 +6525,7 @@ repos = ["suite"]
 category = "docs"
 tags = ["menus"]
 raised = "2026-11-27"
+score = { d = 2, t = 2, h = 1.5 }
 body = "A rule family for XB3D0's scene findings (Gunrack, 3D minimap)."
 source = "TR0; KB TASKS Queued"
 
@@ -6415,6 +6539,7 @@ category = "menus"
 tags = ["eras"]
 raised = "2026-11-27"
 aliases = ["UI4-UI7"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "battlefield-opfor half of the UI family; UI4 = XBM2, UI5 = HUB3 / HUB4, UI6 = HUB1 / HUB2 (duplicates noted, counted once). Shrunk to UI7: UI4 is XBM2, UI5 HUB3-HUB4, UI6 HUB1-HUB2, so each piece of work has one owner"
 scope = "the user, 2026-11-27: an APT menu viewer and editor (2D UI only) and the in-engine 4-blade hub. **UI0** static RE: the FSCommand callback 0xFA4930 / pointer 0x1BEAAF8, unknown command ids per screen, the HUD and generic extern getters, UIMenuNameTranslation / MenuConfigAsset aliasing, the main-menu bundle lifetime, GotoFrame2 label case, Morph and Button layouts. **UI1** formats: Morph (+ Button) in aptmodel, an aptscan rule for opcodes the PC cannot run and for the FSCommand vocabulary, byte-exact round trips of the BFBC2 Xbox, BF1943 Xbox and BFBC1 Xbox menus and their re-conversion against xenolith's output. **UI2** viewer: display-list evaluator, wgpu renderer, atlas and glyph text, frame scrubber, binding inspector, per-target / per-variant previews (a Menu tool in the editor). **UI3** edit + export: an action / binding IR compiled by graft::Builder, layout edits, per-variant data, recipes (never EA content) -> movie -> bundle -> registration. **UI4** battlefield-opfor: a callback-level FSCommand registry, extern registry, event sender; era_ui moved off the loading screen's 0x753540. **UI5** the in-engine hub (hub main_root, opforEnterMode) and splash, restart hidden first. **UI6** era switch without restart (superset registration, mutable router, era hooks always installed). **UI7** console / PC variants by input device (extern.opforDevice + event). UI0 - UI3 are suite work (after the OR rounds, with the xenolith migration); UI4 - UI7 are in the battlefield-opfor phase. Research report: the coordinator's analysis of 2026-11-27; GM0's findings for these rounds (the era and mode externs, the HUD getter's table, what an era switch reloads and what follows the level): spec engine/gamemodes.md, last section"
 source = "TR0; ROADMAP Queued UI0 - UI7"
@@ -6445,6 +6570,7 @@ repos = ["OPFOR", "bfo", "suite"]
 category = "navai"
 raised = "2026-10-12"
 kb = ["docs/research/bfbc/BF1943_SOFTWARE_SPECIFICATION_AND_PORT_GAPS.md"]
+score = { d = 5, t = 5, h = 90.0 }
 body = "Part of the original project outline; partly in AIS-rest2 (a seated driver) and NKG-rest (vehicle D / F); no round of its own. BF1943 port gap G2 (from BFBC-G)"
 source = "TR0; memory bc2-offline-skirmish-project; PACIFIC_GAP_ANALYSIS G2; DEVELOPMENT_NOTES section 7; STOCK_MP_AI_PLAN 11"
 
@@ -6480,6 +6606,7 @@ repos = ["bfo"]
 category = "host"
 tags = ["pacific"]
 raised = "2026-11-28"
+score = { d = 2, t = 1, h = 0.5 }
 body = "An approved verification run; the dev trigger came back with bfo-fix3's start-queue hook (0x951E00). Overlaps HK0's live run L1."
 source = "TR0; session only"
 
@@ -6520,6 +6647,7 @@ repos = ["suite"]
 category = "shaders"
 tags = ["editor"]
 raised = "2026-11-21"
+score = { d = 4, t = 4, h = 16.0 }
 body = "Needs placing another bundle's blueprints with emitters; exported night / rain off by default until seen in game."
 scope = "the rest of round VW2 (left 2026-11-21, reasons in `rust/BENCHMARKS.md` \"VW2\"): **VW2c** the lamp tool (point-light effect emitters with `ActAsPointLight` from SP_01's donors, placed by the user in the Objects workspace: needs placing a blueprint of another level's bundle with its emitters, E2b's \"+bundle\" and XF1's shader entries); **VW2d** rain and snow beyond the state's values (the grid of camera-proximity area effects over the combat area and the sound areas, from SP_03 rain / MP_007 snow donors: the effects' emitters under the target's emitter namespace and the atlas entries, the sound partitions and their Wave chunks); VW1's leftovers (overlays following project edits, damage and clear-area triggers, wall collision for the walk camera, the FOV and box-evaluator readings proved); all exported night / rain off by default until seen in game"
 source = "TR0; ROADMAP Queued VW2-rest"
@@ -6532,6 +6660,7 @@ lane = "later"
 repos = ["suite"]
 category = "shaders"
 raised = "2026-11-21"
+score = { d = 4, t = 3, h = 6.4 }
 body = "After WX1 and VW2c."
 scope = "with VW2c's lamp tool, after research round WX1 (the user, 2026-11-21): **night conversion** - a \"Light fixtures\" view that highlights every object that is a light source in daytime mode (lamps, street lights, lanterns, searchlights, lit windows and signs, vehicle and building lights: placed objects and static group members) and lists them in a sidebar by kind and count; for each, its light-emitting equivalent: DICE's own lit variant where one exists (the day/night pairs WX1 finds, e.g. ONS_MP_002 against ONS_MP_002_night), otherwise a lit variant built by the suite (the same mesh with an emissive material and a point-light emitter at the fixture's bulb, from SP_01's ActAsPointLight donors); replace one, a selection or all of a kind, manually or with \"convert all\" as undoable project operations, previewed in both views with the night state; fixtures without an equivalent listed as such; off by default until seen in game"
 source = "TR0; ROADMAP Queued VW2e"
@@ -6545,6 +6674,7 @@ repos = ["suite"]
 category = "shaders"
 tags = ["editor"]
 raised = "2026-11-21"
+score = { d = 3, t = 3, h = 4.8 }
 body = "A state's own values edited and exported as a new state beside DICE's."
 scope = "with VW2-rest, after E5 (the user, 2026-11-21): a weather editor - a state's own values edited, not only picked: the sun (direction, colour, intensity), fog (start / end, colour), ambient and sky tint, exposure and the other fields WX0 inventoried (`weather_inventory.json`), as sliders and colour pickers in a Weather panel; both views follow live (the game-accurate view redraws the edited state, the simplified view re-tinted); the edited state saved in the project (a typed operation, project format bump) and exported as the level's state (a new state appended beside DICE's, never DICE's overwritten); reset to the picked state; values held to the ranges seen across DICE's 355 states with a warning outside them; canaries byte for byte when nothing is edited, off by default until seen in game. No re-bake (WX0: nothing baked depends on the sun)"
 source = "TR0; ROADMAP Queued VW3; memory map-editor-planning"
@@ -6557,6 +6687,7 @@ lane = "dropped"
 repos = ["suite"]
 category = "docs"
 raised = "2026-11-20"
+score = { d = 2, t = 4, h = 10.0 }
 reason = "the knowledge base (battlefield-opfor's docs/) is the wiki"
 body = "Shelved 2026-11-20; bfo's KB is separate from it."
 source = "TR0; ROADMAP On hold; memory wiki-docs-restructure-shelved"
@@ -6645,6 +6776,7 @@ category = "pacific"
 tags = ["shaders", "persistence", "host"]
 raised = "2026-10-31"
 kb = ["docs/research/bfbc/BF1943_SOFTWARE_SPECIFICATION_AND_PORT_GAPS.md"]
+score = { d = 3, t = 3, h = 4.8 }
 body = "The free BAR / Type 99 glTF models, a fully working Type 38 Arisaka, the install test bed (deferred by the user 2026-10-31). Also: bazooka rendering (G23). Also: destroyer fire support. Also: the US battle chatter ruling. Also: the WW2 kit open points (unlock tree, gating of new weapons, Japanese MP call-outs, the Garand launcher and TNT). BF1943 port gap G23 (from BFBC-G)"
 source = "TR0; memory ww2-map-side-goal; PACIFIC_GAP_ANALYSIS G23; PACIFIC_GAP_ANALYSIS 3.1; bfo docs/plans/opfor/WW2_KITS.md; PACIFIC_GAP_ANALYSIS roadmap 2"
 
@@ -6786,6 +6918,7 @@ repos = ["suite", "OPFOR", "bfo"]
 category = "editor"
 tags = ["pacific", "navai", "formats"]
 raised = "2026-10-30"
+score = { d = 4, t = 5, h = 48.0 }
 body = "The original WW2 side goal (Zero, Kurogane, Corsair, Chi-Ha, Bofors, B-25); now an editor job (E-rounds, TG, CM0); includes its navmesh and bots. The acceptance project for the editor's WW2 mode; see CM0 and TG5"
 source = "TR0; memory ww2-map-side-goal; PACIFIC_GAP_ANALYSIS 3.1"
 decisions = [
@@ -6837,6 +6970,7 @@ category = "navai"
 tags = ["pacific", "formats"]
 raised = "2026-11-15"
 kb = ["docs/research/bfbc/BF1943_SOFTWARE_SPECIFICATION_AND_PORT_GAPS.md"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "Don't start; a WW2 mode in the AI toolkit refusing modern kits; planes single-seaters. BF1943 port gap G1 (from BFBC-G). Rescoped to battlefield-opfor and the suite's NavKit WW2 mode"
 source = "TR0; ROADMAP On hold; memory ww2-navmesh-planning; OPFOR git 897ea6f, c868c8c; PACIFIC_GAP_ANALYSIS G1; operation-rising-sun docs research/NAVMESH_AUDIT.md; bfo docs/architecture/retired-and-planned.md"
 decisions = [
@@ -6898,6 +7032,7 @@ repos = ["bfo"]
 category = "release"
 tags = ["pacific", "editor"]
 raised = "2026-11-15"
+score = { d = 2, t = 1, h = 0.5 }
 body = "MV0: 'WW2 opt-out: partly'. Also the [dev] level auto-start into Wake becomes an explicit dev option, dropped at release."
 source = "TR0; memory ww2-standalone-subproject; MV0 rulings check"
 
@@ -7046,6 +7181,7 @@ category = "shaders"
 tags = ["pacific", "release"]
 raised = "2026-11-15"
 merged_into = ["sc1"]
+score = { d = 3, t = 2, h = 1.8 }
 reason = "the same weapons and translator; the live target is battlefield-opfor (and K26: Dx9 / Dx10 / Dx11, the donors the default)"
 body = "About a day; CA0 found bfo's own install already has translated soldiers (provenance unknown) and 76 of 82 weapon entries still donors; SC1 covers the bfo side."
 source = "TR0; ROADMAP On hold; memory translate-weapons-soldiers-queued; OPFOR git 8deebdb; WW2_PORT_PLAN status 11-14/15"
@@ -7216,6 +7352,7 @@ repos = ["bfo"]
 category = "menus"
 tags = ["bfbc1", "pacific", "input"]
 raised = "2026-11-27"
+score = { d = 5, t = 5, h = 90.0 }
 body = "XBM1 Setup / pristine BFBC1 menu / aptcheck gate / console-call rewrite pass (BIGF writer done in bfo-fix); XBM2 = UI4 registries; XBM3 profile, saves, settings; XBM4 list service (M per MC0); XBM5 BF1943 bundle (tutorial mapping: tutorial excluded); XBM6 BFBC1 campaign + Gunrack; XBM7 mouse / keys."
 scope = "battlefield-opfor phase (the user, 2026-11-27; research round XBM0, its report `_rounds/xbm0/REPORT.md`, kept outside the repos): BF1943's and BFBC1's original Xbox menus in the BFBC2 PC engine, unmodified (APT 74 on both, no opcode outside the PC's table, aptcheck clean; only byte order and textures / audio converted) - **XBM1** Setup stops overwriting OPFOREngine.exe, BFBC1's menu re-staged from pristine without the mouse blob, a Rust aptcheck gate on every staged movie, the BIGF writer on DICE's layout, the era codes aligned with ERA-NAT-1; the console-call rewrite pass at conversion (the user, 2026-11-27): a per-game table that renames FSCommands with a PC equivalent in the constant pool, removes Xbox-only buttons and screens (marketplace, party, gamer card, storage device, trial, Live friends, achievements blade) and turns constant externs into constants (`isTrial` 0, `hasCoralSea` 1, `canChangeStorageDevice` 0), every edit through opfor-apt's assembler (avm.rs), aptcheck-gated and verified against the pristine movie, constant-pool renames before removals before code rewrites; the user's own converted copy only, never shipped (S - M); **XBM2** (= UI4) one FSCommand registry at the menu callback (0x1BEAAF8 / 0xFA5380), one extern registry (0x76EC30, 0x95A1B0, the HUD getter 0x777B30) and one event sender, a per-era pass / rename / emulate / drop table; era_ui off 0x753540 (M); **XBM3** the console services that keep state, per era: the profile handshake (`userLogin` then `settingsLoaded`), saves, settings and stats into the era's own Documents folder; presence, party, store, storage and achievements left to the rewrite pass (S - M); **XBM4** the console list service (UIArray: leaderboards, awards, dog tags, saved games; with the RC oracles) (L); **XBM5** BF1943's Xbox bundle under its own name (`menu/main/mainmenu_bf1943`, name thunks at the two UI +0xC3F20 sites 0x9294E0 / 0x9098B0), its fonts, the Coral Sea / music / trial / tutorial mappings through the rewrite pass's BF1943 table, the re-skin kept as a fallback (M); **XBM6** BFBC1's bundle: the campaign flow and the Gunrack decision (host 3D or 2D stats) (M - L); **XBM7** keyboard and mouse in the console menus by host translation to pad events (0xF82020), replacing the injected mouse listener (M)"
 source = "TR0; ROADMAP Queued XBM1 - XBM7; KB plans/bfo-phase.md"
@@ -7341,6 +7478,7 @@ tags = ["tooling"]
 raised = "2026-11-27"
 started = "2026-11-27"
 owner = "xm1 (bfo)"
+score = { d = 1, t = 1, h = 0.5 }
 body = "Branch xm1: 5 commits (lock from xenolith rev e2bd23c, Rust 1.100 + i686, launch.ini.example, synthetic router test root, GitHub Actions checks), worktree clean, 8 behind main. bfo is never pushed without the user's say-so."
 source = "TR0; _rounds/xm0 REPORT; session (launch.ini template)"
 decisions = [
@@ -7371,6 +7509,7 @@ tags = ["formats", "tooling"]
 raised = "2026-11-27"
 started = "2026-11-27"
 owner = "xm2 (suite, xenolith)"
+score = { d = 2, t = 1, h = 0.5 }
 body = "Worktrees xm2: suite 13 and xenolith 4 uncommitted files, no commits yet. Proof: cargo tree shows no xma in the MIT build."
 source = "TR0; _rounds/xm0 REPORT (XM rounds); memory three-repo-plan"
 
@@ -7383,6 +7522,7 @@ repos = ["suite", "xenolith"]
 category = "repos"
 tags = ["docs", "formats", "tooling"]
 raised = "2026-11-27"
+score = { d = 4, t = 4, h = 16.0 }
 body = "Fixes xenolith's FbRB / DBX rewrites that corrupt data (XM0 high #4), which bfo inherits through xenolith.exe. Proof: suite tests and the spec corpus identical each step. Size L."
 source = "TR0; _rounds/xm0 REPORT; session"
 
@@ -7396,6 +7536,7 @@ category = "repos"
 tags = ["shaders", "formats"]
 raised = "2026-11-27"
 depends = ["sc1-sm3"]
+score = { d = 3, t = 2, h = 1.8 }
 body = "After SC1-SM3. Proof: the translator's recorded answers; XMA-DEC-1. Size M."
 source = "TR0; _rounds/xm0 REPORT"
 
@@ -7408,6 +7549,7 @@ repos = ["suite", "xenolith", "bfo"]
 category = "repos"
 tags = ["bfbc1", "onslaught", "pacific"]
 raised = "2026-11-27"
+score = { d = 4, t = 5, h = 48.0 }
 body = "XM5 ledger (bfo adopts it), XM6 onslaught -> ports/bfbc2-console (OR9-OR13 byte for byte), XM7 levelbuild / WW2 -> ports/bf1943 (XL; rebuild 7,945 / install 21,149 / qa 8 of 8), XM8 BFBC1 upgraders + versioned CLI contract."
 source = "TR0; _rounds/xm0 REPORT; memory three-repo-plan"
 
@@ -7420,6 +7562,7 @@ repos = ["suite", "bfo", "OPFOR", "xenolith"]
 category = "repos"
 raised = "2026-11-27"
 depends = ["hk1a-c"]
+score = { d = 4, t = 4, h = 16.0 }
 body = "XM9 data-root installs replace OPFOR_ROOT; XM10 bfo builds its modules from the ports, drops opfor-dll's duplicates (covers MV0 rank 7); XM11 tag, archive bundle, RETIRED record. The opfor-dll item is struck once hk1 merges (HK1a-1 retired opfor-dll)"
 source = "TR0; _rounds/xm0 REPORT; bfo docs/architecture/project-opfor-bfbc2.md (MV0)"
 decisions = [

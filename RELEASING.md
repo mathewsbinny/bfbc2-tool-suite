@@ -54,6 +54,11 @@ written against from one that broke it. Then:
 2. Tag the merge on `main` (`git tag -a vX.Y.Z -m "Version X.Y.Z"`; "Releasing a version" step 6). Pushing the tag
    is the repository owner's call, like every push.
 
+A branch begun before TK0 that already wrote its version into `CHANGELOG.md` / `VERSION` keeps it if no other merge
+took that number first (otherwise its heading and `VERSION` move to the next free minor), and is merged with
+`python tasks\build.py merge <code> --version X.Y.Z`. That sets its version, and that of the Unreleased entries its
+heading took in.
+
 A round that only adds or fixes leaves `VERSION` alone; its entries wait in **Unreleased** for the next release
 (`python tasks\build.py cut`). A round with nothing a user notices has no fragment.
 

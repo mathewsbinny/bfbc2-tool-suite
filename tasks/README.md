@@ -53,6 +53,7 @@ comments, because the canonical form drops them: put the words in a field.
 | `benchmarks` | the round's `rust/BENCHMARKS.md` (or `BENCHMARKS_ARCHIVE_1.md`) sections, by their heading's name: the registry is the index of which round has which section |
 | `kb` | battlefield-opfor knowledge-base pages (`docs/...`) |
 | `spec`, `links` | spec rule ids, other references |
+| `score` | `{ d, t, h }`: difficulty 1-5, size 1-5 and calibrated agent-hours (the coordinator's scoring of open tasks, 2026-11-28; the board shows them) |
 | `reason` | why a task was dropped or held |
 | `body` | a short paragraph: state and result |
 | `scope` | the full scope, where it is longer than a body (the old ROADMAP queue cells) |

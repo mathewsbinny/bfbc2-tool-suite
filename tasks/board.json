@@ -130,6 +130,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -149,6 +150,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -169,6 +171,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -187,6 +194,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -206,6 +218,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -222,6 +235,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -240,6 +258,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -259,6 +278,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -278,6 +298,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -296,6 +321,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 5,
+"h": 48.0
+},
 "contention": false
 },
 {
@@ -314,6 +344,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -332,6 +363,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -353,6 +385,11 @@
 ],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -373,6 +410,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -393,6 +431,11 @@
 ],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -412,6 +455,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -430,6 +478,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -450,6 +499,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -469,6 +519,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -488,6 +539,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -506,6 +558,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -524,6 +577,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -542,6 +600,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -561,6 +620,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -579,6 +639,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -598,6 +663,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -617,6 +687,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -635,6 +706,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -655,6 +727,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -675,6 +748,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -695,6 +769,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -714,6 +793,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -732,6 +812,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -748,6 +833,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -767,6 +853,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -787,6 +874,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -807,6 +895,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -826,6 +915,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -845,6 +935,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -863,6 +954,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -882,6 +974,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -901,6 +994,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -919,6 +1013,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -935,6 +1030,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -953,6 +1053,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -972,6 +1073,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -988,6 +1090,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1006,6 +1109,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1022,6 +1126,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1041,6 +1146,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1061,6 +1167,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1080,6 +1187,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1100,6 +1208,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1119,6 +1228,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1139,6 +1249,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1158,6 +1269,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1177,6 +1289,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1197,6 +1310,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1217,6 +1331,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1236,6 +1351,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1255,6 +1371,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1274,6 +1391,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1293,6 +1411,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1309,6 +1428,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1327,6 +1447,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1347,6 +1468,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -1366,6 +1492,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -1384,6 +1515,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 4,
+"h": 30.0
+},
 "contention": false
 },
 {
@@ -1402,6 +1538,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1422,6 +1559,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1441,6 +1579,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1460,6 +1599,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1478,6 +1618,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1496,6 +1637,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1514,6 +1656,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -1534,6 +1681,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1554,6 +1702,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1574,6 +1723,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1593,6 +1743,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1613,6 +1764,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -1633,6 +1789,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1649,6 +1806,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1669,6 +1827,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1687,6 +1846,11 @@
 ],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -1705,6 +1869,11 @@
 ],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -1723,6 +1892,11 @@
 ],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -1743,6 +1917,11 @@
 ],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -1762,6 +1941,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1780,6 +1960,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1799,6 +1980,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -1817,6 +2003,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -1833,6 +2024,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -1853,6 +2049,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -1871,6 +2072,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -1890,6 +2096,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 5,
+"h": 48.0
+},
 "contention": false
 },
 {
@@ -1908,6 +2119,11 @@
 ],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -1926,6 +2142,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -1942,6 +2159,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1960,6 +2178,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1979,6 +2198,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -1998,6 +2218,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -2014,6 +2235,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -2030,6 +2252,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2046,6 +2269,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -2070,6 +2298,11 @@
 ],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -2088,6 +2321,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2104,6 +2338,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2120,6 +2355,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2140,6 +2376,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -2160,6 +2401,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 4,
+"h": 12.0
+},
 "contention": false
 },
 {
@@ -2176,6 +2422,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2194,6 +2441,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2214,6 +2462,30 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
+"contention": false
+},
+{
+"id": "dl1",
+"lane": "next",
+"code": "DL1",
+"title": "The GUIs brought in line with the design tokens",
+"repo": "suite · bfo · xenolith",
+"category": "tooling",
+"tags": [
+"design"
+],
+"note": "xenolith's apps/xenolith/src/theme.rs reads only 19 colour tokens, uses egui's default fonts instead of Plex, and its token mapping breaks the rules (inputs on ground, all text ink, control borders line, pressed = accent, window border, 4px corners, inactive tabs); the bfo opfor-launcher and opfor-apt hub hold hand-copied Dark constants (no Light theme, no Plex, literal sizes, four era accents #3ba6a8 #d96b27 #e0a82e #f07b19 to become real tokens, one near `selection`); opfor-setup has its own palette; the map editor: 10.5px history timestamps, literal sizes / radii, 2-4px start-screen icon strokes against the 1.5px rule, Light not following the system setting, no reduced motion; the editor's shipped Plex TTFs registered in tokens.json type.fonts and the design-system artifact",
+"date": "2026-11-28",
+"version": "",
+"depends": [],
+"decided": false,
+"onRoadmap": true,
+"score": {
+"d": 2,
+"t": 3,
+"h": 4.0
+},
 "contention": false
 },
 {
@@ -2232,6 +2504,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2250,6 +2523,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -2270,6 +2548,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2288,6 +2567,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -2311,6 +2595,11 @@
 ],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -2333,6 +2622,11 @@
 ],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -2351,6 +2645,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2371,6 +2666,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2387,6 +2683,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2406,6 +2703,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2426,6 +2724,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2444,6 +2743,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2462,6 +2762,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2481,6 +2782,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2499,6 +2801,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2519,6 +2822,7 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2538,6 +2842,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2558,6 +2863,7 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2578,6 +2884,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2598,6 +2905,7 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2616,6 +2924,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2635,6 +2944,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2654,6 +2964,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2673,6 +2984,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2692,6 +3004,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2711,6 +3024,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2729,6 +3043,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2748,6 +3063,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2767,6 +3083,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2786,6 +3103,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2806,6 +3124,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2824,6 +3143,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2843,6 +3163,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2863,6 +3184,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2879,6 +3201,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2895,6 +3218,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2915,6 +3239,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2934,6 +3259,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2953,6 +3279,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2972,6 +3299,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -2991,6 +3319,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3010,6 +3339,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3030,6 +3360,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3049,6 +3380,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3068,6 +3400,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3087,6 +3420,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -3106,6 +3444,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -3125,6 +3468,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3145,6 +3489,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -3164,6 +3509,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 5,
+"t": 4,
+"h": 30.0
+},
 "contention": false
 },
 {
@@ -3182,6 +3532,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 5,
+"h": 48.0
+},
 "contention": false
 },
 {
@@ -3200,6 +3555,7 @@
 ],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3219,6 +3575,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3238,6 +3595,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3258,6 +3616,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3277,6 +3636,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3296,6 +3656,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3315,6 +3676,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3333,6 +3695,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3351,6 +3714,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3367,6 +3731,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3383,6 +3748,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3403,6 +3769,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3421,6 +3788,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3441,6 +3809,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3459,6 +3828,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -3479,6 +3853,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3497,6 +3872,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -3517,6 +3897,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -3537,6 +3922,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3555,6 +3941,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3573,6 +3960,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3592,6 +3980,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3611,6 +4000,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3630,6 +4020,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 5,
+"t": 4,
+"h": 30.0
+},
 "contention": false
 },
 {
@@ -3650,6 +4045,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3668,6 +4064,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3688,6 +4085,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 5,
+"h": 48.0
+},
 "contention": false
 },
 {
@@ -3706,6 +4108,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3724,6 +4127,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -3744,6 +4152,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -3764,6 +4177,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -3782,6 +4200,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -3800,6 +4223,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -3816,6 +4244,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -3836,6 +4269,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3855,6 +4289,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 3,
+"h": 4.0
+},
 "contention": false
 },
 {
@@ -3875,6 +4314,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 5,
+"h": 36.0
+},
 "contention": false
 },
 {
@@ -3893,6 +4337,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -3911,6 +4360,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3930,6 +4380,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -3946,6 +4401,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -3962,6 +4418,7 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -3982,6 +4439,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -4001,6 +4463,7 @@
 ],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -4020,6 +4483,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -4040,6 +4508,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 2,
+"t": 3,
+"h": 4.0
+},
 "contention": false
 },
 {
@@ -4060,6 +4533,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -4078,6 +4556,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -4096,6 +4579,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -4112,6 +4596,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -4132,6 +4621,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -4151,6 +4645,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4171,6 +4666,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -4190,6 +4690,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -4209,6 +4714,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -4228,6 +4734,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -4244,6 +4751,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -4262,6 +4770,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -4281,6 +4794,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -4301,6 +4819,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -4319,6 +4842,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -4338,6 +4866,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -4356,6 +4889,7 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4374,6 +4908,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4393,6 +4928,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -4411,6 +4947,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4430,6 +4967,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4448,6 +4986,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -4466,6 +5005,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4484,6 +5024,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4500,6 +5041,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -4518,6 +5060,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4534,6 +5077,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -4554,6 +5102,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4572,6 +5121,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4590,6 +5140,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4608,6 +5159,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4626,6 +5178,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4645,6 +5198,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4663,6 +5217,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4681,6 +5236,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -4700,6 +5260,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4716,6 +5277,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -4732,6 +5298,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4748,6 +5315,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4766,6 +5334,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4782,6 +5351,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -4801,6 +5375,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4819,6 +5394,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4835,6 +5411,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4854,6 +5431,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4870,6 +5448,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4886,6 +5465,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4905,6 +5485,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -4924,6 +5509,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4942,6 +5528,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4960,6 +5547,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -4980,6 +5568,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5000,6 +5589,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5019,6 +5609,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5038,6 +5629,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5058,6 +5650,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5078,6 +5671,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5098,6 +5692,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -5118,6 +5717,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5136,6 +5736,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5154,6 +5755,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5172,6 +5774,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5190,6 +5793,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5208,6 +5812,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5226,6 +5831,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5246,6 +5852,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -5264,6 +5875,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5280,6 +5892,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5298,6 +5911,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5316,6 +5930,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5336,6 +5951,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5355,6 +5971,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5371,6 +5988,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5391,6 +6009,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5407,6 +6026,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5423,6 +6043,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5439,6 +6060,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5455,6 +6077,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5471,6 +6094,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5487,6 +6111,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5506,6 +6131,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5526,6 +6152,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5546,6 +6173,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5566,6 +6194,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5586,6 +6215,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5606,6 +6236,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5626,6 +6257,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -5646,6 +6282,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5666,6 +6303,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5686,6 +6324,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5706,6 +6345,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5726,6 +6366,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5746,6 +6387,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5766,6 +6408,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5786,6 +6429,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5806,6 +6450,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5825,6 +6470,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5845,6 +6491,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5865,6 +6512,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -5884,6 +6532,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5904,6 +6553,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5923,6 +6573,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5941,6 +6592,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5959,6 +6611,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5977,6 +6630,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -5995,6 +6649,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6014,6 +6669,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6034,6 +6690,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6054,6 +6711,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6073,6 +6731,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6093,6 +6752,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6112,6 +6772,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6132,6 +6793,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6151,6 +6813,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6169,6 +6832,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6187,6 +6851,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6207,6 +6872,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6227,6 +6893,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6247,6 +6914,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6267,6 +6935,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6287,6 +6956,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6306,6 +6976,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6324,6 +6995,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6343,6 +7015,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6362,6 +7035,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6382,6 +7056,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6401,6 +7076,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6421,6 +7097,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6439,6 +7116,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6458,6 +7136,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6477,6 +7156,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6497,6 +7177,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6515,6 +7196,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6534,6 +7216,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6552,6 +7235,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6571,6 +7255,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6591,6 +7276,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6610,6 +7296,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6629,6 +7316,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6647,6 +7335,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6665,6 +7354,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6683,6 +7373,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6703,6 +7394,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6723,6 +7415,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6743,6 +7436,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6759,6 +7453,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -6777,6 +7472,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -6795,6 +7495,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6814,6 +7515,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6832,6 +7534,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6851,6 +7554,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6870,6 +7574,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6889,6 +7594,7 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6907,6 +7613,7 @@
 ],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -6926,6 +7633,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -6946,6 +7654,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -6964,6 +7673,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -6982,6 +7692,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7001,6 +7712,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7020,6 +7732,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7039,6 +7752,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7057,6 +7771,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7076,6 +7791,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7095,6 +7811,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7113,6 +7830,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7132,6 +7850,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 3,
+"h": 4.0
+},
 "contention": false
 },
 {
@@ -7151,6 +7874,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -7169,6 +7897,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -7188,6 +7921,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 4,
+"h": 12.0
+},
 "contention": false
 },
 {
@@ -7207,6 +7945,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -7225,6 +7968,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -7243,6 +7991,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 5,
+"h": 48.0
+},
 "contention": false
 },
 {
@@ -7259,6 +8012,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -7279,6 +8037,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -7295,6 +8058,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7313,6 +8077,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7332,6 +8097,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -7350,6 +8116,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -7369,6 +8136,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -7385,6 +8153,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -7403,6 +8176,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 3,
+"h": 4.0
+},
 "contention": false
 },
 {
@@ -7422,6 +8200,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7441,6 +8220,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7460,6 +8240,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7478,6 +8259,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7496,6 +8278,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7514,6 +8297,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7530,6 +8314,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7546,6 +8331,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7564,6 +8350,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7582,6 +8369,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7601,6 +8389,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7619,6 +8408,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7639,6 +8429,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -7655,6 +8450,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -7671,6 +8471,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -7689,6 +8494,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -7707,6 +8513,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -7723,6 +8534,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -7741,6 +8557,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7760,6 +8577,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7779,6 +8597,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7799,6 +8618,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7818,6 +8638,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7837,6 +8658,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -7856,6 +8678,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7875,6 +8698,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7893,6 +8717,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7909,6 +8734,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7927,6 +8753,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -7947,6 +8774,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -7965,6 +8797,11 @@
 ],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -7983,6 +8820,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -8002,6 +8840,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8018,6 +8857,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -8037,6 +8881,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8053,6 +8898,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8073,6 +8919,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8091,6 +8938,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 5,
+"h": 36.0
+},
 "contention": false
 },
 {
@@ -8107,6 +8959,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8127,6 +8980,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 4,
+"h": 12.0
+},
 "contention": false
 },
 {
@@ -8145,6 +9003,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8161,6 +9020,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8177,6 +9037,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8195,6 +9056,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8211,6 +9073,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8229,6 +9092,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8245,6 +9109,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8263,6 +9128,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8283,6 +9149,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8302,6 +9169,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8320,6 +9188,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8338,6 +9207,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8357,6 +9227,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8375,6 +9246,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8391,6 +9263,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -8409,6 +9282,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8429,6 +9303,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -8445,6 +9320,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -8463,6 +9343,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -8481,6 +9362,11 @@
 ],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -8499,6 +9385,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -8517,6 +9404,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8535,6 +9423,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8554,6 +9443,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8573,6 +9463,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8593,6 +9484,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8613,6 +9505,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8633,6 +9526,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8651,6 +9545,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8670,6 +9565,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8686,6 +9582,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8706,6 +9603,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -8726,6 +9624,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -8744,6 +9647,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8763,6 +9667,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8779,6 +9684,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8795,6 +9701,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8814,6 +9721,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -8830,6 +9742,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8848,6 +9761,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -8867,6 +9781,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -8885,6 +9804,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -8901,6 +9825,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -8919,6 +9848,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8935,6 +9865,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8951,6 +9882,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -8969,6 +9905,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -8987,6 +9924,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9007,6 +9945,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 5,
+"h": 48.0
+},
 "contention": false
 },
 {
@@ -9025,6 +9968,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 2,
+"h": 1.5
+},
 "contention": false
 },
 {
@@ -9043,6 +9991,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -9062,6 +10015,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9078,6 +10032,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -9094,6 +10053,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9113,6 +10073,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9131,6 +10092,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 2,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -9150,6 +10116,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9169,6 +10136,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9187,6 +10155,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -9203,6 +10176,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 3,
+"h": 6.4
+},
 "contention": false
 },
 {
@@ -9221,6 +10199,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -9237,6 +10220,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 4,
+"h": 10.0
+},
 "contention": false
 },
 {
@@ -9255,6 +10243,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9273,6 +10262,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9289,6 +10279,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9307,6 +10298,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9325,6 +10317,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9344,6 +10337,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9364,6 +10358,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 3,
+"h": 4.8
+},
 "contention": false
 },
 {
@@ -9382,6 +10381,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9398,6 +10398,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9414,6 +10415,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9434,6 +10436,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9452,6 +10455,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9471,6 +10475,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9489,6 +10494,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9507,6 +10513,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9523,6 +10530,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9541,6 +10549,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9560,6 +10569,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9580,6 +10590,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 5,
+"h": 48.0
+},
 "contention": false
 },
 {
@@ -9596,6 +10611,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9616,6 +10632,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9634,6 +10651,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9653,6 +10671,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -9672,6 +10695,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9692,6 +10716,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9708,6 +10733,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9724,6 +10750,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9743,6 +10770,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 2,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -9763,6 +10795,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9783,6 +10816,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9802,6 +10836,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9820,6 +10855,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9838,6 +10874,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9856,6 +10893,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9875,6 +10913,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9893,6 +10932,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9909,6 +10949,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9927,6 +10968,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9946,6 +10988,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -9965,6 +11008,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -9981,6 +11029,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -9997,6 +11046,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10013,6 +11063,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10029,6 +11080,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10048,6 +11100,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10067,6 +11120,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10085,6 +11139,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10105,6 +11160,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10123,6 +11179,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10141,6 +11198,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10161,6 +11219,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10179,6 +11238,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10199,6 +11259,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10219,6 +11280,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": false,
+"score": {
+"d": 5,
+"t": 5,
+"h": 90.0
+},
 "contention": false
 },
 {
@@ -10237,6 +11303,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10257,6 +11324,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10276,6 +11344,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10295,6 +11364,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10313,6 +11383,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10329,6 +11400,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10347,6 +11419,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10366,6 +11439,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10382,6 +11456,7 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": null,
 "contention": false
 },
 {
@@ -10400,6 +11475,11 @@
 "depends": [],
 "decided": true,
 "onRoadmap": false,
+"score": {
+"d": 1,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -10422,6 +11502,7 @@
 ],
 "decided": false,
 "onRoadmap": false,
+"score": null,
 "contention": false
 },
 {
@@ -10441,6 +11522,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 2,
+"t": 1,
+"h": 0.5
+},
 "contention": false
 },
 {
@@ -10461,6 +11547,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 },
 {
@@ -10482,6 +11573,11 @@
 ],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 3,
+"t": 2,
+"h": 1.8
+},
 "contention": false
 },
 {
@@ -10502,6 +11598,11 @@
 "depends": [],
 "decided": false,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 5,
+"h": 48.0
+},
 "contention": false
 },
 {
@@ -10520,6 +11621,11 @@
 ],
 "decided": true,
 "onRoadmap": true,
+"score": {
+"d": 4,
+"t": 4,
+"h": 16.0
+},
 "contention": false
 }
 ]
