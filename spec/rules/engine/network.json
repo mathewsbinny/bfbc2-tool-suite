@@ -157,11 +157,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_THIRD_MODE.md:86"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:88"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_THIRD_MODE.md:288"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:290"
     }
    ],
    "file": "spec/engine/network.md",

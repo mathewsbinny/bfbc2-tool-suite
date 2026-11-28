@@ -100,7 +100,7 @@ module patches the five tests. See AI-NEED-5.
 
 ## 3. Planned: the Pacific War career (the user's decisions, 2026-11-15)
 
-Not implemented; recorded so the award work starts from them (OPFOR's `research/WW2_AWARDS_COMPARISON_2026-11-15.md`,
+Not implemented; recorded so the award work starts from them (`bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md`,
 option C): one award engine in the game module running BF1943's rules on Pacific War maps; a separate Pacific War
 career file (not `stats.txt`); BF1943's 50 ranks and point scale there; BF1943's 12 hidden Xbox achievement trackers
 as trophies; a stars system of OPFOR's own in BFBC2's style for the WW2 weapons and vehicles; awards that need content
@@ -132,7 +132,7 @@ Dist (before Vietnam) has 384 AwardData, 1,756 value templates, 70 weapons, 40 s
 `SP_Achievements`, `SP_Specializations` and 15 `Awards/*` category trees.
 
 [data: round SPG2's reads of DICE's two start-up bundles, 2026-11-22: class counts per partition as listed]
-[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:170-179]
+[doc: bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:172-181]
 
 ### PERS-DATA-2: PersistenceData roots the career; value templates say how a stat is written
 
@@ -186,7 +186,7 @@ insignias, 48 pins, 38 achievements. `Ons_Awards`: 9 achievements (8 hidden, lic
 complete a level at a difficulty).
 
 [data: round SPG2's read of MP_Awards / Ons_Awards in both start-up bundles, 2026-11-22: the splits listed]
-[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:189-211]
+[doc: bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:191-213]
 
 ### PERS-AWD-2: Criteria count stat events over a scope
 
@@ -215,7 +215,7 @@ structs (BF1943 has flat `StringFor*` / `PointsFor*`); BF1943's ranks are separa
 file, 50 referenced). BFBC2's executable has no `AwardGroup_PatchShield`, no `AwardGroup_Trophy`, no
 `StatEvent_CaptureCapturePoint` (BFBC2's is `FlagCaptured`) and no `StatEvent_VehicleKillAssist_X`.
 
-[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:270-290]
+[doc: bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:272-292]
 [data: round SPG2's read: BFBC2's PointSystemParams has 4 instances, no rank instances; BF1943's table (awards.json) 92 flat PointsFor* / StringFor* keys]
 
 ### PERS-AWD-4: The award tree is loaded at every level start and driven by the per-player stat events
@@ -358,7 +358,7 @@ PERS-OPF-3's title holds only without the patch. The kill probe in a playtest st
 play-test plan step 6).
 
 [exe: 0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add; 0x86DCAE (null victim), 0x86C12D (AI killer), 0x865D7F (no record for an AI player), 0x86A7EE (no award to an AI player)]
-[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:371-377]
+[doc: bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:373-379]
 
 ### PERS-SCORE-2: The round's scoring writes through the scoring record's stats pointer, which only EA's answer sets
 
@@ -420,7 +420,7 @@ These are the Pacific War career's scale (the user's decision of 2026-11-15).
 
 [test: opfor:src/tools/tests/test_ww2_awards.py::test_the_table_is_bf1943s_set]
 [code: opfor:src/tools/ww2/ww2_awards.py:212-225]
-[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:129-148]
+[doc: bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:131-150]
 
 ### PERS-WW2-3: BF1943's categories map onto OPFOR's weapons and kits
 
@@ -444,7 +444,7 @@ plays (by name, 0xF909C0) to BF1943's and tells a rank-up apart at the HUD's ran
 game yet.
 
 [code: opfor:src/dll/gamemode_rules.h:134-139]
-[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:62-63]
+[doc: bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:64-65]
 
 ## Open questions
 

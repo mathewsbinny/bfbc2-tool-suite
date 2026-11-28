@@ -222,7 +222,7 @@ into the editor's own project, undo and apply, rather than being a separate tool
   - boat legs and shore links;
   - vehicle enter and exit points and seat claims;
   - for WW2, carrier spawns, LCVP boarding and the drop, and beach exits (OPFOR
-    `research/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`).
+    battlefield-opfor's `docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`).
 - **Navmesh coverage:** the navigation layers with their islands, sectors and coverage gaps, drawn over the map.
   Coverage can be edited with walkable and unwalkable regions and seeds, NavKit regenerated from the editor, and the
   result compared with DICE's data where a stock map has it. Navigation Studio's anomaly overlay and path test
@@ -1810,7 +1810,7 @@ byte for byte but the intended changes, every check line passing; install and re
 ## 7. Still open
 
 1. **The WW2 AI mode's timing:** WW2 bots are still being planned (OPFOR
-   `research/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). WW2 maps are fully editable, including their bot side (3.4a),
+   battlefield-opfor's `docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). WW2 maps are fully editable, including their bot side (3.4a),
    so the editor is where that work will be done. Bots play on them once the WW2 bot runtime (the DLL side) exists.
 2. **Custom modes needing engine work:** some mode rules may need OPFOR's DLL (as Air Superiority's mode tests did).
    The mode definition format needs a way to say so, and the editor a way to report it.

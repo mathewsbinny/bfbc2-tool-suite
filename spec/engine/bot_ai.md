@@ -13,7 +13,7 @@ The section **Implementation interface** at the end lists what OPFOR's bot modul
 RTTI) with the analysed Ghidra project of OPFOR's research (a scratch copy, read only); DICE's AI data through the
 probe `rust/bc2-formats/examples/ai_probe.rs` and its game-tier twin `rust/bc2-formats/tests/ai_corpus.rs`; OPFOR's
 research (`research/BFBC2_DECOMP_RESEARCH.md` section 8, `research/WW2_LANDING_GEAR_RE2_2026-11-14.md` on the input
-path), its DLL probes and the play tests recorded in `STOCK_MP_AI_PLAN.md` and `DEVELOPMENT_NOTES.md`. Nothing here was
+path), its DLL probes and the play tests recorded in `bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md` and `DEVELOPMENT_NOTES.md`. Nothing here was
 run in game: every exe rule is **observed** (read in the code) or **inferred** (reasoned from it), never verified, until
 a play test with OPFOR's probes records it. Data values are DICE's shared AI partitions (`AI/*` and the soldier
 templates of `sp_common`), quoted as structure and ranges. Round AIS-rest (2026-11-22) read the rest statically with
@@ -275,7 +275,7 @@ A bot module can take control at one of two levels:
 Path finding stays Kynapse's in both (AI-KY-3, KYRT-*), or OPFOR's own on the same path data.
 
 [inferred: from BOT-CTL-2 (the server applies a handler's state whatever filled it), BOT-CTL-3 (what DICE's AI writes and what it does not) and the input path of the landing-gear study (every digital EIA a client sends reaches the server)]
-[doc: opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247] [doc: opfor:STOCK_MP_AI_PLAN.md:263-266]
+[doc: opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:265-268]
 
 ### BOT-CTL-5: Bots are the server's; the in-process client sees replicated soldiers
 
@@ -394,7 +394,7 @@ peripheral 45 / 60 / 90° to 55 m, hearing 48 m, alerting others within 48 m. Th
 (combat field of view 0, no alert range) gives bots that aim and never fire (AI-NEED-3).
 
 [data: 14 SensingTemplateData of sp_common (ai_probe ranges); the grunt template's values]
-[doc: opfor:STOCK_MP_AI_PLAN.md:39-41]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:41-43]
 
 ### BOT-PER-2: The sensing constants
 
@@ -1046,11 +1046,11 @@ Below the difficulty, each behaviour template tunes its bots (14 templates, rang
 `StunnedWhenHealthPercentageBelow` 0-0.9, `LowHealthThreshold` 0-1, `FrontLineDistance` 0-10, `AllowSleep`,
 `AlwaysUpdate` (6 of 14: bots of that template are never skipped by BOT-RT-4's bands); each sensing template its skill
 and ranges (BOT-PER-1); each spawner `HumanTargetPreference`, `Immortal`, `FakeImmortal`, `LodDistance`. A template's
-`Rank` (0-5) and its empty `AllowedKits` / `AllowedAppearances` are the hooks for varied kits (`STOCK_MP_AI_PLAN.md`
+`Rank` (0-5) and its empty `AllowedKits` / `AllowedAppearances` are the hooks for varied kits (`bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md`
 section 11).
 
 [data: BehaviourTemplateData (14), SensingTemplateData (14), SoldierSpawnTemplateData (18), SoldierSpawnEntityData (ai_probe)]
-[doc: opfor:STOCK_MP_AI_PLAN.md:218-231]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:220-233]
 
 ### BOT-DIF-4: A multiplayer session's AI difficulty is the session's, Normal by default
 

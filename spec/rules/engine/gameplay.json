@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:192-217"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:194-219"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -73,7 +73,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:242-244"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:244-246"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -89,7 +89,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:245-248"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:247-250"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -109,11 +109,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_THIRD_MODE.md:15-56"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:17-58"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/QA_SWEEP_2026-11-14.md:52"
+     "ref": "bfo:docs/research/opfor/QA_SWEEP_2026-11-14.md:54"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -129,7 +129,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_THIRD_MODE.md:84-90"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:86-92"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -409,7 +409,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:240-241"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:242-243"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -514,7 +514,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:84-97"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:86-99"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -534,7 +534,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:84-103"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:86-105"
     },
     {
      "kind": "doc",
@@ -562,7 +562,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:104-113"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:106-115"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -938,7 +938,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:231-234"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:233-236"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -1026,7 +1026,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:235-239"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:237-241"
     }
    ],
    "file": "spec/engine/gameplay.md",
@@ -1098,7 +1098,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:209-230"
+     "ref": "bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:211-232"
     }
    ],
    "file": "spec/engine/gameplay.md",

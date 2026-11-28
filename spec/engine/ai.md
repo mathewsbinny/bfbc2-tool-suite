@@ -9,7 +9,7 @@ multiplayer AI layer `transforms/stockmp.md`.
 
 **Sources.** Project OPFOR BFBC2's reverse engineering and live probes of the PC client
 (`research/BFBC2_DECOMP_RESEARCH.md` sections 8, 9 and 12, build 795745), its stock-map bot plan with the data
-survey of 54 level files (`STOCK_MP_AI_PLAN.md` section 12), the Onslaught imports (`research/BFBC2_NAPISAL_RESEARCH.md`),
+survey of 54 level files (`bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md` section 12), the Onslaught imports (`research/BFBC2_NAPISAL_RESEARCH.md`),
 OPFOR's DLL probes, and the suite's crash reader table. "Working AI level" means a level on which bots were seen to
 move and fight in a play test: DICE's campaign levels, Napisal's PC Onslaught ports, OPFOR's console Onslaught ports.
 
@@ -53,7 +53,7 @@ The path-data world set-up (0x5AF5F0) loads a Kynapse world for each `Pathfindin
 
 [inferred: every working AI level read lists mp_common's two PathfindingSettings in LevelData and every stock MP level has the array empty (STOCK_MP_AI_PLAN 12.1); the generator settings are found at LevelData+0x36C as an array of PathfindingSettings pointers; the set-up's per-type load was not traced instruction by instruction]
 [data: PathfindingTypes infantry + vehicles on Napisal's ONS_MP_005GR, ONS_MP_002, ONS_MP_004, DICE's Xbox ONS_MP_002 and SP_004_B; empty on every stock MP level read]
-[doc: opfor:STOCK_MP_AI_PLAN.md:292-296] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:294-298] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347]
 
 ## 2. The Kynapse runtime
 
@@ -128,7 +128,7 @@ capture points, area geometry (769 points on MP_002), teams and squads. A stock 
 an authored AI layer (XSMP-AUT-1), not a switch.
 
 [data: stock MP levels compared (all launch MP levels, identical on Xbox 360): HasAI false, no PathfindingTypes, no SpawnPointManager; path data only for the 13 campaign levels; MP_002: 1 AI spawner, disabled, 0 AreaOrder, 0 PatrolOrder]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:590-596] [doc: opfor:STOCK_MP_AI_PLAN.md:53-69]
+[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:590-596] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:55-71]
 
 ### AI-NEED-2: What a working AI level has
 
@@ -142,7 +142,7 @@ in OPFOR's test). On Conquest the spawners need no event logic (they spawn from 
 trigger moves the AI on (GAME-RUSH-1).
 
 [data: SSAiPlayer spawners enabled / named by an order: Napisal ONS_MP_005GR 24 / 17, ONS_MP_002 28 / 28, Xbox ONS_MP_002 78 / 78 (54 via squads), SP_004_B 91 / 91; orders 7, 41, 47, 182; SquadEntityData 0, 0, 17, 16]
-[doc: opfor:STOCK_MP_AI_PLAN.md:279-291] [doc: opfor:STOCK_MP_AI_PLAN.md:328-336]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:281-293] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:330-338]
 
 ### AI-NEED-3: Bots need a real AI template
 
@@ -154,7 +154,7 @@ bots' team. The template must be in a bundle the level loads: a multiplayer leve
 `sp_common`, so a campaign template is packed into the level's own bundles (as on ONS_MP_002).
 
 [data: OPFOR's Onslaught play tests: DefaultSoldier bots aim and do not fire, DICE's grunt template fires; mp_005's package.mft block loads its own bundles and mp_common only]
-[doc: opfor:STOCK_MP_AI_PLAN.md:39-41] [doc: opfor:STOCK_MP_AI_PLAN.md:310-312]
+[doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:41-43] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:312-314]
 
 ### AI-NEED-4: The stock SSAiPlayer spawners are the human spawn points
 
@@ -168,7 +168,7 @@ spawning (Laguna Alta's are `SSHumanPlayer` with delay 0). Whether they spawn bo
 suite's AI layer adds its own spawners and marks the stock ones `SSHumanPlayer` by default.
 
 [data: SSAiPlayer with SpawnDelay 15: Arica Harbor CQ 8 of 8, White Pass CQ 7 of 7, Nelson Bay Rush 11 of 13, Atacama CQ 7 of 8 (all enabled, Template null)]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:597-600] [doc: opfor:STOCK_MP_AI_PLAN.md:320-327]
+[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:597-600] [doc: bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md:322-329]
 
 ### AI-NEED-5: Kills of bots score nothing offline without the scoring patch
 

@@ -27,7 +27,9 @@ followed by ` · Variants: PC, Xbox 360, BF1943`), and its evidence anywhere in 
   [doc: path:line]          a document that records a finding (supporting only; counts toward no status)
 
 Paths are relative to the suite's root; `opfor:` before a path names Project OPFOR BFBC2's checkout (its sibling
-folder), checked only when that checkout is there. A status needs its evidence: verified a test, implemented a code
+folder) and `bfo:` the battlefield-opfor checkout (BFBC2_BFO_ROOT, else its sibling folder: bfbc2core.paths.bfo_root;
+OPFOR's moved documents are in its docs/ knowledge base since round DOC1), each checked only when that checkout is
+there. A status needs its evidence: verified a test, implemented a code
 citation, observed a data or exe item, inferred an inferred item.
 
 A test cites a rule when the index names it as evidence, or when a comment `# spec: ID[, ID ...]` (Python) or
@@ -50,6 +52,10 @@ from dataclasses import asdict, dataclass, field
 SPEC = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(SPEC)
 OPFOR = os.path.join(os.path.dirname(SUITE), 'project-opfor-bfbc2')
+sys.path.insert(0, os.path.join(SUITE, 'core'))
+from bfbc2core import paths  # noqa: E402  (only os and sys: importable with core\ alone on sys.path)
+
+BFO = paths.bfo_root(SUITE)
 RULES_DIR = os.path.join(SPEC, 'rules')
 # test_repo's limit for a committed file is 1,000,000 bytes; a shard (one markdown file's rules) past 80% of it fails
 # --check, so the markdown file is split long before a merge meets the limit
@@ -156,9 +162,12 @@ def parse(path: str, problems: list[str]) -> list[Rule]:
 
 
 def resolve(path: str) -> tuple[str, bool]:
-    """(absolute path, whether its absence is a problem): `opfor:` paths only matter with OPFOR's checkout there."""
+    """(absolute path, whether its absence is a problem): `opfor:` / `bfo:` paths only matter with that checkout
+    there."""
     if path.startswith('opfor:'):
         return os.path.join(OPFOR, path[len('opfor:'):]), os.path.isdir(OPFOR)
+    if path.startswith('bfo:'):
+        return os.path.join(BFO, path[len('bfo:'):]), os.path.isdir(BFO)
     return os.path.join(SUITE, path), True
 
 

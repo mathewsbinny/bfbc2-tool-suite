@@ -72,7 +72,10 @@ Evidence: [test: rust/bc2-formats/src/fbrb/header.rs::read_header_refuses] [code
   | `[doc: path:line]` | a document recording the finding (supporting; counts toward no status) |
 
   Paths are relative to the suite's root. `opfor:` before a path is Project OPFOR BFBC2's checkout
-  (`opfor:research/MATERIAL_SLOTS_RE.md`). Line numbers are those of the commit that last ran `trace.py --emit`;
+  (`opfor:src/dll/probes.cpp`); `bfo:` is the battlefield-opfor checkout (`BFBC2_BFO_ROOT`, else beside the suite),
+  whose `docs/` knowledge base holds the documents moved out of Project OPFOR BFBC2 in round KB0 and deleted there
+  in round DOC1 (`bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md`; the table of what went where:
+  `bfo:docs/research/opfor/MIGRATION.md`). Line numbers are those of the commit that last ran `trace.py --emit`;
   `trace.py --check` refuses a line past a file's end, so a moved line is caught when a file shrinks, not always when
   it moves: re-check citations of a file you restructure.
 - **Data counts** name their corpus. "The game copy" is Project OPFOR BFBC2's `game\` (DICE's PC files plus the

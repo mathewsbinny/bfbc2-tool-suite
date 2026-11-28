@@ -5,7 +5,7 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "opfor:research/BFBC2_CONSOLE_RESEARCH.md:142-151"
+     "ref": "bfo:docs/research/opfor/BFBC2_CONSOLE_RESEARCH.md:144-153"
     },
     {
      "kind": "code",
@@ -181,7 +181,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:ONSLAUGHT_PROCEDURE.md:94-97"
+     "ref": "bfo:docs/procedures/ONSLAUGHT_PROCEDURE.md:96-99"
     },
     {
      "kind": "data",
@@ -223,7 +223,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:ONSLAUGHT_PROCEDURE.md:146-151"
+     "ref": "bfo:docs/procedures/ONSLAUGHT_PROCEDURE.md:148-153"
     },
     {
      "kind": "exe",

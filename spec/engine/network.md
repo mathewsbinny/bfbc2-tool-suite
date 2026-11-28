@@ -11,7 +11,7 @@ layer would need for LAN, Direct IP or hosted play is studied in `engine/network
 **Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`research/BFBC2_DECOMP_RESEARCH.md` sections
 4, 5, 6 and 13, build 795745; the hostMultiplayerLocal call chain was found statically and confirmed in game on
 2026-10-12), its DLL's patches and their comments (`src/dll/patches.cpp`, `src/dll/server_browser.cpp`), the Pacific
-War mode work (`research/WW2_THIRD_MODE.md`, `research/AIR_SUPERIORITY_RE_2026-11-14.md`). The mode keys, the game
+War mode work (`bfo:docs/research/opfor/WW2_THIRD_MODE.md`, `bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md`). The mode keys, the game
 mod and the stats category are rules of `engine/gameplay.md` (GAME-MODE-3 to GAME-MODE-7); this file cites them.
 Round NET2 (2026-11-23) read a scratch copy of the same executable (sha256 c603f686...0162) with pefile and capstone:
 import tables, string cross-references, jump tables and short disassemblies, no run. Nothing it adds was seen at run
@@ -140,7 +140,7 @@ levels whose `MatchmakingModID` is the current game mod's tag (GAME-MODE-7), and
 list.
 
 [exe: BFBC2Game.exe multiplayerMaps builder 0x9421F0 (tag compare at 0x942247 against record+0x30)]
-[doc: opfor:research/WW2_THIRD_MODE.md:86] [doc: opfor:research/WW2_THIRD_MODE.md:288]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:88] [doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:290]
 
 ## 4. The transports
 

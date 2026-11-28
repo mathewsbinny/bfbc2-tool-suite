@@ -22,7 +22,7 @@ Bay, MP_008). OPFOR's console port of ONS_MP_002 has 5 `CapturePointEntityData`,
 `SpawnPointManagerData`, and no M-COM; the research notes give 4 flags each on the other three. Napisal's Atacama is a
 fifth PC level, `ons_mp_005gr`, on SP_005's terrain.
 
-[doc: opfor:research/BFBC2_CONSOLE_RESEARCH.md:142-151]
+[doc: bfo:docs/research/opfor/BFBC2_CONSOLE_RESEARCH.md:144-153]
 [code: opfor:src/tools/onslaught/console_common.py:20-23]
 [data: round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition: 5 CapturePointEntityData, 1 MissionEntityData, 1 SpawnPointManagerData, 1 reference to gamemodes/onslaught]
 
@@ -146,7 +146,7 @@ levels override `AI/Difficulty.dbx` (profiles `Ons_Casual`, `Ons_Normal`, `Ons_H
 `AI/Settings.dbx` (multiplayer-scaled: `LoiterActivityDistance` 10 -> 280, `MaxMobileVehicles` 16 -> 32).
 
 [doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:106-144]
-[doc: opfor:ONSLAUGHT_PROCEDURE.md:94-97]
+[doc: bfo:docs/procedures/ONSLAUGHT_PROCEDURE.md:96-99]
 [data: Napisal's ONS_MP_005GR (OPFOR's research 2026-10-29): the spawner counts listed]
 
 ## 3. The ports
@@ -175,7 +175,7 @@ shipped on the PC (the extent rule `floor(min / 100) - 1` fails on 7 of 13 vehic
 `<level>/Precomputed/<Kind>/SectorOffsets` (0x14A93D0); DICE writes it lower case and it still resolves.
 
 [code: opfor:src/tools/onslaught/apply_sector_offsets.py:78-87]
-[doc: opfor:ONSLAUGHT_PROCEDURE.md:146-151]
+[doc: bfo:docs/procedures/ONSLAUGHT_PROCEDURE.md:148-153]
 [exe: 0x14A93D0 the SectorOffsets path format]
 
 ### ONS-PORT-3: What the console port drops: the night lamps, the moon, the lighthouse, the ambience

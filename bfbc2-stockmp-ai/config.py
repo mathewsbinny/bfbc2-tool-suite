@@ -1,6 +1,6 @@
 """Per-map configuration of a stock level's AI layer: the format, defaults, and the generator of a first proposal
-(option c of STOCK_MP_AI_PLAN.md: placed automatically from the level's own objectives and spawns, then tidied by
-hand).
+(option c of battlefield-opfor's docs/plans/opfor/STOCK_MP_AI_PLAN.md: placed automatically from the level's own
+objectives and spawns, then tidied by hand).
 
 Format (JSON, `<work>\\stockmp\\<lv>\\config.json`):
 

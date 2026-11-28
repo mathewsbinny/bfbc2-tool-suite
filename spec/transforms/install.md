@@ -10,7 +10,7 @@ again. Its inverse, **revert**, must give the game copy back byte for byte. Thre
   the WW2 install (`ww2\wake_install.py`; its game-copy side `bc2-install` since round OR1) and the map export's
   install (`mapedit\mapedit_install.py`; `bc2_install::mapedit` since round OR6);
 - the **ledger** (`opforcore\ledger.py`), per-slot contributions to shared files, which replaces whole-file backups
-  where adopted (OPFOR's `research\PACIFIC_BOUNDARY_AUDIT.md` 6.2);
+  where adopted (`bfo:docs/research/opfor/PACIFIC_BOUNDARY_AUDIT.md` 6.2);
 - the registration order of REG-NEW-4.
 
 The suite's editor writes the game copy only through the map export's install (section 2; round OR6: in process,

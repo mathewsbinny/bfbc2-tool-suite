@@ -175,11 +175,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_THIRD_MODE.md:27"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:29"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:237"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:239"
     }
    ],
    "file": "spec/engine/module.md",
@@ -220,7 +220,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_THIRD_MODE.md:22-73"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:24-75"
     }
    ],
    "file": "spec/engine/module.md",
@@ -327,7 +327,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:CONTROLLER_PLAN.md:77-102"
+     "ref": "bfo:docs/plans/opfor/CONTROLLER_PLAN.md:79-104"
     }
    ],
    "file": "spec/engine/module.md",

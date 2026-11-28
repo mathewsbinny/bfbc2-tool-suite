@@ -136,7 +136,7 @@ The NavKit column is NavKit's build before route-island pruning. With it (`navis
 NavKit README "Route islands") ONS_MP_004's spawn -> target battery routes 100 % of DICE's pairs (was 67 %);
 ONS_MP_002's stays at 98.0 %.
 
-Level checks (`testharness/levelchecks.py`; Project OPFOR BFBC2 `STOCK_MP_AI_PLAN.md` 6.3 and `MP_APPLICATION_LOG.md`):
+Level checks (`testharness/levelchecks.py`; battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md` 6.3 and battlefield-opfor's `docs/research/opfor/MP_APPLICATION_LOG.md`):
 `has-ai` (LevelData.HasAI), `ai-spawners` (PlayerType SSAiPlayer), `ai-templates` (a real AI template - not the
 DefaultSoldier placeholder, whose AI aim and never fire; not null), `templates-loaded` (each template partition,
 and the partitions it refers to - Sensing, Behaviour - in a bundle of the level's load set, its `package.mft`

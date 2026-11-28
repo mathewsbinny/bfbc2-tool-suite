@@ -34,7 +34,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:17-21"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:19-23"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -138,7 +138,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:75-79"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:77-81"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -194,7 +194,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:23-28"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:25-30"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -214,7 +214,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:141-145"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:143-147"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -246,7 +246,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:38-47"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:40-49"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -266,7 +266,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:103"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:105"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -286,7 +286,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:43"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:45"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -302,7 +302,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:58-62"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:60-64"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -322,7 +322,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:57-62"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:59-64"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -342,7 +342,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:30-34"
+     "ref": "bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:32-36"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -374,11 +374,11 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:164-169"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:166-171"
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:283-285"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:285-287"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -422,7 +422,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VISUAL_PARITY.md:10-24"
+     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:12-26"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -442,7 +442,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VISUAL_PARITY.md:26-29"
+     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:28-31"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -837,7 +837,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VISUAL_PARITY.md:37-53"
+     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:39-55"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -879,7 +879,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:84"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:86"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -896,7 +896,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:89-162"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:91-164"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -917,7 +917,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/PHYSICS_MATERIALS.md:19-35"
+     "ref": "bfo:docs/research/opfor/PHYSICS_MATERIALS.md:21-37"
     }
    ],
    "file": "spec/engine/materials.md",

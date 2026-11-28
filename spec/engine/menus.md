@@ -6,7 +6,7 @@ loader's own rules APT-LOAD-1 to APT-LOAD-3); the commands that start a match ar
 are NET-SB-1 and NET-SB-2.
 
 **Sources.** Project OPFOR BFBC2's reverse engineering of the PC client (`research/BFBC2_DECOMP_RESEARCH.md` section
-5, build 795745), its menu installs (`research/WW2_MENU.md`), and the suite's movie patcher (`bfbc2-menu-tools`,
+5, build 795745), its menu installs (`bfo:docs/research/opfor/WW2_MENU.md`), and the suite's movie patcher (`bfbc2-menu-tools`,
 `aptgraft.py`). Round SPG2-rest added the action script as DICE ships it (MENU-AS-*), measured by
 `spec/probes/menus.py` over DICE's bundles of the game copy (`game/**/*.fbrb` dated before 2013, plus OPFOR's pristine
 copy of the Package main menu; each distinct movie once), the interpreter read statically from `BFBC2Game.exe`
@@ -64,7 +64,7 @@ to the next node) crashed the menu unload at 0x13046DA (the Pacific War `main_na
 movie patcher attaches a frames node only when it adds frames.
 
 [exe: BFBC2Game.exe movie unload 0x1304690, fault at 0x13046DA (the first Pacific War menu install, 2026-11-06)]
-[code: bfbc2-menu-tools/aptgraft.py:1094-1104] [doc: opfor:research/WW2_MENU.md:5-8]
+[code: bfbc2-menu-tools/aptgraft.py:1094-1104] [doc: bfo:docs/research/opfor/WW2_MENU.md:7-10]
 
 ## The action script DICE ships
 

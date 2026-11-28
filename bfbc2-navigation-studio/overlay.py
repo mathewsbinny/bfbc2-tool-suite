@@ -10,7 +10,8 @@ A reference source is one of
   xbox:<lv>         DICE's Xbox 360 Onslaught level from the user's DLC packages, as unpacked into work\\xbox_dlc
                     (ons_mp_002 in work\\xbox_dlc\\o2, ons_mp_005 / ons_mp_008 in work\\xbox_dlc\\u3)
   <path to a level .xml>
-The AI layer read from a level (the field list of OPFOR's MP_APPLICATION_LOG.md structure table): HasAI, soldier
+The AI layer read from a level (the field list of battlefield-opfor's docs/research/opfor/MP_APPLICATION_LOG.md
+structure table): HasAI, soldier
 spawners (PlayerType, Enabled, Team, SoldierSquadId), AreaOrders (with AreaType - they carry no team or squad),
 PatrolOrders (their AreaGeometry waypoint chains), objective objects (mpobjective / communicationstation), the path
 data's area outlines and the level's SectorOffsets (None when the level has no such asset - never inferred).

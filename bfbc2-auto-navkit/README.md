@@ -737,12 +737,12 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
        bots there need an AI layer authored on top, as Napisal did; NavKit's part comes after that. (2026-10-26:
        the suite's `bfbc2-stockmp-ai` authors that layer; built for Atacama Conquest and Valparaiso Rush, not yet
        played.)
-     Details: OPFOR's `MP_APPLICATION_LOG.md`, spec section 4.5.
+     Details: battlefield-opfor's `docs/research/opfor/MP_APPLICATION_LOG.md`, spec section 4.5.
    - **Since then (2026-10-21 to 10-23):** combat on ONS_MP_002 fixed (OPFOR's Onslaught import); the sampler's
      south "hole" is beyond the PC terrain (the reference is now clipped to it); detailed zones at 0.2 m, chosen
      from the level alone, sampled and built by default; ladder links; the walkability rules and parity measures in
      the section above; "up" border portals found to be a quirk of DICE's data. The stock-MP AI layer is planned in
-     OPFOR's `STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
+     battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
      rule (all 14 M-COM targets on an area, AI coverage on the two maps 100 / 100; the floor is the sampled layer
      nearest the target with enough hits, so a slab over the terrain and stray hits on the object's sides do not
      mislead it), and what D and F are for at run time (spec §4.5). 2026-10-26: D lines and F cells generated

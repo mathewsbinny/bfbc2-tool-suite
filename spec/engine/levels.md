@@ -6,7 +6,7 @@ description partition are layer 2 (`model/level.md`: LEVEL-DATA-1 to LEVEL-DATA-
 mode layer inside a level is `engine/gameplay.md`; the load itself `engine/loading.md`.
 
 **Sources.** Project OPFOR BFBC2's reverse engineering (`research/BFBC2_DECOMP_RESEARCH.md`, build 795745) and its
-logged level catalogue, the Pacific War mode work (`research/WW2_THIRD_MODE.md`), and the map editor's export study
+logged level catalogue, the Pacific War mode work (`bfo:docs/research/opfor/WW2_THIRD_MODE.md`), and the map editor's export study
 (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.12), which compared DICE's own campaign-to-multiplayer conversion
 (MP_SP_005CQ from SP_005) and DICE's mode levels with their maps.
 
@@ -73,7 +73,7 @@ Island, installed from NAM_MP_002CQ's description, was `VIETNAM` until OPFOR cha
 exports take the target era's donor's (XEXP-PRE-2).
 
 [data: descriptions measured: Vietnam's levels MatchmakingModID VIETNAM, Licenses nam, KickIfLicenseMissing true, KIT_*_NAM; BFBC2's levels MatchmakingModID BC2 and no licence]
-[doc: opfor:research/WW2_THIRD_MODE.md:98-103] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1015-1021]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:100-105] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1015-1021]
 
 ### LVL-DESC-2: The loading picture is found by the name key
 

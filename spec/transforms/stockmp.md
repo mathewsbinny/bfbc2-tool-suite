@@ -5,7 +5,7 @@ level, which ships with no AI, the data bots need: `generate` proposes a configu
 objectives and spawns (`config.json`, edited by hand); `build` authors the layer into the level partition, packs the
 bundles and stages them with the path data under `work\stockmp\<lv>\out\game\` (a mirror of the game folder);
 `validate` runs the offline checks; `install --plan | --apply | --revert` copies the stage in and back. Plan:
-Project OPFOR's `STOCK_MP_AI_PLAN.md`, option c. What bots need at run time is layer 3's (`engine/`).
+`bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md`, option c. What bots need at run time is layer 3's (`engine/`).
 
 ## 1. Generate and author
 

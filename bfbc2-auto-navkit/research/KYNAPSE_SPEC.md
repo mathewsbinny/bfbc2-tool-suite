@@ -70,7 +70,7 @@ cylinder collision.
   76.6, lowest vehicle route node 78.9 (infantry file: areas down to 74.7, wading depth). So the boats run on the
   vehicle AI's generic behaviour with no routes. Whether they travel anywhere, and which pathfinding type the vehicle
   driver asks for in a boat, is open: a run-time probe (position, speed, route requests of the AI boats) and a short
-  targeted look at the driver's route request answer it. Approach for a water mesh: OPFOR's `STOCK_MP_AI_PLAN.md`
+  targeted look at the driver's route request answer it. Approach for a water mesh: battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md`
   section 11.
 
 ### 2.2 Vehicle path data measured, and NavKit's vehicle generator (2026-10-26)

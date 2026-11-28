@@ -2,7 +2,7 @@
 
 Gives a stock Bad Company 2 multiplayer level - which ships with no AI layer - the AI spawners, AI orders and event
 wiring bots need, as level data the game loads like its own. It is option c of Project OPFOR BFBC2's
-`STOCK_MP_AI_PLAN.md`: the tool proposes the layer from the level's own objectives and spawns, a person tidies the
+battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md`: the tool proposes the layer from the level's own objectives and spawns, a person tidies the
 per-map configuration, and the tool builds and checks it offline.
 
 Nothing EA-owned is in this folder. The tool reads the user's own game copy and writes only under
@@ -98,4 +98,4 @@ messages are the Python's; Atacama's generate + build + validate 26 -> 16 s (`ru
 
 Built and checked offline (2026-10-26): Atacama Conquest (MP_005, 16 bots, 6 orders) and its experiment-0 variant;
 Valparaiso Rush (MP_002, 40 bots over 5 stages) as a test of the stage logic. Not yet run in the game: what the
-engine does with this layer is open until a play test (`STOCK_MP_AI_PLAN.md` section 12).
+engine does with this layer is open until a play test (battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md` section 12).

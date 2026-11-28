@@ -122,7 +122,7 @@ RT1 branch.
 
 [code: opfor:src/tools/ww2/rebuild_all.py:256-275]
 [data: rebuild_all on 2026-11-19 (main and the suite's RT1 branch): 10,852 of 10,852 outputs' sha1 identical to the recorded oracle]
-[doc: opfor:research/WW2_PORT_PLAN.md:442-447] [doc: opfor:DEVELOPMENT_NOTES.md:1477-1481]
+[doc: bfo:docs/plans/opfor/WW2_PORT_PLAN.md:444-449] [doc: opfor:DEVELOPMENT_NOTES.md:1477-1481]
 
 ### XWW2-RB-3: Incremental rebuilds run what changed, and only that
 

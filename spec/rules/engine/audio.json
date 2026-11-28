@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_SHADER_AUDIO_AUDIT.md:148-156"
+     "ref": "bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:150-158"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -30,7 +30,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_SHADER_AUDIO_AUDIT.md:170"
+     "ref": "bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:172"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -336,7 +336,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:research/WW2_VEHICLE_SOUNDS_AUDIT_2026-11-15.md:149-155"
+     "ref": "bfo:docs/research/opfor/WW2_VEHICLE_SOUNDS_AUDIT_2026-11-15.md:151-157"
     }
    ],
    "file": "spec/engine/audio.md",

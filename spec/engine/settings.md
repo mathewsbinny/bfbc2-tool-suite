@@ -77,7 +77,7 @@ and `setRecomendedSettings` (0x960946). The item levels are the words `low`, `me
 `MainQuality` is the preset, and a change to any single item writes `MainQuality=custom` (0x7D7330, 0x7D73E7).
 
 [exe: BFBC2Game.exe reader 0x7DBD60 (caller 0x570430 in 0x5703E0); writer 0x7DD1F0 (callers 0x56AE02, 0x570442, 0x9124ED, 0x960946, 0x960FF9); "low" / "medium" / "high" / "custom" pushed in 0x7DD100 - 0x7DDA00; "custom" -> MainQuality at 0x7D7339 and 0x7D73F0; "auto" in the reader]
-[doc: opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:179]
+[doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:181]
 
 ### SET-GS-1: The game settings' defaults are the GameSettings partition
 
