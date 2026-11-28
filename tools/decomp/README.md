@@ -19,9 +19,35 @@ python tools\decomp\decomp.py --name Soldier      functions whose name or class 
 python tools\decomp\decomp.py --string GameSettings   functions referencing a string containing the text
 python tools\decomp\decomp.py --rule AI-START-2   the addresses a spec rule cites and their functions
 python tools\decomp\decomp.py --stats             the database's counts (functions, coverage, gaps)
+python tools\decomp\decomp.py --unconfirmed       the functions nothing confirms (below)
 ```
 
-Addresses are hex, with or without `0x`. `--db <folder>` picks another database; `--limit N` caps the lists.
+Addresses are hex, with or without `0x`. `--db <folder>` picks another database; `--limit N` caps the lists;
+`--all` puts the unconfirmed functions back among callers and callees.
+
+## How each function was found
+
+Each function carries `found` and, when doubtful, `confirmed` (`--info` prints them):
+
+| found | What | Doubtful |
+|---|---|---|
+| `analysis` | Ghidra's auto-analysis, or a vtable slot (ApplyTypes.java) | only inside the `--skip` range |
+| `orphan` | code analysis had disassembled but put in no function (DiscoverFunctions.java) | no |
+| `prologue` | never-disassembled bytes after padding that start like an MSVC prologue (DiscoverFunctions.java) | yes |
+
+The `--skip` range, 0x0124F000 - 0x012BFFFF, is set apart because analysis disassembled much of it out of bytes
+that do not read as ordinary compiled code. Its lower part looks like the executable's protection layer. DC0 does
+not analyse it further, and no round may: it is copy protection. Its functions are treated as doubtful too.
+
+A doubtful function is **confirmed** when something independent references its entry:
+
+- a call or jump from a trusted function (repeated to a fixed point) or from disassembled code;
+- a data reference, or an aligned data word that holds its address (a vtable or RTTI slot, a function pointer);
+- an export.
+
+An unconfirmed function stays in the database with its pseudo-C. `--callers` / `--callees` leave it out unless you
+pass `--all`, and lists mark it "(unconfirmed)". `rust/BENCHMARKS.md` "DC0" has the counts and a hand-checked
+sample.
 
 ## Names in the database
 
@@ -43,14 +69,23 @@ Needs Ghidra 12.1.4 (`BFBC2_GHIDRA`, default `C:\Tools\ghidra_12.1.4_PUBLIC`) an
 read; the script refuses a database folder inside a git checkout.
 
 ```
-python tools\decomp\run_dc.py all --heap 9G --threads 4     import + analyse (about 25 min), plan, apply, export, index
+python tools\decomp\run_dc.py all --heap 7G --threads 4     import + analyse (about 25 min), plan, apply, discover,
+                                                            confirm, export, index
 python tools\decomp\run_dc.py plan                          names (extract_names.py) + type plan (gen_types.py)
 python tools\decomp\run_dc.py apply                         ApplyTypes.java, ApplyNames.java (saved into the project)
+python tools\decomp\run_dc.py discover                      DiscoverFunctions.java (saved): orphan code, prologues
+python tools\decomp\run_dc.py confirm                       ConfirmFunctions.java: index\provenance.jsonl
 python tools\decomp\run_dc.py export --threads 4            ExportDb.java: pseudo-C + raw index + measure.json
+python tools\decomp\run_dc.py export --range 01250000-FFFFFFFF --timeout 4    a part again (64 KiB boundaries;
+                                                            its functions_<FIRST>.jsonl wins over the whole run's)
+python tools\decomp\run_dc.py measure                       measure.json and gaps.jsonl only
 python tools\decomp\run_dc.py index                         build_index.py: index\decomp.sqlite
 ```
 
-After a spec change, `plan`, `apply`, `export`, `index` bring the names up to date (apply is safe to repeat).
+After a spec change, `plan`, `apply`, `export`, `index` bring the names up to date (apply is safe to repeat;
+discover is not: run it once, on the analysed project). DC0's own build ran the export in two ranges,
+`00400000-0124FFFF` at 90 s per function and `01250000-FFFFFFFF` at 4 s: the doubtful range above times the
+decompiler out.
 
 | File | Does |
 |---|---|
@@ -58,13 +93,15 @@ After a spec change, `plan`, `apply`, `export`, `index` bring the names up to da
 | `gen_types.py` | `spec/typeinfo.json` as a Ghidra type plan (structures, enums, arrays) |
 | `ghidra_scripts/ApplyTypes.java` | classes from RTTI and the reflection, functions into classes, the types |
 | `ghidra_scripts/ApplyNames.java` | the names and `[DC0]` comments; where each address landed |
-| `ghidra_scripts/ExportDb.java` | the pseudo-C (`pseudo\XXXX.c`, one file per 64 KiB), `index\functions.jsonl`, `index\measure.json` (threads 0: measure only) |
+| `ghidra_scripts/ExportDb.java` | the pseudo-C (`pseudo\XXXX.c`, one file per 64 KiB), `index\functions.jsonl`, `index\measure.json` and `index\gaps.jsonl` (regions outside functions, unresolved jumps; threads 0: measure only) |
+| `ghidra_scripts/DiscoverFunctions.java` | functions from orphan code and from prologues; `index\discovered.jsonl` |
+| `ghidra_scripts/ConfirmFunctions.java` | how each function was found, the doubtful ones' references; `index\provenance.jsonl` |
 | `ghidra_scripts/ExportSymbols.java` | the user and imported names of any Ghidra project, as JSON lines |
 | `build_index.py` | `index\decomp.sqlite` (functions, calls, strings, cites, meta) |
 | `decomp.py` | the lookup |
 
 The private folder's layout: `ghidra\` (the project `BFBC2`), `pseudo\`, `index\` (decomp.sqlite, names.json,
-names_applied.jsonl, types_plan.json, types_report.json, measure.json), `logs\`, `README.md`.
+names_applied.jsonl, types_plan.json, types_report.json, discovered.jsonl, provenance.jsonl, measure.json, gaps.jsonl), `logs\`, `README.md`.
 
 Rulings: decompile everything, Kynapse included (the clean-room rule was removed 2026-11-27). Never analyse or work
 around the FLEXnet licence check (`Kaim::CMapBuilder`'s gate) or any copy protection, and never run the licence-locked

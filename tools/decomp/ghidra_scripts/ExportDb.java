@@ -199,6 +199,9 @@ public class ExportDb extends GhidraScript {
         AddressSetView outside = exec.subtract(inFuncs);
         long instrOutside = 0, codeOutsideBytes = 0, padBytes = 0, undefinedBytes = 0, dataBytes = 0, regions = 0, bigRegions = 0;
         List<String> largest = new ArrayList<>();
+        // every gap RCX0 has to know: index/gaps.jsonl (outside regions with code or 64+ undefined bytes, unresolved jumps)
+        PrintWriter gaps = new PrintWriter(new BufferedWriter(new OutputStreamWriter(
+                new FileOutputStream(new File(out.getParentFile(), "gaps.jsonl")), StandardCharsets.UTF_8)));
         TreeMap<Long, String> bySize = new TreeMap<>(Comparator.reverseOrder());
         for (AddressRange r : outside) {
             long len = r.getLength();
@@ -221,6 +224,10 @@ public class ExportDb extends GhidraScript {
                 for (byte bt : buf) if (bt != (byte) 0xCC && bt != (byte) 0x90 && bt != 0) { pad = false; break; }
             } else if (rest > 0) pad = false;
             if (pad) padBytes += rest; else undefinedBytes += rest;
+            if (ins > 0 || (!pad && rest >= 64))
+                gaps.println("{\"kind\":\"region\",\"start\":" + r.getMinAddress().getOffset() + ",\"end\":" + r.getMaxAddress().getOffset()
+                        + ",\"instructions\":" + ins + ",\"instruction_bytes\":" + insBytes + ",\"data_bytes\":" + data
+                        + ",\"undefined_bytes\":" + (pad ? 0 : rest) + "}");
             if (!pad && rest >= 64) {
                 bigRegions++;
                 bySize.put(rest * 100000000L + (r.getMinAddress().getOffset() & 0xFFFFFFF), String.format("%08X-%08X (%d undefined bytes, %d instructions)", r.getMinAddress().getOffset(), r.getMaxAddress().getOffset(), rest, ins));
@@ -238,9 +245,18 @@ public class ExportDb extends GhidraScript {
             if (!ft.isComputed()) continue;
             boolean resolved = false;
             for (Reference r : i.getReferencesFrom()) if (r.getReferenceType().isFlow() || r.getReferenceType().isCall() || r.getReferenceType().isJump()) { resolved = true; break; }
-            if (ft.isJump()) { cj++; if (!resolved) cjUnres++; }
+            if (ft.isJump()) {
+                cj++;
+                if (!resolved) {
+                    cjUnres++;
+                    Function cf = fm.getFunctionContaining(i.getAddress());
+                    gaps.println("{\"kind\":\"jump\",\"addr\":" + i.getAddress().getOffset() + ",\"function\":"
+                            + (cf == null ? "null" : cf.getEntryPoint().getOffset()) + ",\"text\":" + js(i.toString()) + "}");
+                }
+            }
             else if (ft.isCall()) { cc++; if (!resolved) ccUnres++; }
         }
+        gaps.close();
         long errBookmarks = currentProgram.getBookmarkManager().getBookmarkCount("Error");
         long warnBookmarks = currentProgram.getBookmarkManager().getBookmarkCount("Warning");
         try (PrintWriter o = new PrintWriter(new OutputStreamWriter(new FileOutputStream(out), StandardCharsets.UTF_8))) {

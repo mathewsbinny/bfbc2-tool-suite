@@ -5,7 +5,17 @@ tools/decomp/README.md).
     python tools/decomp/run_dc.py import    import and auto-analyse the exe into <db>\ghidra (once; about an hour)
     python tools/decomp/run_dc.py plan      extract_names.py + gen_types.py into <db>\index
     python tools/decomp/run_dc.py apply     ApplyTypes.java then ApplyNames.java on the project (saved)
-    python tools/decomp/run_dc.py export    ExportDb.java: the pseudo-C and the raw index (read only)
+    python tools/decomp/run_dc.py discover  DiscoverFunctions.java: functions in what analysis left outside any
+                                            (saved); --skip FIRST-LAST (hex, default 0124F000-012BFFFF: a region
+                                            auto-analysis disassembled out of non-code bytes) is left alone
+    python tools/decomp/run_dc.py confirm   ConfirmFunctions.java (read only): how each function was found
+                                            (analysis / orphan / prologue) and whether the doubtful ones (prologue,
+                                            and all in the --skip range) are referenced: <db>\index\provenance.jsonl
+    python tools/decomp/run_dc.py export    ExportDb.java: the pseudo-C and the raw index (read only), then the
+                                            measurement; --range FIRST-LAST (hex) redoes part of the address
+                                            space into <db>\index\functions_<FIRST>.jsonl (it wins over functions.jsonl),
+                                            --timeout the seconds per function (default 90)
+    python tools/decomp/run_dc.py measure   ExportDb.java with threads 0: index\measure.json only
     python tools/decomp/run_dc.py index     build_index.py: <db>\index\decomp.sqlite
 
 The exe is only read. Everything is written under the database folder, which must not be inside any git checkout
@@ -54,11 +64,15 @@ def py(script: str, *args: str) -> int:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('step', choices=('all', 'import', 'plan', 'apply', 'export', 'index'))
+    ap.add_argument('step', choices=('all', 'import', 'plan', 'apply', 'discover', 'confirm', 'export', 'measure',
+                                       'index'))
     ap.add_argument('--db', default='')
     ap.add_argument('--exe', default='')
     ap.add_argument('--heap', default='9G')
     ap.add_argument('--threads', type=int, default=4)
+    ap.add_argument('--timeout', type=int, default=90)
+    ap.add_argument('--skip', default='0124F000-012BFFFF')
+    ap.add_argument('--range', default='', help='FIRST-LAST, hex: export only functions whose entry lies there')
     a = ap.parse_args(argv)
     db = Path(a.db) if a.db else default_db()
     repo = in_git(db.resolve())
@@ -67,7 +81,7 @@ def main(argv: list[str]) -> int:
         return 2
     idx = db / 'index'
     idx.mkdir(parents=True, exist_ok=True)
-    steps = ['import', 'plan', 'apply', 'export', 'index'] if a.step == 'all' else [a.step]
+    steps = ['import', 'plan', 'apply', 'discover', 'confirm', 'export', 'index'] if a.step == 'all' else [a.step]
     for s in steps:
         rc = 0
         if s == 'import':
@@ -85,9 +99,25 @@ def main(argv: list[str]) -> int:
                                        str(idx / 'types_report.json'),
                                        '-postScript', 'ApplyNames.java', str(idx / 'names.json'),
                                        str(idx / 'names_applied.jsonl')], 'apply.log')
-        elif s == 'export':
+        elif s == 'discover':
+            rc = headless(db, a.heap, ['-process', PROGRAM, '-noanalysis', '-scriptPath', str(SCRIPTS),
+                                       '-postScript', 'DiscoverFunctions.java', str(idx / 'discover_report.json'),
+                                       str(idx / 'discovered.jsonl'), *a.skip.replace('0x', '').split('-')],
+                          'discover.log')
+        elif s == 'confirm':
             rc = headless(db, a.heap, ['-process', PROGRAM, '-noanalysis', '-readOnly', '-scriptPath', str(SCRIPTS),
-                                       '-postScript', 'ExportDb.java', str(db), str(a.threads), '90'], 'export.log')
+                                       '-postScript', 'ConfirmFunctions.java', str(idx / 'discovered.jsonl'),
+                                       str(idx / 'provenance.jsonl'), *a.skip.replace('0x', '').split('-')],
+                          'confirm.log')
+        elif s in ('export', 'measure'):
+            rng = a.range.replace('0x', '').split('-') if a.range and s == 'export' else []
+            if rng and (int(rng[0], 16) & 0xFFFF or (int(rng[1], 16) + 1) & 0xFFFF):
+                print('refused: --range must start and end on 64 KiB boundaries (a pseudo-C file holds 64 KiB)')
+                return 2
+            threads = str(a.threads) if s == 'export' else '0'
+            log = 'measure.log' if s == 'measure' else f'export{"_" + rng[0] if rng else ""}.log'
+            rc = headless(db, a.heap, ['-process', PROGRAM, '-noanalysis', '-readOnly', '-scriptPath', str(SCRIPTS),
+                                       '-postScript', 'ExportDb.java', str(db), threads, str(a.timeout), *rng], log)
         elif s == 'index':
             rc = py('build_index.py', '--db', str(db))
         if rc:

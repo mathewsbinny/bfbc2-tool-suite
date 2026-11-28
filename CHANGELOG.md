@@ -28,6 +28,24 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+
+- **A decompiled database of BFBC2Game.exe, and the tools that build and query it** (round DC0, `tools/decomp/`,
+  `rust/BENCHMARKS.md` "DC0"). The database is a Ghidra 12.1.4 headless analysis of the PC exe (build 795745). It
+  has MSVC RTTI plus Frostbite's own reflection: 1,891 vtables, with functions placed in their classes. The spec's
+  2,248 types from `spec/typeinfo.json` are applied, with `this` typed for the classes that match. It carries the
+  spec's and Project OPFOR's named addresses, with `[DC0]` comments citing their rule ids, and every function
+  decompiled to pseudo-C, with an SQLite index. The database is EA-derived and stays private, in
+  `bfbc2-decomp-private` beside the checkouts (`BFBC2_DECOMP_DB`), never in a repo. Only the scripts are committed:
+  - `extract_names.py`: the names;
+  - `gen_types.py`: the type plan;
+  - the Ghidra scripts `ApplyTypes`, `ApplyNames`, `ExportDb` and `ExportSymbols`;
+  - `build_index.py` and `run_dc.py`;
+  - `decomp.py`, the lookup by address, name, string, caller / callee or rule.
+
+  `spec/README.md` "The decompiled database" says how rules cite it: by address, never pasted code. New quick test
+  `decomp-tools` (synthetic input only). New environment variables `BFBC2_DECOMP_DB` and `BFBC2_GHIDRA`.
+
 ## [0.34.0] - 2026-11-27
 
 Round OR11 retires Project OPFOR's Python of the console Onslaught port's stages 8 - 10: OPFOR now needs this version's

@@ -8,6 +8,8 @@ r"""Look things up in the private decompiled database of BFBC2Game.exe (round DC
     python tools/decomp/decomp.py --string <text>    functions referencing a string containing <text>
     python tools/decomp/decomp.py --rule <RULE-ID>   the addresses and functions a spec rule cites
     python tools/decomp/decomp.py --stats            the database's counts (measure.json)
+    python tools/decomp/decomp.py --unconfirmed      the functions nothing confirms (prologue scan, doubtful range)
+    options: --all  include unconfirmed functions among callers and callees
     options: --db <folder> (default BFBC2_DECOMP_DB, else bfbc2-decomp-private beside or above the suite)
              --limit N (lists; default 50)
 
@@ -26,7 +28,11 @@ from pathlib import Path
 
 SUITE = Path(__file__).resolve().parents[2]
 FIELDS = ('addr', 'end', 'size', 'name', 'namespace', 'is_class', 'source', 'signature', 'convention',
-          'signature_source', 'this_type', 'thunk', 'file', 'offset', 'length', 'status')
+          'signature_source', 'this_type', 'thunk', 'file', 'offset', 'length', 'status', 'found', 'doubtful',
+          'confirmed', 'evidence')
+# callers / callees: unconfirmed functions (a prologue scan's, or in the doubtful range, with nothing referencing
+# them: tools/decomp/README.md) are left out unless --all
+TRUSTED = '(f.confirmed = 1)'
 
 
 def default_db() -> Path:
@@ -75,8 +81,17 @@ class Db:
         return fs[0] if fs else None
 
     def label(self, a: int) -> str:
-        r = self.con.execute('SELECT name, namespace FROM functions WHERE addr = ?', (a,)).fetchone()
-        return f'{a:08X} ' + ((r[1] + '::' if r and r[1] else '') + r[0] if r else '?')
+        r = self.con.execute('SELECT name, namespace, confirmed FROM functions WHERE addr = ?', (a,)).fetchone()
+        return f'{a:08X} ' + ((r[1] + '::' if r[1] else '') + r[0] + ('' if r[2] else ' (unconfirmed)') if r else '?')
+
+    def related(self, a: int, callers: bool, everything: bool) -> list[int]:
+        if callers:
+            sql = 'SELECT DISTINCT c.caller FROM calls c JOIN functions f ON f.addr = c.caller WHERE c.callee = ?'
+        else:
+            sql = 'SELECT DISTINCT c.callee FROM calls c LEFT JOIN functions f ON f.addr = c.callee WHERE c.caller = ?'
+        if not everything:
+            sql += f' AND ({TRUSTED} OR f.addr IS NULL)'
+        return [r[0] for r in self.con.execute(sql + ' ORDER BY 1', (a,))]
 
     def pseudo(self, f: dict[str, object]) -> str:
         with open(self.root / 'pseudo' / str(f['file']), 'rb') as fh:
@@ -92,15 +107,18 @@ def full(f: dict[str, object]) -> str:
     return (str(f['namespace']) + '::' if f['namespace'] else '') + str(f['name'])
 
 
-def info(db: Db, f: dict[str, object]) -> None:
+def info(db: Db, f: dict[str, object], everything: bool = False) -> None:
     a = int(str(f['addr']))
     print(f'{a:08X} - {int(str(f["end"])):08X}  {full(f)}  ({f["size"]} bytes, {f["convention"]}'
           f'{", class" if f["is_class"] else ""}{", thunk" if f["thunk"] else ""}; decompile: {f["status"]})')
     print(f'  {f["signature"]}')
+    if f['found'] != 'analysis' or f['doubtful']:
+        print(f'  found by {f["found"]}' + (f'; {"confirmed: " + str(f["evidence"]) if f["confirmed"] else "UNCONFIRMED: nothing references it"}'
+                                            if f['doubtful'] else ''))
     if f['this_type']:
         print(f'  this: {f["this_type"]}')
-    callers = [r[0] for r in db.con.execute('SELECT DISTINCT caller FROM calls WHERE callee = ? ORDER BY caller', (a,))]
-    callees = [r[0] for r in db.con.execute('SELECT DISTINCT callee FROM calls WHERE caller = ? ORDER BY callee', (a,))]
+    callers = db.related(a, True, everything)
+    callees = db.related(a, False, everything)
     print(f'  callers {len(callers)}: ' + ', '.join(db.label(c) for c in callers[:12]) + (' ...' if len(callers) > 12 else ''))
     print(f'  callees {len(callees)}: ' + ', '.join(db.label(c) for c in callees[:12]) + (' ...' if len(callees) > 12 else ''))
     strs = db.con.execute('SELECT addr, text FROM strings WHERE func = ? ORDER BY addr', (a,)).fetchall()
@@ -128,6 +146,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument('--string', default='')
     ap.add_argument('--rule', default='')
     ap.add_argument('--stats', action='store_true')
+    ap.add_argument('--unconfirmed', action='store_true')
+    ap.add_argument('--all', action='store_true')
     ap.add_argument('--limit', type=int, default=50)
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, 'reconfigure'):
@@ -143,6 +163,11 @@ def run(db: Db, a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     if a.stats:
         for k, v in db.con.execute('SELECT key, value FROM meta ORDER BY key'):
             print(f'{k}: {json.loads(v)}')
+        return 0
+    if a.unconfirmed:
+        for r in db.con.execute('SELECT addr, name, size, found FROM functions WHERE confirmed = 0 ORDER BY addr LIMIT ?',
+                                (a.limit,)):
+            print(f'{r[0]:08X} {r[1]} ({r[2]} bytes, {r[3]})')
         return 0
     if a.name:
         for r in db.con.execute('SELECT addr, namespace, name, size FROM functions WHERE name LIKE ? OR namespace LIKE ? '
@@ -167,12 +192,10 @@ def run(db: Db, a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
         return 1
     fa = int(str(f['addr']))
     if a.callers or a.callees:
-        sql = ('SELECT DISTINCT caller FROM calls WHERE callee = ? ORDER BY caller' if a.callers
-               else 'SELECT DISTINCT callee FROM calls WHERE caller = ? ORDER BY callee')
-        for (c,) in db.con.execute(sql, (fa,)):
+        for c in db.related(fa, bool(a.callers), a.all):
             print(db.label(c))
         return 0
-    info(db, f)
+    info(db, f, a.all)
     if not a.info:
         print()
         print(db.pseudo(f))

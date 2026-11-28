@@ -121,6 +121,15 @@ def test_lookup() -> None:
         db_con = decomp.Db(db)
         assert db_con.containing(0x401030) is None              # past b's end
         db_con.con.close()
+        # a prologue-scan function nothing references: out of callers / callees unless --all
+        (db / 'index' / 'provenance.jsonl').write_text(
+            json.dumps({'addr': 0x401000, 'found': 'prologue', 'doubtful': True, 'confirmed': False, 'evidence': []})
+            + '\n', encoding='utf-8')
+        build_index.build(db)
+        assert run('--callers', 'b').strip() == '', run('--callers', 'b')
+        assert run('--callers', 'b', '--all').strip() == '00401000 Foo::a (unconfirmed)'
+        assert 'UNCONFIRMED' in run('--info', '401000') and '00401000' in run('--unconfirmed')
+        assert run('--callees', 'a').strip() == '00401020 b'    # its own callees stay listed
 
 
 def main() -> int:
