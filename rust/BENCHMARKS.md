@@ -6851,3 +6851,31 @@ pruned, per-level slots for the map export's shared patch (MM1-rest).
 the HLSL compiles (`pcbuild.py`, Microsoft's d3dcompiler_47), the preview tools that launch shaderview
 (`renderqa.py`, `xdiff.py`, OPFOR's `wake_preview.py` / `weapon_preview.py`), testrun's game launch
 (`testrun.py`) and `playtest.py`.
+
+### The WW2 rebuild proof (the coordinator's slot, 2026-11-28)
+
+OPFOR's main checkout detached at `or15` (20daea2), the suite the `or15` worktree (`OPFOR_TOOLKIT`), BF1943's data
+re-extracted by the coordinator to `operation-rising-sun\work\extracted` (`BF1943_XENON`, `BF1943_SUITE_FBRB` set: the
+worktree's siblings are not there); `scratchpad\or15\ww2_check_or15.ps1`:
+
+| Check | Result |
+|---|---|
+| `rebuild_all.py`: 59 steps (55 + the four ports steps) | all 59 ran, 13.1 min; at most 4 at once, peaks adding up to 5.5 GB |
+| the rebuild oracle (`compare_oracle.py`) | **7,945 of 7,945 identical** |
+| `wake_install.py --plan`, the install oracle (`compare_oracle.py --install`) | **21,149 of 21,149 identical** (the ports the steps wrote, the plan's staging) |
+| `qa_checks.py` (8 checks, `rebuild_all --qa` after the plan) | **8 of 8 ok** (the run's own QA, before the plan, failed shaders / emitters: the staging was empty, below) |
+| `game\` (1,582 files, sha256) | unchanged |
+
+So the ports step before `wake_translate` reads nothing a later step writes that changes its output: the ports are
+the plan's byte for byte and every rebuilt file is the oracle's (XDEP-STEP-5's open proof).
+
+**The emptied staging.** The slot before (the BF1943 data missing) ran `wake_install.py --plan`, whose `build()`
+removed `work\ww2\install` and then stopped on the missing source: Wake's staging (6,081 files) was gone until this
+run's plan made it again (the install oracle above). `build()` now reads its inputs first (OPFOR 7dd59c5); OPFOR
+main still has the old order until the merge.
+
+**Step times** (`rebuild_all --graph --write`, `rebuild_graph.json` re-derived from this run's records): **measured on
+a loaded PC**, not an idle one - the other rounds held their builds, but the editors, language servers and agents
+ran (about 9.3 GB in use at the start). The ports steps: `wake_install.py --ports` 24.8 s, peak 609 MB (after
+`grime.py --apply` and `material_grid.py`); each level's `--ports-only` 18 - 21 s, about 610 MB. The sum of all step
+times 1,202 s; 13.1 min wall.

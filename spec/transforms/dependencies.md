@@ -309,8 +309,8 @@ from the rebuild's outputs, as the plan's `build()` ports them, so the ports are
 ports again from the same outputs (the same bytes). Left of the cycle: the levels' vegetation staging
 (`install_<lv>\level\objects\vegetation`, read by `tree_billboards`), still the plan's. The ports stay out of the
 rebuild's hashes (they are the install oracle's, `INSTALL_STAGING`); whether they read nothing a later step writes
-is the step records' check after the OR15 rebuild (the ports read every OURS root, `wake` among them, which
-`wake_translate` and `wake_sky` write later).
+is proven by the OR15 rebuild: the ports read every OURS root, `wake` among them, before `wake_translate` and
+`wake_sky` write it, and the rebuild still gives the oracle's 7,945 files and the plan the install oracle's 21,149.
 
 [data: OPFOR's 55 step records of the rebuild of 2026-11-22 / 23 joined with every step's outputs: inputs under work\ww2 that no step writes, by folder (install_ports, install_ports_<lv>, install_<lv>\level\objects\vegetation, the caches); a rebuild from a work\ww2 seeded with fonts\, weapon_icons\confirmed, install_ports\, install_ports_<lv>\ and install_<lv>\level\objects\vegetation only (599 files, round WW2-ORD1, 2026-11-23) ran all 55 steps in one pass]
 [data: round WW2-ORC1, 2026-11-23: a rebuild from a work\ww2 seeded with the 14 declared inputs (599 files): 55 steps in 19.0 min, 7,945 files, --changed --dry afterwards 0 of 55; the same 7,945 digests as OPFOR's main checkout after its relics were moved]
