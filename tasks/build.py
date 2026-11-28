@@ -569,7 +569,7 @@ def board(reg: dict[str, Any]) -> str:
                    'contention': False}
                   for t in sorted(reg['task'], key=lambda t: t['id'])],
     }
-    return json.dumps(data, ensure_ascii=False, indent=0) + '\n'
+    return json.dumps(data, ensure_ascii=False, indent=0, sort_keys=True) + '\n'
 
 
 # ------------------------------------------------------------------------------------- merge-time CHANGELOG steps
