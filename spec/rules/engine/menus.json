@@ -518,6 +518,19 @@
   {
    "evidence": [
     {
+     "kind": "data",
+     "ref": "the startup bundle's `Menu/shared_config.dbx` (UISharedConfigAsset: the `PersistentWeapon` and kill-message entries named), `Awards/WeaponCategories.dbx`, and the English language file's NAME_M1, KILL_MSG_M1 and ABBR_M1 texts, read with `bfbc2-menu-tools/bc2loc.py`; the HUD movies' `extern.kitWeapons` reads by `bfbc2 aptrefs`; moved from the menu tools' README in round KB2"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-WPN-1",
+   "status": "observed",
+   "title": "A weapon's name on screen comes from the shared UI config, by the weapon's Name",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
      "kind": "test",
      "ref": "core/tests/test_spec_probes.py::menus"
     },

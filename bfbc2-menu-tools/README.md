@@ -114,13 +114,9 @@ written into the game folder.
 
 ### How a weapon gets its name on screen
 
-A weapon's own `Name` (its `SoldierWeaponData`, e.g. `Garand`, `M1A1 Thompson`, `40mmgl`) is looked up in
-`Menu/shared_config.dbx` (a `UISharedConfigAsset`, `Package\async\startup-00.fbrb`): a `PersistentWeapon` entry gives
-`NameSID` / `DescriptionSID` / `Abbreviation` and the unlock picture (`Garand` -> `NAME_M1` "WWII M1 GARAND"), a kill
-message entry gives `PresentationSID` (`KILL_MSG_M1` "{0:s}<WWII M1 GARAND>"). The stats screens group names by
-`Awards/WeaponCategories.dbx` (`ABBR_M1` "M1"). The HUD movies take the text from the engine (`extern.kitWeapons`);
-their own weapon-name lists are debug mock data. A weapon whose `Name` has no entry has no text - DICE's Type 5 rifle
-grenade (`JAP_riflegrenade`) has none, and the Type 5 rifle shares the Garand's `Name`.
+The weapon's `Name` is the key into `Menu/shared_config.dbx` (its name, description, abbreviation and kill-message
+texts); a weapon with no entry has no text. The rule, with its evidence, is MENU-WPN-1 in `spec/engine/menus.md`
+(moved there from this README in round KB2).
 
 ## Tests
 
