@@ -6539,11 +6539,11 @@
 "category": "onslaught",
 "code": "OR13",
 "contention": false,
-"date": "2026-11-27",
+"date": "2026-11-28",
 "decided": false,
 "depends": [],
 "id": "or13",
-"lane": "merge",
+"lane": "done",
 "note": "Branch or13 5 ahead and 0 behind suite main, worktree clean; Done row and version 0.38.0 written; ONS_MP_004's stage 7 merge fixed (the base's unowned programs left out). ONS4-S7 row merged into this card.",
 "onRoadmap": true,
 "repo": "suite · OPFOR",
@@ -6558,7 +6558,7 @@
 "repos"
 ],
 "title": "OPFOR in Rust, the rest of the Onslaught console port (stage 14, shader audit, community-mod level fixes, driver); fixes ONS4-S7",
-"version": ""
+"version": "0.38.0"
 },
 {
 "category": "menus",

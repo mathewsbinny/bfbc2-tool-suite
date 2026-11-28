@@ -4298,14 +4298,16 @@ source = "ROADMAP Done (Process and specification); TR0 group OR0-OR15; OPFOR gi
 id = "or13"
 code = "OR13"
 title = "OPFOR in Rust, the rest of the Onslaught console port (stage 14, shader audit, community-mod level fixes, driver); fixes ONS4-S7"
-lane = "merge"
+lane = "done"
 repos = ["suite", "OPFOR"]
 category = "onslaught"
 tags = ["shaders", "editor", "repos"]
 raised = "2026-11-27"
 started = "2026-11-27"
+done = "2026-11-28"
 owner = "or13 (suite, OPFOR)"
 aliases = ["ONS4-S7"]
+version = "0.38.0"
 kb = ["docs/eras/onslaught.md"]
 score = { d = 2, t = 1, h = 0.5 }
 body = "Branch or13 5 ahead and 0 behind suite main, worktree clean; Done row and version 0.38.0 written; ONS_MP_004's stage 7 merge fixed (the base's unowned programs left out). ONS4-S7 row merged into this card."
