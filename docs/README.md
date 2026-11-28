@@ -24,7 +24,7 @@ specification's history, plans, task lists and its network study there; each pla
 | Architecture | `DESIGN.md` (the suite), `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` (the editor) | Code cites both by section number, so keep the numbering |
 | The design system | `design/project/README.md` (tokens, components), `design/icons/README.md` (the application icon) | |
 | Process | `RELEASING.md` (merging and versions), `RETIRED.md` (every retired tool) | |
-| Trackers | `ROADMAP.md`, `CHANGELOG.md`, `PYTHON_STATUS.md` (generated with `python_status.json`), `rust/BENCHMARKS.md` (with `rust/BENCHMARKS_ARCHIVE_1.md`) | Round TK0 is redesigning these as one generated system |
+| Tasks and trackers | `tasks/registry.toml` (every task of every repository; `tasks/README.md`), `ROADMAP.md` (generated from it), `CHANGELOG.md` (user-visible changes per version), `rust/BENCHMARKS.md` with `rust/BENCHMARKS_ARCHIVE_1.md` (measurements per round), `PYTHON_STATUS.md` (generated with `python_status.json`) | One home each since round TK0: a task's status and dates are the registry's, and the trackers are generated or keep only their own kind of record. battlefield-opfor's `docs/tasks/TASKS.md` is generated from the same registry |
 | Finished audits and scans | `docs/archive/` | Each with a one-line outcome in `docs/archive/README.md` |
 | Licences | `LICENSE` (MIT), `rust/bc2-xma/LICENSE` (LGPL-2.1-or-later), `rust/bc2-editor/fonts/OFL.txt` | |
 
@@ -32,11 +32,13 @@ specification's history, plans, task lists and its network study there; each pla
 
 **At the root:**
 - `README.md` (the manual), `DESIGN.md`, `RELEASING.md`, `RETIRED.md`;
-- the trackers: `ROADMAP.md`, `CHANGELOG.md`, `PYTHON_STATUS.md`.
+- the trackers: `ROADMAP.md`, `CHANGELOG.md`, `PYTHON_STATUS.md`;
+- the task registry: `tasks/README.md` (with `tasks/registry.toml`, `tasks/changes/README.md`).
 
 **In `docs/`:**
 - this index;
-- `archive/README.md`, `archive/QUALITY_AUDIT.md`, `archive/ARCHITECTURE_AUDIT.md`, `archive/DEEP_SCAN_2026-11-15.md`.
+- `archive/README.md`, `archive/QUALITY_AUDIT.md`, `archive/ARCHITECTURE_AUDIT.md`, `archive/DEEP_SCAN_2026-11-15.md`,
+  `archive/ROADMAP_DONE_2026-11-28.md`.
 
 **The tool folders:**
 
