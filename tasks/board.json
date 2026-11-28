@@ -4363,6 +4363,23 @@
 },
 {
 "category": "tooling",
+"code": "HARN1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "harn1",
+"lane": "run",
+"note": "launchable rounds in priority order with slot state read from buildslot.ps1's files; quiet running rounds, orphaned slots and acquire processes; est_h against actual_h per round and group",
+"onRoadmap": true,
+"repo": "suite",
+"score": null,
+"tags": [],
+"title": "Agent-harness scheduling in the task registry: needs_slot / est_h / actual_h / tokens / worktrees / agent_state, build.py next / stale / budget, merge --actual-h --tokens",
+"version": ""
+},
+{
+"category": "tooling",
 "code": "HG1",
 "contention": false,
 "date": "2026-11-21",

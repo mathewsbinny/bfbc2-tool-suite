@@ -54,6 +54,7 @@ comments, because the canonical form drops them: put the words in a field.
 | `kb` | battlefield-opfor knowledge-base pages (`docs/...`) |
 | `spec`, `links` | spec rule ids, other references |
 | `score` | `{ d, t, h }`: difficulty 1-5, size 1-5 and calibrated agent-hours (the coordinator's scoring of open tasks, 2026-11-28; the board shows them) |
+| `needs_slot`, `est_h`, `actual_h`, `tokens`, `worktrees`, `agent_state` | scheduling (HARN1, below) |
 | `reason` | why a task was dropped or held |
 | `body` | a short paragraph: state and result |
 | `scope` | the full scope, where it is longer than a body (the old ROADMAP queue cells) |

@@ -9,6 +9,10 @@ the trackers people read are written from it.
     python tasks\build.py merge <code> [--date D] [--version V]   at a round's merge: Done, its CHANGELOG fragment,
                                           its version (--version V: a branch that wrote its version the old way)
     python tasks\build.py cut [--version X.Y.Z] [--date D]   release CHANGELOG's Unreleased as a version
+    python tasks\build.py next [--top N]   the launchable rounds in priority order (round HARN1)
+    python tasks\build.py stale [--minutes M]   running rounds whose worktree went quiet (default 45)
+    python tasks\build.py budget          est_h against actual_h per round and per priority group, with totals
+    python tasks\build.py merge <code> --actual-h X --tokens N   the merge also records the hours and tokens
 
 Options: --bfo <path> names the battlefield-opfor checkout (default: BFBC2_BFO_ROOT, else battlefield-opfor beside
 the suite); --strict-bfo makes a stale battlefield-opfor TASKS.md fail --check (without it, a warning: the suite's
@@ -25,11 +29,14 @@ Standard library only.
 """
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json
 import os
 import re
+import subprocess
 import sys
+import time
 import tomllib
 import unicodedata
 from typing import Any
@@ -69,8 +76,14 @@ SEMVER = re.compile(r'^\d+\.\d+\.\d+$')
 # canonical key order of a task; '' / [] values are left out of the file
 TASK_KEYS = ('id', 'code', 'title', 'lane', 'repos', 'category', 'tags', 'raised', 'started', 'done', 'owner',
              'parent', 'depends', 'merged_into', 'aliases', 'renamed_from', 'version', 'benchmarks', 'kb', 'spec',
-             'links', 'score', 'reason', 'body', 'scope', 'source', 'decisions')
-LIST_KEYS = ('repos', 'tags', 'depends', 'merged_into', 'aliases', 'renamed_from', 'benchmarks', 'kb', 'spec', 'links')
+             'links', 'score', 'needs_slot', 'est_h', 'actual_h', 'tokens', 'worktrees', 'agent_state', 'reason', 'body',
+             'scope', 'source', 'decisions')
+LIST_KEYS = ('repos', 'tags', 'depends', 'merged_into', 'aliases', 'renamed_from', 'benchmarks', 'kb', 'spec', 'links',
+             'worktrees')
+AGENT_STATES = ('queued', 'running', 'blocked', 'done')
+SLOTS = 2
+SLOT_STALE_MIN = 90
+STALE_MIN = 45
 REQUIRED = ('id', 'code', 'title', 'lane', 'repos', 'category')
 DECISION_KEYS = ('date', 'by', 'source', 'choice', 'note')
 CATEGORY_KEYS = ('id', 'name', 'definition')
@@ -304,6 +317,21 @@ def problems(reg: dict[str, Any], text: str, root: str = SUITE, bfo: str | None 
         sc = t['score']
         if sc and (set(sc) != {'d', 't', 'h'} or not all(isinstance(x, (int, float)) for x in sc.values())):
             out.append(f'{where}: score is not {{ d = <1-5>, t = <1-5>, h = <agent-hours> }}')
+        if t['needs_slot'] not in ('', True, False):
+            out.append(f'{where}: needs_slot is not true or false')
+        for k in ('est_h', 'actual_h'):
+            v = t[k]
+            if v != '' and (isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0):
+                out.append(f'{where}: {k} is not a number of hours')
+        if t['tokens'] != '' and (isinstance(t['tokens'], bool) or not isinstance(t['tokens'], int)
+                                  or t['tokens'] < 0):
+            out.append(f'{where}: tokens is not a whole number')
+        if t['agent_state'] not in ('',) + AGENT_STATES:
+            out.append(f'{where}: unknown agent_state {t["agent_state"]!r} (one of {", ".join(AGENT_STATES)})')
+        if not all(isinstance(w, str) and w for w in t['worktrees']):
+            out.append(f'{where}: worktrees are not paths')
+        if t['agent_state'] == 'running' and t['lane'] in ('done', 'dropped'):
+            out.append(f'{where}: agent_state running but lane {t["lane"]}')
         for d in t['decisions']:
             for k in ('date', 'by', 'source', 'choice'):
                 if not d.get(k):
@@ -621,12 +649,19 @@ def next_minor(v: str) -> str:
     return f'{major}.{minor + 1}.0'
 
 
-def merge(reg: dict[str, Any], code: str, date: str, version: str = '') -> None:
+def merge(reg: dict[str, Any], code: str, date: str, version: str = '', actual_h: float | None = None,
+          tokens: int | None = None) -> None:
     t = index(reg).get(code.lower())
     if t is None:
         raise SystemExit(f'no task {code!r}')
     t['lane'] = 'done'
     t['done'] = date
+    if t['agent_state']:
+        t['agent_state'] = 'done'
+    if actual_h is not None:
+        t['actual_h'] = actual_h
+    if tokens is not None:
+        t['tokens'] = tokens
     t['started'] = t['started'] or t['raised'] or date
     frag = os.path.join(CHANGES, t['id'] + '.md')
     if os.path.isfile(frag):
@@ -651,6 +686,241 @@ def merge(reg: dict[str, Any], code: str, date: str, version: str = '') -> None:
     else:
         print(f'{t["code"]}: no tasks/changes/{t["id"]}.md, so no CHANGELOG entry (nothing a user notices)')
     print(f'{t["code"]}: done {date}' + (f', version {t["version"]}' if t['version'] else ''))
+
+
+# ------------------------------------------------------------------------------ the agent harness (round HARN1)
+
+def est_h(t: Task) -> float | None:
+    """The estimate in agent-hours: est_h, else score.h, else None."""
+    v = t['est_h'] if t['est_h'] != '' else (t['score'] or {}).get('h')
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def fmt_h(v: float | None) -> str:
+    return '?' if v is None else f'{v:g}'
+
+
+def rounds_dir(suite: str = SUITE) -> str:
+    """The rounds folder: the nearest parent holding buildslot.ps1 (the suite's worktrees live under it), else the
+    `_rounds` folder beside the suite (BFBC2_ROUNDS_ROOT overrides)."""
+    env = os.environ.get('BFBC2_ROUNDS_ROOT')
+    if env:
+        return env
+    d = suite
+    while True:
+        if os.path.isfile(os.path.join(d, 'buildslot.ps1')):
+            return d
+        up = os.path.dirname(d)
+        if up == d:
+            return os.path.join(os.path.dirname(suite), '_rounds')
+        d = up
+
+
+def slot_holders(rdir: str, now: float | None = None) -> list[tuple[str, int]]:
+    """The live build slots as buildslot.ps1 keeps them: the files .slots/slot1 and slot2 in the rounds folder, each
+    holding "<round> <timestamp>"; one older than 90 minutes is stale and counts as free. [(holder, age in minutes)]."""
+    now = time.time() if now is None else now
+    out: list[tuple[str, int]] = []
+    for n in range(1, SLOTS + 1):
+        f = os.path.join(rdir, '.slots', f'slot{n}')
+        if not os.path.isfile(f):
+            continue
+        age = (now - os.path.getmtime(f)) / 60
+        if age <= SLOT_STALE_MIN:
+            out.append((read(f).split(' ', 1)[0].strip() or '?', int(age)))
+    return out
+
+
+def launchable(reg: dict[str, Any], free_slots: int) -> list[tuple[Task, str]]:
+    """Open rounds that can start now, in priority order (the [[priority]] groups, then the lanes), each with why:
+    lane next (or run with agent_state queued), not running / blocked / done, every depends done, and a build slot
+    free when needs_slot."""
+    ix = {t['id']: t for t in reg['task']}
+    rk = ranks(reg)
+    out = []
+    for t in reg['task']:
+        if not (t['lane'] == 'next' or (t['lane'] == 'run' and t['agent_state'] == 'queued')):
+            continue
+        if t['agent_state'] in ('running', 'blocked', 'done'):
+            continue
+        deps = [ix[d] for d in t['depends'] if d in ix]
+        if any(d['lane'] != 'done' for d in deps):
+            continue
+        if t['needs_slot'] is True and free_slots < 1:
+            continue
+        out.append(t)
+    out.sort(key=lambda t: (rk.get(t['id'], (99, 0)), t['raised'] or '9999', t['code']))
+    rows = []
+    for t in out:
+        grp = rk.get(t['id'])
+        why = ('priority group ' + str(grp[0]) if grp else 'no priority group') + '; '
+        why += ('depends done: ' + ', '.join(ix[d]['code'] for d in t['depends'] if d in ix)) if t['depends'] \
+            else 'no depends'
+        why += f'; build slot free ({free_slots} of {SLOTS})' if t['needs_slot'] is True else '; no build slot needed'
+        rows.append((t, why))
+    return rows
+
+
+def cmd_next(reg: dict[str, Any], top: int, rdir: str, now: float | None = None) -> int:
+    held = slot_holders(rdir, now)
+    free = SLOTS - len(held)
+    print(f'build slots: {free} of {SLOTS} free' + (' (held by ' + ', '.join(f'{h} {a} min' for h, a in held) + ')'
+                                                    if held else '') + '; free RAM is not checked here')
+    rows = launchable(reg, free)
+    if not rows:
+        print('no launchable round')
+        return 0
+    for t, why in rows[:top]:
+        print(f'{t["code"]:<14} est {fmt_h(est_h(t)):>5} h  {cell(clip(t["title"], 70))}  [{why}]')
+    if len(rows) > top:
+        print(f'... {len(rows) - top} more (--top N)')
+    return 0
+
+
+def _git(path: str, *args: str) -> str:
+    r = subprocess.run(['git', '-C', path, *args], capture_output=True, text=True, check=False)
+    return r.stdout if r.returncode == 0 else ''
+
+
+def last_activity(path: str) -> float | None:
+    """The newest of: the last commit's time, the mtime of every modified or untracked file (git's own list, so
+    junctions and ignored build output are not walked), and the worktree's .git entry (when it was made)."""
+    if not os.path.isdir(path):
+        return None
+    times: list[float] = []
+    ct = _git(path, 'log', '-1', '--format=%ct').strip()
+    if ct.isdigit():
+        times.append(float(ct))
+    for f in _git(path, 'ls-files', '-m', '-o', '--exclude-standard').splitlines():
+        with contextlib.suppress(OSError):
+            times.append(os.path.getmtime(os.path.join(path, f)))
+    with contextlib.suppress(OSError):
+        times.append(os.path.getmtime(os.path.join(path, '.git')))
+    return max(times) if times else None
+
+
+def stale_rounds(reg: dict[str, Any], minutes: float, now: float | None = None) -> list[tuple[Task, str]]:
+    """Rounds marked running whose worktrees have had no commit and no file change for more than `minutes`
+    (or whose worktree is missing / not recorded): the agent died, restart it."""
+    now = time.time() if now is None else now
+    out = []
+    for t in sorted(reg['task'], key=lambda t: t['code']):
+        if t['agent_state'] != 'running':
+            continue
+        if not t['worktrees']:
+            out.append((t, 'running, but no worktrees recorded'))
+            continue
+        seen = [a for a in (last_activity(w) for w in t['worktrees']) if a is not None]
+        if not seen:
+            out.append((t, 'running, but no worktree exists on disk'))
+            continue
+        idle = (now - max(seen)) / 60
+        if idle > minutes:
+            out.append((t, f'quiet for {int(idle)} min'))
+    return out
+
+
+def acquire_processes() -> list[tuple[int, str]]:
+    """[(pid, round)] of the running `buildslot.ps1 acquire <round>` processes (Windows; empty elsewhere)."""
+    if os.name != 'nt':
+        return []
+    ps = (r"Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'buildslot\.ps1' } | "
+          r'ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }')
+    r = subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, text=True, check=False)
+    out = []
+    for line in r.stdout.splitlines():
+        m = re.match(r'^(\d+)\t.*buildslot\.ps1"?\s+acquire\s+"?([^"\s]+)', line)
+        if m:
+            out.append((int(m.group(1)), m.group(2)))
+    return out
+
+
+def dead_rounds(reg: dict[str, Any], minutes: float, now: float | None = None) -> dict[str, str]:
+    """{lower-case code or id: why} for every round that has no live agent: not marked running, or running but quiet."""
+    quiet = {t['id']: why for t, why in stale_rounds(reg, minutes, now)}
+    out = {}
+    for t in reg['task']:
+        why = quiet.get(t['id']) or ('' if t['agent_state'] == 'running' else 'no running agent')
+        if why:
+            out[t['id']] = out[t['code'].lower()] = why
+    return out
+
+
+def orphan_slots(reg: dict[str, Any], rdir: str, minutes: float, now: float | None = None,
+                 procs: list[tuple[int, str]] | None = None) -> tuple[list[str], list[str]]:
+    """Report-only: (slot files held by a round with no live agent or a quiet worktree, acquire processes waiting
+    for a round with no live agent). A holder naming no task counts as dead."""
+    dead = dead_rounds(reg, minutes, now)
+    ix = index(reg)
+
+    def why(name: str) -> str:
+        t = ix.get(name.lower())
+        return dead.get(t['id'], '') if t else 'names no task'
+
+    slots = []
+    for n in range(1, SLOTS + 1):
+        f = os.path.join(rdir, '.slots', f'slot{n}')
+        if not os.path.isfile(f):
+            continue
+        holder = read(f).split(' ', 1)[0].strip() or '?'
+        age = int(((time.time() if now is None else now) - os.path.getmtime(f)) / 60)
+        w = why(holder)
+        if w:
+            slots.append(f'slot{n}: held by {holder} for {age} min, {w}')
+    waiting = [f'pid {pid}: buildslot.ps1 acquire {r}, {why(r)}'
+               for pid, r in (acquire_processes() if procs is None else procs) if why(r)]
+    return slots, waiting
+
+
+def cmd_stale(reg: dict[str, Any], minutes: float, now: float | None = None, rdir: str | None = None,
+              procs: list[tuple[int, str]] | None = None) -> int:
+    rows = stale_rounds(reg, minutes, now)
+    slots, waiting = orphan_slots(reg, rdir or rounds_dir(), minutes, now, procs)
+    if not (rows or slots or waiting):
+        print(f'no running round quiet for more than {minutes:g} min, no orphaned slot or acquire')
+        return 0
+    for t, why in rows:
+        print(f'{t["code"]:<14} {why}  [{", ".join(t["worktrees"]) or t["owner"]}]')
+    for x in slots:
+        print(f'orphan slot   {x} (report only: delete the file to free it)')
+    for x in waiting:
+        print(f'orphan acquire {x} (report only: stop the process yourself)')
+    return 0
+
+
+def budget_sums(ts: list[Task]) -> tuple[int, float, float, float, int]:
+    """(rounds, est_h, actual_h, est_h of the rounds that have an actual_h, tokens)."""
+    est = sum(est_h(t) or 0.0 for t in ts)
+    both = [t for t in ts if t['actual_h'] != '' and est_h(t) is not None]
+    act = sum(float(t['actual_h']) for t in ts if t['actual_h'] != '')
+    return len(ts), est, act, sum(est_h(t) or 0.0 for t in both), sum(int(t['tokens'] or 0) for t in ts)
+
+
+def budget_line(label: str, sums: tuple[int, float, float, float, int]) -> str:
+    n, est, act, est_done, tok = sums
+    ratio = f'{act / est_done:.2f}x' if est_done else '-'
+    return f'{label:<44} {n:>3}  est {est:>7.1f}  actual {act:>7.1f}  actual/est {ratio:>6}  tokens {tok:>12,}'
+
+
+def cmd_budget(reg: dict[str, Any]) -> int:
+    rk = ranks(reg)
+    groups = {p['rank']: p['title'] for p in reg['priority']}
+    rows = [t for t in sorted(reg['task'], key=lambda t: (rk.get(t['id'], (99, 0)), t['code']))
+            if est_h(t) is not None or t['actual_h'] != '']
+    print('Per round (est_h defaults to score.h; actual_h and tokens are recorded at the merge)')
+    for t in rows:
+        a = t['actual_h']
+        print(f'{t["code"]:<14} group {rk.get(t["id"], ("-",))[0]!s:>2}  est {fmt_h(est_h(t)):>5}  actual '
+              f'{fmt_h(None if a == "" else float(a)):>5}  tokens {t["tokens"] if t["tokens"] != "" else "-"}')
+    print('\nPer priority group')
+    for g in sorted({rk[t['id']][0] for t in rows if t['id'] in rk}):
+        print(budget_line(f'{g}. {groups.get(g, "?")}'[:44], budget_sums([t for t in rows if t['id'] in rk
+                                                                         and rk[t['id']][0] == g])))
+    loose = [t for t in rows if t['id'] not in rk]
+    if loose:
+        print(budget_line('(no priority group)', budget_sums(loose)))
+    print('\n' + budget_line('Total', budget_sums(rows)))
+    return 0
 
 
 # ------------------------------------------------------------------------------------------------------ the CLI
@@ -682,11 +952,12 @@ def show(t: Task) -> str:
 
 def main(argv: list[str]) -> int:
     text = read(REGISTRY)
-    reg = load()
+    reg = load(REGISTRY)
     bfo = bfo_root(argv)
     date = argv[argv.index('--date') + 1] if '--date' in argv else datetime.date.today().isoformat()
     args = [a for i, a in enumerate(argv) if not a.startswith('--') and (i == 0 or argv[i - 1] not in
-                                                                          ('--bfo', '--date', '--version'))]
+                                                                          ('--bfo', '--date', '--version', '--actual-h',
+                                                                           '--tokens', '--top', '--minutes'))]
     if '--fmt' in argv:
         write(REGISTRY, dump(reg))
         print('tasks/registry.toml: canonical form written')
@@ -698,12 +969,22 @@ def main(argv: list[str]) -> int:
             return 1
         print(show(t))
         return 0
+    if args and args[0] in ('next', 'stale', 'budget'):
+        def opt(name: str, default: float) -> float:
+            return float(argv[argv.index(name) + 1]) if name in argv else default
+        if args[0] == 'next':
+            return cmd_next(reg, int(opt('--top', 5)), rounds_dir())
+        if args[0] == 'stale':
+            return cmd_stale(reg, opt('--minutes', STALE_MIN))
+        return cmd_budget(reg)
     if args and args[0] in ('merge', 'cut'):
         if args[0] == 'merge':
             if len(args) < 2:
-                print('usage: build.py merge <code> [--date YYYY-MM-DD]')
+                print('usage: build.py merge <code> [--date YYYY-MM-DD] [--actual-h X] [--tokens N]')
                 return 2
-            merge(reg, args[1], date, argv[argv.index('--version') + 1] if '--version' in argv else '')
+            merge(reg, args[1], date, argv[argv.index('--version') + 1] if '--version' in argv else '',
+                  float(argv[argv.index('--actual-h') + 1]) if '--actual-h' in argv else None,
+                  int(argv[argv.index('--tokens') + 1]) if '--tokens' in argv else None)
         else:
             version = argv[argv.index('--version') + 1] if '--version' in argv else next_minor(read(VERSION).strip())
             cut(reg, version, date)

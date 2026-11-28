@@ -2890,6 +2890,19 @@ body = "The game-accurate view finds a level's weather through its weather entit
 source = "ROADMAP Done (The map editor (`rust/bc2-editor`, `rust/bc2-levelwrite`, `rust/bc2-render`)); TR0 group EDITOR-R"
 
 [[task]]
+id = "harn1"
+code = "HARN1"
+title = "Agent-harness scheduling in the task registry: needs_slot / est_h / actual_h / tokens / worktrees / agent_state, build.py next / stale / budget, merge --actual-h --tokens"
+lane = "run"
+repos = ["suite"]
+category = "tooling"
+raised = "2026-11-28"
+started = "2026-11-28"
+owner = "harn1 (suite)"
+body = "launchable rounds in priority order with slot state read from buildslot.ps1's files; quiet running rounds, orphaned slots and acquire processes; est_h against actual_h per round and group"
+source = "HARN1 (2026-11-28)"
+
+[[task]]
 id = "hg1"
 code = "HG1"
 title = "The Rust test binaries' hangs and slow tests"
