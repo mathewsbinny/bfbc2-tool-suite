@@ -51,10 +51,6 @@ landed on `main`.
   `bfbc2.exe` and module are built with it, so they combine the suite's MIT code with the LGPL-2.1-or-later decoder;
   README.md ("Licence"), RELEASING.md and the native release notes say so.
 
-### Added
-
-- `tasks/build.py next`, `stale` and `budget`, and `merge <code> --actual-h X --tokens N`: the agent harness's scheduling helpers, with optional registry fields `needs_slot`, `est_h`, `actual_h`, `tokens`, `worktrees` and `agent_state`.
-
 ## [0.38.0] - 2026-11-28
 
 Round OR13 retires the rest of Project OPFOR's Python of the console Onslaught port: OPFOR now needs this version's
