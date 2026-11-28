@@ -102,7 +102,7 @@ title = "Bots in offline MP and the BFBC2 single-player in battlefield-opfor's h
 ruled = "2026-11-28"
 by = "the user"
 source = "chat, 2026-11-28: \"let's focus on the priority order (bots + single-player first); use the bot work from BF1943 as a point of reference to start from, and measure where we could improve and how\""
-tasks = ["bot0", "dq0", "bfo-fix4", "hk1a-c", "levelfix-counts", "vr-fix4", "era-tags", "mv0-9", "mv0-11", "ais-rest2", "stockmp-next", "a2-rest", "nam-bots", "inp0-inp6", "live-runs"]
+tasks = ["bot0", "dq0", "phx0", "dq5", "dq7", "phx0", "dq5", "dq7", "bfo-fix4", "hk1a-c", "levelfix-counts", "vr-fix4", "era-tags", "mv0-9", "mv0-11", "ais-rest2", "stockmp-next", "a2-rest", "nam-bots", "inp0-inp6", "live-runs"]
 
 [[priority]]
 rank = 2
@@ -306,6 +306,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["BOT-CTL-2", "BOT-CTL-3", "BOT-CTL-4", "BOT-CTL-7"]
+score = { d = 3, t = 2, h = 1.8 }
 body = "Bot RE item 1: the play test (steps 1 - 7 of the plan) that proves BOT-CTL-2, BOT-CTL-3 and BOT-CTL-7 and decides between the two ways of BOT-CTL-4. Waits for in-game tests. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -321,6 +322,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["BOT-GS-5", "BOT-GS-6", "BOT-GS-7", "BOT-GS-8"]
+score = { d = 3, t = 2, h = 1.8 }
 body = "Bot RE item 2: settled statically (captures BOT-GS-5; tickets and Rush lives BOT-GS-6 - 8); steps 8 and 9 of the play-test plan confirm it in game. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -336,6 +338,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["BOT-GS-8", "BOT-GS-9"]
+score = { d = 4, t = 3, h = 6.4 }
 body = "Bot RE item 3: the M-COM's arming interaction (BOT-GS-9), its armed state and timer, and the event graph from OnInteraction to onDestroyed; static first, step 9 of the play test as the check. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -351,6 +354,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["BOT-RT-6", "BOT-PER-4"]
+score = { d = 4, t = 3, h = 6.4 }
 body = "Bot RE item 4: the roles of the bot object's +0x80, +0x94 and +0xA0 - +0xB0 and the senses' target record layout (BOT-PER-4); static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -366,6 +370,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["AIO-RDY-2", "BOT-RT-8"]
+score = { d = 4, t = 3, h = 6.4 }
 body = "Bot RE item 5: the order issue (0x5A5490), how a goal list takes the order's urgency modifiers, the urgency sum and arg-max, the squad update; static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -381,6 +386,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["BOT-CTL-8"]
+score = { d = 4, t = 3, h = 6.4 }
 body = "Bot RE item 6: a scan for writes of the proxy's +0x24 from DICE's AI code (BOT-CTL-8); static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -396,6 +402,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["BOT-CTL-8"]
+score = { d = 4, t = 3, h = 6.4 }
 body = "Bot RE item 7: name the soldier interface's state bits and input slot 16's value from the soldier's readers; static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -411,6 +418,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["BOT-CTL-7"]
+score = { d = 4, t = 3, h = 6.4 }
 body = "Bot RE item 8: who stores BehaviourFire's action object (+0x10) and what its update calls; static, with step 10 of the play test naming the site. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -426,6 +434,7 @@ raised = "2026-11-28"
 parent = "ais-rest2"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["PERS-AWD-4", "PERS-SCORE-1"]
+score = { d = 3, t = 3, h = 4.8 }
 body = "Bot RE item 9: the award listener classes, where a finished award is written, and why the career save drops the round's kills; static. Not part of AIS-rest2's own scope; filed under it as the bot item it was listed with. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
@@ -1884,6 +1893,32 @@ category = "navai"
 raised = "2026-11-28"
 started = "2026-11-28"
 body = "Each spec / KB open question classed STATIC, STATIC-PARTLY, LIVE, DATA or SETTLED, checked against DC0 and Project Phoenix's engine notes, grouped into 1-3 h research rounds by value to the priority track; report in _rounds/dq0"
+source = "the user, 2026-11-28"
+
+[[task]]
+id = "dq5"
+code = "DQ5"
+title = "DICE's AI start and the Kynapse runtime, statically"
+lane = "run"
+repos = ["suite"]
+category = "navai"
+raised = "2026-11-28"
+started = "2026-11-28"
+score = { d = 3, t = 3, h = 4.8 }
+body = "DQ0's round DQ5: what a stock MP level must carry for DICE's AI to start, which .hpd fields the runtime reads and how strictly, and NavKit's parity gaps ranked by their effect at run time; spec rules on branch dq5"
+source = "the user, 2026-11-28"
+
+[[task]]
+id = "dq7"
+code = "DQ7"
+title = "The BFBC2 single-player campaign in battlefield-opfor's host, statically"
+lane = "run"
+repos = ["suite", "bfo"]
+category = "host"
+raised = "2026-11-28"
+started = "2026-11-28"
+score = { d = 3, t = 3, h = 4.8 }
+body = "DQ0's round DQ7 (campaign save body, weather, audio, network, soldier questions) and a checklist of what the stock campaign needs in OPFOREngine.exe, with the fix and the verification for each; spec rules on branch dq7"
 source = "the user, 2026-11-28"
 
 [[task]]
@@ -5113,6 +5148,19 @@ body = "PAC-SYSTEMS stays done in Project OPFOR; its DLL-side features are rebui
 source = "TK0 review page (PAC-SYSTEMS)"
 
 [[task]]
+id = "phx0"
+code = "PHX0"
+title = "Project Phoenix's server-side mechanisms mapped to BFBC2Game.exe"
+lane = "run"
+repos = ["suite", "bfo"]
+category = "navai"
+raised = "2026-11-28"
+started = "2026-11-28"
+score = { d = 4, t = 3, h = 6.4 }
+body = "Every address, offset and vtable slot Project Phoenix (a BFBC2 dedicated-server bot mod, PolyForm Noncommercial: facts only) relies on, matched to the client 795745 through DC0 with a confidence each; which bot_ai.md RE items it settles; how each mechanism fits the hybrid bot architecture (ruled 2026-11-28); report in _rounds/phx0"
+source = "the user, 2026-11-28"
+
+[[task]]
 id = "pr1a"
 code = "PR1a"
 title = "The post-Rust improvements' small fixes that stop drift"
@@ -5312,6 +5360,7 @@ raised = "2026-11-28"
 parent = "ingame"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["ERA-NAT-3", "ERA-NAT-4", "ERA-NAT-5", "ERA-SITE-2", "ERA-SITE-3", "ERA-SITE-4", "ERA-UI-2", "ERA-RISK-3"]
+score = { d = 2, t = 1, h = 0.5 }
 body = "eras.md's eight playtests: each era loading in its own era in one session, switching to eras 2 and 3 offline, the gameModChange labels, each era's table entries, the era asset's pages, the offline level list's filter, the main menu after each era, the in-process server's level list. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
 
@@ -5327,6 +5376,7 @@ raised = "2026-11-28"
 parent = "ingame"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["ERA-N-2", "ERA-N-11", "ERA-N-12", "ERA-N-13"]
+score = { d = 2, t = 1, h = 0.5 }
 body = "eras_n.md's four playtests: a page above 3 in GameSettings.bin, gotoAndStop with an unknown label, a fifth era's frames, the server's level list with an era tag. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
 
@@ -5342,6 +5392,7 @@ raised = "2026-11-28"
 parent = "ingame"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["ERA-MOD-2", "ERA-OPF-1", "ERA-OPF-2", "GMD-SW-2", "GMD-CAT-1", "GMD-NEW-2"]
+score = { d = 2, t = 1, h = 0.5 }
 body = "gamemodes.md's six playtests: the menu era after a Vietnam match, a level of another era in an era session, a Pacific level's stings, a new ModeID's squad behaviour, the mode names of Air Superiority and Onslaught, a mode reusing conquest. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
 
@@ -5357,6 +5408,7 @@ raised = "2026-11-28"
 parent = "ingame"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["SCR-CMD-2"]
+score = { d = 2, t = 1, h = 0.5 }
 body = "scripting.md: a playtest of ChangeSetting (a level with a game setting entity) and a test start with IsMenuDevOptsEnabled forced (what DICE's debug-menu entities do). On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
 
@@ -5372,6 +5424,7 @@ raised = "2026-11-28"
 parent = "ingame"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["SET-BIN-1"]
+score = { d = 2, t = 1, h = 0.5 }
 body = "settings.md: a test start with copies of the files: what the renderer does with SelectedRenderer_None, and what a damaged GameSettings.bin does. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
 
@@ -5387,6 +5440,7 @@ raised = "2026-11-28"
 parent = "ingame"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["SQD-PLAY-2"]
+score = { d = 2, t = 1, h = 0.5 }
 body = "squads.md: spawning on a mate prone on a ledge, in a full vehicle, outside the combat area, and twice in a row. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
 
@@ -5402,6 +5456,7 @@ raised = "2026-11-28"
 parent = "ingame"
 kb = ["docs/tasks/spec-task-notes.md"]
 spec = ["VEG-UG-8", "VEG-UG-11", "SET-CLI-1"]
+score = { d = 2, t = 1, h = 0.5 }
 body = "vegetation.md: a settings dump for the engine's default UndergrowthWindSpeed and UndergrowthMaxHeight, and a test start setting the engine settings from the command line (SET-CLI-1, VEG-UG-8). On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
 source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
 
@@ -5811,6 +5866,19 @@ tags = ["input"]
 done = "2026-11-15"
 body = "rebuild_all --changed with step stamps; playtest.py scenarios via virtual pad"
 source = "OPFOR git 61854da"
+
+[[task]]
+id = "ref1"
+code = "REF1"
+title = "The old community tools read for ideas: FBOneTools and the Unity BC2 map editor, and their UI against ours"
+lane = "run"
+repos = ["suite", "bfo"]
+category = "tooling"
+raised = "2026-11-28"
+started = "2026-11-28"
+score = { d = 2, t = 2, h = 1.5 }
+body = "File Porter's console-to-PC rules diffed against the console-converter spec; the spline-plane lake method for TGEN-WATER-1 and RD1; the Mod Loader's flow for MM1-rest and Setup; a scored UI comparison with ours. Read-only, no code copied (GPL-3 / unlicensed); report in _rounds/ref1"
+source = "the user, 2026-11-28"
 
 [[task]]
 id = "release"
