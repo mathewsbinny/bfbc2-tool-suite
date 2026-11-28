@@ -83,6 +83,44 @@ relocation also renumbers every area's and link entry's sector id when the recor
 
 [exe: relocation 0x010A41D0 (marker 0x010A41E4, version 0x010A428E, flags 0x010A42A2-0x010A42A7, loaded 0x010A42B2, tables 0x010A42AD-0x010A42E1, tile table 0x010A42E3-0x010A4310); tiles 0x010A3BB0; areas 0x010A3A70-0x010A3BAC (A 0x010A3A87, B 0x010A3AB0, C 0x010A3AE0); links 0x010A4380, 0x010A43C4, 0x010A43F8; renumbering 0x010A3C10; relative use 0x01073B32-0x01073B3A, 0x01071D21]
 
+### KYRT-LOAD-4: A border node's copies are joined into a ring through node +0x14
+
+Status: **observed** · Variants: PC
+
+When a sector's graph is loaded, the loader (0x0108FD60) pairs it with every loaded graph whose sector it overlaps
+and joins them (0x0108FC00), then finishes the new graph (0x0108E1D0). Two sectors overlap (0x0108E310) when their
+table kinds differ by at most one, neither has the 99999 marker, and, for two kind-0 sectors in a file with header
+word 3 = 1 (every DICE file), their six bounds overlap on all three axes, touching included. For two graphs of
+36-byte nodes the join walks the new graph's nodes: a node whose +0x14 is still 0 and whose id lies between the other
+graph's first and last id is binary-searched there by id (the nodes sorted, HPD-NODE-2), and +0x14 becomes the copy
+found. Finishing the graph then turns +0x14 into a ring: a node still at 0 points to itself, a node holding a copy is
+inserted after it in that copy's ring. The out-edge walk and the owner filter go round this ring (KYRT-PATH-3).
+
+So:
+
+- the join takes the file's +0x14 (HPD-NODE-1: DistEdgeMax on the sector's first node, 0 elsewhere) as "not joined
+  yet" only when it is 0, so a border node must carry 0 there. Sorted by id, a sector's first node is a border node
+  only when the sector has no ordinary node (HPD-NODE-2). How the first node's non-zero value stays out of the ring
+  was not traced;
+- a border node is joined only with copies in sectors whose **table bounds overlap** its own sector's: the bounds
+  (KYN-SEC-2, the route-node box) must take in the border copies, or the copies stay separate nodes and the routes
+  across that sector line are cut.
+
+[exe: BFBC2Game.exe sector load 0x0108FD60 (overlap test 0x0108E310 before each join 0x0108FC00, then 0x0108E1D0); overlap 0x0108E310 (kind difference 0x0108E31C-0x0108E331, the 99999 = 0x1869F tests 0x0108E33A / 0x0108E349, `cmp [+0x3B4], 0` at 0x0108E35D, float bounds 0x0108E394-0x0108E3DA); join of two 36-byte-node graphs 0x0108DD90 (`cmp [node+0x14], 0` at 0x0108DDB0, first / last id 0x0108DDC5-0x0108DDD5, binary search 0x0108D3D0, store at 0x0108DDE9, stride [manager+0x428]); ring 0x0108DB70 (0x0108DB82-0x0108DB9B)]
+
+### KYRT-LOAD-5: Nothing checks that a file belongs to its level
+
+Status: **observed** · Variants: PC
+
+The file's header check is the magic `Kynogon HPD` and word 0 = 2 (KYRT-LOAD-1); a mesh is checked by its marker and
+version (KYRT-LOAD-3). No field is compared with the level: there is no digest, no level name, no checksum of the
+blocks, and the sector offsets come from the separate `SectorOffsets` asset (KYRT-CFG-1), not from the file. A file
+built for another state of the level, or for another level, loads without an error and is wrong only where the
+ground differs (HPD-RT-2). Path data a level ships must therefore be checked by the tools that write it.
+
+[exe: BFBC2Game.exe header check 0x0108EC70 (`_stricmp` with "Kynogon HPD" and `cmp [+0x3A8], 2` at 0x0108EC95-0x0108ECAE, the only refusals before the table is read); no other comparison with level data in the loader 0x01092340 / 0x01090D20 / 0x01091130 or the set-up 0x00F209F1-0x00F20C8E]
+[inferred: a static negative over the functions read (the loader's state machine, the header and table reads, the relocation, the set-up); the code was not swept exhaustively]
+
 ## 3. Resolving a point
 
 ### KYRT-SEC-1: Point to sector
@@ -118,16 +156,29 @@ Status: **observed** · Variants: PC
 To find a point's area, the runtime walks the loaded sector meshes. In each mesh it takes the point's tiles
 (KYRT-TILE-1) and, in each tile, the items whose height pair holds the point (`item +4 <= y <= item +8`). Each such
 item's area gets an inside test, and the first area that passes is the answer. The inside test counts boundary
-crossings in x / z over three sets of segments: the outline E, the B portals and the C portals. A point on or very
-near a segment is accepted at once; the band uses a constant 1.1 x pitch. So:
+crossings in x / z over three sets of segments: the outline E, the B portals and the C portals, casting from the
+point toward +x. Per segment (end points A, B):
+
+1. **Pre-test.** The segment is skipped unless the point's z lies in the segment's z range, both ends included, and
+   the point's x is not beyond the segment's larger x. (The constant 1.1 is no band: each of the three conditions adds
+   1.1 and the sum must reach 3.0, so all three must hold.)
+2. **Constant z** (A.z = B.z, so the point lies on the segment's z): the point left of both ends is no crossing;
+   otherwise the segment's height at the point's x is compared with the point's.
+3. **Constant x** (A.x = B.x): a point left of the line flips the parity when its z is above the lower end's (the
+   lower end is open, the upper closed); a point with exactly the line's x has its height compared.
+4. **Otherwise** the line's x at the point's z: left of the point, no crossing; right of it, a flip under the same
+   lower-end rule; exactly equal (float equality), the height is compared.
+
+A height comparison accepts the area at once when the segment's height there is within the area's **pitch**
+(header +0x14) of the point's height; else the segment is neither a crossing nor a hit. So "on the boundary" is exact
+in plan (float equality) and one pitch tall; there is no tolerance band in x / z. So:
 
 - an area's horizontal extent is its E + B + C boundary. A boundary that is not closed, or a duplicated segment, flips
-  the parity (KYM-AREA-4);
+  the parity (KYM-AREA-4); a vertex shared by two segments counts once, by the half-open z rule;
 - its vertical extent is the **tile item's** heights. The area header's +0x18 / +0x1C are not read here;
 - A, D and F play no part in point location.
 
-[exe: 0x0107ADD0 -> 0x010706D0 (cached) / 0x010707A0 (every mesh) -> 0x01073EA0 (item heights 0x01073EF4-0x01073F0F) -> inside test 0x01073B00 (E, B, C; pre-test 0x010739D0 with 1.1 at 0x0143BD08; parity 0x01073740)]
-[inferred: the exact maths of 0x01073740 (on-segment band versus crossing) was not followed instruction by instruction]
+[exe: 0x0107ADD0 -> 0x010706D0 (cached) / 0x010707A0 (every mesh) -> 0x01073EA0 (item heights 0x01073EF4-0x01073F0F; the area's +0x14 passed as the tolerance at 0x01073F13) -> inside test 0x01073B00 (E, B, C; pre-test 0x010739D0: three terms of 1.1 at 0x0143BD08 summed against 3.0; segment test 0x01073740: constant z, constant x and general cases, the parity byte flipped, 1 returned for a hit within the tolerance)]
 
 ### KYRT-NODE-1: Point to route node
 
@@ -232,7 +283,7 @@ candidate and keeps its edges. A writer sets the bit on every copy but one, and 
 (HPD-NODE-5); edges a writer stores on a non-owner copy are not ignored.
 
 [exe: target filter 0x0105C8C0 (`cmp byte [ebp+0x22], 1` at 0x0105C8CC; the copies walked through [node+0x14] 0x0105C8D3-0x0105C918, an owner copy found: false 0x0105C91A; none: true 0x0105C923), called from the edge walks 0x0105CB5B (36-byte nodes; `sete cl` keeps the edge when false), 0x0105CD36 and 0x0105D43D; per-copy edge collection 0x0105CAD0-0x0105CC26 (first edge [node+0x18], target dedup table 0x01B58CB0); box query 0x0105E786 (`cmp byte [ecx+0x22], 0`); random pick 0x0105C2E8-0x0105C307 (`rand` % count, retried on `cmp byte [eax+0x22], 1`)]
-[inferred: the chain through node +0x14 is written at load (the file holds DistEdgeMax or 0 there, HPD-NODE-1); the write was not found]
+The chain through node +0x14 is a ring written at load (KYRT-LOAD-4).
 
 ### KYRT-MOVE-1: Straight moves, path following and smoothing
 
@@ -291,11 +342,33 @@ go-to's dynamic avoidance through gaps (`Goto_GapDynamicAvoidance_v2`). The path
 
 None of these names a write to the loaded sectors, the route graph or the dynamic-edge table (KYRT-DYN-1). So
 destruction most likely reaches the AI as **obstacles in the LPF layer**, avoided locally around the agent, while the
-path data keeps describing the intact level (HPD-RT-2). What exactly an object with `DisablePathfinding =
-PdtWhenDestroyed` adds or removes when it is destroyed was not traced.
+path data keeps describing the intact level (HPD-RT-2). What the layer receives when a destructible part is destroyed
+is KYRT-DYN-3; where `DisablePathfinding` itself is read was not found.
 
 [exe: service and layer names 0x014A9360 (`CGapManager`), 0x014A9530 (`Mpd::CLpfManager`), 0x014A95C4 (`CObstaclesLayer`), 0x014A95A4 (`MaxObstacles`), 0x014A94E8 (`CLpfPreMerger_Grid`), 0x014A9800 (the LPF goal refiner), 0x014A9A48 (`Mpd::CGoto_GapDynamicAvoidance_v2`); the obstacle layer configured at 0x00F1F584-0x00F1F600 (and again 0x00F1FA47-0x00F1FADE); the managers registered 0x00F1BCA3 / 0x00F1BD59, their profile names `LpfManager::AreaComputation` / `::PreAggregateComputation` at 0x00F1C915 / 0x00F1C83E and in the service 0x010C69E4-0x010C69F5; `PdtWhenDestroyed` 0x0145C728 and `DestructibleLocalPathfindingParts` 0x01460610 without a code reference found]
 [inferred: from the configuration's class and parameter names only; no LPF method was disassembled and no live probe was run (in-game tests are paused)]
+
+### KYRT-DYN-3: Destroyed parts leave the local-pathfinding part set; the path data is untouched
+
+Status: **observed** · Variants: PC
+
+At the AI's start the level's `DestructibleLocalPathfindingParts` (LevelData +0x388: per part a box forward and
+extents in x / z, a centre and a `DestructiblePartId`) are merged into a table of the path-data world, sorted by the
+id (object enumeration, then part index), and the world's part provider is told to rebuild: it inserts each part's
+centre x, z and id into a spatial set and rebuilds that set. When the AI's game-event handler receives a part's
+destruction (category 0x23, events 0x10 and 0x11), it looks the part up by its id; a destroyed part found there is
+handed to the provider, which removes its record from the set, and the table entry is erased. When the message's
+type value (+0x54 / +0x64) is 3 the handler also releases an object it keeps for that object enumeration. The part's
+box fields are not passed on this path. The provider is one of two kinds, chosen by an AI setting (the second also
+notifies listeners of the removal).
+
+Nothing on this path writes the loaded sectors, the route graph or the dynamic-edge table: destruction changes the
+local-pathfinding layer's set of parts only, and the route data stays the intact level's (HPD-RT-2). For a stock map
+this means `DestructibleLocalPathfindingParts` is the level data that lets bots react to destroyed buildings; a level
+without it (every stock MP level read has no AI data, AI-NEED-1) gives the layer nothing to remove.
+
+[exe: BFBC2Game.exe 0x5AF5F0 -> 0xF27E10 (48-byte parts, the table at world +0x3C8 / +0x3CC kept sorted through 0xF129A0, then the provider's vtable +0x10); providers built in 0xF2EFF0 (0xF2AB40 or 0xF2B090 by the setting at *(0x018903E8)+0x6C +0x68, interface at +0x65C, kept at world +0x3E4 from 0xF2F4A7): rebuild 0xF2ABE0 / 0xF2B1A0 (each part's +0x10, +0x18, +0x20, +0x24 to 0xF28560, then 0xF26160), remove 0xF2AC80 / 0xF2B240 (the same four words to 0xF289A0; 0xF2B240 also calls the listeners at +0x28); event handler 0x5AF790 (category 0x23 through the table 0x5B03EC at 0x5AFF0A: 0x10 -> 0x5B01EA, 0x11 -> 0x5B0287) -> 0x5AD8D0 (destroyed flag 0x5AD8EE, lookup and removal 0xF24F00 at 0x5AD91B -> 0xF213F0 / 0xF150B0, provider vtable +0x14 at 0xF24F18; `cmp [esp+0x30], 3` at 0x5AD920)]
+[inferred: that the type value 3 is `PdtWhenPartDestroyed` (PathfindingDisableType 3) rests on the number only]
 
 ## 6. What the runtime does not read
 
@@ -311,11 +384,16 @@ Fields the loader and the functions traced do not read:
 - the value at the tile table's end slot (relocated, never dereferenced in the functions read);
 - C's direction in the tests traced.
 
-The sector table's date and time words are passed on to the block read's callback; whether it uses them is not known.
+- the sector table's date and time words (HPD-TAB-4).
+
+The date and time words go only to a sector-open hook of Kynapse's file callbacks, and only when a manager flag
+(+0x250) is set. BFBC2's Kynapse initialisation fills the block-read hook and leaves the sector-open hook empty, and
+the configuration refuses that flag without the hook, so in BFBC2 the words are never used: any value loads.
 **A records are read**: a nearest-segment search walks A and B as segments. So A is not ignored. A writer must keep
 the A count at 0, as every DICE file does (KYM-AREA-2), unless it knows what A holds.
 
-[exe: no reads of words 1, 4-7, 34 found outside the swap pass 0x0108EAE0; date / time passed to 0x010C8A30 / 0x010C8A50; A and B walked in 0x01071D10 with 0x010714C0]
+[exe: no reads of words 1, 4-7, 34 found outside the swap pass 0x0108EAE0; A and B walked in 0x01071D10 with 0x010714C0]
+[exe: date / time pushed with the sector id at 0x0109012D-0x0109014C to the thunk 0x010C8A50 (`jmp [0x01521F44]`), only after `cmp byte [esi+0x250], 0` at 0x01090124; the block read is the thunk 0x010C8A30 (`jmp [0x01521F40]`); the callback table at 0x01521ED8 copied (0x01046C60, from 0x0105F620 via 0x0109D8E0 -> 0x010481B0) from the game's parameter block 0x00F025D0, which zeroes 0x98 bytes and sets +0x7C (the block read, 0x00EAABB0; table slot 0x01521F40) but not +0x80 (slot 0x01521F44); the parameter parser refuses the flag with the slot empty at 0x0109085E]
 [inferred: "not read" covers the functions traced (loader, relocation, point location, search, links); the code was not swept exhaustively]
 
 ## 7. Crashes
@@ -344,11 +422,10 @@ Recorded faults and refusals caused by the data, with the rule that keeps a writ
 - Answered in round NKS-rest: the cost object and the heuristic (KYRT-PATH-1), where the owner bit is read
   (KYRT-PATH-3), where the lookup lists are read and that their order matters (KYRT-NODE-2), the `SectorOverlap`
   value (KYRT-CFG-1).
-- Destruction (KYRT-DYN-2): what the LPF layer receives when an object with `DisablePathfinding = PdtWhenDestroyed` is
-  destroyed. Next step: disassemble `CLpfManager`'s update and the obstacle layer's add / remove methods (their
-  vtables through the RTTI-less class names above), or a probe on them while a building is destroyed in a test level
-  (in-game tests are paused).
-- Where node +0x14 (the copies' chain, KYRT-PATH-3) is written at load.
-- Whether the block read's callback uses the table's date / time words (KYRT-IGN-1): find the writer of the callback
-  pointer at 0x01521F40.
-- The exact on-segment rule of the inside test (0x01073740, KYRT-AREA-1).
+- Answered in round DQ5: what the local-pathfinding layer receives when a part is destroyed (KYRT-DYN-3); where node
+  +0x14 is written (KYRT-LOAD-4); the date / time words are never used (KYRT-IGN-1: the hook is empty); the inside
+  test's exact rule (KYRT-AREA-1); no check ties a file to its level (KYRT-LOAD-5).
+- Where `DisablePathfinding` (StaticModelEntityData +0xE8) is read, and how the LPF layer uses its part set to steer
+  an agent (KYRT-DYN-2, KYRT-DYN-3). Next step: the readers of the provider's set (0xF28560's structure) or a probe
+  while a building is destroyed (in-game tests are paused).
+- How a sector's first node keeps its DistEdgeMax (+0x14) out of the copies' ring (KYRT-LOAD-4).

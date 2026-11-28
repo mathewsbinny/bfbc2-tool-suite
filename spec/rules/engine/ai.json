@@ -54,8 +54,8 @@
   {
    "evidence": [
     {
-     "kind": "inferred",
-     "ref": "every working AI level read lists mp_common's two PathfindingSettings in LevelData and every stock MP level has the array empty (STOCK_MP_AI_PLAN 12.1); the generator settings are found at LevelData+0x36C as an array of PathfindingSettings pointers; the set-up's per-type load was not traced instruction by instruction"
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5AF5F0 -> 0x5A89F0 (LevelData +0x36C through 0x13A5660; each entry's +0x3C read at 0x5A8A34-0x5A8A41) -> 0xF2EFF0 (licence check 0xF2F0BF with the string at 0x014A9EA4; empty list `cmp [ebp"
     },
     {
      "kind": "data",
@@ -72,8 +72,21 @@
    ],
    "file": "spec/engine/ai.md",
    "id": "AI-START-3",
-   "status": "inferred",
+   "status": "observed",
    "title": "One Kynapse world per pathfinding type the level lists",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe level load 0x574FB0: the context (0x547BF0, the object at 0x01566B18) +0x20 -> +0x1C tested at 0x57501B-0x575031 (else 0x571F10), again before the save-game load at 0x5751B0-0x5751B6; the settings object made by 0x596AF0 at the main object's +0xAC in 0x56EDE0, +0x1C = 1 at 0x56F26D (playback), = 0 at 0x56F1A9 (recording); passed by the server create 0x54B0B0 (its +0x1C as argument 5) to 0x756D40 (stored at +0x20, 0x756D6B) and by 0x853B00 to the context's +0x20 (0x853C7E)"
+    }
+   ],
+   "file": "spec/engine/ai.md",
+   "id": "AI-START-4",
+   "status": "observed",
+   "title": "Demo playback is the only other branch of the level load",
    "variants": "PC"
   },
   {
@@ -129,6 +142,10 @@
      "ref": "BFBC2Game.exe go-to 0x0107FE80, Flat compute 0x0107F620 (false exits 0x0107F8E1, 0x0107F9B0, 0x0107FABE, 0x0107FB0D, 0x0107FC33, 0x0107FCB2, 0x0107FD6B), caller 0x010B1AB0, reader 0x010B2400; DataMode default 1 in the constructor 0x01080CC0"
     },
     {
+     "kind": "exe",
+     "ref": "the later stage: `cmp byte [esi+0x474"
+    },
+    {
      "kind": "doc",
      "ref": "private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md:413-449"
     }
@@ -154,6 +171,23 @@
    "id": "AI-KY-4",
    "status": "observed",
    "title": "The engine's physics queries",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe terrain shape constructor 0xAC7640 (vtable 0x01454D14 stored at 0xAC7656), called from 0xB0BAB0 (the physics world's vtable slot 0x014575EC; spacing from the height field's +0xE0 / (+0xE8 - 1), shape kept at +0xA3A4); a second terrain-shape constructor 0xAB8800 (0xAB8806); visual terrain build 0xA2D690 (strings 0x0144FEB8-0x0144FF18); generator reader 0xF33620 (string 0x014AA4DC) reached only through 0xF33730 in the table at 0x014AA390"
+    },
+    {
+     "kind": "inferred",
+     "ref": "that the object 0xB0BAB0 receives is the level's main height field (its fields are a count and a size, as TerrainHeightfieldData's Resolution and SizeXZ); not followed to the resource loader"
+    }
+   ],
+   "file": "spec/engine/ai.md",
+   "id": "AI-KY-5",
+   "status": "observed",
+   "title": "The ground the AI and collision see is the Havok height-field shape",
    "variants": "PC"
   },
   {
