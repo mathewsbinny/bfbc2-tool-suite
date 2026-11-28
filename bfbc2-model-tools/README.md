@@ -31,8 +31,9 @@ uses these to model the WW2 rifles' bayonets and rifle grenades onto DICE's surv
 
 These are Python libraries (no command line; `bfbc2.exe` has no subcommand for them). With the suite's Rust core
 built, `texwrite.py`'s encoders and `skinmesh.py`'s vertex work run in Rust (round F2a, `rust/bc2-convert`), the same
-bytes, the Python kept as the reference and the fallback (`use_native(False)`, `BFBC2_PURE_PYTHON=1`); `texwrite`'s
-principal axes stay NumPy's `eigh`. Python 3.12+ and `numpy`. `decimate.py`'s collapses and `shapes.py`'s products, tangents and
+bytes, the Python kept as the reference and the fallback (`use_native(False)`, `BFBC2_PURE_PYTHON=1`); since round OR14
+`texwrite`'s principal axes are the core's too (`bc2_convert::eigh3`: NumPy's `eigh` path written out, the same axes
+to the bit on any processor; the Python reference still calls `numpy.linalg.eigh`). Python 3.12+ and `numpy`. `decimate.py`'s collapses and `shapes.py`'s products, tangents and
 windings need the core (round PR1b-2-rest2, `bc2_convert::decimate` / `shapes`): NumPy's OpenBLAS products are written
 out as the kernels of the machine that recorded Project OPFOR's WW2 weapon parts compute them, so the results are
 those on any processor (spec XWW2-MOD-1); the NumPy originals stay as `decimate_reference` and `*_reference`.
@@ -42,6 +43,9 @@ replaced and read back); `tests\test_texwrite.py` (DICE's level layout, round tr
 decoder, unit-length normal mips, DXT5 colour and alpha, a cut-out picture keeping every transparent texel in DXT1;
 with the game, two of DICE's weapon textures and an award image encoded again); `tests\test_decimate.py`
 (a seamed sphere stays closed and round, two bones stay apart; the core against the NumPy originals and recorded
-digests: spheres, shapes-built rifles, jittered spheres, moved / tangents / windings).
+digests: spheres, shapes-built rifles, jittered spheres, moved / tangents / windings); `tests\test_model_f2a_native.py`
+(round F2a: `texwrite` and `skinmesh` in the core against their Python reference, both ways); and
+`tests\test_pictures_native.py` (round OR4: Project OPFOR's WW2 pictures in the core - resizing, the loadout
+renderer, the picture checks, the weapon icons, the mesh viewer's preview page).
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

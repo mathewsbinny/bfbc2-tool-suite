@@ -3,12 +3,12 @@
 Round L1, 2026-11-20. Read-only research for the map editor's V1 warnings and A1 auto-layout. Nothing in `game\`,
 OPFOR's `work\` or either repository was changed; no level was prepared and the game was not launched.
 
-Files (all in this folder):
+Files (in this folder; the scripts in `scripts\`):
 
 - `L1_placement_report.md`: this report.
 - `l1_measurements.json`: 8,771 records, one per level, mode, metric and subject. Each record carries its value, unit
   and source entity GUIDs. Each level also has a `layout` list: the positions of its flags, bases and M-COMs, as
-  numbers.
+  numbers. It is game-derived data and is not in the repository: `l1_measure.py` writes it again.
 - `l1_distributions.md`: the full tables (min, p10, median, p90, max) per mode and era group, with the outliers named.
 - `l1_rules_check.md` / `l1_rules.json`: every proposed rule run against the stock data.
 - `l1_a1_params.json`: the typical layout per mode, for A1.
@@ -417,7 +417,9 @@ They follow BF1943's design, not BFBC2's, and need their own thresholds:
   ```
 
   The spec README's layer 3 is "engine subsystems", so gameplay / mode layout could be a `engine/gameplay.md` or a
-  new modes topic. That placement is the user's call.
+  new modes topic. That placement is the user's call. (Done in round V1: the rules are checked live by
+  `rust/bc2-levelwrite/src/placement.rs` and described in `spec/transforms/validation.md` section 3, which keeps
+  the `L1-*` IDs as an index of their own.)
 
 ## 6. A1 input: the typical layout per mode
 
@@ -510,8 +512,11 @@ inside the warning bands of section 5.
 
 ## 8. Re-running
 
-Run with the suite's interpreter (`bin\python.txt`: `C:\Python313\python.exe`) from this folder, in this order. Each
-step reads the game copy only.
+Run with the suite's interpreter (the one `bin\python.txt` names) from `scripts\`, in this order. Each step reads
+the game copy only. The scripts write their results beside themselves in `scripts\` (`l1_analyze.py` and
+`l1_rules.py` take an output path, `l1_a1.py` always writes there): copy the results up into this folder to update
+the committed ones, which the Rust embeds (`l1_rules.json` in `bc2_levelwrite::rules`, `l1_a1_params.json` in
+`bc2_levelwrite::autolayout`).
 
 1. `l1_measure.py [out.json] [levels...]`: the measurements (about 35 s for all 70 levels; under 1 GB).
 2. `l1_analyze.py`: `l1_distributions.md`.

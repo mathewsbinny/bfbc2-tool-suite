@@ -1,8 +1,21 @@
-# Map Editor: architecture plan (planning, 2026-11-16)
+# Map Editor: architecture and design record (from the plan of 2026-11-16)
 
-Planning only: nothing here is built or scheduled. This plan grows the Map Inspector into a map editor for BFBC2,
-Vietnam and Pacific War (WW2) maps. It is based on a survey of the suite and of Project OPFOR BFBC2's WW2 level
-pipeline (2026-11-16). Items marked *(inferred)* were not checked in code.
+This began as the plan (2026-11-16) to grow the Map Inspector into a map editor for BFBC2, Vietnam and Pacific War
+(WW2) maps. The editor is built (`rust/bc2-editor`, `bfbc2-editor.exe`; how to use it: [README.md](README.md)), and
+each round recorded here what it built and why, so the document now has three kinds of part:
+
+- **The design as built**, round by round: 3.1, 3.4 and 3.4a's "Built in" paragraphs, 3.6's states, 3.7's V1 and A1,
+  3.8's crates and measurements, 3.10's "Done in round" lists, 3.11 (the game-accurate view), 3.12 (the export) and
+  section 9 (what each retired GUI had and where it went in the editor).
+- **The 2026-11-16 plan as written**, kept for its reasoning; where it differs from what was built, the built
+  part wins: section 2 (what existed then: much of it has since been ported to Rust or retired, `RETIRED.md`), 3.2,
+  3.3, 3.5 and 3.9 (the Python `levelwrite.py`, `mapedit apply` and the Map Inspector's edit mode became the Rust
+  crates, `mapexport` and the editor), 4 and 5 (stage 2 and the old order of work; the live queue and the rounds done
+  are `ROADMAP.md`), and the rulings of sections 1 and 6, which still hold.
+- **Plans not built yet**: 3.10's "Later", section 7 and section 10 (the AI workspaces).
+
+Code comments cite this document by section number, so the numbering stays. Items marked *(inferred)* were not
+checked in code.
 
 ## 1. Rulings (the user, 2026-11-16)
 
@@ -20,6 +33,10 @@ pipeline (2026-11-16). Items marked *(inferred)* were not checked in code.
   planned WW2 mode of the AI tools.
 
 ## 2. What already exists to build on
+
+As surveyed on 2026-11-16, before the editor. Most of these pieces have since been ported to the Rust core or retired
+(the Python 3D view, `culltree.py`'s and `stockmp.py`'s command lines, DbxEdit: `RETIRED.md`); the installer is
+`bc2_install` and the level writer `bc2_levelwrite`.
 
 | Need | Existing piece | Gap |
 |---|---|---|
@@ -104,7 +121,7 @@ The log follows `navtune.json`'s proven pattern:
   leaves: a moved member keeps its client-tree leaf, reseated at its new place; an added one takes a deleted
   member's leaf or a new client leaf (then the exclusive tree's `EnumOffset` and every placed slot move up by as
   many); each edited group's physics is laid out again. `mapexport check` holds every group to DICE's rules.
-- **Versions** (project format 7): `version` is the writer's, `min_reader` the lowest version that reads the file
+- **Versions** (project format 7 in round SG1; 14 since round TG4, `project::VERSION`): `version` is the writer's, `min_reader` the lowest version that reads the file
   (its newest operation kind; 7 for a member delete or add); each version step has a migration
   (`project::migrate`), and the recorded projects of versions 1 - 6 (`rust/bc2-levelwrite/tests/data/projects`) must
   load (1 - 5 replay to the same partition, 6 its member move to the same member).
@@ -130,6 +147,9 @@ the pipe readers keep bare threads: a child's stdout and stderr read line by lin
 NavKit's two in `nav::start_navkit`); see rust/BENCHMARKS.md "PR1b-0" and "E4-rest2".
 
 ### 3.2 The core additions
+
+The 2026-11-16 plan, in Python terms. As built: the scene is `rust/bc2-scene`, the level writer and the map project
+`rust/bc2-levelwrite` (no `levelwrite.py`), the content profiles `bc2_levelwrite::profile` (3.12, "Round E3b").
 
 1. **Dynamic scene** (`viewer.py`): per-object transforms, so an object moves without uploading the level again,
    and add/remove of a batch. This is the largest change to the core.
@@ -218,11 +238,11 @@ into the editor's own project, undo and apply, rather than being a separate tool
   layer is proposed from the map's objectives and spawns as a starting point.
 - **Routes and connections:** patrol routes and waypoints, and links between areas: jump, climb and door
   traversals, and hand-made links. The cross-domain routes are edited here too, from NavKit's
-  `CROSS_DOMAIN_ROUTES.md`:
+  `bfbc2-auto-navkit/research/CROSS_DOMAIN_ROUTES.md`:
   - boat legs and shore links;
   - vehicle enter and exit points and seat claims;
-  - for WW2, carrier spawns, LCVP boarding and the drop, and beach exits (OPFOR
-    battlefield-opfor's `docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`).
+  - for WW2, carrier spawns, LCVP boarding and the drop, and beach exits (battlefield-opfor's knowledge base,
+    `bfo:docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`).
 - **Navmesh coverage:** the navigation layers with their islands, sectors and coverage gaps, drawn over the map.
   Coverage can be edited with walkable and unwalkable regions and seeds, NavKit regenerated from the editor, and the
   result compared with DICE's data where a stock map has it. Navigation Studio's anomaly overlay and path test
@@ -245,6 +265,10 @@ keep modern kits off them. The workspace's WW2 tools follow the WW2 bot planning
 Building them follows that planning, not ahead of it.
 
 ### 3.5 Apply: build, validate, stage
+
+The 2026-11-16 plan. As built (3.12): there is no `mapedit apply`; the build is `mapexport build` (or the editor's
+Export window), the gate `mapexport check` and the rule registry (3.7, round V1), and the install
+`bc2_install::mapedit` (`bfbc2.exe install mapedit`, round OR6), the reusable level installer this section asks for.
 
 `mapedit apply <project>` is the same command from the GUI and the CLI. The editor then streams its log and report,
 as the Navigation Studio does with `navkit apply`. The steps:
@@ -325,7 +349,7 @@ donor changed), the names of the log's `SetNames`, objects the edits moved or ma
 40 km/h sign on a level that does not draw it, vehicle spawners of one team on one spot, the partition's own
 consistency (DbxEditGUI's Level > Check: empty object-list entries, world objects without physics, objects not
 listed, dangling local references; what the base already has is DICE's and left out) - and L1's placement
-tendencies (`bc2_levelwrite::placement`: a Rust port of `l1_measure.py`, 49 rules, warnings and notes quoting the
+tendencies (`bc2_levelwrite::placement`: a Rust port of `l1_measure.py`, 50 rules, warnings and notes quoting the
 stock range; a flag with no spawn is L1-CQ-010). The editor's `validation::Live` runs it after each change (keyed by
 the document's revision; the base's own check and the donor read once) and the Problems panel (`app/problemsui.rs`)
 lists the document's own problems and the findings, errors first, with the rule's code, its message and citations on
@@ -401,8 +425,9 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
 - **Exposed to Python through PyO3.** The existing Python tools call the same Rust core, so every format has one
   implementation and Python gets its speed. This covers the WW2 converters, NavKit, stockmp-ai, the harness and the
   Map Inspector's Python side while it remains.
-- **The converter pipeline stays in Python** for now. Its hot spots are ported to the core one at a time, where a
-  profile shows the time goes. These include DBX parsing, bundle packing, texture encoding, the shader database
+- **The converter pipeline stays in Python** for now (2026-11-16; superseded by the rulings above: Project OPFOR's
+  pipeline moved to Rust in the "OPFOR in Rust" rounds OR1 on, and the Python exit PX1 - PX7 retires the rest,
+  `ROADMAP.md`). Its hot spots are ported to the core one at a time, where a profile shows the time goes. These include DBX parsing, bundle packing, texture encoding, the shader database
   merge and level builds (a WW2 level build takes about 28 minutes today).
 - **Parallelism:**
   - Loading: partitions, meshes and textures load in parallel; the window is usable while a level streams in.
@@ -503,6 +528,9 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
     `headroom`: 1-5 % each).
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
+
+The draft as written; what was built is 3.10's "Done in round" lists (the start flow is round G4's, the Problems
+panel V1's, Install / Uninstall 3.12's) and the editor's README.
 
 The editor is for a modder who has never opened a DBX file. Every step is visible, safe to try, and undoable.
 Everything the GUI does is an operation in the project log, so the CLI does it the same way.
@@ -1085,7 +1113,7 @@ his Aurora Conquest).
   - one `CombatAreaTrigger` with its polygon (`AreaGeometryEntityData` points linked by `Next`).
 
   Without such a layer, a campaign level hosted as a match stalls in session state 14 (OPFOR's SP_005 test,
-  `research/BFBC2_NAPISAL_RESEARCH.md` (private research notes) 7).
+  `private:opfor-research/research/BFBC2_NAPISAL_RESEARCH.md`, the private research notes, section 7).
 - **The level's fields.**
   - Campaign values: `HasAI` true, `StartLevelFadedToBlack`, a `SubtitleAsset`, `WaypointAnimations`,
     `PathfindingTypes`, `SpawnPointManager`, `InfantryFOVMultiplier` 0.82.
@@ -1750,8 +1778,9 @@ byte for byte but the intended changes, every check line passing; install and re
 - **Terrain writer:** done for a generated terrain (rounds E5, TG1 and TG2, `spec/transforms/terrain_gen.md`): the
   main block and the ring from new heights (`bc2_formats::terrain_codec`), the material map, a rule-layer
   VisualTerrain and the visual water from a donor's (`visual_terrain`, `water::VisualWaterFile`), the colour /
-  occlusion map (`itexture`) and the donor's shader entries cloned under the new name (`shaderdb::terrain`). Still
-  to do: tiled layers and their mask atlas tiles (E5-rest, TG4).
+  occlusion map (`itexture`) and the donor's shader entries cloned under the new name (`shaderdb::terrain`); tiled
+  layers and their mask atlas tiles since rounds E5-rest and TG4, and Create level's import and Generate since
+  E7-TG3 (3.10, "Done in round G4").
 
   The terrain-patch rule applies: the material/mask atlas layout must match the donor's, or tiled cells draw black.
 - **A new-level shell:** the level-root files (shader database collection, emitter system, atlases), the material
@@ -1765,6 +1794,9 @@ byte for byte but the intended changes, every check line passing; install and re
   have none. It is needed only for custom models, not for terrain or existing assets.
 
 ## 5. Order of work (rough)
+
+The 2026-11-16 order, with the status the early rounds wrote into it. The rounds since went by other names (G, R, E3b
+on, V, A, GR, TG ...) and are listed, with the live queue, in `ROADMAP.md`; the rows below are not kept up to date.
 
 | Step | Delivers |
 |---|---|
@@ -1809,8 +1841,8 @@ byte for byte but the intended changes, every check line passing; install and re
 
 ## 7. Still open
 
-1. **The WW2 AI mode's timing:** WW2 bots are still being planned (OPFOR
-   battlefield-opfor's `docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). WW2 maps are fully editable, including their bot side (3.4a),
+1. **The WW2 AI mode's timing:** WW2 bots are still being planned (battlefield-opfor's knowledge base,
+   `bfo:docs/plans/opfor/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). WW2 maps are fully editable, including their bot side (3.4a),
    so the editor is where that work will be done. Bots play on them once the WW2 bot runtime (the DLL side) exists.
 2. **Custom modes needing engine work:** some mode rules may need OPFOR's DLL (as Air Superiority's mode tests did).
    The mode definition format needs a way to say so, and the editor a way to report it.
@@ -1821,15 +1853,15 @@ The validation gate checks each of these, or the design avoids it.
 
 | Risk | Source |
 |---|---|
-| A level registered while its bundles are missing, or a new name not registered: the level checksum crashes at start-up | memory note new-level-registration; `wake_install.register` |
+| A level registered while its bundles are missing, or a new name not registered: the level checksum crashes at start-up | `spec/model/registration.md`; `bfo:docs/engine/bundles-registration.md`; `wake_install.register` |
 | A placement whose blueprint references resolve nowhere: null blueprint in the checksum (0x6EFCA4) | `wake_install.py` |
 | A model-group member's physics part count differs from the group's (0xAB4E58) | OPFOR DEVELOPMENT_NOTES.md (private research notes) |
 | Streaming wave data placed in a level bundle (0x49EDF4); waves hidden by deleted markers (0xFF2AC2) | `wake_install.py` |
 | A description whose GameMode does not resolve (0x74EAB3, Coral Sea) | `wake_install.py` |
-| A mesh part with no shader vertex layout; console-only shader entries; a mesh brought in without entries in the level's databases (0x98BD6E: a null program read in the draw-record builder 0x98BCE0) - the export adds them and `mapexport check` refuses a mesh without them (round XF1, 3.12; spec SHDB-LVL-1/2, RNDR-DRAW-6) | `wake_install.py`, memory note console-resource-formats |
+| A mesh part with no shader vertex layout; console-only shader entries; a mesh brought in without entries in the level's databases (0x98BD6E: a null program read in the draw-record builder 0x98BCE0) - the export adds them and `mapexport check` refuses a mesh without them (round XF1, 3.12; spec SHDB-LVL-1/2, RNDR-DRAW-6) | `wake_install.py`; `spec/transforms/console.md` (the console resource formats) |
 | A level missing from LevelListQuery: in no menu; a `_NAME` prefix mismatch: a black loading screen; a key shared by two modes: blank browser rows (2026-11-16) - the names' rules and *names agree* of `mapexport check` (round EX1, 3.12) | OPFOR research notes; commit 6f809e1 |
 | An object at cull slot 0: draws see-through and cannot be destroyed | `bfbc2-culltree` |
-| A terrain mask atlas that differs from the donor's: black terrain cells | memory note terrain-patch-donor-rules |
+| A terrain mask atlas that differs from the donor's: black terrain cells | `spec/formats/terrain.md` (TERR-VT-3, tiled and rule layers) |
 
 ## 9. Folding the older GUIs into the editor (rounds GR1 on, 2026-11-20)
 
@@ -1907,7 +1939,7 @@ browser's **Meshes** mode, then retired the page. The picture command line stays
 
 | Feature | In the editor? | Plan |
 |---|---|---|
-| An index of the game copy's bundles and every level's Dx9 shader database, cached (`work\tools_out\meshview_index.bin`; a pickle until PR1b-2-rest) | **Added in GR3**: the same index, read from the same cache (`bc2_convert::meshview::cache`: the pickle read in Rust; a stale or missing one built with `bc2_formats::meshindex` and written byte for byte as the Python writes it, under the same lock) | - |
+| An index of the game copy's bundles and every level's Dx9 shader database, cached (`work\tools_out\meshview_index.bin`; a pickle until PR1b-2-rest) | **Added in GR3**: the same index, read from the same cache (`bc2_convert::meshview::cache`; then the pickle, read in Rust, a stale or missing one built and written byte for byte as the Python wrote it, under the same lock; since round PR1b-2-rest the `.bin` index of `bc2_gamefs::meshindex`, the pickle retired) | - |
 | `find <text>`: mesh names containing a text | **Added in GR3**: the asset browser's Meshes mode (the same list as `meshview.py find`, `Index::find`); click previews, Shift+click compares | `find` stays a command line too |
 | A mesh's parts with their colour textures (`load_mesh`: layouts from the databases, the blueprint's surfaces, the colour texture by name) | **Added in GR3**: `bc2_convert::meshview::load_mesh`, identical to the Python on every recorded mesh (below) | - |
 | Orbit, pan, zoom (three.js `OrbitControls`) | **Added in GR3**: drag turns, right or middle drag moves, the wheel zooms; Perspective or orthographic; Frame resets | - |
