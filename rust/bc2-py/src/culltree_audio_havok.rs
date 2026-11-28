@@ -114,12 +114,8 @@ pub fn audio_xma_decode<'py>(
     rate: u32,
 ) -> Option<Bound<'py, PyBytes>> {
     let data = packets.as_bytes();
-    let byte_rate = rate.saturating_mul(channels as u32).saturating_mul(2);
-    let pcm = py.detach(|| {
-        bc2_xma::decode(data, channels, rate, byte_rate)
-            .ok()
-            .map(|d| bc2_xma::to_s16(&d.planar))
-    })?;
+    // the same decode as the conversions' (bc2-convert's xma feature, round XM2: `None` in a module built without it)
+    let pcm = py.detach(|| bc2_convert::wavport::decode_xma_part(data, channels, rate))?;
     let mut bytes: Vec<u8> = Vec::with_capacity(2 * pcm.len());
     for v in &pcm {
         bytes.extend_from_slice(&v.to_le_bytes());

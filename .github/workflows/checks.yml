@@ -9,6 +9,10 @@
 # read it). Estimated: native.yml's build and cargo checks take 8-15 minutes cold; the game-free quick tier ran in
 # 220 s at -j 2 on the development PC (expect about twice that on a 4-core runner); so about 20-25 minutes cold and
 # 12-15 warm. Not yet measured on GitHub.
+#
+# The mit-only job (round XM2) runs beside it: bfbc2.exe (bc2-cli, every tool group) and the module (bc2-py) built
+# with --no-default-features, so without the xma feature, built and linted with warnings as errors, and `cargo tree`
+# must list no bc2-xma (the LGPL-2.1-or-later decoder) among what they link; the default build must list it.
 name: checks
 
 on:
@@ -111,3 +115,62 @@ jobs:
           $out | ForEach-Object { "$_" } | Where-Object { $_ -match '^\s*FAIL' } | Select-Object -First 10 |
             ForEach-Object { $m = $_.Trim(); if ($m.Length -gt 900) { $m = $m.Substring(0, 900) }; Write-Output "::error title=quick tier::$m" }
           exit $code
+
+  mit-only:
+    # round XM2: the binaries without the xma feature are MIT only (README.md, "Licence")
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: rust
+    env:
+      CARGO_TERM_COLOR: never
+      CARGO_INCREMENTAL: '0'
+      CARGO_TARGET_DIR: target
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain (rust/rust-toolchain.toml)
+        run: |
+          $channel = (Select-String -Path rust-toolchain.toml -Pattern '^channel = "(.+)"').Matches[0].Groups[1].Value
+          rustup toolchain install $channel --profile minimal --component rustfmt --component clippy
+          cargo --version
+
+      - name: Cargo cache (registry and rust\target)
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0   # v2.9.3
+        with:
+          workspaces: rust -> target
+          shared-key: mit-only
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: bc2-xma only in the default build (cargo tree)
+        # the linked dependencies only (-e normal); bfbc2.exe's tool groups are its default features but xma, read
+        # from cargo metadata so a new group joins without an edit here
+        run: |
+          $cli = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages | Where-Object name -eq 'bc2-cli'
+          $groups = @($cli.features.default | Where-Object { $_ -ne 'xma' }) -join ','
+          "groups=$groups" >> $env:GITHUB_ENV
+          foreach ($g in @(@('-p', 'bc2-cli', '--no-default-features', '--features', $groups),
+                           @('-p', 'bc2-py', '--no-default-features'))) {
+            $tree = cargo tree @g -e normal --prefix none
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            if ($tree | Where-Object { $_ -match '^bc2-xma ' }) { Write-Error "bc2-xma is linked: cargo tree $g"; exit 1 }
+            Write-Output "ok   no bc2-xma: cargo tree $g"
+          }
+          foreach ($p in 'bc2-cli', 'bc2-py') {
+            $tree = cargo tree -p $p -e normal --prefix none
+            if (-not ($tree | Where-Object { $_ -match '^bc2-xma ' })) { Write-Error "the default $p does not link bc2-xma"; exit 1 }
+            Write-Output "ok   bc2-xma linked by the default $p"
+          }
+
+      - name: Build bfbc2.exe and the module without xma
+        run: cargo build -p bc2-cli -p bc2-py --no-default-features --features "bc2-cli/$($env:groups -replace ',', ',bc2-cli/')"
+
+      - name: cargo clippy -D warnings without xma
+        run: cargo clippy -p bc2-cli -p bc2-py -p bc2-convert --no-default-features --features "bc2-cli/$($env:groups -replace ',', ',bc2-cli/')" --all-targets -- -D warnings
+
+      - name: cargo test without xma (bc2-convert)
+        run: cargo test -p bc2-convert --no-default-features

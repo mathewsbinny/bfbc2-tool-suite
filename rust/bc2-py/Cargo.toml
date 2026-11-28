@@ -18,7 +18,6 @@ bc2-tools.workspace = true
 bc2-gamefs.workspace = true
 bc2-scene.workspace = true
 bc2-convert.workspace = true
-bc2-xma.workspace = true
 # navkit.py's apply edits (navapply.rs) are bc2-navbuild's graphedit feature
 bc2-navbuild = { workspace = true, features = ["graphedit"] }
 bc2-shader.workspace = true
@@ -38,6 +37,14 @@ rayon.workspace = true
 bc2-install = { workspace = true, features = ["levelbuild", "onslaught", "rebuild"] }
 serde.workspace = true
 serde_json.workspace = true
+
+# xma (round XM2): EA-XMA decoded in process by bc2-convert's xma feature (bc2-xma, LGPL-2.1-or-later). On by default:
+# the published module links it (README.md, "Licence"), and OPFOR's WW2 sound port needs it (the WW2 rebuild's
+# sounds are the Rust decoder's samples). --no-default-features builds an MIT-only module in which
+# audio_xma_decode and the EA-XMA conversions give None
+[features]
+default = ["xma"]
+xma = ["bc2-convert/xma"]
 
 [lints]
 workspace = true

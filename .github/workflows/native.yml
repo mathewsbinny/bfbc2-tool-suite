@@ -7,6 +7,10 @@
 # --download` fetches the release of its checkout's fingerprint. A fingerprint already published is not built again.
 # Only the newest release is kept: publishing one removes every older native-* release and its tag, so a checkout
 # behind main builds its module locally instead of downloading it.
+#
+# Licensing (round XM2): both binaries are built with the default xma feature, so they link rust/bc2-xma, the
+# LGPL-2.1-or-later XMA2 decoder, beside the suite's MIT code; the release notes state it and name this repository
+# as the source (README.md, "Licence").
 name: native
 
 on:
@@ -132,6 +136,12 @@ jobs:
           **Install:** run ``python rust\build_native.py --download`` from the suite folder. It downloads both
           when your checkout's Rust sources match the fingerprint above; otherwise build them locally with
           ``python rust\build_native.py``. See the README, "The Rust core".
+
+          **Licence:** both files combine the suite's MIT-licensed code with ``rust/bc2-xma``, an XMA2 decoder
+          translated from FFmpeg and licensed under the GNU Lesser General Public License 2.1 or later (the
+          default ``xma`` Cargo feature). The complete source of both, the decoder's included, is this repository
+          at commit $short ($env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY); ``rust/bc2-xma/LICENSE`` holds the LGPL's
+          text. See the README, "Licence".
 
           Only the newest build is kept as a release.
           "@

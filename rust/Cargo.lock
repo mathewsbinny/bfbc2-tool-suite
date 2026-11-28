@@ -613,7 +613,6 @@ dependencies = [
  "bc2-shader",
  "bc2-stockmp",
  "bc2-tools",
- "bc2-xma",
  "bumpalo",
  "iced-x86",
  "pyo3",

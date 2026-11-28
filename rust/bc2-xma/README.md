@@ -17,8 +17,9 @@ their copyright (Baptiste Coudurier, Benjamin Larsson, Ulion, Sascha Sommer, Lyn
 developers). It is therefore licensed under FFmpeg's licence, the **GNU Lesser General Public License, version 2.1
 or (at your option) any later version** (`license = "LGPL-2.1-or-later"` in its `Cargo.toml`; the user's choice,
 2026-11-22), not under the suite's MIT licence. The licence's text is `LICENSE` beside this file. The rest of the
-suite (MIT, the repository's `LICENSE`) links it as a library into `bc2_native` and `bfbc2.exe`; its source is this
-folder.
+suite (MIT, the repository's `LICENSE`) links it as a library into `bc2_native` and `bfbc2.exe` through the `xma`
+Cargo feature (round XM2: `bc2-convert`'s, on by default in `bc2-cli` and `bc2-py`; `--no-default-features` builds
+them MIT only); its source is this folder.
 
 FFmpeg is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
 of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details:

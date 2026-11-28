@@ -42,7 +42,8 @@ repository = "https://github.com/mathewsbinny/bfbc2-tool-suite"
 [workspace.dependencies]
 bc2-formats = { path = "bc2-formats" }
 bc2-scene = { path = "bc2-scene" }
-bc2-convert = { path = "bc2-convert" }
+# without its xma feature (the LGPL decoder): bc2-cli and bc2-py ask for it (round XM2)
+bc2-convert = { path = "bc2-convert", default-features = false }
 bc2-navbuild = { path = "bc2-navbuild" }
 bc2-shader = { path = "bc2-shader" }
 bc2-stockmp = { path = "bc2-stockmp" }

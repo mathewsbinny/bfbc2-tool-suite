@@ -21,6 +21,10 @@ queue of rounds is `ROADMAP.md`.
 5. On `main`: the **native** workflow (`.github/workflows/native.yml`) builds and publishes the prebuilt Rust module
    and `bfbc2.exe` (since round RT1) when the Rust sources (or `VERSION`) changed; `python rust\build_native.py
    --download` fetches both. The map editor and `mapexport.exe` are not published (built with `--editor`).
+   Both published binaries are built with the default `xma` feature (round XM2), so they combine the suite's MIT
+   code with `rust/bc2-xma`, the LGPL-2.1-or-later XMA2 decoder (README.md, "Licence"); the release notes say so and
+   name this repository as the source. The checks workflow proves the MIT-only build (`--no-default-features`, no
+   `bc2-xma` in `cargo tree`) on every push.
 6. Move the round to **Done** in `ROADMAP.md` with its one-line result, and add its user-visible changes to the
    **Unreleased** section of `CHANGELOG.md` (create it at the top when there is none).
 
