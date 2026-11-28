@@ -378,5 +378,5 @@ The last line shows DBX-XML-4: 1.0f prints as `1`, the same text as the integer 
   (the likely answer: a per-build string pool, cut per partition).
 - The game's limits: the largest partition, string count and depth it loads.
 - Whether the game checks a field's kind and size against its class (a float written where an int is expected),
-  or reads the bytes as its class says: the class schema (`model/types.md` TYPE-SCH-1) is not yet read from the
-  executable.
+  or reads the bytes as its class says: the class schema (`model/types.md` TYPE-SCH-1) is in the executable's type
+  registry (read by round SPG4-rest, `engine/typeinfo/`), but no check of the loader against it has been made.

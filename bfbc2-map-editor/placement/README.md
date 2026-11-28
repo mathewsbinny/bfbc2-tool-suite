@@ -6,15 +6,17 @@ level.
 
 - `L1_placement_report.md`: the method, the tendencies with their numbers, and the proposed warning rules.
 - `l1_distributions.md`: the full tables per mode and era (BFBC2, BFBC1, Vietnam; the WW2 ports separately).
-- `l1_rules.json` and `l1_rules_check.md`: the 49 proposed rules (IDs `L1-CQ-*`, `L1-RU-*`, `L1-SD-*`, `L1-AL-*`,
+- `l1_rules.json` and `l1_rules_check.md`: the 50 proposed rules (IDs `L1-CQ-*`, `L1-RU-*`, `L1-SD-*`, `L1-AL-*`,
   `L1-HT-*`) with thresholds and messages, each run against the stock levels (no stock level raises a warning).
 - `l1_a1_params.json`: a typical layout per mode, the input for the auto-layout round.
 - Round V1 checks the rules live in the map editor (`rust/bc2-levelwrite/src/placement.rs`, a Rust port of
-  `l1_measure.py`'s measurements for them, equal on every stock level; `l1_rules.json` is built into it): warnings
-  and notes in the Problems panel, each quoting the stock range (`spec/transforms/validation.md`, section 3).
+  `l1_measure.py`'s measurements for them, equal on every stock level; `l1_rules.json` is built into
+  `bc2_levelwrite::rules`, `l1_a1_params.json` into `bc2_levelwrite::autolayout`): warnings and notes in the Problems
+  panel, each quoting the stock range (`spec/transforms/validation.md`, section 3).
 - `scripts/`: the measurement and analysis scripts. They read the game copy's bundles in memory through the suite's
   readers (`OPFOR_ROOT` names the folder holding `game\`): run `l1_measure.py`, then `l1_analyze.py`, `l1_rules.py`
-  and `l1_a1.py` (about 35 s).
+  and `l1_a1.py` (about 35 s). They write their results beside themselves in `scripts\`; copy them up here to change
+  what the editor embeds (the report's section 8).
 
 The raw measurements (every level, mode and metric with the source objects' GUIDs and positions) are game-derived
 data and are not in this repository; the scripts rebuild them in `l1_measurements.json`.

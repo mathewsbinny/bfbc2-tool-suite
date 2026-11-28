@@ -1,6 +1,9 @@
 # Code quality audit, 2026-11-08 / 09
 
-Branch `quality/audit-2026-11-08` (worktree `C:\Programming\Projects\bfbc2-tool-suite-quality`), from `main` at 4218381.
+> **Archived** (round KB1s, 2026-11-28): a dated record, not current truth. Outcome and what supersedes it:
+> [README.md](README.md) in this folder.
+
+Branch `quality/audit-2026-11-08` (worktree `bfbc2-tool-suite-quality` beside the suite), from `main` at 4218381.
 Rounds 1-2 were merged into main (198f488); round 3 is on `quality/round3-2026-11-09`. Not pushed. Three rounds:
 
 - **Round 1 (2026-11-08):** audit, configuration, the first eight bugs.

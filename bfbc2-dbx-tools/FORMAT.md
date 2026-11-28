@@ -1,8 +1,8 @@
 # Binary DBX format and DbxEdit's behaviour
 
-This is the specification DbxEdit is written from. It describes Battlefield: Bad Company 2's binary `.dbx`
-files and exactly what DbxEdit outputs. The format knowledge comes from the BC2 modding community, first
-of all **Frankelstner**'s research; the description and DbxEdit's code are this project's own.
+The description DbxEdit was written from; the normative rules are now `spec/formats/dbx.md` and `spec/transforms/dbx.md`
+(this file is their evidence record, cited by line: edit it line-neutrally). Format knowledge: the BC2 modding
+community, first of all **Frankelstner**'s research; the description and DbxEdit's code are this project's own.
 
 All multi-byte header numbers are big-endian. A *varint* is an unsigned number in 7-bit groups, least
 significant group first; the high bit of each byte means "another byte follows".

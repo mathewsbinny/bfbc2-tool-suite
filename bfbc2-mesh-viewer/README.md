@@ -33,7 +33,7 @@ cache. The index's old pickle (`meshview_index.pkl`) is no longer read; the cach
 leftover one.
 
 `bin\bfbc2.exe meshview ...` (the suite's `bin\`, round O3) takes the same arguments: it answers `find` and the help
-from the index in Rust (building it when the cache is not current) and hands the drawing to the Python (the
+from the index's cache in Rust, and hands the drawing, and building an index that is missing, to the Python (the
 suite's README, "bfbc2.exe").
 
 `meshview.page()` (the page for a browser) is retired (round OR4): Project OPFOR BFBC2's WW2 tools (`attachments.py`,
@@ -41,7 +41,7 @@ suite's README, "bfbc2.exe").
 same page, its textures PNG files of the same pixels; spec XWW2-PIC-4).
 
 `tests\record_preview_parity.py` recorded this tool's answers on real meshes (digests only) for the editor's parity
-tests (`rust\bc2-editor\tests\gr3.rs`) while the tool was Python; the recording is the retired Python's (run again, it
+tests (`rust\bc2-editor\tests\asset_preview_parity.rs`, named `gr3.rs` until round PR1a) while the tool was Python; the recording is the retired Python's (run again, it
 records the Rust port).
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

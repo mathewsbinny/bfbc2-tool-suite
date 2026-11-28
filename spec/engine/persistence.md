@@ -16,26 +16,26 @@ programs that `trace.py` cannot cite, so the rules cite the module's code. Nothi
 
 Status: **observed** · Variants: PC
 
-When a player joins, the server (FUN_00865D70) creates the player's stats object (FUN_0085F7B0: every known stat at
+When a player joins, the server (0x865D70) creates the player's stats object (0x85F7B0: every known stat at
 its default; constructor 0x7E9960, 0x140F8 bytes), asks EA's stats service for the real values, and runs
 `Unlocks::compute(player, stats = null)` (0x8639D0), which grants the default items only. Offline the service never
 answers, so a stock game offline has default kits and nothing unlocked.
 
-[exe: FUN_00865D70 join; FUN_0085F7B0 stats defaults; 0x7E9960 stats constructor; 0x8639D0 Unlocks::compute]
+[exe: 0x865D70 join; 0x85F7B0 stats defaults; 0x7E9960 stats constructor; 0x8639D0 Unlocks::compute]
 [code: opfor:src/dll/persistence.cpp:1-13] [code: opfor:src/dll/persistence.cpp:47-64]
 
 ### PERS-UNLK-1: Unlocks come from kit score buckets and the rank table
 
 Status: **observed** · Variants: PC
 
-When the stats arrive (handler FUN_0086BEB0) the game copies them into the stats object and runs
+When the stats arrive (handler 0x86BEB0) the game copies them into the stats object and runs
 `Unlocks::compute(player, stats)`: 11 kit-score buckets (`sc_assault` ...; manager +0x12F8) and the rank table
 (manager +0x1324 / +0x1328, stride 0x3C: +0x24 the score threshold, +0x38 the item; an item's id at +0x40, its bit at
 +0x4C; a rank's score is the sum of the kit, award and vehicle scores) set the player's unlock bits (state +0x94 bit
 words, +0x9C count, +0xA4 changed). The unlock bits follow the order of the Unlock entries in
 `Persistence/Weapons.dbx` (rank reward u12 is bit 7, checked against the rank table at run time).
 
-[exe: FUN_0086BEB0 stats handler; Unlocks manager +0x12F8 buckets, +0x1324 / +0x1328 rank table]
+[exe: 0x86BEB0 stats handler; Unlocks manager +0x12F8 buckets, +0x1324 / +0x1328 rank table]
 [code: opfor:src/dll/persistence.cpp:60-64] [code: opfor:src/dll/persistence.cpp:248-265]
 
 ### PERS-LIC-1: Licence items are added after the computation
@@ -53,10 +53,10 @@ shortcut packs, Limited Edition, Veteran, Vietnam). Licences are account items f
 
 Status: **observed** · Variants: PC
 
-Stats finalize (FUN_0084CB90, at round end and other points) hands every changed stats object (+0x140F0) to the stats
+Stats finalize (0x84CB90, at round end and other points) hands every changed stats object (+0x140F0) to the stats
 listener (`*(0x01566B68)`, vtable slot +0x20), whose job online is the upload to EA.
 
-[exe: FUN_0084CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20]
+[exe: 0x84CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20]
 [code: opfor:src/dll/persistence.cpp:120-130]
 
 ## 2. What OPFOR's module does

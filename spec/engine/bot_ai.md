@@ -1073,7 +1073,7 @@ OPFOR writes the session's +0xC8 before state 5, or replaces the pushed argument
 
 ## Implementation interface
 
-What OPFOR's bot module (Goal 3 and 4 of `bc2-offline-skirmish-project`) must hook, call or replace. Addresses are
+What OPFOR's bot module (the bots and vehicle-AI goal, `bfo:docs/goals/bots.md`) must hook, call or replace. Addresses are
 `BFBC2Game.exe` build 795745; "hook" means OPFOR's verified-bytes detour (`src/dll/hook.cpp`), as its probes do.
 Everything here runs on the server thread (BOT-CTL-5).
 

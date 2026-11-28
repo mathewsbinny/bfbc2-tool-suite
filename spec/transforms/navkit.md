@@ -265,6 +265,7 @@ DICE's detailed sectors from the offline 0.2 m samples were measured and left of
 
 - The levels where NavKit's coverage still falls short of DICE's (KYNAPSE_SPEC.md and the parity runs); the goal is
   a full content match, not byte identity, as the parity target above sets it.
-- Offline sampling (`navsample_offline.py`) is not yet a `navkit.py` step.
+- ~~Offline sampling is not yet a `navkit.py` step~~: it is `navkit.py sample <level> --offline` on the Rust core's
+  offline sampler (`bc2_navbuild::sampler`, round NKS-deep C).
 - The game's own check that a level's path data matches its level (the runtime loads data built for another state of
   the level without an error: HPD-RT-2).

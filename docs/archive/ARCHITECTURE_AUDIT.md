@@ -1,5 +1,8 @@
 # Architecture audit, 2026-11-09
 
+> **Archived** (round KB1s, 2026-11-28): a dated record, not current truth. Outcome and what supersedes it:
+> [README.md](README.md) in this folder.
+
 Read-only audit of the suite at `main` a482659 (just after quality round 3) and of its consumer, Project OPFOR BFBC2's
 `src\tools\ww2`. Nothing in either repository was changed apart from this file. The game copy was not touched, and the
 game was not started.
@@ -394,7 +397,7 @@ OPFOR has 11 mutated module-level containers in ww2/wake_install.py (`_masked_na
 | `harness.py:55 opfor` | wrapper → navkit | |
 | `console-convert/convert.py:38 default_exe` | `OPFOR_ROOT`, `HERE/../../project-opfor-bfbc2` | `FileNotFoundError` |
 | `crash-reader/crashreader.py:44 find_exe` | `OPFOR_ROOT`, walk-up | `None` |
-| `navkit/tools/detailed.py:105` | `OPFOR_ROOT` **or the hard-coded `C:\Programming\Projects\project-opfor-bfbc2`** | |
+| `navkit/tools/detailed.py:105` | `OPFOR_ROOT` **or a hard-coded absolute `...\project-opfor-bfbc2` path** (removed in M1) | |
 | `navkit.py:102 find_tool`; `stockmp-ai/pipeline.py:35 FBRB` (fixed path); `BFBC2 Tool Suite.pyw:37`; `ww2/attachments.py:58 DBXEDIT` | toolkit executables, four ways | |
 
 - **Sibling BF1943 suite, 6 lines:**

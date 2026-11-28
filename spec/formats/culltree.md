@@ -8,8 +8,8 @@ sphere quantization, the slot numbering and what must stay consistent when objec
 
 Readers and writers: `bfbc2-culltree/culltreelib.py` and its Rust model `bc2_levelwrite::culltool` (`bfbc2.exe
 culltree`: `info`, `verify`, `add`), the map editor's export `bc2_levelwrite::culltree` (new leaves for moved and
-copied objects), and the element reader `bc2_formats::culltree::elements`. `DbxEdit check` warns about shared slots and
-`fixslots` copies slots from another layout.
+copied objects), and the element reader `bc2_formats::culltree::elements`. `bfbc2.exe dbxedit check` warns about shared slots and
+`dbxedit fixslots` copies slots from another layout.
 
 **Corpus.** "Stock trees" are the 37 tree pairs (client and exclusive) of DICE's levels in the game copy, multiplayer
 and campaign, counted by `bfbc2 culltree verify` and a corpus script (`bfbc2-culltree/README.md`); the test corpus is
