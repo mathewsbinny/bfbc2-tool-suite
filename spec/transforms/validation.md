@@ -817,7 +817,7 @@ AI-NEED-2.
 ## 3. DICE's placement tendencies (L1)
 
 Round L1 measured how DICE laid out gameplay on the 64 stock multiplayer levels of Conquest, Rush, Squad Rush and
-Squad Deathmatch (`bfbc2-map-editor/placement/L1_placement_report.md`) and proposed a rule per tendency
+Squad Deathmatch (`bfo:docs/research/suite/L1_placement_report.md`) and proposed a rule per tendency
 (`bfbc2-map-editor/placement/l1_rules.json`, an index of its own: IDs such as L1-RU-004). Round V1 checks them live
 in the editor (`bc2_levelwrite::placement`, a Rust port of `l1_measure.py`: on the 64 levels its 3,539 measurements
 the rules read are L1's to 0.1). A value outside a rule's warning band is a **warning**, one inside it but outside

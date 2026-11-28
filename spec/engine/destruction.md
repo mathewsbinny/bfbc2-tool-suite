@@ -76,7 +76,7 @@ The game reads a destructible part's material per health state: a state's mesh i
 another material than the intact one.
 
 [exe: the part material is read per health state at 0x6D84D0 (vtable+0xE0 at 0xAAED90 for the part)]
-[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:19-23]
+[doc: bfo:docs/research/opfor/MATERIAL_SLOTS_RE.md:25-29]
 
 ### DSTR-STATE-6: Object collapse settings
 
@@ -134,7 +134,7 @@ part steps to that state. A part on a material whose relations are x0 (Metal, Co
 materials) never changes state.
 
 [inferred: the part damage paths (0x722990, 0x8D6730, 0x6A19A0) read the part material and the damage relation (0x6E44A0); the health bookkeeping itself was not traced]
-[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:77-81]
+[doc: bfo:docs/research/opfor/PHYSICS_MATERIALS.md:83-87]
 
 ## 3. Destroyed meshes
 

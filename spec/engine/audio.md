@@ -23,7 +23,7 @@ audio is a `_waveDataSns_<n>` entry of a streaming bundle (WAVE-SEG-2). A conver
 must say `IsStreaming` false; one that keeps true may be silent (open).
 
 [data: DICE's data: all 75 stock waves in Wake Island's bundle and all 793 waves BFBC2 and BF1943 both ship: IsStreaming true exactly when the audio is streamed; five OPFOR-converted ambiences broke it (in-memory audio, flag true)]
-[doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:150-158]
+[doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:156-164]
 
 ### SND-WAVE-2: Streamed audio is the global streaming bundles' alone
 
@@ -34,7 +34,7 @@ game streams from itself. Voice-over waves are 44-byte stubs in the commons' `vo
 `streaming_sounds-00` (DICE streams every voice-over line, EALayer3).
 
 [data: PC loop segments: 34,038 streamed stubs, all voice-over among them (WAVE-SEG-2); SP_01's Japanese chatter: stubs in mp_common's vo/<lang> bundles, data in streaming_sounds-00]
-[doc: private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200] [doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:172]
+[doc: private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200] [doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:178]
 
 ### SND-STRM-1: Streaming wave data in a level bundle crashes the load (0x49EDF4)
 
@@ -46,7 +46,7 @@ copy sources of an export or port leave the streaming bundles out. `mapexport ch
 such an entry (round QW2).
 
 [exe: BFBC2Game.exe 0x49EDF4, the loader reading streamed wave data as a partition]
-[doc: opfor:src/tools/ww2/wake_install.py:193-197] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369]
+[doc: opfor:src/tools/ww2/wake_install.py:193-197] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1704]
 [code: rust/bc2-levelwrite/src/export.rs:2682-2687] [code: rust/bc2-levelwrite/src/export.rs:2759-2764] [test: rust/bc2-levelwrite/src/export.rs::streamed_waves_named]
 
 ### SND-OD-1: On-demand waves play only from their own bundle's partitions
@@ -87,7 +87,7 @@ this reason.
 
 [exe: BFBC2Game.exe 0xFF2AC2, client sound set-up]
 [doc: opfor:src/tools/ww2/wake_install.py:98-101] [doc: opfor:src/tools/ww2/wake_install.py:147-149]
-[code: rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369]
+[code: rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1704]
 
 ## 3. The announcer
 
@@ -115,7 +115,7 @@ copies and `nam/` trigger sets. OPFOR's WW2 levels carry their own banks (BF1943
 `vo_en`), trigger sets and an English voice-over bundle in their own folder.
 
 [code: rust/bc2-levelwrite/src/profile.rs:68-81] [test: rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1079-1087]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1269-1277]
 
 ### SND-VO-3: Voice-over blocks: absent sources, present targets
 
@@ -129,7 +129,7 @@ donor's blocks under its own name.
 
 [code: rust/bc2-levelwrite/src/export.rs:245-257] [test: rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1096-1107]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1286-1297]
 
 ### SND-VO-4: A level's own banks shadow the commons'
 
@@ -142,7 +142,7 @@ target's versions go into the level's bundle first.
 
 [code: rust/bc2-levelwrite/src/export.rs:1795-1806] [code: rust/bc2-levelwrite/src/export.rs:2836-2847]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1231-1235]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1416-1420]
 
 ### SND-VO-5: Level bundles hide other modes' trigger sets
 
@@ -152,7 +152,7 @@ Every stock level's own bundle hides the trigger sets of the other modes with de
 the Conquest levels); a mode level loads only its own mode's announcer.
 
 [data: the stock multiplayer levels' own bundles: deleted markers over other modes' trigger sets among their markers; OPFOR's mp_001 holds two Squad Deathmatch trigger sets in its Package bundle]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1089-1094]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1279-1284]
 
 ## 4. Voice-over events in the executable
 
@@ -220,7 +220,7 @@ the effects, not on the vehicle. A null field is a silent vehicle (DICE's campai
 fields null).
 
 [data: DICE's stock vehicles (the M151, the Mi-24) and BF1943's: the same fields in both games; DICE's sp_01 Type 97: three null engine fields]
-[doc: bfo:docs/research/opfor/WW2_VEHICLE_SOUNDS_AUDIT_2026-11-15.md:151-157]
+[doc: bfo:docs/research/opfor/WW2_VEHICLE_SOUNDS_AUDIT_2026-11-15.md:153-159]
 
 ## Open questions
 

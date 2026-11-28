@@ -13,7 +13,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:849-851"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1038-1040"
     }
    ],
    "file": "spec/engine/menus.md",
@@ -80,7 +80,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_MENU.md:7-10"
+     "ref": "bfo:docs/research/opfor/WW2_MENU.md:21-24"
     }
    ],
    "file": "spec/engine/menus.md",
@@ -513,6 +513,19 @@
    "id": "MENU-EVT-5",
    "status": "observed",
    "title": "No code sets an event's delay: every queued event is delivered in the frame it is sent",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the startup bundle's `Menu/shared_config.dbx` (UISharedConfigAsset: the `PersistentWeapon` and kill-message entries named), `Awards/WeaponCategories.dbx`, and the English language file's NAME_M1, KILL_MSG_M1 and ABBR_M1 texts, read with `bfbc2-menu-tools/bc2loc.py`; the HUD movies' `extern.kitWeapons` reads by `bfbc2 aptrefs`; moved from the menu tools' README in round KB2"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-WPN-1",
+   "status": "observed",
+   "title": "A weapon's name on screen comes from the shared UI config, by the weapon's Name",
    "variants": "PC"
   },
   {

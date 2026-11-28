@@ -31,7 +31,7 @@ in every stock level. Each partition holds one `World.StaticCullTreeData` instan
 
 [test: core/tests/test_spec_probes.py::level_partitions] [data: spec/probes/level.py, round SPV1 2026-11-22: DICE's 74 level partitions name both trees, each a partition of the level's own bundle holding one World.StaticCullTreeData (148); ClientTreeStaticCullTree null on 74]
 [data: 37 of 37 stock levels have both partitions and a null ClientTreeStaticCullTree]
-[doc: bfbc2-culltree/README.md:53-58]
+[doc: bfbc2-culltree/README.md:61-66]
 
 ### CULL-FLD-1: Fields
 
@@ -52,7 +52,7 @@ big-endian (`dbx.md`).
 [code: rust/bc2-levelwrite/src/culltree.rs:164-201] [code: rust/bc2-levelwrite/src/culltree.rs:454-490]
 [test: bfbc2-culltree/tests/test_culltree.py::main] [test: rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree]
 [exe: the type's field table: Right +0, Max +4, SphereKeyX..W +8..+0xE]
-[doc: bfbc2-culltree/README.md:60-66]
+[doc: bfbc2-culltree/README.md:68-74]
 
 ## 2. The node array
 
@@ -134,7 +134,7 @@ have spheres far from the object's position). Its quantized radius is always lar
 [test: core/tests/test_spec_probes.py::level_partitions] [data: spec/probes/level.py, round SPV1 2026-11-22: 516,718 of 516,718 leaves of DICE's 148 trees with W >= 4 x Max + 0.5; above 1.5 m W - ceil(4 x Max) = 0 on 84,356, 1 on 314,876]
 [data: 123,585 of 123,585 stock leaves satisfy W >= 4 x Max + 0.5; W - ceil(4 x Max) is 0 or 1 above 1.5 m]
 [data: Linux MP_008, 2,782 leaves: centre in the object's space within 0.14 m of the blueprint's median, 99 % within 0.105 m]
-[doc: bfbc2-culltree/README.md:94-105]
+[doc: bfbc2-culltree/README.md:102-113]
 
 ### CULL-SPH-3: Internal spheres
 
@@ -146,7 +146,7 @@ always writes internal spheres that contain the decoded spheres below them.
 
 [test: core/tests/test_spec_probes.py::level_partitions] [data: spec/probes/level.py, round SPV1 2026-11-22: 395,342 of 1,033,140 child spheres (38 %) stick out of their parent's decoded sphere, at most 1.10 m]
 [data: stock trees: 38 % of child spheres stick out of their parent's decoded sphere, at most 1.1 m]
-[doc: bfbc2-culltree/README.md:106-108]
+[doc: bfbc2-culltree/README.md:114-116]
 
 ### CULL-TRV-1: Traversal
 
@@ -160,7 +160,7 @@ registered, skipped) and a 16-bit value at +8 that must lie in a range the query
 every ancestor below the root passes its test, and a leaf with no object registered on it is harmless.
 
 [exe: 0x0056C4E0, with 0x0056BE40, 0x0056C820 and 0x00593700 reading the tree the same way]
-[doc: bfbc2-culltree/README.md:110-117]
+[doc: bfbc2-culltree/README.md:118-125]
 
 ## 4. Slots
 
@@ -172,7 +172,7 @@ The client tree has `EnumOffset` 0 and one leaf per member of the world's model 
 tree): each member's `SpawnDatas[].Enumeration` is its leaf index.
 
 [data: MP_008: 5,726 members, leaves 1..5,726 each once; all 37 stock pairs]
-[doc: bfbc2-culltree/README.md:75-76]
+[doc: bfbc2-culltree/README.md:83-84]
 
 ### CULL-SLOT-2: Exclusive tree and an object's slot
 
@@ -222,7 +222,7 @@ in the tree with nothing registered on them.
 [code: rust/bc2-levelwrite/src/culltree.rs:370-447] [code: rust/bc2-levelwrite/src/culltree.rs:543-597]
 [test: rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree] [test: bfbc2-culltree/tests/test_culltree.py::main]
 [test: bfbc2-culltree/tests/test_culltree_native.py::main]
-[doc: bfbc2-culltree/README.md:119-133]
+[doc: bfbc2-culltree/README.md:127-141]
 
 ### CULL-PLAT-1: Trees are per platform
 
@@ -233,7 +233,7 @@ traversal at load. PC levels keep PC trees; console objects are added to them (O
 MP_008 tree with its objects' slots).
 
 [data: one console exclusive tree installed on the PC crashed at load; the Onslaught ports run on PC / Linux-server trees]
-[doc: bfbc2-culltree/README.md:142-143]
+[doc: bfbc2-culltree/README.md:150-151]
 
 ## 6. The DBX element stream as the cull tools read it
 

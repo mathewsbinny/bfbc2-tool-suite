@@ -291,8 +291,143 @@ tags = ["docs", "tooling"]
 raised = "2026-11-22"
 score = { d = 4, t = 4, h = 16.0 }
 body = "The play-test plan steps 1-10 wait for in-game tests; statically the fire site, M-COM armed state, order issue."
-scope = "what round AIS-rest left (`spec/engine/bot_ai.md` \"Reverse engineering still needed\"; the static half was done by round SPG2-rest3): the play test when in-game tests resume (the checklist in `bot_ai.md`, \"Play-test plan for item 1\", steps 1 - 10: probes on the AI input object's slots and the soldier interface, a held-EIA write test, a seated driver, the kill probe for BOT-SCO-*, tickets and Rush lives for BOT-GS-6 / BOT-GS-8, the fire behaviour's action object), which turns BOT-CTL-2 / BOT-CTL-3 / BOT-CTL-7 verified and decides between driving DICE's AI and own decisions on DICE's body; statically still open: the combat fire site (RE item 8, narrowed to `BehaviourFire`'s action object), the M-COM's armed state (item 3), the bot's unnamed parts (item 4), the order issue 0x5A5490 and the urgency sum, who sets the proxy's seat-entry request"
+scope = "what round AIS-rest left (`bfo:docs/tasks/spec-task-notes.md` \"Bot AI\", moved from `spec/engine/bot_ai.md` \"Reverse engineering still needed\" in KB2; its nine items are this task's children AIS-rest2-RE1 - RE9; the static half was done by round SPG2-rest3): the play test when in-game tests resume (the checklist in that note, \"Play-test plan for item 1\", steps 1 - 10: probes on the AI input object's slots and the soldier interface, a held-EIA write test, a seated driver, the kill probe for BOT-SCO-*, tickets and Rush lives for BOT-GS-6 / BOT-GS-8, the fire behaviour's action object), which turns BOT-CTL-2 / BOT-CTL-3 / BOT-CTL-7 verified and decides between driving DICE's AI and own decisions on DICE's body; statically still open: the combat fire site (RE item 8, narrowed to `BehaviourFire`'s action object), the M-COM's armed state (item 3), the bot's unnamed parts (item 4), the order issue 0x5A5490 and the urgency sum, who sets the proxy's seat-entry request"
 source = "TR0; ROADMAP Queued AIS-rest2"
+
+[[task]]
+id = "ais-rest2-re1"
+code = "AIS-rest2-RE1"
+title = "The AI input object in a running game"
+lane = "hold"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["BOT-CTL-2", "BOT-CTL-3", "BOT-CTL-4", "BOT-CTL-7"]
+body = "Bot RE item 1: the play test (steps 1 - 7 of the plan) that proves BOT-CTL-2, BOT-CTL-3 and BOT-CTL-7 and decides between the two ways of BOT-CTL-4. Waits for in-game tests. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
+
+[[task]]
+id = "ais-rest2-re2"
+code = "AIS-rest2-RE2"
+title = "Bots in captures and tickets: the play-test confirmation"
+lane = "hold"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["BOT-GS-5", "BOT-GS-6", "BOT-GS-7", "BOT-GS-8"]
+body = "Bot RE item 2: settled statically (captures BOT-GS-5; tickets and Rush lives BOT-GS-6 - 8); steps 8 and 9 of the play-test plan confirm it in game. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
+
+[[task]]
+id = "ais-rest2-re3"
+code = "AIS-rest2-RE3"
+title = "The M-COM's armed and destroyed state"
+lane = "later"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["BOT-GS-8", "BOT-GS-9"]
+body = "Bot RE item 3: the M-COM's arming interaction (BOT-GS-9), its armed state and timer, and the event graph from OnInteraction to onDestroyed; static first, step 9 of the play test as the check. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
+
+[[task]]
+id = "ais-rest2-re4"
+code = "AIS-rest2-RE4"
+title = "The bot's unnamed parts"
+lane = "later"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["BOT-RT-6", "BOT-PER-4"]
+body = "Bot RE item 4: the roles of the bot object's +0x80, +0x94 and +0xA0 - +0xB0 and the senses' target record layout (BOT-PER-4); static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
+
+[[task]]
+id = "ais-rest2-re5"
+code = "AIS-rest2-RE5"
+title = "The order and squad runtime beyond IssueOrder"
+lane = "later"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["AIO-RDY-2", "BOT-RT-8"]
+body = "Bot RE item 5: the order issue (0x5A5490), how a goal list takes the order's urgency modifiers, the urgency sum and arg-max, the squad update; static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
+
+[[task]]
+id = "ais-rest2-re6"
+code = "AIS-rest2-RE6"
+title = "Who sets the seat-entry request"
+lane = "later"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["BOT-CTL-8"]
+body = "Bot RE item 6: a scan for writes of the proxy's +0x24 from DICE's AI code (BOT-CTL-8); static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
+
+[[task]]
+id = "ais-rest2-re7"
+code = "AIS-rest2-RE7"
+title = "The soldier interface's state bits"
+lane = "later"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["BOT-CTL-8"]
+body = "Bot RE item 7: name the soldier interface's state bits and input slot 16's value from the soldier's readers; static. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
+
+[[task]]
+id = "ais-rest2-re8"
+code = "AIS-rest2-RE8"
+title = "The combat fire path"
+lane = "later"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["BOT-CTL-7"]
+body = "Bot RE item 8: who stores BehaviourFire's action object (+0x10) and what its update calls; static, with step 10 of the play test naming the site. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
+
+[[task]]
+id = "ais-rest2-re9"
+code = "AIS-rest2-RE9"
+title = "Award listeners and the career save"
+lane = "later"
+repos = ["suite"]
+category = "navai"
+tags = ["re", "bots"]
+raised = "2026-11-28"
+parent = "ais-rest2"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["PERS-AWD-4", "PERS-SCORE-1"]
+body = "Bot RE item 9: the award listener classes, where a finished award is written, and why the career save drops the round's kills; static. Not part of AIS-rest2's own scope; filed under it as the bot item it was listed with. Details: bfo:docs/tasks/spec-task-notes.md, \"Bot AI\"."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md (spec/engine/bot_ai.md, \"Reverse engineering still needed\")"
 
 [[task]]
 id = "aiw"
@@ -5164,6 +5299,111 @@ source = "DEVELOPMENT_NOTES where to resume 2026-10-31"
 decisions = [
     { date = "2026-11-28", by = "the user", source = "TK0 review page (decided.json, 2026-11-28)", choice = "drop" },
 ]
+
+[[task]]
+id = "pt-eras"
+code = "PT-ERAS"
+title = "Pending playtests: eras"
+lane = "hold"
+repos = ["suite", "bfo"]
+category = "tooling"
+tags = ["playtest"]
+raised = "2026-11-28"
+parent = "ingame"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["ERA-NAT-3", "ERA-NAT-4", "ERA-NAT-5", "ERA-SITE-2", "ERA-SITE-3", "ERA-SITE-4", "ERA-UI-2", "ERA-RISK-3"]
+body = "eras.md's eight playtests: each era loading in its own era in one session, switching to eras 2 and 3 offline, the gameModChange labels, each era's table entries, the era asset's pages, the offline level list's filter, the main menu after each era, the in-process server's level list. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
+
+[[task]]
+id = "pt-eras-n"
+code = "PT-ERAS-N"
+title = "Pending playtests: N eras"
+lane = "hold"
+repos = ["suite", "bfo"]
+category = "tooling"
+tags = ["playtest"]
+raised = "2026-11-28"
+parent = "ingame"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["ERA-N-2", "ERA-N-11", "ERA-N-12", "ERA-N-13"]
+body = "eras_n.md's four playtests: a page above 3 in GameSettings.bin, gotoAndStop with an unknown label, a fifth era's frames, the server's level list with an era tag. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
+
+[[task]]
+id = "pt-gamemodes"
+code = "PT-GAMEMODES"
+title = "Pending playtests: game modes"
+lane = "hold"
+repos = ["suite", "bfo"]
+category = "tooling"
+tags = ["playtest"]
+raised = "2026-11-28"
+parent = "ingame"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["ERA-MOD-2", "ERA-OPF-1", "ERA-OPF-2", "GMD-SW-2", "GMD-CAT-1", "GMD-NEW-2"]
+body = "gamemodes.md's six playtests: the menu era after a Vietnam match, a level of another era in an era session, a Pacific level's stings, a new ModeID's squad behaviour, the mode names of Air Superiority and Onslaught, a mode reusing conquest. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
+
+[[task]]
+id = "pt-scripting"
+code = "PT-SCRIPTING"
+title = "Pending playtests: scripting"
+lane = "hold"
+repos = ["suite", "bfo"]
+category = "tooling"
+tags = ["playtest"]
+raised = "2026-11-28"
+parent = "ingame"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["SCR-CMD-2"]
+body = "scripting.md: a playtest of ChangeSetting (a level with a game setting entity) and a test start with IsMenuDevOptsEnabled forced (what DICE's debug-menu entities do). On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
+
+[[task]]
+id = "pt-settings"
+code = "PT-SETTINGS"
+title = "Pending test start: settings files"
+lane = "hold"
+repos = ["suite", "bfo"]
+category = "tooling"
+tags = ["playtest"]
+raised = "2026-11-28"
+parent = "ingame"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["SET-BIN-1"]
+body = "settings.md: a test start with copies of the files: what the renderer does with SelectedRenderer_None, and what a damaged GameSettings.bin does. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
+
+[[task]]
+id = "pt-squads"
+code = "PT-SQUADS"
+title = "Pending playtest: squad spawning"
+lane = "hold"
+repos = ["suite", "bfo"]
+category = "tooling"
+tags = ["playtest"]
+raised = "2026-11-28"
+parent = "ingame"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["SQD-PLAY-2"]
+body = "squads.md: spawning on a mate prone on a ledge, in a full vehicle, outside the combat area, and twice in a row. On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
+
+[[task]]
+id = "pt-vegetation"
+code = "PT-VEGETATION"
+title = "Pending playtests: vegetation"
+lane = "hold"
+repos = ["suite", "bfo"]
+category = "tooling"
+tags = ["playtest"]
+raised = "2026-11-28"
+parent = "ingame"
+kb = ["docs/tasks/spec-task-notes.md"]
+spec = ["VEG-UG-8", "VEG-UG-11", "SET-CLI-1"]
+body = "vegetation.md: a settings dump for the engine's default UndergrowthWindSpeed and UndergrowthMaxHeight, and a test start setting the engine settings from the command line (SET-CLI-1, VEG-UG-8). On hold with the in-game tests (paused 2026-11-20). Details: bfo:docs/tasks/spec-task-notes.md."
+source = "KB2 (2026-11-28): moved from the spec chapter to bfo:docs/tasks/spec-task-notes.md"
 
 [[task]]
 id = "px1"

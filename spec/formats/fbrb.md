@@ -334,7 +334,7 @@ comments; older manifests without the size column still pack while size2 holds) 
 then pack gives the original bytes for every bundle FbrbTool wrote and for DICE's padded layouts, and the same header
 and payload for DICE's zipped bundles (only the gzip members' bytes differ, FBRB-HDR-4).
 
-Evidence: [code: rust/bc2-tools/src/fbrbtool.rs:893-910] [code: rust/bc2-formats/src/fbrb/pack.rs:726] [test: rust/bc2-formats/src/fbrb/pack.rs::manifest_tokens] [test: rust/bc2-formats/src/fbrb/pack.rs::numbers_as_dotnet_parses_them] [test: rust/bc2-tools/src/unpack.rs::unpacks_and_packs_back] [test: core/tests/test_fbrb.py::roundtrip] [test: core/tests/test_fbrb_pack_native.py::run_bundles] [doc: bfbc2-fbrb-tool/README.md:25-41]
+Evidence: [code: rust/bc2-tools/src/fbrbtool.rs:893-910] [code: rust/bc2-formats/src/fbrb/pack.rs:726] [test: rust/bc2-formats/src/fbrb/pack.rs::manifest_tokens] [test: rust/bc2-formats/src/fbrb/pack.rs::numbers_as_dotnet_parses_them] [test: rust/bc2-tools/src/unpack.rs::unpacks_and_packs_back] [test: core/tests/test_fbrb.py::roundtrip] [test: core/tests/test_fbrb_pack_native.py::run_bundles] [doc: bfbc2-fbrb-tool/README.md:29-45]
 
 ### FBRB-MAN-2: Writing a bundle
 

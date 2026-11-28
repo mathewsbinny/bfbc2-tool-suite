@@ -237,7 +237,7 @@ vertex stream (not a vertex-texture fetch), only `outdoorLightShadowTransform0` 
 samplers (33 BF1943 patch entries need 17 - 22), and the shadow map is a hardware comparison texture.
 
 [data: OPFOR's Dx9 survey of Wake Island's Dx9_Single.res, 2026-11-15: 1,723 VS, 4,668 PS, 27,397 programs; the differences as listed]
-[doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:28-62]
+[doc: bfo:docs/plans/opfor/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:30-64]
 
 ### XSH-DX-2: Each Dx database needs its own textures collected
 
