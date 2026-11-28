@@ -3,16 +3,16 @@
 Interoperability specification written from reverse engineering (see `..\README.md` for the
 clean-room rules). Sources: the user's own game files (`Output\win32\ai\levels\<level>\{infantry,
 vehicle}\pathdata.hpd`, 25 campaign files; byte-identical on Xbox 360), Napisal's MP files, and the
-behaviour of the generator code in BFBC2Game.exe build 795745 (Project OPFOR BFBC2
-`research\BFBC2_DECOMP_RESEARCH.md` (private research notes) §9), observed only at its boundary with DICE's engine code, plus
+behaviour of the generator code in BFBC2Game.exe build 795745 (the private research notes,
+`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` §9), observed only at its boundary with DICE's engine code, plus
 in-game collision samples taken through the engine's own physics queries. Status 2026-10-14: file
 format complete (§4, byte-exact rewrite); builder stages described (§3.1–3.2); walkability rules
 measured against DICE's data (§3.3–3.7 – the sections record the investigation in order, §3.7 holds
 the current rules and results); mesh/graph generation rules (outlines, areas, portals, graph) still
-to be implemented and checked. **Status 2026-10-26:** the generator (`tools\navbuild.py`) implements the rules
-recorded here on all 15 levels with DICE path data (parity in `..\README.md`); D lines and F cells (§4.5) and the
-vehicle file (§2.2) are generated; what the runtime needs from the file is in §4.5. The sections keep the order
-in which things were found.
+to be implemented and checked. **Status 2026-10-26:** the generator (`tools\navbuild.py`, the Rust core's since NK5)
+implements the rules here on all 15 levels with DICE path data (parity in `..\README.md`); D / F (§4.5) and the vehicle
+file (§2.2) are generated. **Since 2026-11:** the rules are normative in the suite's spec (`spec/formats/hpd.md`,
+`kynapse.md`, `spec/transforms/kynapse_generation.md`, `navkit.md`), which cite this record by line: edit it line-neutral.
 
 ## 1. Where the data is used
 
@@ -25,7 +25,7 @@ in which things were found.
 ## 2. Build settings (inputs)
 
 Shipped as `PathfindingSettings` / `PathfindingZoneSettings` / `PathfindingType` (values in
-`BFBC2_DECOMP_RESEARCH.md` (private research notes) §9). Infantry: StepMax 0.28, StepLength 0.36, HoleMax 0.28, slope 40°,
+`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` §9). Infantry: StepMax 0.28, StepLength 0.36, HoleMax 0.28, slope 40°,
 Pitch 0.8, GraphAccuracy 3, NbSectors 32, EdgeRadius 0.41, EntityHeight 1.9, entity radius 0.4,
 swept-sphere collision, detailed zones at Pitch 0.2. Vehicle: StepMax 0.4, HoleMax 0.75, slope
 25–40°, Pitch 1, GraphAccuracy 15, NbSectors 64, EdgeRadius 2.51, EntityHeight 4, radius 2.5,
@@ -70,7 +70,7 @@ cylinder collision.
   76.6, lowest vehicle route node 78.9 (infantry file: areas down to 74.7, wading depth). So the boats run on the
   vehicle AI's generic behaviour with no routes. Whether they travel anywhere, and which pathfinding type the vehicle
   driver asks for in a boat, is open: a run-time probe (position, speed, route requests of the AI boats) and a short
-  targeted look at the driver's route request answer it. Approach for a water mesh: battlefield-opfor's `docs/plans/opfor/STOCK_MP_AI_PLAN.md`
+  targeted look at the driver's route request answer it. Approach for a water mesh: battlefield-opfor's `bfo:docs/plans/opfor/STOCK_MP_AI_PLAN.md`
   section 11.
 
 ### 2.2 Vehicle path data measured, and NavKit's vehicle generator (2026-10-26)
@@ -126,13 +126,13 @@ level XML. "Inferred" marks what the data fits but does not prove.
   splines are roads (some splines shape terrain or rivers: NavKit seeds sectors DICE left empty, e.g. sp_01
   (200, -560)); ground DICE keeps that neither spawns nor splines reach (sp_007 20 %, sp_03).
 
-NavKit's generator (`tools\navvehicle.py`, README "Vehicle path data") implements these rules; parity per level
+NavKit's generator (`tools\navvehicle.py` on the Rust stage, README "Vehicle path data") implements these rules; parity per level
 there.
 
 ## 3. Build pipeline – behaviour of the original generator
 
 Behavioural description for a re-implementation. Sources: the stage names, settings and engine
-callbacks seen in BFBC2Game.exe (Project OPFOR BFBC2 `research\BFBC2_DECOMP_RESEARCH.md` (private research notes) §9), the partial
+callbacks seen in BFBC2Game.exe (`private:opfor-research/research/BFBC2_DECOMP_RESEARCH.md` §9), the partial
 run of the original tool on SP_009 (stages 1–2 completed), and rules measured on the output (all
 campaign files; "measured" = verified statistically, "inferred" = consistent with the data but not
 proven).
