@@ -1,4 +1,19 @@
-# Rust core: baseline timings
+# Measurements and proofs, round by round
+
+This file holds measurements and proofs only: timings, parity runs, oracle results and what a round left. It has
+one section per round, headed `## <round code>: <subject> (<date>, branch ...)`. Sections are in the order they were
+written, not sorted by date. A new round appends its section at the end and names it in its task's `benchmarks`
+field in `tasks/registry.toml`. The registry is the index of which round has which section, and `ROADMAP.md`'s Done
+list links each section from its round's line. The older sections are in `BENCHMARKS_ARCHIVE_1.md`; the spec
+cites that file by line, so edit it line-neutrally. Other records live elsewhere:
+- what a round changed for users: `CHANGELOG.md`;
+- its status and dates: the registry;
+- how it was done: its commit messages.
+
+A section does not repeat any of them. (The file was "Rust core: baseline timings" until round TK0: E0's first
+measurement, below, is still its opening section.)
+
+## E0: the DBX reader in Python and in Rust (2026-11-16)
 
 Milestone E0 (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.8, "measured, not assumed"): the DBX reader in Python
 (`core/bfbc2core/dbx.py`) and in Rust (`rust/bc2-formats`), on the same files on the same machine.
