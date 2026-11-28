@@ -595,6 +595,31 @@
    "evidence": [
     {
      "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:970-1012"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shadercmd.rs:789-835"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs::a_base_with_programs_no_entry_owns_merges_without_them"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR13, 2026-11-27: ONS_MP_004's stage 7 input (opfor-soldiers-orig, 1,901 entries, 24,011 programs) merged with the nine donors gives 20,538,511 bytes identical to the user's installed Dx9_Single.res and to the merge of the clean base (.opfor-shaders-orig, 23,979 programs)"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-MRG-1",
+   "status": "verified",
+   "title": "A merge leaves out the base's programs no entry group owns",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
      "ref": "rust/bc2-render/src/material.rs:203-307"
     },
     {

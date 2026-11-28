@@ -226,7 +226,11 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_port.py:75-93"
+     "ref": "rust/bc2-install/src/onslaught/driver.rs:14-31"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/driver.rs:64-120"
     },
     {
      "kind": "doc",
@@ -466,7 +470,11 @@
     },
     {
      "kind": "data",
-     "ref": "round OR10, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's, the merged databases among them; on ONS_MP_004 both sides refuse the Dx9 merge alike (32 programs in no entry group: the shared Rust merger, an open question below)"
+     "ref": "round OR10, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's, the merged databases among them; on ONS_MP_004 both sides refused the Dx9 merge alike (32 programs in no entry group)"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR13, 2026-11-27: with SHDB-MRG-1, ONS_MP_004's stages 5 - 7 succeed on both sides, the merged Dx9 database byte for byte the user's installed one"
     }
    ],
    "file": "spec/transforms/console.md",
@@ -672,6 +680,138 @@
    "status": "verified",
    "title": "The HUD stage gives the retired Python's work files; its movie edits in process",
    "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/icons.rs:589-772"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/icons.rs:793-832"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_icons.py:55-75"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/icons.rs::references_name_the_partition"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/icons.rs::chains_in_order"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR13, 2026-11-27: ons_mp_002's --plan and --apply on the user's installed bundles and the gate over every registered level, every work and game file of the Rust stage identical to the Python's (the preview by its pixels)"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-14",
+   "status": "verified",
+   "title": "The icons stage gives the retired Python's work files; the preview's encoding",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/audit.rs:299-373"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/audit.rs:476-599"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/audit.rs:902-1040"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/audit.rs::a_mesh_set_that_does_not_parse_is_a_gap_not_a_pass"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/audit.rs::instances_surfaces_and_known_gaps"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR13, 2026-11-27: the user's four levels, the report and every work file identical to the Python's but the decided DxDx9"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-15",
+   "status": "verified",
+   "title": "The shader audit gives the retired Python's report",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/driver.rs:64-140"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_port.py:57-86"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/driver.rs::stages_per_level_and_restart"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/driver.rs::napisals_blocks_go"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR13, 2026-11-27: 5,282 runs (5 levels, 11 restarts, the options, three ledger states, built or not, backup or not, two package.mft texts) recorded alike to the retired driver's"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-16",
+   "status": "verified",
+   "title": "The driver's plan is the retired Python's",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/sectoroff.rs:74-108"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/napisal.rs:210-255"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/squads.rs:89-169"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/sectoroff.rs::guids_entries_and_agreement"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/napisal.rs::templates_spawners_and_counts"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/squads.rs::positions_and_lines"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR13, 2026-11-27: Napisal's ONS_MP_002 / 004 / 005GR from the user's backup, sector offsets then the AI template then the squads, 73,106 of 73,106 work and game files identical to the Python's; ONS_MP_004's and ONS_MP_005GR's bundles also the user's October install byte for byte"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-17",
+   "status": "verified",
+   "title": "The Napisal-level fixes give the retired Python's work files",
+   "variants": "PC"
   }
  ]
 }

@@ -235,7 +235,7 @@ without `work\backups\napisal_ons_*`. ONS_MP_005GR exists only as Napisal's.
 [code: opfor:import_onslaught.bat:42-103]
 [code: opfor:src/tools/onslaught/console_port.py:75-76]
 [code: opfor:src/tools/onslaught/apply_ai_template.py:14-16]
-[test: opfor:src/tools/tests/test_onslaught_qa.py::test_ai_template_plan_follows_the_bundle]
+[test: rust/bc2-install/src/onslaught/napisal.rs::templates_spawners_and_counts]
 
 ## Open questions
 

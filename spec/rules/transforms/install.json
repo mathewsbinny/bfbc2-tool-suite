@@ -301,7 +301,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_common.py:351-400"
+     "ref": "opfor:src/tools/onslaught/console_common.py:339-396"
     },
     {
      "kind": "test",
