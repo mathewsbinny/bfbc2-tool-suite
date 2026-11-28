@@ -1,0 +1,11 @@
+# Archived documents
+
+Dated records of finished audits and scans. They are kept as they were written, apart from an "Archived" note at the top of each and the removal of personal paths. They are not current truth. Current truth is the code, `spec/` and the documents listed in `../README.md`.
+
+| Document | Date and state audited | What it was | Outcome |
+|---|---|---|---|
+| [QUALITY_AUDIT.md](QUALITY_AUDIT.md) | 2026-11-08 / 09, `main` 4218381 | A code-quality audit in three rounds: bugs, ruff, implicit state, typing, tests and scores, plus architecture step M1 | Every finding was fixed or decided in its own rounds 1-3, and M1 (one path finder, `core/bfbc2core/paths.py`) was merged. The ruff and mypy checks it set up are the suite's quick-tier and CI checks today. |
+| [ARCHITECTURE_AUDIT.md](ARCHITECTURE_AUDIT.md) | 2026-11-09, `main` a482659 | The Python import graph, complexity, duplicate implementations and the logic in OPFOR that belonged in the suite, with an 11-step migration plan (M1-M11, section 8.3) | **Done:** M1, and M6 / M8 for dbxport and effectport (Stage 1 rewrite).<br>**Overtaken by the Rust port:** the other steps were not carried out as written. The Rust port replaced the modules they would have reshaped: the DBX codecs and editing layer (M10) are `bc2_formats::dbx` / `dbxedit`, the mesh index (M3) is `bc2_gamefs::meshindex`, NavKit's library (M4, M5) is `bc2_navbuild` (NK1-NK6), and OPFOR's sound port (M9) is `bc2_convert::soundport`. Those rounds were E3-E4, F, NK, PR1 and OR0-OR16.<br>**Still open:** the Python that is left and what retires it are in `PYTHON_STATUS.md`. |
+| [DEEP_SCAN_2026-11-15.md](DEEP_SCAN_2026-11-15.md) | 2026-11-15, `main` 9104618 | A read-only deep scan with scores (overall 6.4 / 10), confirmed findings C1-C10 and suspected findings S1-S6 | C1-C10 and S2-S6 were fixed the same day (`tests/test_deep_scan_fixes.py`). S1, navbuild's module-global state, went with the Python build: NavKit builds in Rust since NK5. The architecture items it carried are the row above. The workspace-wide scan of round JS0 (2026-11-27) is the later one. |
+
+Code comments and `DESIGN.md` still cite these documents by name and section, for example "ARCHITECTURE_AUDIT 4.4". Those names are unchanged, so the citations resolve here.
