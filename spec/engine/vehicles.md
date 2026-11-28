@@ -131,7 +131,7 @@ the last `HealthStates` entry and compares its `Health` with the float 100000. B
 100000; OPFOR sets it to 99999 so the scripted release can destroy it.
 
 [exe: BFBC2Game.exe ServerStaticModelEntity event handler 0x714C90 (Destroy hash 0xEFA23F67) calls 0x70F400; predicate 0x7A7EF0 compares the final HealthStates entry with 100000.0 at 0x1423798; Destroy skips such parts at 0x70F528]
-[doc: bfo:docs/research/opfor/WAKE_FOLLOWUP_FIXES_2026-11-11.md:37-39]
+[doc: bfo:docs/research/opfor/WAKE_FOLLOWUP_FIXES_2026-11-11.md:40-42]
 
 ## 4. Seats and input
 
@@ -297,7 +297,7 @@ identity matrices the Sherman's turret and wheels sat inside the hull; with part
 propeller drew at the plane's origin.
 
 [code: opfor:src/tools/ww2/wake_preview.py:407-420]
-[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:174-180]
+[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:179-185]
 
 ### VEH-CON-1: The Mark V boat is console-only
 

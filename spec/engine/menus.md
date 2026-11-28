@@ -64,7 +64,7 @@ to the next node) crashed the menu unload at 0x13046DA (the Pacific War `main_na
 movie patcher attaches a frames node only when it adds frames.
 
 [exe: BFBC2Game.exe movie unload 0x1304690, fault at 0x13046DA (the first Pacific War menu install, 2026-11-06)]
-[code: bfbc2-menu-tools/aptgraft.py:1094-1104] [doc: bfo:docs/research/opfor/WW2_MENU.md:15-18]
+[code: bfbc2-menu-tools/aptgraft.py:1094-1104] [doc: bfo:docs/research/opfor/WW2_MENU.md:21-24]
 
 ## The action script DICE ships
 

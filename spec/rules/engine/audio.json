@@ -9,7 +9,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:152-160"
+     "ref": "bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:156-164"
     }
    ],
    "file": "spec/engine/audio.md",
@@ -30,7 +30,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:174"
+     "ref": "bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:178"
     }
    ],
    "file": "spec/engine/audio.md",

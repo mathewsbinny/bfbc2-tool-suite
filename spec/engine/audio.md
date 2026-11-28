@@ -23,7 +23,7 @@ audio is a `_waveDataSns_<n>` entry of a streaming bundle (WAVE-SEG-2). A conver
 must say `IsStreaming` false; one that keeps true may be silent (open).
 
 [data: DICE's data: all 75 stock waves in Wake Island's bundle and all 793 waves BFBC2 and BF1943 both ship: IsStreaming true exactly when the audio is streamed; five OPFOR-converted ambiences broke it (in-memory audio, flag true)]
-[doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:152-160]
+[doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:156-164]
 
 ### SND-WAVE-2: Streamed audio is the global streaming bundles' alone
 
@@ -34,7 +34,7 @@ game streams from itself. Voice-over waves are 44-byte stubs in the commons' `vo
 `streaming_sounds-00` (DICE streams every voice-over line, EALayer3).
 
 [data: PC loop segments: 34,038 streamed stubs, all voice-over among them (WAVE-SEG-2); SP_01's Japanese chatter: stubs in mp_common's vo/<lang> bundles, data in streaming_sounds-00]
-[doc: private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200] [doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:174]
+[doc: private:opfor-research/research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200] [doc: bfo:docs/research/opfor/WW2_SHADER_AUDIO_AUDIT.md:178]
 
 ### SND-STRM-1: Streaming wave data in a level bundle crashes the load (0x49EDF4)
 

@@ -34,7 +34,7 @@ loader and in-game bundles. A level's description picks one by its `GameMode` re
 entities (GAME-LAYER-2). Vietnam's `GameModes/NamConquest` is `conquest` / `CONQUEST` with Vietnam's HUD root.
 
 [data: stock gamemodes/conquest and gamemodes/namconquest partitions; the WW2 levels' descriptions (GameMode gamemodes/namconquest, MatchmakingModID PACIFIC)]
-[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:196-221]
+[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:201-226]
 
 ### GAME-MODE-2: Each era's modes
 
@@ -70,7 +70,7 @@ a new mode (OPFOR's Onslaught) keeps `CONQUEST` and changes only its `ModeID`.
 
 [exe: BFBC2Game.exe 0x5680C0 maps MatchmakingQueryID to the stats category]
 [data: OPFOR's Onslaught with the console's ONSLAUGHT query id kept no score or stats (play test 2026-10-29)]
-[doc: rust/bc2-install/src/onslaught/mode.rs:35-43] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:246-248]
+[doc: rust/bc2-install/src/onslaught/mode.rs:35-43] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:251-253]
 
 ### GAME-MODE-5: The UI tests ModeID against "conquest"
 
@@ -81,7 +81,7 @@ with another `ModeID` gets neither unless that comparison is answered for it (OP
 `onslaught`).
 
 [exe: BFBC2Game.exe literal at 0x0142ABD8, compared at 9 sites (8 through 0x92AB10, one on the description's mode): GMD-SW-1]
-[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:249-252]
+[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:254-257]
 
 ### GAME-MODE-6: The game mod is BC2 or VIETNAM
 
@@ -96,7 +96,7 @@ unchanged.
 
 [exe: BFBC2Game.exe parser 0x8FF330; setter 0x75FCB0; level-load writers 0x775D0A (HUD start) and 0x77332C (loading screen); HUD icon set 0x775D02 -> 0xF9C9E0; icon lookup 0xF88510]
 [data: Wake Island before OPFOR's parser hook: every icon id looked up as 0 and the flag pass drew no diamonds; stock Atacama unchanged]
-[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:19-60] [doc: bfo:docs/research/opfor/QA_SWEEP_2026-11-14.md:60]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:25-66] [doc: bfo:docs/research/opfor/QA_SWEEP_2026-11-14.md:60]
 
 ### GAME-MODE-7: The offline level list is filtered by MatchmakingModID
 
@@ -107,7 +107,7 @@ current game mod's tag (`BC2` for mod 0, `VIETNAM` for 1, empty otherwise: an em
 attribute is the level's mod string, `BC2` when empty.
 
 [exe: BFBC2Game.exe multiplayerMaps builder 0x9421F0 (compare at 0x942247 via 0x508440); server 0x865087 in 0x864E50]
-[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:88-94]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:94-100]
 
 ### GAME-MODE-8: Modes the suite does not offer for export
 
@@ -282,7 +282,7 @@ raised); every PC Conquest flag has 0. The console's Onslaught rule "the defende
 carry over as data. Why: the update skips a point whose progress belongs to the named team (ONS-CAP-3).
 
 [data: Onslaught play tests 2026-10-29 on PC: a flag with 1 was lowered but not raised by the attackers; with A 0 and B 2, A was captured and B not; every PC Conquest flag 0]
-[doc: rust/bc2-install/src/onslaught/mode.rs:9-11] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:244-245]
+[doc: rust/bc2-install/src/onslaught/mode.rs:9-11] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:249-250]
 
 ### GAME-CQ-9: Objectives are not on hill tops
 
@@ -361,7 +361,7 @@ A Conquest team starts with 200 tickets (24 of 32 teams; 250 on 6, 350 on 2) and
 level. BF1943's ports: 130 and 4 per minute; Coral Sea (Air Superiority) 100 and 4. L1 warning rule: L1-CQ-016.
 
 [data: L1: 32 DICE Conquest ticket counters; WW2 3 levels; Coral Sea's two counters]
-[doc: bfo:docs/research/suite/L1_placement_report.md:62-63] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:88-101]
+[doc: bfo:docs/research/suite/L1_placement_report.md:62-63] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:93-106]
 
 ### GAME-TKT-2: The ticket counter's bleed fields
 
@@ -376,7 +376,7 @@ server counter's code, BOT-GS-6, which also gives the bleed's formula).
 
 [data: Atacama Conquest, Wake Island (BF1943) and Coral Sea counters compared field by field]
 [exe: BFBC2Game.exe: TicketCountPercentage {VOEvent +0, TicketLossPerMin +4, MaxPercentOfTicketsLeft +8}, TicketCounterEntityData.TicketPercentages at +0x84]
-[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:88-107] [doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:24-28]
+[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:93-112] [doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:24-28]
 
 ### GAME-TKT-3: A counter at zero ends the round on the server
 
@@ -389,7 +389,7 @@ after a delay) and `OnReachZero` disables player spawning; Conquest has no timer
 
 [exe: BFBC2Game.exe 0x67E3F0 (calls 0x67E53A, 0x67E5AC), reached from 0x6805B0 and 0x548324]
 [data: Coral Sea's and BF1943's Conquest event graphs: the same end chain]
-[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:67-68] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:108-117]
+[doc: private:opfor-research/research/WW2_VO_EVENTS_RE_2026-11-14.md:67-68] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:113-122]
 
 ### GAME-TKT-4: Ticket percentages raise their own voice-over
 
@@ -648,7 +648,7 @@ suite treats the spawner's own transform as an anchor, not a spawn place (it cou
 No stock BFBC2 level fills a spawner's `Vehicle` array (spawning into a vehicle).
 
 [data: L1: 441 spawners; Squad Deathmatch spawners stacked 2.5 m apart while their alternatives spread over the map]
-[doc: bfo:docs/research/suite/L1_placement_report.md:191-196] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:235-238]
+[doc: bfo:docs/research/suite/L1_placement_report.md:191-196] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:240-243]
 
 ### GAME-SPAWN-2: Spawners check for enemies within 20 m
 
@@ -718,7 +718,7 @@ many levels; its role is not known), `AllowedVehicles` (DICE uses it for the UAV
 `InitalSpeed` (DICE's spelling) and the deserter fields.
 
 [data: L1: every combat area of the 70 levels read and rasterised; SurroundingGeometry on mp_005 410,000 m2 against 356,000]
-[doc: bfo:docs/research/suite/L1_placement_report.md:145] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:239-243]
+[doc: bfo:docs/research/suite/L1_placement_report.md:145] [doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:244-248]
 
 ### GAME-AREA-2: Conquest areas and spawn protection
 
@@ -773,7 +773,7 @@ inside the zone is not settled.
 
 [exe: BFBC2Game.exe CapturePointEntityData field table 0x01C25870 (40 fields); ServerCapturePointEntity type info 0x1BF2E88]
 [data: Coral Sea's partition against BFBC2's class catalogue]
-[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:213-234]
+[doc: bfo:docs/research/opfor/AIR_SUPERIORITY_RE_2026-11-14.md:218-239]
 
 ## Open questions
 

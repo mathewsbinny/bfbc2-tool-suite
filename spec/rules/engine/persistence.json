@@ -140,7 +140,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:174-183"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:179-188"
     }
    ],
    "file": "spec/engine/persistence.md",
@@ -208,7 +208,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:193-215"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:198-220"
     }
    ],
    "file": "spec/engine/persistence.md",
@@ -242,7 +242,7 @@
    "evidence": [
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:274-294"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:279-299"
     },
     {
      "kind": "data",
@@ -356,7 +356,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:375-381"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:380-386"
     }
    ],
    "file": "spec/engine/persistence.md",
@@ -415,7 +415,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:133-152"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:138-157"
     }
    ],
    "file": "spec/engine/persistence.md",
@@ -449,7 +449,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:66-67"
+     "ref": "bfo:docs/research/opfor/WW2_AWARDS_COMPARISON_2026-11-15.md:71-72"
     }
    ],
    "file": "spec/engine/persistence.md",

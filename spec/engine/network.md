@@ -140,7 +140,7 @@ levels whose `MatchmakingModID` is the current game mod's tag (GAME-MODE-7), and
 list.
 
 [exe: BFBC2Game.exe multiplayerMaps builder 0x9421F0 (tag compare at 0x942247 against record+0x30)]
-[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:90] [doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:292]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:96] [doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:298]
 
 ## 4. The transports
 

@@ -422,7 +422,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:14-28"
+     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:19-33"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -442,7 +442,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:30-33"
+     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:35-38"
     }
    ],
    "file": "spec/engine/materials.md",
@@ -837,7 +837,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:41-57"
+     "ref": "bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:46-62"
     }
    ],
    "file": "spec/engine/materials.md",

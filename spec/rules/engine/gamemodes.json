@@ -216,7 +216,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:63-101"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:69-107"
     }
    ],
    "file": "spec/engine/gamemodes.md",
@@ -381,7 +381,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:261-315"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:267-321"
     }
    ],
    "file": "spec/engine/gamemodes.md",
@@ -398,7 +398,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:129-178"
+     "ref": "bfo:docs/research/opfor/WW2_THIRD_MODE.md:135-184"
     }
    ],
    "file": "spec/engine/gamemodes.md",

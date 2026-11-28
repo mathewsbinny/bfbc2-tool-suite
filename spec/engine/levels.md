@@ -73,7 +73,7 @@ Island, installed from NAM_MP_002CQ's description, was `VIETNAM` until OPFOR cha
 exports take the target era's donor's (XEXP-PRE-2).
 
 [data: descriptions measured: Vietnam's levels MatchmakingModID VIETNAM, Licenses nam, KickIfLicenseMissing true, KIT_*_NAM; BFBC2's levels MatchmakingModID BC2 and no licence]
-[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:102-107] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1207-1213]
+[doc: bfo:docs/research/opfor/WW2_THIRD_MODE.md:108-113] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1207-1213]
 
 ### LVL-DESC-2: The loading picture is found by the name key
 

@@ -354,7 +354,7 @@ are painted, but as separate layers, not into the colour map.)
 
 [data: spec/probes/materials.py, 2026-11-22: of 74 DICE Dx11 shader databases, texture_DirtMask in 69, texture_DirtMask2 54, texture_MaterialMask 48, texture_MaterialMask2 47, DirtColor and DirtFactor 36, DirtColor2 10, DirtFactor2 6, texture_OcclusionTexture 74]
 [data: spec/probes/grime.py, 2026-11-22: (entry, slot) bindings over the distinct entries: DirtMaskRGB in texture_DirtMask* 84 and in texture_Texture<N> 310; Dt_Dirt_001 in texture_Layer2_Detail2 372, texture_Layer1_Detail2 171, texture_Texture<N> 136; DirtMap_01 in texture_Texture<N> 394, DirtMap_01_C 360; the per-vehicle dirt maps BMD3_Dirt, Cav_dirt, Cobra_dirt, M1A2_Dirt, M3Bradley_Dirt, T90_dirt, Truck_Dirt, Vodnik_Dirt only in texture_Texture<N> (or a register the pixel shader does not read)]
-[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:14-28]
+[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:19-33]
 
 ### MAT-TEX-3: OcRGB maps: occlusion in red, blend masks in green and blue
 
@@ -367,7 +367,7 @@ extra texture-coordinate sets. The green channel is thus a material mask, not oc
 
 [inferred: OPFOR's channel study of three DICE OcRGB maps (detail_layers.py --masks) and the textures those props' shader entries list; the shaders' channel reads were not disassembled]
 [doc: opfor:src/tools/ww2/detail_layers.py:12-15]
-[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:30-33]
+[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:35-38]
 
 ### MAT-TEX-4: Camouflage is a texture, not a parameter
 
@@ -637,7 +637,7 @@ ports do not have (MAT-TEX-3).
 [code: opfor:src/tools/ww2/detail_layers.py:45-66]
 [code: opfor:src/tools/ww2/detail_layers.py:96-135]
 [doc: opfor:src/tools/ww2/detail_layers.py:1-25]
-[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:41-57]
+[doc: bfo:docs/research/opfor/WW2_VISUAL_PARITY.md:46-62]
 
 ### MAT-TEX-20: Dirt builds up while a vehicle moves over a dirt-trigger material
 
