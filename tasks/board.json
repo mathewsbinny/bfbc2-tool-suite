@@ -202,6 +202,27 @@
 "version": ""
 },
 {
+"category": "editor",
+"code": "AE1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ae1",
+"lane": "later",
+"note": "An editor workspace: the game copy's bundles read-only beside a mod project's overrides, Copy to project and Restore original, export / import to common formats (PNG, DDS, WAV, BIK) through the existing bc2_formats / bc2-convert code and the audio decoders, texture / video / audio preview; installs through the ledger. From the BFBC2 Toolkit's Data / Mod Explorer split (REF1 idea 1); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 16.0,
+"t": 4
+},
+"tags": [],
+"title": "Resource workbench: browse, preview, export and import any bundle resource",
+"version": ""
+},
+{
 "category": "navai",
 "code": "AI-FORCEAI",
 "contention": false,
@@ -2707,7 +2728,7 @@
 "depends": [],
 "id": "dl1",
 "lane": "next",
-"note": "xenolith's apps/xenolith/src/theme.rs reads only 19 colour tokens, uses egui's default fonts instead of Plex, and its token mapping breaks the rules (inputs on ground, all text ink, control borders line, pressed = accent, window border, 4px corners, inactive tabs); the bfo opfor-launcher and opfor-apt hub hold hand-copied Dark constants (no Light theme, no Plex, literal sizes, four era accents #3ba6a8 #d96b27 #e0a82e #f07b19 to become real tokens, one near `selection`); opfor-setup has its own palette; the map editor: 10.5px history timestamps, literal sizes / radii, 2-4px start-screen icon strokes against the 1.5px rule, Light not following the system setting, no reduced motion; the editor's shipped Plex TTFs registered in tokens.json type.fonts and the design-system artifact",
+"note": "xenolith's apps/xenolith/src/theme.rs reads only 19 colour tokens, uses egui's default fonts instead of Plex, and its token mapping breaks the rules (inputs on ground, all text ink, control borders line, pressed = accent, window border, 4px corners, inactive tabs); the bfo opfor-launcher and opfor-apt hub hold hand-copied Dark constants (no Light theme, no Plex, literal sizes, four era accents #3ba6a8 #d96b27 #e0a82e #f07b19 to become real tokens, one near `selection`); opfor-setup has its own palette; the map editor: 10.5px history timestamps, literal sizes / radii, 2-4px start-screen icon strokes against the 1.5px rule, Light not following the system setting, no reduced motion; the editor's shipped Plex TTFs registered in tokens.json type.fonts and the design-system artifact REF1 additions: a visible interface-size setting (Ctrl +/- in View and the palette, saved) in the editor and xenolith; reword the bfo hub's 'OPTION B MODULES' heading.",
 "onRoadmap": true,
 "repo": "suite · bfo · xenolith",
 "score": {
@@ -4918,6 +4939,27 @@
 "editor"
 ],
 "title": "The multi-game plan around the GameProfile design (MOH 2010, BFBC1, BF3, MOH WF, BF4), and the suite's rename decided",
+"version": ""
+},
+{
+"category": "release",
+"code": "MM-PKG1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "mm-pkg1",
+"lane": "later",
+"note": "One solution that finds and resolves conflicts across third-party mod packages AND the map editor's exports: every colliding bundle, resource, level registration (package.mft / bundleManifest) and file listed by owner, refused by default with a chosen winner recorded (today bfo's merged_text silently keeps the first, opfor-vfs manifest.rs:218-226); a module zip whose manifest.toml adds version / author / link / image, installed and removed through the ledger; a user load order (Up / Down, Apply / Reset); bundleManifest merged per era like package.mft. From the Mod Loader (REF1 idea 2); folds MM1-rest's bfo half; our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "bfo · suite",
+"score": {
+"d": 4,
+"h": 16.0,
+"t": 4
+},
+"tags": [],
+"title": "Conflict resolution for mod packages and editor exports; third-party packages and a load order",
 "version": ""
 },
 {
@@ -7736,6 +7778,27 @@
 "version": ""
 },
 {
+"category": "editor",
+"code": "OV-SPL1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "ov-spl1",
+"lane": "later",
+"note": "A read-only view overlay of every spline and plane by type; SPL1's first step (REF1 idea 3); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 2,
+"h": 4,
+"t": 3
+},
+"tags": [],
+"title": "Draw DICE's terrain splines, rivers, shores and lakes in the editor's views",
+"version": ""
+},
+{
 "category": "tooling",
 "code": "P1",
 "contention": false,
@@ -8639,6 +8702,27 @@
 "version": ""
 },
 {
+"category": "editor",
+"code": "QT1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "qt1",
+"lane": "later",
+"note": "Typed fields for post-processing per channel, sun angles / size / colour, minimap and HUD placement, camera distance and FOV; each change one project-log operation, previewed in the game-accurate view; only values the level's data holds. From the Toolkit's Customizer (REF1 idea 4); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 3,
+"h": 4.8,
+"t": 3
+},
+"tags": [],
+"title": "Level look panel: typed forms for post-processing, sun, minimap / HUD and camera",
+"version": ""
+},
+{
 "category": "docs",
 "code": "QUICKSTART",
 "contention": false,
@@ -8944,7 +9028,7 @@
 "depends": [],
 "id": "rd1",
 "lane": "later",
-"note": "End of the queue, after E5-rest; Catmull-Rom / Bezier, baked to the road blocks.",
+"note": "End of the queue, after E5-rest; Catmull-Rom / Bezier, baked to the road blocks. REF1: roads on DICE's TerrainSplineData / PlaneData (Road type, per-point Left / RightEdge, Segments, UserMasks, Start / EndIndex, AttachedStart / End for junctions); shipped Road planes in the proof if SPL-PROBE1 finds any; through SPL1.",
 "onRoadmap": true,
 "repo": "suite",
 "score": {
@@ -8994,6 +9078,27 @@
 },
 "tags": [],
 "title": "The old community tools read for ideas: FBOneTools and the Unity BC2 map editor, and their UI against ours",
+"version": ""
+},
+{
+"category": "formats",
+"code": "REG-PROBE1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "reg-probe1",
+"lane": "hold",
+"note": "The Mod Loader pre-registered 10 community levels whether or not installed; test a fully absent registered level against a half-present one on a scratch copy (CSUM-CHK-2's open condition). In game, so on hold",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 2,
+"h": 1.5,
+"t": 2
+},
+"tags": [],
+"title": "Registered but absent level bundles: does start-up really crash?",
 "version": ""
 },
 {
@@ -9364,6 +9469,27 @@
 "version": ""
 },
 {
+"category": "release",
+"code": "SETUP-R1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "setup-r1",
+"lane": "later",
+"note": "The hub: a mod tracker listing every installed module and mod with its state, per-module toggles through the ledger, an all-off state shown in words, the 'OPTION B MODULES' heading reworded. Setup: Verify / Repair and Uninstall (on bfbc2 mods verify / restore-original), path checks before Start (opfor-setup main.rs:174-175 skips a missing ISO / XBLA silently), and the list of files it will write. Themed per DL1 (REF1 idea 5); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": false,
+"repo": "bfo",
+"score": {
+"d": 3,
+"h": 4.8,
+"t": 3
+},
+"tags": [],
+"title": "Hub mod tracker with toggles and visible mod state; Setup repair and uninstall",
+"version": ""
+},
+{
 "category": "editor",
 "code": "SG1",
 "contention": false,
@@ -9689,6 +9815,48 @@
 ],
 "title": "What round SPG4 left, static only",
 "version": "0.29.0"
+},
+{
+"category": "terrain",
+"code": "SPL-PROBE1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "spl-probe1",
+"lane": "later",
+"note": "Count the 1,372 planes by type; compare each Lake polygon (Start / EndIndex respected) with the visual water's open-water triangles (WATER-VIS-4 / -6); record shipped Road planes. A probe for SPL1, TG-rest and RD1",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 2,
+"h": 1.5,
+"t": 2
+},
+"tags": [],
+"title": "Terrain spline planes: PlaneType census and lake / road geometry against DICE's water",
+"version": ""
+},
+{
+"category": "editor",
+"code": "SPL1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "spl1",
+"lane": "later",
+"note": "Overlays first (OV-SPL1: each spline polyline and plane by type, lake fill, river / shore bands from Left / RightEdge, labels; new view-* tokens 3.5:1 on terrain and water), then editing on DICE's own classes (TerrainSplineData / PlaneData: Road / River / FillConvex / FilledInner / Lake, per-point Left / RightEdge, Segments, UserMasks, Start / EndIndex, AttachedStart / End, InnerSpline holes) with export in DICE's form; lakes triangulated with holes, self-intersections refused with a message, water written in the WATER-VIS-6 form on the lake slot. Builds on SPL-PROBE1; serves RD1 and TG-rest; our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original",
+"onRoadmap": true,
+"repo": "suite",
+"score": {
+"d": 4,
+"h": 16.0,
+"t": 4
+},
+"tags": [],
+"title": "Spline tool: draw, edit and export DICE terrain splines (roads, rivers, shores, lakes)",
+"version": ""
 },
 {
 "category": "docs",
@@ -10085,6 +10253,27 @@
 "version": ""
 },
 {
+"category": "formats",
+"code": "TERR-BC1",
+"contention": false,
+"date": "2026-11-28",
+"decided": false,
+"depends": [],
+"id": "terr-bc1",
+"lane": "later",
+"note": "REF1 P1-P5: TERR-HF-13 (BFBC1 0x29 / 0x2D / 0x31 headers, 512 x 512, from xenolith bfbc1/terrain.rs; verified on a twin proof from the BFBC1 ISO); 512 in TERR-HF-1 plus the question whether BFBC2 takes a 512 block; XCONS-DET-1 (platform from the source, refuse when both byte orders pass); the size-floor open question; the PS3 scope line; the TEX-FMT-1 community-names note",
+"onRoadmap": true,
+"repo": "suite · xenolith",
+"score": {
+"d": 2,
+"h": 1.5,
+"t": 2
+},
+"tags": [],
+"title": "BFBC1 height-field headers and 512-sample tiles in the spec; console platform detection",
+"version": ""
+},
+{
 "category": "tooling",
 "code": "TESTRUN",
 "contention": false,
@@ -10114,7 +10303,7 @@
 "depends": [],
 "id": "tg-rest",
 "lane": "later",
-"note": "Shores and partial water bodies (TGEN-WATER-1), the bright shallow sea floor, temperate's ridged / terraced option, jungle's slope percentile, multi-ring terrains, generated terrain shown in the views before export, WW2 bases.",
+"note": "Shores and partial water bodies (TGEN-WATER-1), the bright shallow sea floor, temperate's ridged / terraced option, jungle's slope percentile, multi-ring terrains, generated terrain shown in the views before export, WW2 bases. REF1: lakes from spline polygons after SPL-PROBE1 (holes for InnerSpline, self-intersections refused with a message, WATER-VIS-6 vertices, a WaterMesh with the same triangles on the lake slot, ground lowered inside plus a band; shore strips later); through SPL1.",
 "onRoadmap": true,
 "repo": "suite",
 "score": {

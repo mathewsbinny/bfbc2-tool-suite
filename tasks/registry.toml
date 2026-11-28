@@ -225,6 +225,18 @@ scope = "after A2 and NK5, once real path data exists (the user, 2026-11-22): pr
 source = "TR0; ROADMAP Queued A3"
 
 [[task]]
+id = "ae1"
+code = "AE1"
+title = "Resource workbench: browse, preview, export and import any bundle resource"
+lane = "later"
+repos = ["suite"]
+category = "editor"
+raised = "2026-11-28"
+score = { d = 4, t = 4, h = 16.0 }
+body = "An editor workspace: the game copy's bundles read-only beside a mod project's overrides, Copy to project and Restore original, export / import to common formats (PNG, DDS, WAV, BIK) through the existing bc2_formats / bc2-convert code and the audio decoders, texture / video / audio preview; installs through the ledger. From the BFBC2 Toolkit's Data / Mod Explorer split (REF1 idea 1); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original"
+source = "the user, 2026-11-28 (after REF1)"
+
+[[task]]
 id = "ai-forceai"
 code = "AI-FORCEAI"
 title = "[dev] force_ai and AI diagnostics"
@@ -1810,7 +1822,7 @@ category = "tooling"
 tags = ["design"]
 raised = "2026-11-28"
 score = { d = 2, t = 3, h = 4.0 }
-body = "xenolith's apps/xenolith/src/theme.rs reads only 19 colour tokens, uses egui's default fonts instead of Plex, and its token mapping breaks the rules (inputs on ground, all text ink, control borders line, pressed = accent, window border, 4px corners, inactive tabs); the bfo opfor-launcher and opfor-apt hub hold hand-copied Dark constants (no Light theme, no Plex, literal sizes, four era accents #3ba6a8 #d96b27 #e0a82e #f07b19 to become real tokens, one near `selection`); opfor-setup has its own palette; the map editor: 10.5px history timestamps, literal sizes / radii, 2-4px start-screen icon strokes against the 1.5px rule, Light not following the system setting, no reduced motion; the editor's shipped Plex TTFs registered in tokens.json type.fonts and the design-system artifact"
+body = "xenolith's apps/xenolith/src/theme.rs reads only 19 colour tokens, uses egui's default fonts instead of Plex, and its token mapping breaks the rules (inputs on ground, all text ink, control borders line, pressed = accent, window border, 4px corners, inactive tabs); the bfo opfor-launcher and opfor-apt hub hold hand-copied Dark constants (no Light theme, no Plex, literal sizes, four era accents #3ba6a8 #d96b27 #e0a82e #f07b19 to become real tokens, one near `selection`); opfor-setup has its own palette; the map editor: 10.5px history timestamps, literal sizes / radii, 2-4px start-screen icon strokes against the 1.5px rule, Light not following the system setting, no reduced motion; the editor's shipped Plex TTFs registered in tokens.json type.fonts and the design-system artifact REF1 additions: a visible interface-size setting (Ctrl +/- in View and the palette, saved) in the editor and xenolith; reword the bfo hub's 'OPTION B MODULES' heading."
 source = "the user, 2026-11-28 (queued by the coordinator); the design language sync of 2026-11-28 (its README's code against the token list)"
 
 [[task]]
@@ -3233,6 +3245,18 @@ source = "TR0; ROADMAP Queued MG0; memory multi-game-goal; bfo docs/architecture
 decisions = [
     { date = "2026-11-28", by = "the user", source = "TK0 review page (decided.json, 2026-11-28)", choice = "rewrite MG0 around the GameProfile design and decide the rename" },
 ]
+
+[[task]]
+id = "mm-pkg1"
+code = "MM-PKG1"
+title = "Conflict resolution for mod packages and editor exports; third-party packages and a load order"
+lane = "later"
+repos = ["bfo", "suite"]
+category = "release"
+raised = "2026-11-28"
+score = { d = 4, t = 4, h = 16.0 }
+body = "One solution that finds and resolves conflicts across third-party mod packages AND the map editor's exports: every colliding bundle, resource, level registration (package.mft / bundleManifest) and file listed by owner, refused by default with a chosen winner recorded (today bfo's merged_text silently keeps the first, opfor-vfs manifest.rs:218-226); a module zip whose manifest.toml adds version / author / link / image, installed and removed through the ledger; a user load order (Up / Down, Apply / Reset); bundleManifest merged per era like package.mft. From the Mod Loader (REF1 idea 2); folds MM1-rest's bfo half; our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original"
+source = "the user, 2026-11-28 (after REF1)"
 
 [[task]]
 id = "mm1"
@@ -5037,6 +5061,18 @@ body = "Past sign-in and license to the tutorial, local-host chain mapped, Quick
 source = "operation-rising-sun bundle 7f619aa, 191341c, 12c53f2"
 
 [[task]]
+id = "ov-spl1"
+code = "OV-SPL1"
+title = "Draw DICE's terrain splines, rivers, shores and lakes in the editor's views"
+lane = "later"
+repos = ["suite"]
+category = "editor"
+raised = "2026-11-28"
+score = { d = 2, t = 3, h = 4 }
+body = "A read-only view overlay of every spline and plane by type; SPL1's first step (REF1 idea 3); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original"
+source = "the user, 2026-11-28 (after REF1)"
+
+[[task]]
 id = "p1"
 code = "P1"
 title = "ROADMAP.md, CHANGELOG.md, VERSION 0.9.0"
@@ -5642,6 +5678,18 @@ body = "From the LV decision to keep quick match; new-screen work (MC0 option 3)
 source = "TR0; memory console-menu-offline-ruling; session"
 
 [[task]]
+id = "qt1"
+code = "QT1"
+title = "Level look panel: typed forms for post-processing, sun, minimap / HUD and camera"
+lane = "later"
+repos = ["suite"]
+category = "editor"
+raised = "2026-11-28"
+score = { d = 3, t = 3, h = 4.8 }
+body = "Typed fields for post-processing per channel, sun angles / size / colour, minimap and HUD placement, camera distance and FOV; each change one project-log operation, previewed in the game-accurate view; only values the level's data holds. From the Toolkit's Customizer (REF1 idea 4); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original"
+source = "the user, 2026-11-28 (after REF1)"
+
+[[task]]
 id = "quickstart"
 code = "QUICKSTART"
 title = "A beginner QUICKSTART covering every tool"
@@ -5853,7 +5901,7 @@ repos = ["suite"]
 category = "terrain"
 raised = "2026-11-23"
 score = { d = 3, t = 3, h = 4.8 }
-body = "End of the queue, after E5-rest; Catmull-Rom / Bezier, baked to the road blocks."
+body = "End of the queue, after E5-rest; Catmull-Rom / Bezier, baked to the road blocks. REF1: roads on DICE's TerrainSplineData / PlaneData (Road type, per-point Left / RightEdge, Segments, UserMasks, Start / EndIndex, AttachedStart / End for junctions); shipped Road planes in the proof if SPL-PROBE1 finds any; through SPL1."
 scope = "end of the queue (the user, 2026-11-23); after E5-rest, whose paint and sculpt layers it uses: a road / track drawing tool in the map editor for asphalt, dirt, gravel and tyre-track roads. **Drawing:** straight segments (a polyline with optional corner rounding at a set radius), Catmull-Rom splines through the clicked points (centripetal by default; uniform and chordal as options), and cubic Bezier - any Catmull-Rom or polyline road converts exactly to Bezier segments with editable handles (uniform: P1 + (P2 - P0) / 6 and P2 - (P3 - P1) / 6; the centripetal / chordal forms from each segment's own parameter spacing); Bezier back to Catmull-Rom only while the handles still match; the kinds mix along one road with continuous joins. The project keeps the curve (points, kind, handles), never only the bake. **Bake:** strips sampled by arc length (density independent of the drawing), conformed to the ground, written to both road blocks of the visual terrain (DECAL-STRIP-1, TERR-VT-2) with a donor road strip's shader entries of the strip vertex layout (DECAL-STRIP-2), a width, a road type from DICE's own road strips in the content set, and a layer 0 - 7 for overlaps. **Ground:** optional flatten / smooth along the road through E5's sculpt layer, the matching physics material painted under it (E5's material map), undergrowth cleared by the mask (VEG-UG-5), the road reaching NavKit's road cost (BOT-MOV-4: RoadCostModifier 0.5). **Edits:** re-bake on every sculpt, undo / redo and point move (DECAL-STRIP-3: nothing re-bakes in game). **Export:** the terrain bundle, read back by a new XVAL rule. **Proof:** Catmull-Rom and its Bezier conversion agree point for point and round-trip unchanged; arc-length sampling stable in the point count; DICE's own roads re-baked from splines fitted to their strips and compared with DICE's strips; the look in game once in-game tests resume"
 source = "TR0; ROADMAP Queued RD1"
 
@@ -5881,6 +5929,18 @@ started = "2026-11-28"
 score = { d = 2, t = 2, h = 1.5 }
 body = "File Porter's console-to-PC rules diffed against the console-converter spec; the spline-plane lake method for TGEN-WATER-1 and RD1; the Mod Loader's flow for MM1-rest and Setup; a scored UI comparison with ours. Read-only, no code copied (GPL-3 / unlicensed); report in _rounds/ref1"
 source = "the user, 2026-11-28"
+
+[[task]]
+id = "reg-probe1"
+code = "REG-PROBE1"
+title = "Registered but absent level bundles: does start-up really crash?"
+lane = "hold"
+repos = ["suite"]
+category = "formats"
+raised = "2026-11-28"
+score = { d = 2, t = 2, h = 1.5 }
+body = "The Mod Loader pre-registered 10 community levels whether or not installed; test a fully absent registered level against a half-present one on a scratch copy (CSUM-CHK-2's open condition). In game, so on hold"
+source = "REF1 report (_rounds/ref1/REPORT.md)"
 
 [[task]]
 id = "release"
@@ -6126,6 +6186,18 @@ decisions = [
 ]
 
 [[task]]
+id = "setup-r1"
+code = "SETUP-R1"
+title = "Hub mod tracker with toggles and visible mod state; Setup repair and uninstall"
+lane = "later"
+repos = ["bfo"]
+category = "release"
+raised = "2026-11-28"
+score = { d = 3, t = 3, h = 4.8 }
+body = "The hub: a mod tracker listing every installed module and mod with its state, per-module toggles through the ledger, an all-off state shown in words, the 'OPTION B MODULES' heading reworded. Setup: Verify / Repair and Uninstall (on bfbc2 mods verify / restore-original), path checks before Start (opfor-setup main.rs:174-175 skips a missing ISO / XBLA silently), and the list of files it will write. Themed per DL1 (REF1 idea 5); our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original"
+source = "the user, 2026-11-28 (after REF1)"
+
+[[task]]
 id = "sg1"
 code = "SG1"
 title = "Static group members editable"
@@ -6359,6 +6431,30 @@ version = "0.29.0"
 benchmarks = ["SPG4-rest"]
 body = "What round SPG4 left, static only (done, the rest queued as SPG4-rest2): every one of the executable's 1,900 typeinfo records named with its layout - parent, size, own members and run-time offsets, enumeration numbers - in ..."
 source = "ROADMAP Done (Process and specification); TR0 group SPEC"
+
+[[task]]
+id = "spl-probe1"
+code = "SPL-PROBE1"
+title = "Terrain spline planes: PlaneType census and lake / road geometry against DICE's water"
+lane = "later"
+repos = ["suite"]
+category = "terrain"
+raised = "2026-11-28"
+score = { d = 2, t = 2, h = 1.5 }
+body = "Count the 1,372 planes by type; compare each Lake polygon (Start / EndIndex respected) with the visual water's open-water triangles (WATER-VIS-4 / -6); record shipped Road planes. A probe for SPL1, TG-rest and RD1"
+source = "REF1 report (_rounds/ref1/REPORT.md)"
+
+[[task]]
+id = "spl1"
+code = "SPL1"
+title = "Spline tool: draw, edit and export DICE terrain splines (roads, rivers, shores, lakes)"
+lane = "later"
+repos = ["suite"]
+category = "editor"
+raised = "2026-11-28"
+score = { d = 4, t = 4, h = 16.0 }
+body = "Overlays first (OV-SPL1: each spline polyline and plane by type, lake fill, river / shore bands from Left / RightEdge, labels; new view-* tokens 3.5:1 on terrain and water), then editing on DICE's own classes (TerrainSplineData / PlaneData: Road / River / FillConvex / FilledInner / Lake, per-point Left / RightEdge, Segments, UserMasks, Start / EndIndex, AttachedStart / End, InnerSpline holes) with export in DICE's form; lakes triangulated with holes, self-intersections refused with a message, water written in the WATER-VIS-6 form on the lake slot. Builds on SPL-PROBE1; serves RD1 and TG-rest; our own design, better than the reference, never its implementation (the user, 2026-11-28): the design notes record where it improves on the original"
+source = "the user, 2026-11-28 (after REF1)"
 
 [[task]]
 id = "split1"
@@ -6616,6 +6712,18 @@ body = "RELEASING.md tags every released version; v0.9.0 to v0.24.0 are tagged, 
 source = "TK0 (git tag against CHANGELOG.md)"
 
 [[task]]
+id = "terr-bc1"
+code = "TERR-BC1"
+title = "BFBC1 height-field headers and 512-sample tiles in the spec; console platform detection"
+lane = "later"
+repos = ["suite", "xenolith"]
+category = "formats"
+raised = "2026-11-28"
+score = { d = 2, t = 2, h = 1.5 }
+body = "REF1 P1-P5: TERR-HF-13 (BFBC1 0x29 / 0x2D / 0x31 headers, 512 x 512, from xenolith bfbc1/terrain.rs; verified on a twin proof from the BFBC1 ISO); 512 in TERR-HF-1 plus the question whether BFBC2 takes a 512 block; XCONS-DET-1 (platform from the source, refuse when both byte orders pass); the size-floor open question; the PS3 scope line; the TEX-FMT-1 community-names note"
+source = "REF1 report (_rounds/ref1/REPORT.md)"
+
+[[task]]
 id = "testrun"
 code = "TESTRUN"
 title = "testrun.bat level test"
@@ -6637,7 +6745,7 @@ category = "terrain"
 tags = ["pacific", "editor", "formats"]
 raised = "2026-11-27"
 score = { d = 3, t = 3, h = 4.8 }
-body = "Shores and partial water bodies (TGEN-WATER-1), the bright shallow sea floor, temperate's ridged / terraced option, jungle's slope percentile, multi-ring terrains, generated terrain shown in the views before export, WW2 bases."
+body = "Shores and partial water bodies (TGEN-WATER-1), the bright shallow sea floor, temperate's ridged / terraced option, jungle's slope percentile, multi-ring terrains, generated terrain shown in the views before export, WW2 bases. REF1: lakes from spline polygons after SPL-PROBE1 (holes for InnerSpline, self-intersections refused with a message, WATER-VIS-6 vertices, a WaterMesh with the same triangles on the lake slot, ground lowered inside plus a band; shore strips later); through SPL1."
 source = "TR0; BENCHMARKS TG1, TG2, TG4, E7-TG3 Left"
 
 [[task]]
